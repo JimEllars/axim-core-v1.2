@@ -1,0 +1,150 @@
+import React from 'react';
+import { motion } from 'framer-motion';
+import * as FiIcons from 'react-icons/fi';
+import SafeIcon from '../../common/SafeIcon';
+import { useMetrics } from '../../hooks/useMetrics';
+
+const { FiUsers, FiTrendingUp, FiActivity, FiDatabase, FiAlertTriangle, FiZap } = FiIcons;
+
+const MetricsGrid = () => {
+  const { metrics, loading, error } = useMetrics();
+
+  // Guard clause to prevent rendering with null data
+  if (loading || !metrics) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div key={index} className="glass-effect rounded-xl p-6">
+            <div data-testid="loading-skeleton" className="animate-pulse flex flex-col">
+              <div className="h-12 w-12 bg-onyx-950 rounded-lg mb-4"></div>
+              <div className="h-4 bg-onyx-950 rounded w-3/4 mb-2"></div>
+              <div className="h-8 bg-onyx-950 rounded w-1/2"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const getContactChangeText = () => {
+    if (metrics.contactChange === null) {
+      return 'N/A';
+    }
+    if (metrics.contactChange > 0) {
+      return `+${metrics.contactChange.toFixed(1)}%`;
+    }
+    return `${metrics.contactChange.toFixed(1)}%`;
+  };
+
+  const metricCards = [
+    {
+      title: 'Total Contacts',
+      value: metrics.totalContacts.toLocaleString(),
+      icon: FiUsers,
+      color: 'from-blue-500 to-blue-600',
+      change: getContactChangeText(),
+      changeColor: metrics.contactChange === null ? 'text-slate-300' : (metrics.contactChange >= 0 ? 'text-green-400' : 'text-red-400'),
+      tooltip: 'Total number of contacts in the system.'
+    },
+    {
+      title: 'New Today',
+      value: metrics.newToday.toLocaleString(),
+      icon: FiTrendingUp,
+      color: 'from-green-500 to-green-600',
+      change: `+${metrics.newToday.toLocaleString()}`,
+      changeColor: 'text-green-400',
+      tooltip: 'Number of new contacts added today.'
+    },
+    {
+      title: 'Active Users',
+      value: metrics.activeUsers.toLocaleString(),
+      icon: FiUsers,
+      color: 'from-teal-500 to-teal-600',
+      change: 'Last 24h',
+      changeColor: 'text-slate-300',
+      tooltip: 'Number of unique users active in the last 24 hours.'
+    },
+    {
+      title: 'Total System Events',
+      value: metrics.activeEvents.toLocaleString(),
+      icon: FiActivity,
+      color: 'from-purple-500 to-purple-600',
+      change: 'Live',
+      changeColor: 'text-slate-300',
+      tooltip: 'Total number of system events logged.'
+    },
+    {
+      title: 'Total AI Interactions',
+      value: metrics.aiInteractions.toLocaleString(),
+      icon: FiDatabase,
+      color: 'from-orange-500 to-orange-600',
+      change: 'Onyx Active',
+      changeColor: 'text-slate-300',
+      tooltip: 'Total number of AI interactions via Onyx.'
+    },
+    {
+      title: 'Workflows Triggered',
+      value: metrics.workflowsTriggered.toLocaleString(),
+      icon: FiZap,
+      color: 'from-yellow-500 to-yellow-600',
+      change: 'Automation',
+      changeColor: 'text-slate-300',
+      tooltip: 'Total number of workflows triggered.'
+    }
+  ];
+
+  if (error) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <div className="col-span-full glass-effect rounded-xl p-6 flex items-center justify-center text-red-400">
+          <SafeIcon icon={FiAlertTriangle} className="mr-2" />
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+      {metricCards.map((metric, index) => (
+        <motion.div
+          key={metric.title}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: index * 0.1 }}
+          className="glass-effect rounded-xl p-6 hover:bg-white/10 transition-all duration-300 relative group"
+        >
+          {/* Tooltip */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full mb-2 hidden group-hover:block z-10 w-48 p-2 bg-onyx-950 border border-onyx-accent/20 text-slate-300 text-xs rounded shadow-xl text-center">
+            {metric.tooltip}
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-2 h-2 bg-onyx-950 border-r border-b border-onyx-accent/20 transform rotate-45"></div>
+          </div>
+
+          <div className="flex items-center justify-between mb-4">
+            <div className={`w-12 h-12 bg-gradient-to-r ${metric.color} rounded-lg flex items-center justify-center shadow-lg`}>
+              <SafeIcon icon={metric.icon} className="text-white text-xl" />
+            </div>
+            <span className={`text-xs ${metric.changeColor} font-medium bg-onyx-950/50 px-2 py-1 rounded-full`}>
+              {metric.change}
+            </span>
+          </div>
+          
+          <div>
+            <h3 className="text-slate-400 text-sm font-medium mb-1">
+              {metric.title}
+            </h3>
+            <div className="text-2xl font-bold text-white tracking-tight">
+              {loading ? (
+                <div data-testid="loading-skeleton" className="animate-pulse bg-onyx-950 h-8 w-16 rounded"></div>
+              ) : (
+                metric.value
+              )}
+            </div>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  );
+};
+
+export default MetricsGrid;

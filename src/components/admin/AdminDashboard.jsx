@@ -1,0 +1,73 @@
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { useAuth } from '../../contexts/AuthContext';
+import SafeIcon from '../../common/SafeIcon';
+import * as FiIcons from 'react-icons/fi';
+import WorkflowExecutionLog from './WorkflowExecutionLog';
+import ApiKeyManager from './ApiKeyManager';
+import UserManagement from './UserManagement';
+import BillingPortal from './BillingPortal';
+import KPIOverview from './KPIOverview';
+import WorkflowBuilder from './WorkflowBuilder';
+import MemoryBank from './MemoryBank';
+
+const { FiKey, FiUsers, FiCreditCard, FiGitMerge, FiBarChart2, FiLayers, FiDatabase } = FiIcons;
+
+const AdminDashboard = () => {
+  const { user: currentUser } = useAuth();
+  const [activeTab, setActiveTab] = useState('overview');
+
+  const tabs = [
+    { id: 'overview', label: 'Overview', icon: FiBarChart2 },
+    { id: 'users', label: 'User Management', icon: FiUsers },
+    { id: 'keys', label: 'API Keys', icon: FiKey },
+    { id: 'billing', label: 'Billing', icon: FiCreditCard },
+    { id: 'workflows', label: 'Workflow Logs', icon: FiGitMerge },
+    { id: 'builder', label: 'Workflow Builder', icon: FiLayers },
+    { id: 'memory', label: 'Memory Bank', icon: FiDatabase },
+  ];
+
+  return (
+    <div className="p-8">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-8"
+      >
+        <div>
+          <h1 className="text-3xl font-bold text-white mb-2">Admin Dashboard</h1>
+          <p className="text-slate-400">Manage users, API keys, billing, and system settings.</p>
+        </div>
+
+        <div className="flex space-x-2 border-b border-onyx-accent/20">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center px-4 py-3 text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'border-b-2 border-blue-500 text-white'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <SafeIcon icon={tab.icon} className="mr-2" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div>
+          {activeTab === 'overview' && <KPIOverview />}
+          {activeTab === 'users' && <UserManagement currentUser={currentUser} />}
+          {activeTab === 'keys' && <ApiKeyManager user={currentUser} />}
+          {activeTab === 'billing' && <BillingPortal />}
+          {activeTab === 'workflows' && <WorkflowExecutionLog />}
+          {activeTab === 'builder' && <WorkflowBuilder />}
+          {activeTab === 'memory' && <MemoryBank />}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+export default AdminDashboard;

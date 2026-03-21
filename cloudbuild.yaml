@@ -1,0 +1,116 @@
+# cloudbuild.yaml
+# This file defines the CI/CD pipeline for building and deploying the AXiM Core application.
+
+steps:
+  # --- Build Frontend Docker Image ---
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-frontend'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/axim-core-frontend:$SHORT_SHA'
+      - '--build-arg'
+      - 'VITE_API_BASE_URL=/'
+      - '.'
+      - '-f'
+      - 'Dockerfile'
+
+  # --- Push Frontend Docker Image to GCR ---
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-frontend'
+    args: ['push', 'gcr.io/$PROJECT_ID/axim-core-frontend:$SHORT_SHA']
+
+  # --- Build Backend Docker Image ---
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-backend'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/axim-core-backend:$SHORT_SHA'
+      - './gcp-backend'
+      - '-f'
+      - './gcp-backend/Dockerfile'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-backend'
+    args: ['push', 'gcr.io/$PROJECT_ID/axim-core-backend:$SHORT_SHA']
+
+  # --- Build Deployment Trigger Service Image ---
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'build-trigger-service'
+    args:
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/axim-core-deployment-trigger:$SHORT_SHA'
+      - './cloud'
+      - '-f'
+      - './cloud/Dockerfile'
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'push-trigger-service'
+    args: ['push', 'gcr.io/$PROJECT_ID/axim-core-deployment-trigger:$SHORT_SHA']
+
+  # --- Deploy Deployment Trigger Service to Cloud Run ---
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'deploy-trigger-service'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'axim-core-deployment-trigger'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/axim-core-deployment-trigger:$SHORT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+    waitFor: ['push-trigger-service']
+
+  # --- Create New Instance Templates ---
+  # Create new instance templates for Frontend and Backend referencing the new image tag.
+  # Assumes 'axim-core-instance-template-frontend-base' and 'axim-core-instance-template-backend-base' exist.
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'create-template-frontend'
+    entrypoint: 'gcloud'
+    args:
+      - 'compute'
+      - 'instance-templates'
+      - 'create'
+      - 'axim-core-instance-template-frontend-$SHORT_SHA'
+      - '--source-instance-template=axim-core-instance-template-frontend-base'
+      - '--metadata=IMAGE_TAG=$SHORT_SHA'
+    waitFor: ['push-frontend']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'create-template-backend'
+    entrypoint: 'gcloud'
+    args:
+      - 'compute'
+      - 'instance-templates'
+      - 'create'
+      - 'axim-core-instance-template-backend-$SHORT_SHA'
+      - '--source-instance-template=axim-core-instance-template-backend-base'
+      - '--metadata=IMAGE_TAG=$SHORT_SHA'
+    waitFor: ['push-backend']
+
+  # --- Trigger Deployment via Pub/Sub ---
+  # Publishes a message to the 'axim-core-scheduled-update-topic'.
+  # The 'axim-core-deployment-trigger' service (just deployed) listens to this topic and initiates the rolling updates.
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'trigger-deployment'
+    entrypoint: 'gcloud'
+    args:
+      - 'pubsub'
+      - 'topics'
+      - 'publish'
+      - 'axim-core-scheduled-update-topic'
+      - '--message={"imageTag":"$SHORT_SHA"}'
+    waitFor: ['create-template-frontend', 'create-template-backend', 'deploy-trigger-service']
+
+# List of images to be pushed to the registry
+images:
+  - 'gcr.io/$PROJECT_ID/axim-core-frontend:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/axim-core-backend:$SHORT_SHA'
+  - 'gcr.io/$PROJECT_ID/axim-core-deployment-trigger:$SHORT_SHA'

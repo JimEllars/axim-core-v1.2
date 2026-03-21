@@ -1,0 +1,3255 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Secure API : LIVE Interactive Documentation",
+    "description": "<div class=\"row pb-3\"> <div class=\"col-12\"> <div> <h5>This is LIVE Documentation that can connect directly to your account!</h5> <p>This LIVE Documentation can be directly accessed via the URL in your URL bar without logging in, which makes it possible for you to share this URL with your team or with your developer without giving full access to your account. However, no actual data can be accessed unless the LIVE Documentation is properly authorized with the Secure API Credentials, which are only available to Admins who are securely logged into the Portal.</p> <h6>Understanding API Limits</h6> <p>There are limits to the number of monthly API calls your account can make. You will always be able to view your current usage statistics from inside your account via Integrations > Secure API</p> <hr /> <p>For more detailed information, you can click the buttons below to access more subject-specific documentation.</p> <p>The Secure API based on the OpenAPI 3.0 specification.</p> </div> </div> </div> <div id=\"accordion mt-4\"> <div class=\"card\"> <div class=\"card-header\" id=\"headingOne\"> <h5 class=\"mb-0\"> <button class=\"btn btn-link\" data-toggle=\"collapse\" data-target=\"#collapseOne\" aria-expanded=\"true\" aria-controls=\"collapseOne\"> Connecting your Account </button> </h5> </div> <div id=\"collapseOne\" class=\"collapse show\" aria-labelledby=\"headingOne\" data-parent=\"#accordion\"> <div class=\"card-body p-4\"> <div class=\"row\"> <div class=\"col-12 col-xl-4\"> <img src=\"/themes/external/api-authorization.png\" alt=\"Intro to API\"> </div> <div class=\"col-12 col-xl-8 mt-4 mt-xl-0\"> <h5>Authorize the LIVE Interactive Documentation</h5> <p>The Secure API Documentation is designed to give you the tools needed to identify the necessary IDs and parameters needed to work with the unique Company & Contact Custom Field data that has been created inside your account. To accomplish this, you'll need to first authenticate your account on this page using the API credentials provided to you in Integrations > Secure API. </p> <p>Simply click the green \"Authorize\" button below and paste/authorize your Public ID and one of the Secret Keys you created inside your account. After you have successfully authorized, you will be able to extract a complete schema of Meta Attributes.</p> </div> </div> </div> </div> </div> <div class=\"card\"> <div class=\"card-header\" id=\"headingTwo\"> <h5 class=\"mb-0\"> <button class=\"btn btn-link collapsed\" data-toggle=\"collapse\" data-target=\"#collapseTwo\" aria-expanded=\"false\" aria-controls=\"collapseTwo\"> Extract CRM Meta Attributes </button> </h5> </div> <div id=\"collapseTwo\" class=\"collapse\" aria-labelledby=\"headingTwo\" data-parent=\"#accordion\"> <div class=\"card-body p-4\"> <div class=\"row\"> <div class=\"col-12 col-xl-4\"> <img src=\"/themes/external/api-meta-attributes.png\" alt=\"Extract CRM Meta Attributes\"> </div> <div class=\"col-12 col-xl-8 mt-4 mt-xl-0\"> <h5>Extract a full Schema of your CRM Data</h5> <p>After you have authorized the LIVE Interactive Documentation, the next step will be to extract a full schema of the Default & Custom Data that is unique to your account. For this, you can use the GET /company/meta or /contact/meta endpoint. Simply toggle open the GET /company/meta or /contact/meta accordion and look for the \"Try it out\" button on the right side. Click that button, and then click the \"Execute\" button.</p> <p>The Secure API Response will include a complete schema of all the CRM Company / Contact Default & Custom Fields that exist in your account, along with all the Meta Attributes you or your developer will need to properly configure an API integration. At the bottom right of this Response window, you'll find that you can Download the entire response as a JSON file, and this can be used for easy reference, or passed to your developer.</p> <p>After you have the complete schema for the CRM Company / Contact data, you can use the GET, POST and PUSH endpoints to have build a complete 2-way data sync.</p> </div> </div> </div> </div> </div> <div class=\"card\"> <div class=\"card-header\" id=\"headingThree\"> <h5 class=\"mb-0\"> <button class=\"btn btn-link collapsed\" data-toggle=\"collapse\" data-target=\"#collapseThree\" aria-expanded=\"false\" aria-controls=\"collapseThree\"> Testing with the LIVE Documentation </button> </h5> </div> <div id=\"collapseThree\" class=\"collapse\" aria-labelledby=\"headingThree\" data-parent=\"#accordion\"> <div class=\"card-body p-4\"> <div class=\"row\"> <div class=\"col-12 col-xl-4\"> <img src=\"/themes/external/api-testing.png\" alt=\"API Testing\"> </div> <div class=\"col-12 col-xl-8 mt-4 mt-xl-0\"> <h5>Using the LIVE Documentation to test</h5> <p>After you have authorized the LIVE Interactive Documentation, you are able to perform LIVE tests directly from here.</p> <p>Inside each Endpoint toggle, you will find a \"Try it out\" button which will open a data field. Inside that field, you are able to configure API calls that will connect to the Secure API Endpoint and make LIVE changes to the database. You will see these changes immediately reflected in your account, so before using this, be sure you understand the full ramifications of each call you execute.</p> <p>In order to have a better perspective on the responses without using real credentials, certain types of requests were built to be able to use test credentials that will return random dummy responses. Dummy type credentials can only be used for requests where the text \"<i><b><small>* dummy request allowed</small></b></i>\" appears in the description. The test credentials are:</p> <p><strong>X-Public-ID:</strong> 00000000-0000-0000-0000-000000000000</p> <p><strong>X-Secret-Key:</strong> DummySecretKey</p> </div> </div> </div> </div> </div> </div>"
+  },
+  "servers": [
+    {
+      "url": "https://app.suitedash.com/secure-api/"
+    }
+  ],
+  "tags": [
+    {
+      "name": "contact",
+      "description": "CRM Contacts : Available Endpoints"
+    },
+    {
+      "name": "company",
+      "description": "CRM Companies : Available Endpoints"
+    },
+    {
+      "name": "project",
+      "description": "Projects : Available Endpoints"
+    },
+    {
+      "name": "marketing",
+      "description": "Marketing : Available Endpoints"
+    }
+  ],
+  "paths": {
+    "/contact/meta": {
+      "get": {
+        "tags": [
+          "contact"
+        ],
+        "summary": "CRM Contact : Meta Attributes Information",
+        "description": "Contact meta attributes information<br><i><b><small>* dummy request allowed</small></b></i>",
+        "operationId": "sorting02Contact1",
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "nullable": true,
+                  "properties": {
+                    "{attributeName}": {
+                      "$ref": "#/components/schemas/MetaAttribute"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-404"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["read:contacts"],
+            "Secret-Key": ["read:contacts"]
+          }
+        ]
+      }
+    },
+    "/contacts": {
+      "get": {
+        "tags": [
+          "contact"
+        ],
+        "summary": "Get all existing Contacts",
+        "description": "Get all existing contacts<br><i><b><small>* dummy request allowed</small></b></i>",
+        "operationId": "sorting02Contact2",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "createdMin",
+            "in": "query",
+            "description": "Lower bound (exclusive) for filtering by a contact's creation date-time. If <b>createdMax</b> is set, <b>createdMin</b> must be smaller than <b>createdMax</b>. Must be an RFC3339 timestamp with mandatory time zone offset, for example: <i>2024-07-14T09:00:00+00:00</i>.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}[\\+\\-]\\d{2}:\\d{2}$"
+            }
+          },
+          {
+            "name": "createdMax",
+            "in": "query",
+            "description": "Upper bound (exclusive) for filtering by a contact's creation date-time. If <b>createdMin</b> is set, <b>createdMax</b> must be greater than <b>createdMin</b>. Must be an RFC3339 timestamp with mandatory time zone offset, for example: <i>2024-10-30T11:55:16-04:00</i>.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}[\\+\\-]\\d{2}:\\d{2}$"
+            }
+          },
+          {
+            "name": "orderBy",
+            "in": "query",
+            "description": "The order of the contacts returned in the result.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["created", "created.desc", "name", "name.desc"]
+            }
+          },
+          {
+            "name": "meta",
+            "in": "query",
+            "description": "Select if you want to receive information in the \"meta\" object about all the attributes",
+            "required": false,
+            "schema": {
+              "enum": ["yes"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Contact"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "pagination": {
+                          "$ref": "#/components/schemas/MetaPagination"
+                        },
+                        "attributes": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "{attributeName}": {
+                              "$ref": "#/components/schemas/MetaAttribute"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["write:contacts"],
+            "Secret-Key": ["write:contacts"]
+          }
+        ]
+      }
+    },
+    "/contact":{
+      "post": {
+        "tags": [
+          "contact"
+        ],
+        "summary": "Create a new Contact",
+        "description": "Create a new contact<br>Please use <b>/contact/meta</b> request for attributes full information",
+        "operationId": "sorting02Contact4",
+        "requestBody": {
+          "description": "Create a new Contact",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "enum": ["Lead", "Client", "Prospect"],
+                    "description": "Role of the Contact",
+                    "example": "Lead"
+                  },
+                  "first_name": {
+                    "type": "string",
+                    "description": "Contact first name",
+                    "example": "John"
+                  },
+                  "last_name": {
+                    "type": "string",
+                    "description": "Contact last name",
+                    "example": "Doe"
+                  },
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "nullable": true,
+                    "description": "Contact email (required except for the role of Lead)",
+                    "example": "john.doe@email.com"
+                  },
+                  "send_welcome_email": {
+                    "type": "boolean",
+                    "description": "Send Portal Access Invitation?",
+                    "example": true
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/Contact"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-405"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {},
+                        "example": []
+                    },
+                    "errors": {
+                      "type": "array",
+                      "nullable": true,
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": {
+                        "email": "Primary Email is not a valid email address.",
+                        "role": "Role 'Test' not allowed. Allowed values are: Lead, Prospect, Client."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["write:contacts"],
+            "Secret-Key": ["write:contacts"]
+          }
+        ]
+      }
+    },
+    "/contact/{identifier}": {
+      "get": {
+        "tags": [
+          "contact"
+        ],
+        "summary": "Find a Contact",
+        "description": "Returns a single contact<br><i><b><small>* dummy request allowed</small></b></i>",
+        "operationId": "sorting02Contact3",
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "description": "Contact UID or Email",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "meta",
+            "in": "query",
+            "description": "Select if you want to receive information in the \"meta\" object about all the attributes",
+            "required": false,
+            "schema": {
+              "enum": ["yes"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/Contact"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "attributes": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "{attributeName}": {
+                              "$ref": "#/components/schemas/MetaAttribute"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-404"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["read:contacts"],
+            "Secret-Key": ["read:contacts"]
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "contact"
+        ],
+        "summary": "Update a Contact",
+        "description": "Update a contact<br>Please use <b>/contact/meta</b> request for attributes full information",
+        "operationId": "sorting02Contact5",
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "description": "Contact UID or Email",
+            "required": true,
+            "schema": {
+              "type": "string"
+              }
+          }
+        ],
+        "requestBody": {
+          "description": "Update a Contact",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContactUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/Contact"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-404"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {},
+                        "example": []
+                    },
+                    "errors": {
+                      "type": "array",
+                      "nullable": true,
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": {
+                        "email": "Primary Email is not a valid email address."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["write:contacts"],
+            "Secret-Key": ["write:contacts"]
+          }
+        ]
+      }
+    },
+    "/company/meta": {
+      "get": {
+        "tags": [
+          "company"
+        ],
+        "summary": "CRM Company : Meta Attributes Information",
+        "description": "Company meta attributes information<br><i><b><small>* dummy request allowed</small></b></i>",
+        "operationId": "sorting01Company1",
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "nullable": true,
+                  "properties": {
+                    "{attributeName}": {
+                      "$ref": "#/components/schemas/MetaAttribute"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-404"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["read:contacts"],
+            "Secret-Key": ["read:contacts"]
+          }
+        ]
+      }
+    },
+    "/companies": {
+      "get": {
+        "tags": [
+          "company"
+        ],
+        "summary": "Get all existing Companies",
+        "description": "Get all existing Companies (Idle Companies are not available)<br><i><b><small>* dummy request allowed</small></b></i>",
+        "operationId": "sorting01Company2",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "createdMin",
+            "in": "query",
+            "description": "Lower bound (exclusive) for filtering by a company's creation date-time. If <b>createdMax</b> is set, <b>createdMin</b> must be smaller than <b>createdMax</b>. Must be an RFC3339 timestamp with mandatory time zone offset, for example: <i>2024-07-14T09:00:00+00:00</i>.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}[\\+\\-]\\d{2}:\\d{2}$"
+            }
+          },
+          {
+            "name": "createdMax",
+            "in": "query",
+            "description": "Upper bound (exclusive) for filtering by a company's creation date-time. If <b>createdMin</b> is set, <b>createdMax</b> must be greater than <b>createdMin</b>. Must be an RFC3339 timestamp with mandatory time zone offset, for example: <i>2024-10-30T11:55:16-04:00</i>.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}[\\+\\-]\\d{2}:\\d{2}$"
+            }
+          },
+          {
+            "name": "orderBy",
+            "in": "query",
+            "description": "The order of the companies returned in the result.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["created", "created.desc", "name", "name.desc"]
+            }
+          },
+          {
+            "name": "meta",
+            "in": "query",
+            "description": "Select if you want to receive information in the \"meta\" object about all the attributes",
+            "required": false,
+            "schema": {
+              "enum": ["yes"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Company"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "pagination": {
+                          "$ref": "#/components/schemas/MetaPagination"
+                        },
+                        "attributes": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "{attributeName}": {
+                              "$ref": "#/components/schemas/MetaAttribute"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["write:contacts"],
+            "Secret-Key": ["write:contacts"]
+          }
+        ]
+      }
+    },
+  "/company":{
+      "post": {
+        "tags": [
+          "company"
+        ],
+        "summary": "Create a new Company",
+        "description": "Create a new company<br>Please use <b>/company/meta</b> request for attributes full information",
+        "operationId": "sorting01Company4",
+        "requestBody": {
+          "description": "Create a new Company",
+          "content": {
+            "application/json": {
+              "schema": {
+                "required": [
+                  "name",
+                  "role"
+                ],
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Company name",
+                    "example": "Microsoft"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": ["Lead", "Client", "Prospect"],
+                    "description": "Role of the Company",
+                    "example": "Client"
+                  },
+                  "primaryContact": {
+                    "type": "object",
+                    "properties": {
+                      "first_name": {
+                        "type": "string",
+                        "description": "Required when 'create_primary_contact_if_not_exists' is true",
+                        "required": false,
+                        "nullable": false,
+                        "example": "John"
+                      },
+                      "last_name": {
+                        "type": "string",
+                        "description": "Required when 'create_primary_contact_if_not_exists' is true",
+                        "required": false,
+                        "nullable": false,
+                        "example": "Doe"
+                      },
+                      "email": {
+                        "type": "string",
+                        "format": "email",
+                        "required": true,
+                        "nullable": false,
+                        "example": "john.doe@email.com"
+                      },
+                      "send_welcome_email": {
+                        "type": "boolean",
+                        "description": "Send welcome email to the primary contact in case was not already sent",
+                        "required": false,
+                        "nullable": false,
+                        "example": true
+                      },
+                      "create_primary_contact_if_not_exists": {
+                        "type": "boolean",
+                        "description": "Create a Primary Contact with all provided data if the email does not exists",
+                        "required": true,
+                        "nullable": false,
+                        "example": true
+                      },
+                      "prevent_individual_mode": {
+                        "type": "boolean",
+                        "description": "Prevent this Primary Contact from switching into 'Individual Mode'",
+                        "required": false,
+                        "nullable": false,
+                        "example": true
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/Company"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-405"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {},
+                        "example": []
+                    },
+                    "errors": {
+                      "type": "array",
+                      "nullable": true,
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": {
+                        "name": "Name cannot be blank",
+                        "role": "Role 'Test' not allowed. Allowed values are: Lead, Prospect, Client."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["write:companies"],
+            "Secret-Key": ["write:companies"]
+          }
+        ]
+      }
+    },
+    "/company/{identifier}": {
+      "get": {
+        "tags": [
+          "company"
+        ],
+        "summary": "Find a Company",
+        "description": "Returns a single company<br><i><b><small>* dummy request allowed</small></b></i>",
+        "operationId": "sorting01Company3",
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "description": "Company UID or Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "meta",
+            "in": "query",
+            "description": "Select if you want to receive information in the \"meta\" object about all the attributes",
+            "required": false,
+            "schema": {
+              "enum": ["yes"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/Company"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "attributes": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "{attributeName}": {
+                              "$ref": "#/components/schemas/MetaAttribute"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-404"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["read:contacts"],
+            "Secret-Key": ["read:contacts"]
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "company"
+        ],
+        "summary": "Update a Company",
+        "description": "Update a company<br>Please use <b>/company/meta</b> request for attributes full information",
+        "operationId": "sorting01Company5",
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "description": "Company UID or Name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "Update a Company",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/Company"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-404"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {},
+                        "example": []
+                    },
+                    "errors": {
+                      "type": "array",
+                      "nullable": true,
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": {
+                        "name": "Name cannot be blank"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["write:contacts"],
+            "Secret-Key": ["write:contacts"]
+          }
+        ]
+      }
+    },
+    "/project/meta": {
+      "get": {
+        "tags": [
+          "project"
+        ],
+        "summary": "Project : Meta Attributes Information",
+        "description": "Project meta attributes information<br><i><b><small>* dummy request allowed</small></b></i>",
+        "operationId": "sorting03Project1",
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "nullable": true,
+                  "properties": {
+                    "{attributeName}": {
+                      "$ref": "#/components/schemas/MetaAttribute"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-404"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["read:contacts"],
+            "Secret-Key": ["read:contacts"]
+          }
+        ]
+      }
+    },
+    "/projects": {
+      "get": {
+        "tags": [
+          "project"
+        ],
+        "summary": "Get all existing Projects",
+        "description": "Get all existing Projects<br><i><b><small>* dummy request allowed</small></b></i>",
+        "operationId": "sorting03Project2",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "description": "Page number",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "createdMin",
+            "in": "query",
+            "description": "Lower bound (exclusive) for filtering by a Project's creation date-time. If <b>createdMax</b> is set, <b>createdMin</b> must be smaller than <b>createdMax</b>. Must be an RFC3339 timestamp with mandatory time zone offset, for example: <i>2024-07-14T09:00:00+00:00</i>.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}[\\+\\-]\\d{2}:\\d{2}$"
+            }
+          },
+          {
+            "name": "createdMax",
+            "in": "query",
+            "description": "Upper bound (exclusive) for filtering by a Project's creation date-time. If <b>createdMin</b> is set, <b>createdMax</b> must be greater than <b>createdMin</b>. Must be an RFC3339 timestamp with mandatory time zone offset, for example: <i>2024-10-30T11:55:16-04:00</i>.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}[\\+\\-]\\d{2}:\\d{2}$"
+            }
+          },
+          {
+            "name": "orderBy",
+            "in": "query",
+            "description": "The order of the Projects returned in the result.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["name", "name.desc", "created", "created.desc", "start_date", "start_date.desc", "end_date", "end_date.desc"]
+            }
+          },
+          {
+            "name": "meta",
+            "in": "query",
+            "description": "Select if you want to receive information in the \"meta\" object about all the attributes",
+            "required": false,
+            "schema": {
+              "enum": ["yes"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProjectList"
+                      }
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "pagination": {
+                          "$ref": "#/components/schemas/MetaPagination"
+                        },
+                        "attributes": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "{attributeName}": {
+                              "$ref": "#/components/schemas/MetaAttribute"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["write:project"],
+            "Secret-Key": ["write:project"]
+          }
+        ]
+      }
+    },
+    "/project/{type}/{identifier}": {
+      "get": {
+        "tags": [
+          "project"
+        ],
+        "summary": "Find a Project",
+        "description": "Returns a single Project<br><i><b><small>* dummy request allowed</small></b></i>",
+        "operationId": "sorting03Project3",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "description": "Specifies the type of filter to apply.<br><br><b><i>uid</i></b> - the 'identifier' should be the Project UID (example: 2ff558c3-3eb0-48e1-a3bc-4c7f59dfb02f)<br><b><i>name</i></b> - the 'identifier' should be the exact name of the Project<br><b><i>contains_the_following</i></b> - the 'identifier' should be a string that is contained in a Project name<br><b><i>most_recent</i></b> - the 'identifier' accept only 'true' value",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["uid", "name", "contains_the_following", "most_recent"]
+            }
+          },
+          {
+            "name": "identifier",
+            "in": "path",
+            "description": "The identifier for the selected type. Required for 'uid', 'name' and 'contains_the_following'. Send 'true' for 'most_recent'.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "meta",
+            "in": "query",
+            "description": "Select if you want to receive information in the \"meta\" object about all the attributes",
+            "required": false,
+            "schema": {
+              "enum": ["yes"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/ProjectView"
+                    },
+                    "meta": {
+                      "type": "object",
+                      "properties": {
+                        "attributes": {
+                          "type": "object",
+                          "nullable": true,
+                          "properties": {
+                            "{attributeName}": {
+                              "$ref": "#/components/schemas/MetaAttribute"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-404"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["read:project"],
+            "Secret-Key": ["read:project"]
+          }
+        ]
+      },
+      "put": {
+        "tags": [
+          "project"
+        ],
+        "summary": "Update a Project",
+        "description": "Update a Project<br>Please use <b>/project/meta</b> request for attributes full information",
+        "operationId": "sorting03Project4",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "description": "Specifies the type of filter to apply.<br><br><b><i>uid</i></b> - the 'identifier' should be the Project UID (example: 2ff558c3-3eb0-48e1-a3bc-4c7f59dfb02f)<br><b><i>name</i></b> - the 'identifier' should be the exact name of the Project<br><b><i>contains_the_following</i></b> - the 'identifier' should be a string that is contained in a Project name<br><b><i>most_recent</i></b> - the 'identifier' accept only 'true' value",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["uid", "name", "contains_the_following", "most_recent"]
+            }
+          },
+          {
+            "name": "identifier",
+            "in": "path",
+            "description": "The identifier for the selected type. Required for 'uid', 'name' and 'contains_the_following'. Send 'true' for 'most_recent'.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+        ],
+        "requestBody": {
+          "description": "Update a Project",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                        "$ref": "#/components/schemas/ProjectView"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-400"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-404"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {},
+                        "example": []
+                    },
+                    "errors": {
+                      "type": "array",
+                      "nullable": true,
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": {
+                        "email": "Name cannot be blank."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["write:project"],
+            "Secret-Key": ["write:project"]
+          }
+        ]
+      }
+    },
+    "/marketing/subscribe":{
+      "post": {
+        "tags": [
+          "marketing"
+        ],
+        "summary": "Subscribe contacts to marketing audiences",
+        "description": "Subscribe contacts to marketing audiences",
+        "operationId": "sorting04Marketing1",
+        "requestBody": {
+          "description": "Subscribe contacts to marketing audiences",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MarketingSubscriber"
+                },
+                "example": [
+                  {
+                    "email": "john.doe@gmail.com",
+                    "first_name": "John",
+                    "last_name": "Doe",
+                    "audiences": [35, 485, 1]
+                  },
+                  {
+                    "email": "jane.fonda@yahoo.com",
+                    "audiences": [44]
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation (if at least one item was successfully managed)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "description": "true - if all items successfully managed; false - if at least one item failed",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "example": false
+                            },
+                            "errors": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "example": [
+                          {
+                            "success": true
+                          },
+                          {
+                            "success": false,
+                            "errors": [
+                              "\"email\" param cannot be blank."
+                            ]
+                          }
+                        ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-401"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Method Not Allowed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-405"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "message": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": null
+                    },
+                    "data": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "success": {
+                              "type": "boolean",
+                              "example": false
+                            },
+                            "errors": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "example": [
+                          {
+                            "success": false,
+                            "errors": [
+                              "\"audiences\" values: 35, 485, 1 are not valid or active audiences."
+                            ]
+                          },
+                          {
+                            "success": false,
+                            "errors": [
+                              "\"email\" param cannot be blank."
+                            ]
+                          }
+                        ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error-429"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Public-ID": ["write:contacts"],
+            "Secret-Key": ["write:contacts"]
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Contact": {
+        "required": [
+          "first_name",
+          "last_name",
+          "email",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true,
+            "description": "Contact unique UID",
+            "example": "865f5eff-d3d9-49dc-8572-f2f0e4089879"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["Lead", "Client", "Prospect"],
+            "description": "Role of the Contact",
+            "example": "Lead"
+          },
+          "name_prefix": {
+            "type": "string",
+            "enum": ["Mr.", "Ms.", "Mrs.", "Miss", "Mx.", "Dr.", "Prof.", "Rev."],
+            "description": "Contact name prefix",
+            "example": "Mr."
+          },
+          "first_name": {
+            "type": "string",
+            "description": "Contact first name",
+            "example": "John"
+          },
+          "last_name": {
+            "type": "string",
+            "description": "Contact last name",
+            "example": "Doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "nullable": true,
+            "description": "Contact email (required except for the role of Lead)",
+            "example": "john.doe@email.com"
+          },
+          "home_email": {
+            "type": "string",
+            "format": "email",
+            "nullable": true,
+            "description": "Contact home email",
+            "example": "john.doe@home.com"
+          },
+          "work_email": {
+            "type": "string",
+            "format": "email",
+            "nullable": true,
+            "description": "Contact work email",
+            "example": "john.doe@work.com"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact phone number",
+            "example": "312-509-6995"
+          },
+          "home_phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact home phone number",
+            "example": "312-411-5478"
+          },
+          "work_phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact work phone number",
+            "example": "312-689-3158"
+          },
+          "shop_phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact shop phone number",
+            "example": "312-444-1248"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact title",
+            "example": "Market Manager, East Coast"
+          },
+          "website": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "description": "Contact website",
+            "example": "https://www.john-doe.com"
+          },
+          "active": {
+            "type": "boolean",
+            "readOnly": true,
+            "description": "Returns if contact is active or not",
+            "example": true
+          },
+          "full_address": {
+            "type": "string",
+            "description": "Contact full address",
+            "example": "dba Staybridge Suites Mount Laurel\n324 Church Road\nMount Laurel, NJ 09478"
+          },
+          "company": {
+            "type": "object",
+            "description": "Contact CRM company",
+            "required": false,
+            "nullable": true,
+            "writeOnly": true,
+            "properties": {
+               "name": {
+                 "type": "string",
+                 "required": true,
+                 "nullable": false,
+                 "description": "Name of the CRM company",
+                 "example": "New York Agency"
+               },
+               "create_company_if_not_exists": {
+                 "type": "boolean",
+                 "required": true,
+                 "nullable": false,
+                 "description": "Create a new CRM company if the one from the 'name' field not matching",
+                 "example": true
+               }
+            }
+          },
+          "companies": {
+            "type": "array",
+            "description": "Contact CRM companies",
+            "readOnly": true,
+            "items": {
+              "type":"object",
+              "properties": {
+                  "name": {
+                    "type": "string",
+                    "required": true,
+                    "nullable": false,
+                    "description": "Name of the CRM company",
+                    "example": "New York Agency"
+                  }
+              }
+            }
+          },
+          "address": {
+            "$ref": "#/components/schemas/ContactAddress"
+          },
+          "circles": {
+            "type": "array",
+            "description": "Contact circles",
+            "items": {
+              "type": "string"
+            },
+            "example": ["All Prospects", "All Clients & Prospects"]
+          },
+          "tags": {
+            "type": "array",
+            "description": "Contact tags",
+            "items": {
+              "type": "string"
+            },
+            "example": ["tax", "mortgage", "east"]
+          },
+          "background_info": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact background info",
+            "example": "IT Specialist, with 36 years of customer service in Food Service, Food Safety"
+          },
+          "created": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Contact created date-time",
+            "example": "2022-01-21T19:27:27+00:00"
+          },
+          "custom_fields": {
+            "$ref": "#/components/schemas/CustomFields"
+          },
+          "target_custom_fields": {
+            "$ref": "#/components/schemas/CustomFields"
+          }
+        }
+      },
+      "ContactUpdate": {
+        "type": "object",
+        "properties": {
+          "name_prefix": {
+            "type": "string",
+            "enum": ["Mr.", "Ms.", "Mrs.", "Miss", "Mx.", "Dr.", "Prof.", "Rev."],
+            "description": "Contact name prefix",
+            "example": "Mr."
+          },
+          "first_name": {
+            "type": "string",
+            "description": "Contact first name",
+            "example": "John"
+          },
+          "last_name": {
+            "type": "string",
+            "description": "Contact last name",
+            "example": "Doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "nullable": true,
+            "description": "Contact email (required except for the role of Lead)",
+            "example": "john.doe@email.com"
+          },
+          "home_email": {
+            "type": "string",
+            "format": "email",
+            "nullable": true,
+            "description": "Contact home email",
+            "example": "john.doe@home.com"
+          },
+          "work_email": {
+            "type": "string",
+            "format": "email",
+            "nullable": true,
+            "description": "Contact work email",
+            "example": "john.doe@work.com"
+          },
+          "send_welcome_email": {
+            "type": "boolean",
+            "required": false,
+            "nullable": false,
+            "writeOnly": true,
+            "description": "Send the welcome email if the email has not been sent before",
+            "example": false
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact phone number",
+            "example": "312-509-6995"
+          },
+          "home_phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact home phone number",
+            "example": "312-411-5478"
+          },
+          "work_phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact work phone number",
+            "example": "312-689-3158"
+          },
+          "shop_phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact shop phone number",
+            "example": "312-444-1248"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact title",
+            "example": "Market Manager, East Coast"
+          },
+          "website": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "description": "Contact website",
+            "example": "https://www.john-doe.com"
+          },
+          "full_address": {
+            "type": "string",
+            "description": "Contact full address",
+            "example": "dba Staybridge Suites Mount Laurel\n324 Church Road\nMount Laurel, NJ 09478"
+          },
+          "company": {
+            "type": "object",
+            "description": "Contact CRM company",
+            "required": false,
+            "nullable": true,
+            "properties": {
+               "name": {
+                 "type": "string",
+                 "required": true,
+                 "nullable": false,
+                 "description": "Name of the CRM company",
+                 "example": "New York Agency"
+               },
+               "create_company_if_not_exists": {
+                 "type": "boolean",
+                 "required": true,
+                 "nullable": false,
+                 "writeOnly": true,
+                 "description": "Create a new CRM company if the one from the 'name' field not matching",
+                 "example": false
+               }
+            }
+          },
+          "address": {
+            "$ref": "#/components/schemas/ContactAddress"
+          },
+          "tags": {
+            "type": "array",
+            "description": "Contact tags",
+            "items": {
+              "type": "string"
+            },
+            "example": ["tax", "mortgage", "east"]
+          },
+          "circles": {
+            "type": "object",
+            "description": "Contact circles management",
+            "required": false,
+            "nullable": true,
+            "properties": {
+               "add": {
+                 "type": "array",
+                 "required": false,
+                 "nullable": false,
+                 "description": "List of circle names to add to the contact",
+                 "example": ["All Prospects", "All Clients & Prospects"]
+               },
+               "remove": {
+                 "type": "array",
+                 "required": false,
+                 "nullable": false,
+                 "description": "List of circle names to remove from the contact",
+                 "example": ["All Clients"]
+               }
+            }
+          },
+          "background_info": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact background info",
+            "example": "IT Specialist, with 36 years of customer service in Food Service, Food Safety"
+          },
+          "notes": {
+            "type": "array",
+            "description": "Contact notes to be added",
+            "required": false,
+            "items": {
+              "type":"object",
+              "properties": {
+                  "title": {
+                    "type": "string",
+                    "required": true,
+                    "nullable": false,
+                    "description": "Note title",
+                    "example": "Jay called - needs a couple more weeks"
+                  },
+                  "note": {
+                    "type": "string",
+                    "required": false,
+                    "nullable": true,
+                    "description": "Note text (description)",
+                    "example": "<p>He is still setting up the basic stuff. Incorporated yesterday and now getting quotes for CRM and software etc.</p>"
+                  },
+                  "date": {
+                    "type": "string",
+                    "format": "yyyy-mm-dd",
+                    "required": true,
+                    "nullable": false,
+                    "description": "Note date",
+                    "example": "2023-10-24"
+                  }
+              }
+            }
+          },
+          "add_to_communities": {
+            "$ref": "#/components/schemas/AddToCommunities"
+          },
+          "remove_from_communities": {
+            "$ref": "#/components/schemas/RemoveFromCommunities"
+          },
+          "custom_fields": {
+            "$ref": "#/components/schemas/CustomFields"
+          },
+          "target_custom_fields": {
+            "$ref": "#/components/schemas/CustomFields"
+          }
+        }
+      },
+      "ContactAddress": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "address_line_1": {
+            "type": "string",
+            "nullable": true,
+            "description": "Street address first line",
+            "example": "P.O. Box 902 3472"
+          },
+          "address_line_2": {
+            "type": "string",
+            "nullable": true,
+            "description": "Street address second line",
+            "example": "Ullamcorper Street"
+          },
+          "city": {
+            "type": "string",
+            "nullable": true,
+            "description": "City address",
+            "example": "Chicago"
+          },
+          "state": {
+            "type": "string",
+            "nullable": true,
+            "description": "State/Province address",
+            "example": "Illinois"
+          },
+          "country": {
+            "type": "string",
+            "nullable": true,
+            "description": "Country address",
+            "example": "United States of America"
+          },
+          "zip": {
+            "type": "string",
+            "nullable": true,
+            "description": "Zip/Postal Code address",
+            "example": "60601"
+          }
+        }
+      },
+      "CustomFields": {
+        "type": "object",
+        "properties": {
+          "97fbcc81-4ebc-4703-9fd4-e60af8f0ec95": {
+            "type": "string",
+            "nullable": true,
+            "description": "Content of a text custom field value",
+            "example": "Some text"
+          },
+          "46fd6533-0c79-4a62-b75e-c0b98321d6cb": {
+            "type": "array",
+            "nullable": true,
+            "description": "Content of a dropdown custom field multiselect value",
+            "example": ["Team-Lead", "Developer"]
+          },
+          "36a7dee5-f9a9-4a41-840f-5f2f11fe1cc7": {
+            "type": "string",
+            "nullable": true,
+            "description": "Content of a date custom field value",
+            "example": "2022-10-21"
+          }
+        }
+      },
+      "MetaPagination": {
+        "type": "object",
+        "properties": {
+          "pageSize": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Number of items per page",
+            "example": 10
+          },
+          "totalPages": {
+            "type": "integer",
+            "description": "Total number of pages",
+            "example": 3
+          },
+          "totalItems": {
+            "type": "integer",
+            "description": "Total number of items",
+            "example": 27
+          },
+          "currentPageNumber": {
+            "type": "integer",
+            "description": "Current page number",
+            "example": 3
+          },
+          "previousPage": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "description": "The previous page URL",
+            "example": "https://domain.com/secure-api/contacts?page=2"
+          },
+          "nextPage": {
+            "type": "string",
+            "nullable": true,
+            "description": "The next page URL",
+            "example": null
+          }
+        }
+      },
+      "MetaAttribute": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": false,
+            "enum": ["string", "boolean", "number", "integer", "date", "date-time", "array", "object"],
+            "description": "Type of attribute",
+            "example": "date"
+          },
+          "format": {
+            "type": "string",
+            "nullable": false,
+            "enum": ["uuid", "yyyy-mm-dd", "email", "uri", "yyyy-mm-ddThh:mm:ss+00:00"],
+            "description": "Attribute allowed format",
+            "example": "yyyy-mm-dd"
+          },
+          "required": {
+            "type": "boolean",
+            "nullable": false,
+            "enum": [true, false],
+            "description": "Returns if the attribute is required or not",
+            "example": true
+          },
+          "nullable": {
+            "type": "boolean",
+            "nullable": false,
+            "enum": [true, false],
+            "description": "Returns if the attribute can be null or not",
+            "example": false
+          },
+          "allowed_on_action": {
+            "type": "array",
+            "enum": ["read", "create", "update"],
+            "description": "read: returned by GET endpoint; create: allowed on POST endpoint; update: allowed on PUT/PATCH endpoints",
+            "example": ["read", "create"]
+          },
+          "allowed_values": {
+            "type": "array",
+            "description": "Allowed values that can be used",
+            "example": ["Option1", "Option2"]
+          },
+          "field_name": {
+            "type": "string",
+            "description": "Field name/label/placeholder used in the application forms",
+            "example": "Birthday"
+          },
+          "field_description": {
+            "type": "string",
+            "description": "Field description/info used in the application forms",
+            "example": "Please select your birthday"
+          }
+        }
+      },
+      "MetaCustomFieldAttribute": {
+        "type": "object",
+        "nullable": true,
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": false,
+            "enum": ["string", "number", "date", "array"],
+            "description": "Type of custom field attribute",
+            "example": "date"
+          },
+          "format": {
+            "type": "string",
+            "nullable": false,
+            "enum": ["yyyy-mm-dd", "email", "uri"],
+            "description": "Custom field attribute allowed format",
+            "example": "yyyy-mm-dd"
+          },
+          "required": {
+            "type": "boolean",
+            "nullable": false,
+            "enum": [true, false],
+            "description": "Returns if the custom field attribute is required or not",
+            "example": true
+          },
+          "nullable": {
+            "type": "boolean",
+            "nullable": false,
+            "enum": [true, false],
+            "description": "Returns if the custom field attribute can be null or not",
+            "example": false
+          },
+          "allowed_values": {
+            "type": "array",
+            "description": "Allowed values that can be used for the custom field attribute",
+            "example": ["1786-06-04", "1776-07-04", "1776-06-04"]
+          },
+          "field_name": {
+            "type": "string",
+            "description": "Custom field name used in the application forms",
+            "example": "Independence Day"
+          },
+          "field_description": {
+            "type": "string",
+            "description": "Custom field prompt/description used in the application forms",
+            "example": "Please select when the independence day took place"
+          }
+        }
+      },
+      "Company": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true,
+            "description": "Company unique UID",
+            "example": "865f5eff-d3d9-49dc-8572-f2f0e4089879"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["Lead", "Client", "Prospect"],
+            "description": "Role of the company",
+            "example": "Lead"
+          },
+          "name": {
+            "type": "string",
+            "description": "Company name",
+            "example": "Microsoft"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Company phone number",
+            "example": "312-509-6995"
+          },
+          "category": {
+            "$ref": "#/components/schemas/CompanyCategory"
+          },
+          "home_phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Company home phone number",
+            "example": "312-411-5478"
+          },
+          "work_phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Company work phone number",
+            "example": "312-689-3158"
+          },
+          "shop_phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Company shop phone number",
+            "example": "312-444-1248"
+          },
+          "website": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "description": "Company website",
+            "example": "https://www.microsoft.com"
+          },
+          "full_address": {
+            "type": "string",
+            "description": "Company full address",
+            "example": "dba Staybridge Suites Mount Laurel\n324 Church Road\nMount Laurel, NJ 09478"
+          },
+          "primaryContact": {
+            "$ref": "#/components/schemas/CompanyContact"
+          },
+          "address": {
+            "$ref": "#/components/schemas/CompanyAddress"
+          },
+          "tags": {
+            "type": "array",
+            "nullable": false,
+            "description": "Company tags",
+            "items": {
+              "type": "string"
+            },
+            "example": ["tax", "mortgage", "east"]
+          },
+          "background_info": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact background info",
+            "example": "IT Specialist, with 36 years of customer service in Food Service, Food Safety"
+          },
+          "created": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Contact created date-time",
+            "example": "2022-01-21T19:27:27+00:00"
+          },
+          "public_custom_fields": {
+            "$ref": "#/components/schemas/CustomFields"
+          },
+          "private_custom_fields": {
+            "$ref": "#/components/schemas/CustomFields"
+          },
+          "target_custom_fields": {
+            "$ref": "#/components/schemas/CustomFields"
+          }
+        }
+      },
+      "CompanyUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Company name",
+            "example": "Microsoft"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Company phone number",
+            "example": "312-509-6995"
+          },
+          "category": {
+            "$ref": "#/components/schemas/CompanyCategory"
+          },
+          "home_phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Company home phone number",
+            "example": "312-411-5478"
+          },
+          "work_phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Company work phone number",
+            "example": "312-689-3158"
+          },
+          "shop_phone": {
+            "type": "string",
+            "nullable": true,
+            "description": "Company shop phone number",
+            "example": "312-444-1248"
+          },
+          "website": {
+            "type": "string",
+            "format": "uri",
+            "nullable": true,
+            "description": "Company website",
+            "example": "https://www.microsoft.com"
+          },
+          "full_address": {
+            "type": "string",
+            "description": "Company full address",
+            "example": "dba Staybridge Suites Mount Laurel\n324 Church Road\nMount Laurel, NJ 09478"
+          },
+          "address": {
+            "$ref": "#/components/schemas/CompanyAddress"
+          },
+          "tags": {
+            "type": "array",
+            "nullable": false,
+            "description": "Company tags",
+            "items": {
+              "type": "string"
+            },
+            "example": ["tax", "mortgage", "east"]
+          },
+          "background_info": {
+            "type": "string",
+            "nullable": true,
+            "description": "Contact background info",
+            "example": "IT Specialist, with 36 years of customer service in Food Service, Food Safety"
+          },
+          "add_to_communities": {
+            "$ref": "#/components/schemas/AddToCommunities"
+          },
+          "remove_from_communities": {
+            "$ref": "#/components/schemas/RemoveFromCommunities"
+          },
+          "public_custom_fields": {
+            "$ref": "#/components/schemas/CustomFields"
+          },
+          "private_custom_fields": {
+            "$ref": "#/components/schemas/CustomFields"
+          },
+          "target_custom_fields": {
+            "$ref": "#/components/schemas/CustomFields"
+          }
+        }
+      },
+      "CompanyContact": {
+        "required": [
+          "first_name",
+          "last_name",
+          "email",
+          "role"
+        ],
+        "description": "Company Primary Contact",
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true,
+            "description": "Contact unique UID",
+            "example": "865f5eff-d3d9-49dc-8572-f2f0e4089879"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["Lead", "Client", "Prospect"],
+            "description": "Role of the Contact",
+            "example": "Lead"
+          },
+          "name_prefix": {
+            "type": "string",
+            "enum": ["Mr.", "Ms.", "Mrs.", "Miss", "Mx.", "Dr.", "Prof."],
+            "description": "Contact name prefix",
+            "example": "Mr."
+          },
+          "first_name": {
+            "type": "string",
+            "description": "Contact first name",
+            "example": "John"
+          },
+          "last_name": {
+            "type": "string",
+            "description": "Contact last name",
+            "example": "Doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "nullable": true,
+            "description": "Contact email (required except for the role of Lead)",
+            "example": "john.doe@email.com"
+          }
+        }
+      },
+      "CompanyCategory": {
+        "required": [
+          "name"
+        ],
+        "description": "Company category",
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Category name",
+            "nullable": false,
+            "example": "West Area"
+          },
+          "color": {
+            "type": "string",
+            "description": "Category hex color",
+            "readOnly": true,
+            "nullable": true,
+            "example": "#1EEA5F"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "Category hex color",
+            "readOnly": true,
+            "nullable": false,
+            "example": true
+          }
+        }
+      },
+      "CompanyAddress": {
+        "$ref": "#/components/schemas/ContactAddress"
+      },
+      "ProjectList": {
+        "required": [
+          "uid",
+          "name",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true,
+            "required": true,
+            "description": "Project unique UID",
+            "example": "43b7ad11-65d0-457a-9659-9193be1e83de"
+          },
+          "name": {
+            "type": "string",
+            "required": true,
+            "description": "Project Name",
+            "example": "Digital Marketing Bundle"
+          },
+          "status": {
+            "type": "string",
+            "required": true,
+            "description": "Project Status (values are those from Categories > Project Statuses)",
+            "example": "completed"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Project Start Date",
+            "example": "2024-12-25"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "nullable": true,
+            "description": "Project estimated Completion Date",
+            "example": "2025-02-14"
+          },
+          "due_time": {
+            "type": "string",
+            "format": "time",
+            "nullable": true,
+            "pattern": "^(?:[01]\\d|2[0-3]):(?:00|30)$",
+            "description": "Project Target Time on the Estimated Completion Date (minutes can only be 00 or 30)",
+            "example": "15:30"
+          },
+          "created": {
+            "type": "string",
+            "format": "date-time",
+            "readOnly": true,
+            "description": "Project created date-time",
+            "example": "2024-12-21T20:11:38+00:00"
+          }
+        }
+      },
+      "ProjectView": {
+        "allOf": [
+          {"$ref": "#/components/schemas/ProjectList"},
+          {"$ref": "#/components/schemas/ProjectViewWithoutAssignment"},
+          {
+            "type": "object",
+            "properties": {
+              "client": {
+                "$ref": "#/components/schemas/ProjectClient"
+              },
+              "secondary_clients": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ProjectClient"
+                }
+              },
+              "teammates": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ProjectStaff"
+                }
+              },
+              "team": {
+                "$ref": "#/components/schemas/Team"
+              },
+              "leader": {
+                "$ref": "#/components/schemas/ProjectStaff"
+              },
+              "project_custom_fields": {
+                "$ref": "#/components/schemas/CustomFields"
+              }
+            }
+          }
+        ]
+      },
+      "ProjectViewWithoutAssignment": {
+        "allOf": [
+          {"$ref": "#/components/schemas/ProjectList"},
+          {
+            "type": "object",
+            "properties": {
+              "info_description": {
+                "type": "string",
+                "nullable": true,
+                "description": "Project Information (Visible only to Staff)",
+                "example": "<b>Lorem Ipsum</b> is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset"
+              },
+              "info_title_client": {
+                "type": "string",
+                "nullable": true,
+                "description": "Project Information Title (Visible only to Client)",
+                "example": "Digital Marketing Bundle Project"
+              },
+              "info_description_client": {
+                "type": "string",
+                "nullable": true,
+                "description": "Project Information Description (Visible only to Client)",
+                "example": "<b>Lorem Ipsum Client</b> is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset"
+              },
+              "business_sector": {
+                "type": "string",
+                "nullable": true,
+                "description": "Project Economics - Business Sector Name (only the name of the sector added in 'Settings > Business Sectors' is allowed)",
+                "example": "Tax Preparation"
+              },
+              "estimated_value": {
+                "type": "number",
+                "minimum": 0,
+                "nullable": true,
+                "description": "Project Economics - Estimated Value of Project (integer or decimal is allowed)",
+                "example": 500.50
+              },
+              "estimated_value_currency": {
+                "type": "string",
+                "nullable": true,
+                "description": "Project Economics - Currency Name of the Estimated Value of Project (only the name of the currency added in the 'Currencies' page is allowed)",
+                "example": "USD"
+              },
+              "require_time_spend": {
+                "type": "boolean",
+                "description": "Project Economics - Set Estimated Time/Time Spent as required",
+                "example": true
+              }
+            }
+          }
+        ]
+      },
+      "ProjectUpdate": {
+        "allOf": [
+          {"$ref": "#/components/schemas/ProjectList"},
+          {"$ref": "#/components/schemas/ProjectViewWithoutAssignment"},
+          {
+            "type": "object",
+            "properties": {
+              "project_custom_fields": {
+                "$ref": "#/components/schemas/CustomFields"
+              }
+            }
+          }
+        ]
+      },
+      "ProjectClient": {
+        "required": [
+          "uid",
+          "full_name",
+          "email"
+        ],
+        "description": "Project Client",
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true,
+            "description": "Client unique UID",
+            "example": "865f5eff-d3d9-49dc-8572-f2f0e4089879"
+          },
+          "full_name": {
+            "type": "string",
+            "description": "Client Full Name",
+            "example": "John Doe"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Client email",
+            "example": "john.doe@email.com"
+          }
+        }
+      },
+      "ProjectStaff": {
+        "required": [
+          "uid",
+          "full_name",
+          "email",
+          "role"
+        ],
+        "description": "Project Staff",
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true,
+            "description": "Staff unique UID",
+            "example": "865f5eaa-d3d9-49dc-8572-f2f0e4089888"
+          },
+          "full_name": {
+            "type": "string",
+            "description": "Staff Full Name",
+            "example": "Tom Cruise"
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Staff email",
+            "example": "tom.cruise@email.com"
+          },
+          "role": {
+            "type": "string",
+            "enum": ["Super Admin", "Admin", "Project Manager", "Salesperson", "Freelancer"],
+            "description": "Role of the staff",
+            "example": "Admin"
+          }
+        }
+      },
+      "MarketingSubscriber": {
+        "required": [
+          "email",
+          "audiences"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "nullable": false,
+            "required": true,
+            "description": "Contact email (required except for the role of Lead)",
+            "example": "john.doe@email.com"
+          },
+          "first_name": {
+            "type": "string",
+            "nullable": true,
+            "required": false,
+            "description": "Contact first name",
+            "example": "John"
+          },
+          "last_name": {
+            "type": "string",
+            "nullable": true,
+            "required": false,
+            "description": "Contact last name",
+            "example": "Doe"
+          },
+          "audiences": {
+            "type": "array",
+            "nullable": false,
+            "required": true,
+            "items": {
+              "type": "integer"
+            },
+            "example": [45, 548, 250]
+          }
+        }
+      },
+      "AddToCommunities": {
+        "required": [
+          "name"
+        ],
+        "type": "array",
+        "items": {
+          "name": {
+            "type": "string",
+            "nullable": false,
+            "required": true,
+            "description": "Community Name",
+            "example": "Powerful Community"
+          },
+          "private_spaces": {
+            "type": "array",
+            "nullable": false,
+            "required": false,
+            "description": "Private Spaces names",
+            "example": ["The Fantastic", "Heroes"]
+          }
+        },
+        "example": [
+              {
+                "name": "Powerful Community"
+              },
+              {
+                "name": "Magic Community",
+                "private_spaces": [
+                  "The Fantastic",
+                  "Heroes"
+                ]
+              }
+          ]
+      },
+      "RemoveFromCommunities": {
+        "required": [
+          "name"
+        ],
+        "type": "array",
+        "items": {
+          "name": {
+            "type": "string",
+            "nullable": false,
+            "required": true,
+            "description": "Community Name",
+            "example": "Powerful Community"
+          },
+          "all_private_spaces": {
+            "type": "boolean",
+            "description": "Remove target from all private spaces",
+            "required": false,
+            "nullable": false
+          },
+          "all_public_private_spaces": {
+            "type": "boolean",
+            "description": "Remove target from all public and private spaces",
+            "required": false,
+            "nullable": false
+          },
+          "private_spaces": {
+            "type": "array",
+            "nullable": false,
+            "required": false,
+            "description": "Private Spaces names",
+            "example": ["The Fantastic", "Heroes"]
+          }
+        },
+        "example": [
+            {
+              "name": "Weak Community",
+              "all_public_and_private_spaces": true
+            },
+            {
+              "name": "Unused Community",
+              "all_private_spaces": true
+            },
+            {
+              "name": "World Is Not Enough",
+              "private_spaces": [
+                "No Man Land",
+                "Spiders"
+              ]
+            }
+          ]
+      },
+      "Team": {
+        "required": [
+          "uid",
+          "name"
+        ],
+        "description": "Team",
+        "type": "object",
+        "properties": {
+          "uid": {
+            "type": "string",
+            "format": "uuid",
+            "readOnly": true,
+            "description": "Team unique UID",
+            "example": "865f5eaa-d3d9-49dc-8572-f2f0e4089888"
+          },
+          "name": {
+            "type": "string",
+            "description": "Team Name",
+            "example": "Avengers"
+          }
+        }
+      },
+      "Error-400": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "example": false
+            },
+            "message": {
+              "type": "string",
+              "nullable": true,
+              "example": "Request body is empty or format is wrong. Should be raw-json type."
+            },
+            "data": {
+                "type": "array",
+                "items": {},
+                "example": []
+            }
+          }
+      },
+      "Error-401": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "example": false
+            },
+            "message": {
+              "type": "string",
+              "nullable": true,
+              "example": "Authorization: required X-Public-ID or/and X-Secret-Key are not valid."
+            },
+            "data": {
+                "type": "array",
+                "items": {},
+                "example": []
+            }
+          }
+      },
+      "Error-404": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "example": false
+            },
+            "message": {
+              "type": "string",
+              "nullable": true,
+              "example": "Item not found."
+            },
+            "data": {
+                "type": "array",
+                "items": {},
+                "example": []
+            }
+          }
+      },
+      "Error-405": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "example": false
+            },
+            "message": {
+              "type": "string",
+              "nullable": true,
+              "example": "Dummy data not available for this action."
+            },
+            "data": {
+                "type": "array",
+                "items": {},
+                "example": []
+            }
+          }
+      },
+      "Error-429": {
+          "type": "object",
+          "properties": {
+            "success": {
+              "type": "boolean",
+              "example": false
+            },
+            "message": {
+              "type": "string",
+              "nullable": true,
+              "example": "The maximum allowed number of 200 monthly requests has been exceeded."
+            },
+            "data": {
+                "type": "array",
+                "items": {},
+                "example": []
+            }
+          }
+      }
+    },
+    "requestBodies": {
+      "Contact": {
+        "description": "Contact object that needs to be added to the store",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Contact"
+            }
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "Public-ID": {
+        "description": "The Public ID from the Secure API tab from Manage Account",
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Public-ID"
+      },
+      "Secret-Key": {
+        "description": "The Secret Key generated in the Secure API tab from Manage Account",
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Secret-Key"
+      }
+    }
+  }
+}

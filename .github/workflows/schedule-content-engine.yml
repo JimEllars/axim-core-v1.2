@@ -1,0 +1,45 @@
+name: Schedule AXiM Content Engine
+
+on:
+  schedule:
+    # Runs at 08:00 UTC every day
+    - cron: '0 8 * * *'
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  run-content-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Supabase CLI
+        uses: supabase/cli@v1
+        with:
+          version: 1.50.0
+
+      - name: Invoke AXiM Content Engine (Tech News)
+        run: |
+          # Define target URLs or Topics here
+          # For now, we use a mix of topics and potentially a news site if we had one that allows scraping easily.
+          # We'll stick to topics for stability, but the capability is there.
+          PAYLOAD='{"topics": ["AI in Construction", "Renewable Energy Software Trends", "The Future of Solar Sales"]}'
+
+          # We need to escape quotes for the command line
+          # But supabase functions invoke reads from stdin if no body arg? No, documentation says --data or similar?
+          # Actually, `supabase functions invoke` is for local dev mostly. For production scheduling, usually we use pg_cron or similar.
+          # But here we are using GitHub Actions.
+
+          # The correct way to invoke a deployed function via curl is often better for CI/CD.
+          # But `supabase functions invoke` works if linked.
+
+          # Let's use curl to be safe and standard, using the project URL and Anon key (or Service key).
+          # We need SUPABASE_URL and SUPABASE_ANON_KEY secrets.
+
+          curl -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/axim-content-engine" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}

@@ -1,0 +1,18 @@
+{
+  "name": "axim-core-cloud-backend",
+  "version": "1.0.0",
+  "description": "Cloud-native backend for AXiM Core.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@google-cloud/compute": "^6.6.0",
+    "@google-cloud/pubsub": "^5.2.0",
+    "@google-cloud/run": "^3.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}

@@ -1,0 +1,130 @@
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import Stripe from 'https://esm.sh/stripe@12.1.0?target=deno';
+
+const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string, {
+  apiVersion: '2023-10-16',
+  httpClient: Stripe.createFetchHttpClient(),
+});
+
+const cryptoProvider = Stripe.createSubtleCryptoProvider();
+
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL') as string,
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string
+);
+
+serve(async (req) => {
+  const signature = req.headers.get('Stripe-Signature');
+  const body = await req.text();
+
+  let event;
+  try {
+    event = await stripe.webhooks.constructEventAsync(
+      body,
+      signature!,
+      Deno.env.get('STRIPE_WEBHOOK_SIGNING_SECRET')!,
+      undefined,
+      cryptoProvider
+    );
+  } catch (err) {
+    console.error(`Webhook signature verification failed: ${err.message}`);
+    return new Response(err.message, { status: 400 });
+  }
+
+  // Handle the event
+  switch (event.type) {
+    case 'checkout.session.completed': {
+      const session = event.data.object;
+      if (session.mode === 'subscription') {
+        const subscriptionId = session.subscription;
+        const customerId = session.customer;
+        const userId = session.client_reference_id; // Ensure this is passed during checkout creation
+
+        if (userId) {
+             const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+             await upsertSubscription(userId, customerId, subscription);
+        } else {
+             console.warn(`Checkout session ${session.id} completed without client_reference_id (userId).`);
+        }
+      }
+      break;
+    }
+    case 'customer.subscription.updated':
+    case 'customer.subscription.deleted': {
+      const subscription = event.data.object;
+      // We need to find the user associated with this subscription.
+      // Assuming we already stored the customer_id -> user_id mapping, or we query by subscription_id.
+      // But for update, we can query by stripe_subscription_id.
+      await updateSubscription(subscription);
+      break;
+    }
+    default:
+      console.log(`Unhandled event type ${event.type}`);
+  }
+
+  return new Response(JSON.stringify({ received: true }), {
+    headers: { 'Content-Type': 'application/json' },
+    status: 200,
+  });
+});
+
+async function upsertSubscription(userId: string, customerId: string, subscription: any) {
+  if (!userId) {
+    console.error('Error: upsertSubscription called without userId');
+    return;
+  }
+
+  // LIMITATION: Currently assuming one active subscription per user.
+  // We use user_id as the conflict target. If multiple subscriptions are supported in the future,
+  // this schema and logic must be updated to use 'subscription_id' or a composite key.
+  console.log(`Upserting subscription for user ${userId}. Note: enforcing single subscription per user.`);
+
+  const { error } = await supabase
+    .from('subscriptions_ax2024')
+    .upsert({
+      user_id: userId,
+      stripe_customer_id: customerId,
+      stripe_subscription_id: subscription.id,
+      status: subscription.status,
+      plan_id: subscription.items.data[0].price.id,
+      current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+      current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' }); // Assuming one sub per user for now, or use subscription_id as key
+
+  if (error) {
+    console.error('Error upserting subscription:', error);
+  } else {
+    console.log(`Subscription upserted successfully for user ${userId}`);
+  }
+}
+
+async function updateSubscription(subscription: any) {
+    // Determine userId from metadata if possible, or query by subscription_id
+    // But since we upsert based on user_id primarily in the checkout flow, updating by sub id is tricky if we don't know the user.
+    // However, if we upsert based on 'stripe_subscription_id' which should be unique.
+
+    // Let's try to update based on stripe_subscription_id.
+    // Since RLS policies might prevent service role from arbitrary updates? No, service role bypasses RLS.
+    console.log(`Updating subscription ${subscription.id} to status: ${subscription.status}`);
+
+    const { data, error } = await supabase
+        .from('subscriptions_ax2024')
+        .update({
+            status: subscription.status,
+            current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
+            current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
+            updated_at: new Date().toISOString(),
+        })
+        .eq('stripe_subscription_id', subscription.id)
+        .select();
+
+    if (error) {
+        console.error('Error updating subscription:', error);
+    } else if (data.length === 0) {
+        console.warn(`Subscription ${subscription.id} not found for update. This might be a race condition or the initial subscription record was not created.`);
+    } else {
+        console.log(`Subscription updated successfully: ${subscription.id}`);
+    }
+}

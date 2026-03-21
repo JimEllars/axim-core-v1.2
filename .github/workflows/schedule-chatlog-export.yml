@@ -1,0 +1,26 @@
+name: Schedule Daily Chatlog Export
+
+on:
+  schedule:
+    # Runs at 00:00 UTC every day
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  export-chatlogs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Supabase CLI
+        uses: supabase/cli@v1
+        with:
+          version: 1.50.0
+
+      - name: Invoke Google Drive Export Function
+        run: |
+          supabase functions invoke google-drive-export --project-ref $SUPABASE_PROJECT_ID
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}

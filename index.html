@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Axim Core Command Hub</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // This script unregisters any active service workers.
+      // This is a workaround for issues caused by rogue browser extensions or leftover service workers from previous projects
+      // that can interfere with Vite's HMR and cause the app to fail to load.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for(let registration of registrations) {
+            console.log('Unregistering service worker:', registration);
+            registration.unregister();
+          }
+        }).catch(function(err) {
+          console.error('Service Worker unregistration failed: ', err);
+        });
+      }
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

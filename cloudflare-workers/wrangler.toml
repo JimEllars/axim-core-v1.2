@@ -1,0 +1,17 @@
+name = "axim-core-worker"
+main = "src/index.js"
+compatibility_date = "2024-03-20"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+# AXiM Core backend API URL
+GCP_BACKEND_URL = "https://your-gcp-backend-url.com"
+# Supabase URL for specific edge queries
+SUPABASE_URL = "https://your-supabase-url.supabase.co"
+
+# Define environments if needed (e.g., staging, production)
+[env.production]
+name = "axim-core-worker-prod"
+
+[env.staging]
+name = "axim-core-worker-staging"
