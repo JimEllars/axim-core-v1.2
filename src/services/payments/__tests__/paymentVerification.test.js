@@ -5,7 +5,7 @@ import config from '../../../config';
 // Mock the config module
 vi.mock('../../../config', () => ({
   default: {
-    backendUrl: 'http://test-backend.com'
+    apiBaseUrl: 'http://test-backend.com'
   }
 }));
 
