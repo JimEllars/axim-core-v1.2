@@ -1,3 +1,5 @@
+/* eslint-env serviceworker */
+/* global Response, Request, URL, fetch */
 /**
  * AXiM Core Cloudflare Worker
  *
@@ -36,6 +38,7 @@ function handleOptions(request) {
 /**
  * Handle incoming requests
  */
+// eslint-disable-next-line no-unused-vars
 async function handleRequest(request, env, ctx) {
   const url = new URL(request.url);
 
@@ -78,6 +81,7 @@ async function handleRequest(request, env, ctx) {
       });
 
       return proxyResponse;
+    // eslint-disable-next-line no-unused-vars
     } catch (error) {
       return new Response(JSON.stringify({ error: 'Edge Proxy Error: Unable to reach origin' }), {
         status: 502,
