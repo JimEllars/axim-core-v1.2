@@ -4,8 +4,6 @@ import { getCrmService } from '../../crm';
 import { CommandValidationError } from '../errors';
 import { parseDate } from '../utils';
 
-const QUOTE_STRIP_REGEX = /^['"]|['"]$/g;
-
 const contactCommands = [
   createCommand({
     name: 'queryDatabase',
@@ -62,7 +60,7 @@ const contactCommands = [
         const [key, ...valueParts] = pair.split('=').map(p => p.trim());
         const value = valueParts.join('=');
         if (key && value) {
-          updates[key] = value.replace(QUOTE_STRIP_REGEX, ''); // Remove surrounding quotes
+          updates[key] = value.replace(/^['"]|['"]$/g, ''); // Remove surrounding quotes
         }
       }
 
@@ -181,7 +179,7 @@ const contactCommands = [
             if (clauseMatch) {
               const field = clauseMatch[1].trim();
               const operator = clauseMatch[2].trim().toLowerCase();
-              let value = clauseMatch[3].trim().replace(QUOTE_STRIP_REGEX, ''); // Strip quotes
+              let value = clauseMatch[3].trim().replace(/^['"]|['"]$/g, ''); // Strip quotes
 
               if (['since', 'before', 'after', 'between'].includes(operator)) {
                 const parsed = parseDate(value);
