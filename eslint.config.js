@@ -40,18 +40,6 @@ export default [
     },
   },
 
-  // Configuration for Cloudflare Workers
-  {
-    files: ['cloudflare-workers/**/*.js'],
-    languageOptions: {
-      globals: {
-        ...globals.serviceworker,
-        env: 'readonly',
-        ctx: 'readonly',
-      },
-    },
-  },
-
   // Configuration for root-level config files and electron main process
   {
     files: ['*.js', '*.cjs', 'electron/**/*.js', 'electron/**/*.cjs', 'cloud/**/*.js'],
