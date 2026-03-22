@@ -71,6 +71,18 @@ export default [
     },
   },
 
+  // Configuration for Cloudflare Workers
+  {
+    files: ['cloudflare-workers/src/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.serviceworker,
+        env: 'readonly',
+        ctx: 'readonly',
+      },
+    },
+  },
+
   // Configuration for test files
   {
     files: ['**/*.test.js', '**/*.test.jsx', 'src/vitest.setup.jsx'],
