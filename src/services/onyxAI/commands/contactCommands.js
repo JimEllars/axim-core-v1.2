@@ -5,6 +5,13 @@ import { CommandValidationError } from '../errors';
 import { parseDate } from '../utils';
 
 const QUOTE_STRIP_REGEX = /^['"]|['"]$/g;
+const SET_CLAUSE_REGEX = /set\s+(.+)/i;
+const EMAIL_MATCH_REGEX = /(\S+@\S+\.\S+)$/;
+const ADD_CONTACT_NAME_REGEX = /add contact\s+(.+)\s+\S+@/i;
+const LIST_CONTACTS_BASE_REGEX = /^(list contacts|show all contacts|get all contacts|list)\s*/i;
+const SORT_BY_REGEX = /sort by (\w+)\s*(asc|desc)?/i;
+const FILTER_CLAUSE_SCAN_REGEX = /(\w+\s+(?:contains|is|equals|=|since|before|after|between)\s+(?:'[^']+'|"[^"]+"|\S+))/gi;
+const FILTER_CLAUSE_PARSE_REGEX = /(\w+)\s+(contains|is|equals|=|since|before|after|between)\s+('.+'|".+"|\S+)/i;
 
 const contactCommands = [
   createCommand({
@@ -50,7 +57,7 @@ const contactCommands = [
     // Custom parser for the "set field=value" syntax.
     parse: (command, extractedEntities) => {
       const email = extractedEntities.EMAIL;
-      const setClauseMatch = command.match(/set\s+(.+)/i);
+      const setClauseMatch = command.match(SET_CLAUSE_REGEX);
       if (!setClauseMatch) {
         throw new CommandValidationError('Invalid format. Missing "set" clause. Use: update contact <email> set <field>=<value>');
       }
@@ -102,12 +109,12 @@ const contactCommands = [
     ],
     parse: (command) => {
        // Robust parsing: Name is everything between "contact" and the last word (email)
-       const emailMatch = command.match(/(\S+@\S+\.\S+)$/);
+       const emailMatch = command.match(EMAIL_MATCH_REGEX);
        if (!emailMatch) {
          throw new CommandValidationError('Please provide a valid email address at the end.');
        }
        const email = emailMatch[1];
-       const nameMatch = command.match(/add contact\s+(.+)\s+\S+@/i);
+       const nameMatch = command.match(ADD_CONTACT_NAME_REGEX);
        const name = nameMatch ? nameMatch[1].trim() : '';
 
        if (!name) {
@@ -155,17 +162,16 @@ const contactCommands = [
       };
 
       // Remove the base command part to isolate arguments
-      let argsString = command.replace(/^(list contacts|show all contacts|get all contacts|list)\s*/i, '');
+      let argsString = command.replace(LIST_CONTACTS_BASE_REGEX, '');
 
       // 1. Handle Sorting
-      const sortByRegex = /sort by (\w+)\s*(asc|desc)?/i;
-      const sortByMatch = argsString.match(sortByRegex);
+      const sortByMatch = argsString.match(SORT_BY_REGEX);
       if (sortByMatch) {
         options.sortBy = sortByMatch[1].trim();
         if (sortByMatch[2]) {
           options.sortOrder = sortByMatch[2].trim().toLowerCase();
         }
-        argsString = argsString.replace(sortByRegex, '').trim();
+        argsString = argsString.replace(SORT_BY_REGEX, '').trim();
       }
 
       // 2. Handle Filtering
@@ -173,11 +179,11 @@ const contactCommands = [
       if (whereIndex > -1) {
         let filtersString = argsString.substring(whereIndex + 5).trim();
         // Use a regex that properly handles quoted strings to avoid splitting them.
-        const filterClauses = filtersString.match(/(\w+\s+(?:contains|is|equals|=|since|before|after|between)\s+(?:'[^']+'|"[^"]+"|\S+))/gi);
+        const filterClauses = filtersString.match(FILTER_CLAUSE_SCAN_REGEX);
 
         if (filterClauses) {
           for (const clause of filterClauses) {
-            const clauseMatch = clause.match(/(\w+)\s+(contains|is|equals|=|since|before|after|between)\s+('.+'|".+"|\S+)/i);
+            const clauseMatch = clause.match(FILTER_CLAUSE_PARSE_REGEX);
             if (clauseMatch) {
               const field = clauseMatch[1].trim();
               const operator = clauseMatch[2].trim().toLowerCase();
