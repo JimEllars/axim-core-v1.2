@@ -1,7 +1,7 @@
 import axios from 'axios';
 import config from '../config';
 import logger from './logging';
-import { DatabaseError, CommandExecutionError } from './onyxAI/errors';
+import { DatabaseError } from './onyxAI/errors';
 
 class GcpApiService {
   constructor() {
