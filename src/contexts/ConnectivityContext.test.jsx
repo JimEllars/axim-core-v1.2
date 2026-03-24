@@ -1,28 +1,32 @@
-// src/contexts/__tests__/ConnectivityContext.test.jsx
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ConnectivityProvider, useConnectivity } from '../ConnectivityContext';
+import { ConnectivityProvider, useConnectivity } from './ConnectivityContext';
 import connectivityManager from '@/services/connectivityManager';
 
 // Mock the connectivityManager
+const mockUnsubscribe = vi.fn();
+let listeners = new Set();
+let mockIsOnline = true;
+
 vi.mock('@/services/connectivityManager', () => {
-    const listeners = new Set();
-    let isOnline = true;
-    return {
-        default: {
-            getIsOnline: vi.fn(() => isOnline),
-            subscribe: vi.fn((listener) => {
-                listeners.add(listener);
-                listener(isOnline); // Immediately notify with current status
-                return () => listeners.delete(listener);
-            }),
-            __mockSetOnline: (status) => {
-                isOnline = status;
-                listeners.forEach(listener => listener(status));
-            }
-        }
-    };
+  return {
+    default: {
+      getIsOnline: vi.fn(() => mockIsOnline),
+      subscribe: vi.fn((listener) => {
+        listeners.add(listener);
+        listener(mockIsOnline); // Immediately notify with current status
+        return () => {
+          listeners.delete(listener);
+          mockUnsubscribe();
+        };
+      }),
+      __mockSetOnline: (status) => {
+        mockIsOnline = status;
+        listeners.forEach(listener => listener(status));
+      }
+    }
+  };
 });
 
 const TestComponent = () => {
@@ -33,6 +37,9 @@ const TestComponent = () => {
 describe('ConnectivityContext', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUnsubscribe.mockClear();
+    listeners = new Set();
+    mockIsOnline = true;
     connectivityManager.__mockSetOnline(true); // Reset to online before each test
   });
 
@@ -45,6 +52,16 @@ describe('ConnectivityContext', () => {
     expect(screen.getByText('Online')).toBeInTheDocument();
   });
 
+  it('provides the initial offline status', () => {
+    mockIsOnline = false;
+    render(
+      <ConnectivityProvider>
+        <TestComponent />
+      </ConnectivityProvider>
+    );
+    expect(screen.getByText('Offline')).toBeInTheDocument();
+  });
+
   it('updates when the connectivity status changes to offline', () => {
     render(
       <ConnectivityProvider>
@@ -53,7 +70,7 @@ describe('ConnectivityContext', () => {
     );
 
     act(() => {
-        connectivityManager.__mockSetOnline(false);
+      connectivityManager.__mockSetOnline(false);
     });
 
     expect(screen.getByText('Offline')).toBeInTheDocument();
@@ -61,7 +78,7 @@ describe('ConnectivityContext', () => {
 
   it('updates when the connectivity status changes back to online', () => {
     // Start offline
-    connectivityManager.__mockSetOnline(false);
+    mockIsOnline = false;
 
     render(
       <ConnectivityProvider>
@@ -71,9 +88,21 @@ describe('ConnectivityContext', () => {
     expect(screen.getByText('Offline')).toBeInTheDocument();
 
     act(() => {
-        connectivityManager.__mockSetOnline(true);
+      connectivityManager.__mockSetOnline(true);
     });
 
     expect(screen.getByText('Online')).toBeInTheDocument();
+  });
+
+  it('unsubscribes from connectivityManager on unmount', () => {
+    const { unmount } = render(
+      <ConnectivityProvider>
+        <TestComponent />
+      </ConnectivityProvider>
+    );
+
+    unmount();
+
+    expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
   });
 });
