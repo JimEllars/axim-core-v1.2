@@ -38,8 +38,7 @@ export const workflowDefinitions = {
           const { contacts, emailContent } = context;
           if (!contacts || contacts.length === 0) return { message: 'No contacts.' };
 
-          let successCount = 0;
-          for (const contact of contacts) {
+          const emailPromises = contacts.map(async (contact) => {
              try {
                 // Call actual Email Service endpoint
                 await api.sendEmail(
@@ -48,11 +47,15 @@ export const workflowDefinitions = {
                   emailContent || "Default message",
                   context.userId
                 );
-                successCount++;
+                return { success: true };
              } catch (error) {
                 console.error(`Failed to send to ${contact.email}:`, error);
+                return { success: false };
              }
-          }
+          });
+
+          const results = await Promise.all(emailPromises);
+          const successCount = results.filter(r => r.success).length;
           return { message: `Successfully sent outreach emails to ${successCount} of ${contacts.length} contacts.` };
         },
       },
