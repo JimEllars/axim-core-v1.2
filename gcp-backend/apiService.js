@@ -112,26 +112,37 @@ class ApiService {
       const allowedSortColumns = ['name', 'email', 'source', 'created_at'];
       const allowedSortOrders = ['ASC', 'DESC'];
 
-      const sortColumn = allowedSortColumns.includes(sortBy) ? sortBy : 'created_at';
-      const order = allowedSortOrders.includes(sortOrder?.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
-
       let query = `
         SELECT name, email, source, created_at FROM contacts_ax2024
         WHERE user_id = $1
       `;
       const values = [userId];
 
-      const allowedFilterColumns = ['source', 'name', 'email'];
       if (filter) {
         Object.keys(filter).forEach((key) => {
-          if (allowedFilterColumns.includes(key) && filter[key]) {
-            values.push(filter[key]);
-            query += ` AND ${key} = $${values.length}`;
+          if (filter[key]) {
+            let column;
+            if (key === 'source') column = 'source';
+            else if (key === 'name') column = 'name';
+            else if (key === 'email') column = 'email';
+
+            if (column) {
+              values.push(filter[key]);
+              query += ` AND ${column} = $${values.length}`;
+            }
           }
         });
       }
 
-      query += ` ORDER BY ${sortColumn} ${order};`;
+      // Secure ORDER BY: Map variables to hardcoded SQL fragments
+      let orderClause = '';
+      if (sortBy === 'name') orderClause = 'ORDER BY name';
+      else if (sortBy === 'email') orderClause = 'ORDER BY email';
+      else if (sortBy === 'source') orderClause = 'ORDER BY source';
+      else orderClause = 'ORDER BY created_at';
+
+      const order = sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+      query += ` ${orderClause} ${order};`;
 
       const result = await this.db.query(query, values);
       return result.rows;
