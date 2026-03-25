@@ -5,6 +5,20 @@ const DashboardContext = createContext();
 export const useDashboard = () => useContext(DashboardContext);
 
 export const DashboardProvider = ({ children }) => {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [selectedWidget, setSelectedWidget] = useState(null);
+
+  const openDrawer = (widget) => {
+    setSelectedWidget(widget);
+    setIsDrawerOpen(true);
+  };
+
+  const closeDrawer = () => {
+    setIsDrawerOpen(false);
+    setSelectedWidget(null);
+  };
+
   const [refreshKey, setRefreshKey] = useState(0);
 
   const refreshDashboard = useCallback(() => {
@@ -12,6 +26,14 @@ export const DashboardProvider = ({ children }) => {
   }, []);
 
   const value = {
+    activeTab,
+    setActiveTab,
+    isDrawerOpen,
+    setIsDrawerOpen,
+    selectedWidget,
+    setSelectedWidget,
+    openDrawer,
+    closeDrawer,
     refreshKey,
     refreshDashboard,
   };
