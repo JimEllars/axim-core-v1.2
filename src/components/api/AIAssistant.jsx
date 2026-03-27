@@ -650,7 +650,8 @@ const crypto = require('crypto');
 function encryptToken(token) {
   const algorithm = 'aes-256-gcm';
   const iv = crypto.randomBytes(12);
-  const key = crypto.scryptSync(process.env.ENCRYPTION_KEY, 'salt', 32);
+  const salt = crypto.randomBytes(16);
+  const key = crypto.scryptSync(process.env.ENCRYPTION_KEY, salt, 32);
 
   const cipher = crypto.createCipheriv(algorithm, key, iv);
   let encrypted = cipher.update(token, 'utf8', 'hex');
@@ -658,16 +659,17 @@ function encryptToken(token) {
 
   const authTag = cipher.getAuthTag().toString('hex');
 
-  // Return IV + AuthTag + encrypted data for storage
-  return \`\${iv.toString('hex')}:\${authTag}:\${encrypted}\`;
+  // Return Salt + IV + AuthTag + encrypted data for storage
+  return \`\${salt.toString('hex')}:\${iv.toString('hex')}:\${authTag}:\${encrypted}\`;
 }
 
 function decryptToken(encryptedData) {
   const algorithm = 'aes-256-gcm';
-  const [ivHex, authTagHex, encrypted] = encryptedData.split(':');
+  const [saltHex, ivHex, authTagHex, encrypted] = encryptedData.split(':');
+  const salt = Buffer.from(saltHex, 'hex');
   const iv = Buffer.from(ivHex, 'hex');
   const authTag = Buffer.from(authTagHex, 'hex');
-  const key = crypto.scryptSync(process.env.ENCRYPTION_KEY, 'salt', 32);
+  const key = crypto.scryptSync(process.env.ENCRYPTION_KEY, salt, 32);
 
   const decipher = crypto.createDecipheriv(algorithm, key, iv);
   decipher.setAuthTag(authTag);
