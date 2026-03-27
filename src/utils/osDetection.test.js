@@ -54,6 +54,22 @@ describe('osDetection - getOS', () => {
       });
       expect(getOS()).toBe('iOS');
     });
+
+    it('falls back to userAgent if userAgentData is present but platform is missing', () => {
+      navigatorSpy.mockReturnValue({
+        userAgentData: {},
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+      });
+      expect(getOS()).toBe('Windows');
+    });
+
+    it('falls back to userAgent if userAgentData platform is unrecognized', () => {
+      navigatorSpy.mockReturnValue({
+        userAgentData: { platform: 'UnknownOS' },
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36'
+      });
+      expect(getOS()).toBe('Windows');
+    });
   });
 
   describe('using userAgent fallback (legacy API)', () => {
