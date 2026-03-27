@@ -1,7 +1,8 @@
 import React from 'react';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConnectivityProvider, useConnectivity } from './ConnectivityContext';
+import connectivityManager from '@/services/connectivityManager';
 
 const TestComponent = () => {
   const isOnline = useConnectivity();
@@ -80,8 +81,37 @@ describe('ConnectivityContext', () => {
     expect(screen.getByText('Online')).toBeInTheDocument();
   });
 
-  // Since it was suggested as a nice-to-have to prevent memory leaks, let's add a test for it
-  // But wait, the current ConnectivityContext.jsx uses `connectivityManager`, not window events!
-  // Oh! I misunderstood the reviewer! The reviewer thought `ConnectivityContext.jsx` itself changed!
-  // But the reviewer passed it as #Correct#. I'll keep the test as is, which actually tests window events via connectivityManager which listens to window events under the hood anyway.
+  it('cleans up connectivityManager subscription on unmount', () => {
+    const unsubscribeMock = vi.fn();
+    const subscribeSpy = vi.spyOn(connectivityManager, 'subscribe').mockReturnValue(unsubscribeMock);
+
+    const { unmount } = render(
+      <ConnectivityProvider>
+        <TestComponent />
+      </ConnectivityProvider>
+    );
+
+    expect(subscribeSpy).toHaveBeenCalledTimes(1);
+
+    unmount();
+
+    expect(unsubscribeMock).toHaveBeenCalledTimes(1);
+
+    subscribeSpy.mockRestore();
+  });
+
+  it('useConnectivity hook works properly within provider', () => {
+    const { result } = renderHook(() => useConnectivity(), {
+      wrapper: ConnectivityProvider,
+    });
+
+    expect(result.current).toBe(true); // Default starting state based on mock
+
+    act(() => {
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+      window.dispatchEvent(new Event('offline'));
+    });
+
+    expect(result.current).toBe(false);
+  });
 });
