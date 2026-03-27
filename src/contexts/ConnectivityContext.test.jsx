@@ -31,6 +31,24 @@ describe('ConnectivityContext', () => {
     expect(screen.getByText('Online')).toBeInTheDocument();
   });
 
+  it('provides the initial offline status when starting offline', () => {
+    // Override the beforeEach mock for this specific test
+    vi.spyOn(connectivityManager, 'getIsOnline').mockReturnValueOnce(false);
+
+    // Also mock navigator to be offline
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    window.dispatchEvent(new Event('offline'));
+
+    render(
+      <ConnectivityProvider>
+        <TestComponent />
+      </ConnectivityProvider>
+    );
+
+    // It should render offline because connectivityManager.getIsOnline() returns false
+    expect(screen.getByText('Offline')).toBeInTheDocument();
+  });
+
   it('provides the default fallback status (true) when useConnectivity is called outside provider', () => {
     // Test the default value of the context (true) without the ConnectivityProvider
     render(<TestComponent />);
@@ -113,5 +131,29 @@ describe('ConnectivityContext', () => {
     });
 
     expect(result.current).toBe(false);
+  });
+
+  it('useConnectivity hook starts false when app initializes offline', () => {
+    // Override the getIsOnline mock for this test
+    vi.spyOn(connectivityManager, 'getIsOnline').mockReturnValueOnce(false);
+
+    // Also mock navigator to be offline
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    window.dispatchEvent(new Event('offline'));
+
+    const { result } = renderHook(() => useConnectivity(), {
+      wrapper: ConnectivityProvider,
+    });
+
+    // Should start false based on getIsOnline mock
+    expect(result.current).toBe(false);
+
+    // Should transition to online
+    act(() => {
+      vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+      window.dispatchEvent(new Event('online'));
+    });
+
+    expect(result.current).toBe(true);
   });
 });
