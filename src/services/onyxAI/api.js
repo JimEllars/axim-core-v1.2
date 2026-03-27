@@ -1,9 +1,7 @@
-import { v4 as uuidv4 } from 'uuid';
 import config from '../../config';
 import gcpApiService from '../gcpApiService';
 import supabaseApiService from '../supabaseApiService';
 import logger from '../logging';
-import toast from 'react-hot-toast';
 
 class ApiService {
   constructor() {
@@ -157,7 +155,7 @@ class ApiService {
 
   async addContact(name, email, source = 'command_hub', userId) {
     // Generate a consistent UUID for both backends
-    const id = uuidv4();
+    const id = crypto.randomUUID();
     return this._executeDualWrite('addContact', name, email, source, userId, id);
   }
 
@@ -165,7 +163,7 @@ class ApiService {
     // We assume bulk add contacts already have IDs or we generate them?
     // For now, let's keep fallback for bulk as it's complex to sync generated IDs for array.
     // Ideally we should generate IDs for all here.
-    const contactsWithIds = contacts.map(c => ({ ...c, id: c.id || uuidv4() }));
+    const contactsWithIds = contacts.map(c => ({ ...c, id: c.id || crypto.randomUUID() }));
     return this._executeDualWrite('bulkAddContacts', contactsWithIds, userId);
   }
 
