@@ -80,6 +80,40 @@ describe('DashboardContext', () => {
     expect(result.current.refreshDashboard).toBe(initialRefreshDashboard);
   });
 
+  it('should maintain referential equality of context functions across re-renders to prevent unnecessary updates', () => {
+    const { result, rerender } = renderHook(() => useDashboard(), { wrapper });
+
+    const initialOpenDrawer = result.current.openDrawer;
+    const initialCloseDrawer = result.current.closeDrawer;
+    const initialSetActiveTab = result.current.setActiveTab;
+
+    // Trigger a state change to force a re-render
+    act(() => {
+      result.current.setActiveTab('settings');
+    });
+
+    // Check that functions maintain referential equality
+    expect(result.current.openDrawer).toBe(initialOpenDrawer);
+    expect(result.current.closeDrawer).toBe(initialCloseDrawer);
+    expect(result.current.setActiveTab).toBe(initialSetActiveTab);
+
+    rerender();
+
+    expect(result.current.openDrawer).toBe(initialOpenDrawer);
+    expect(result.current.closeDrawer).toBe(initialCloseDrawer);
+  });
+
+  it('should memoize the context value object to prevent unnecessary re-renders of consumers', () => {
+    const { result, rerender } = renderHook(() => useDashboard(), { wrapper });
+
+    const initialValue = result.current;
+
+    // A simple re-render without state changes should return the exact same object reference
+    rerender();
+
+    expect(result.current).toBe(initialValue);
+  });
+
   it('should allow functional state updates for setters', () => {
     const { result } = renderHook(() => useDashboard(), { wrapper });
 

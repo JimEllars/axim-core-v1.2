@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 
 const DashboardContext = createContext();
 
@@ -9,15 +9,15 @@ export const DashboardProvider = ({ children }) => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedWidget, setSelectedWidget] = useState(null);
 
-  const openDrawer = (widget) => {
+  const openDrawer = useCallback((widget) => {
     setSelectedWidget(widget);
     setIsDrawerOpen(true);
-  };
+  }, []);
 
-  const closeDrawer = () => {
+  const closeDrawer = useCallback(() => {
     setIsDrawerOpen(false);
     setSelectedWidget(null);
-  };
+  }, []);
 
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -25,7 +25,7 @@ export const DashboardProvider = ({ children }) => {
     setRefreshKey(prevKey => prevKey + 1);
   }, []);
 
-  const value = {
+  const value = useMemo(() => ({
     activeTab,
     setActiveTab,
     isDrawerOpen,
@@ -36,7 +36,15 @@ export const DashboardProvider = ({ children }) => {
     closeDrawer,
     refreshKey,
     refreshDashboard,
-  };
+  }), [
+    activeTab,
+    isDrawerOpen,
+    selectedWidget,
+    openDrawer,
+    closeDrawer,
+    refreshKey,
+    refreshDashboard
+  ]);
 
   return (
     <DashboardContext.Provider value={value}>
