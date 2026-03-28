@@ -81,4 +81,28 @@ describe('callApiProxy', () => {
       integrationId: '123', endpoint: '/test', method: 'GET'
     })).rejects.toThrow('Supabase client is not initialized.');
   });
+
+  it('should call supabase.functions.invoke correctly without optional parameters (body, headers)', async () => {
+    const mockResponse = { data: { success: true }, error: null };
+    supabase.functions.invoke.mockResolvedValueOnce(mockResponse);
+
+    const params = {
+      integrationId: 'int-456',
+      endpoint: '/health',
+      method: 'GET',
+    };
+
+    const result = await callApiProxy(params);
+
+    expect(supabase.functions.invoke).toHaveBeenCalledWith('api-proxy', {
+      body: {
+        integrationId: 'int-456',
+        endpoint: '/health',
+        method: 'GET',
+        body: undefined,
+        headers: undefined,
+      },
+    });
+    expect(result).toEqual({ success: true });
+  });
 });
