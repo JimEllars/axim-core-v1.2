@@ -1,6 +1,11 @@
 import React, { useEffect } from 'react';
-import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Toaster } from 'react-hot-toast';
+import { SupabaseProvider } from './contexts/SupabaseContext.jsx';
+import { AuthProvider } from './contexts/AuthContext.jsx';
+import { ConnectivityProvider } from './contexts/ConnectivityContext.jsx';
+import { ApiProvider } from './contexts/ApiContext.jsx';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import CommandHub from './components/CommandHub';
@@ -51,7 +56,7 @@ function ConnectionErrorDisplay({ error }) {
   );
 }
 
-function App() {
+function AppContent() {
   const { isAuthenticated: realIsAuthenticated, loading: authLoading, user } = useAuth();
   const { supabase, connectionError, isConnectionChecked } = useSupabase();
   const location = useLocation();
@@ -128,6 +133,33 @@ function App() {
         </Routes>
       </AnimatePresence>
     </ErrorBoundary>
+  );
+}
+
+function App() {
+  return (
+    <HashRouter>
+      <SupabaseProvider>
+        <AuthProvider>
+          <ConnectivityProvider>
+            <ApiProvider>
+              <AppContent />
+            </ApiProvider>
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                style: {
+                  borderRadius: '10px',
+                  background: '#1e293b', // slate-800
+                  color: '#e2e8f0', // slate-200
+                  border: '1px solid #334155', // slate-700
+                },
+              }}
+            />
+          </ConnectivityProvider>
+        </AuthProvider>
+      </SupabaseProvider>
+    </HashRouter>
   );
 }
 
