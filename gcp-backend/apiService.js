@@ -1065,8 +1065,8 @@ class ApiService {
   async getActiveAutomations() {
     try {
       const query = `
-        SELECT * FROM automations_ax2024
-        WHERE enabled = true
+        SELECT * FROM scheduled_tasks
+        WHERE status = 'active'
       `;
       const result = await this.db.query(query);
       return result.rows;
@@ -1079,13 +1079,14 @@ class ApiService {
 
   async logAutomationExecution(automationId, status, output, executionTimeMs) {
     try {
+      // Create event log since automation_logs doesn't exist
       const query = `
-        INSERT INTO automation_logs_ax2024 (automation_id, status, output, execution_time_ms)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO events_ax2024 (type, source, data)
+        VALUES ('automation_execution', 'axim_core', $1)
         RETURNING id;
       `;
-      const values = [automationId, status, JSON.stringify(output), executionTimeMs];
-      await this.db.query(query, values);
+      const payload = JSON.stringify({ automation_id: automationId, status, output, execution_time_ms: executionTimeMs });
+      await this.db.query(query, [payload]);
     } catch (error) {
       console.error('Error logging automation execution:', error);
       // Don't throw, just log
@@ -1095,8 +1096,8 @@ class ApiService {
   async updateAutomationRunTime(automationId, nextRun) {
     try {
       const query = `
-        UPDATE automations_ax2024
-        SET last_run = NOW(), next_run = $2
+        UPDATE scheduled_tasks
+        SET last_run_at = NOW(), next_run_at = $2
         WHERE id = $1
       `;
       await this.db.query(query, [automationId, nextRun]);

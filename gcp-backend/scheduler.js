@@ -36,16 +36,34 @@ class Scheduler {
 
       automations.forEach(auto => {
         if (!cron.validate(auto.schedule)) {
-          console.warn(`Invalid cron expression for automation ${auto.name} (${auto.id}): ${auto.schedule}`);
+          console.warn(`Invalid cron expression for automation ${auto.command} (${auto.id}): ${auto.schedule}`);
           return;
         }
 
+        // We assume command holds a JSON string with the config for the automation, including type and config
+        // E.g., command: '{"type": "news_scan_and_report", "timezone": "America/New_York", "config": {"topic": "industry news"}}'
+        let parsedCommand = {};
+        try {
+          parsedCommand = JSON.parse(auto.command);
+        } catch (err) {
+          console.warn(`Could not parse command JSON for task ${auto.id}, falling back to default command as type.`);
+          parsedCommand = { type: auto.command, config: {} };
+        }
+
+        const autoData = {
+          ...auto,
+          name: auto.id,
+          type: parsedCommand.type || auto.command,
+          config: parsedCommand.config || {}
+        };
+
+        const options = parsedCommand.timezone ? { timezone: parsedCommand.timezone } : {};
         const task = cron.schedule(auto.schedule, () => {
-          this.executeAutomation(auto);
-        });
+          this.executeAutomation(autoData);
+        }, options);
 
         this.jobs.set(auto.id, task);
-        console.log(`Scheduled automation: ${auto.name} (${auto.schedule})`);
+        console.log(`Scheduled automation: ${autoData.type} (${auto.schedule})`);
       });
 
     } catch (error) {
@@ -72,6 +90,9 @@ class Scheduler {
            break;
         case 'memory_summary':
           output = await this.handleMemorySummary(automation.config);
+          break;
+        case 'news_scan_and_report':
+          output = await this.handleNewsScanAndReport(automation.config, automation.user_id);
           break;
         default:
           throw new Error(`Unknown automation type: ${automation.type}`);
@@ -131,6 +152,59 @@ class Scheduler {
 
     } catch (error) {
       throw new Error(`Google Trends Scan failed: ${error.message}`);
+    }
+  }
+
+  async handleNewsScanAndReport(config, userId) {
+    const topic = config.topic || 'industry news';
+    const geo = config.geo || 'US';
+    console.log(`Executing News Scan for topic: ${topic}, geo: ${geo}...`);
+
+    try {
+      // We will use Google Trends as a proxy for top news for now
+      // This could be easily swapped out with a dedicated News API
+      const results = await googleTrends.dailyTrends({ geo });
+      const parsed = JSON.parse(results);
+
+      const trendingDays = parsed.default?.trendingSearchesDays || [];
+      const todaysTrends = trendingDays[0]?.trendingSearches || [];
+
+      const topTrends = todaysTrends.slice(0, 5).map(t => ({
+        title: t.title.query,
+        traffic: t.formattedTraffic,
+        articles: t.articles.map(a => ({ title: a.title, url: a.url, source: a.source }))
+      }));
+
+      // Send the fetched news to the content engine to build a structured report
+      const reportPayload = {
+        action: 'generate_news_report',
+        topic,
+        trends: topTrends,
+        userId
+      };
+
+      const reportResponse = await apiService.triggerContentEngine(reportPayload);
+      const generatedReport = reportResponse?.report || JSON.stringify(topTrends, null, 2);
+
+      // Log the generated report as an AI interaction so the user can see it in their command hub
+      await apiService.logAIInteraction(
+        `SYSTEM: Generated Daily News Report (${topic})`,
+        generatedReport,
+        0,
+        'success',
+        userId,
+        'system-news-report',
+        'report',
+        'system',
+        'report-model'
+      );
+
+      return {
+        trends_found: topTrends.length,
+        report_generated: !!reportResponse?.report
+      };
+    } catch (error) {
+      throw new Error(`News Scan and Report failed: ${error.message}`);
     }
   }
 
