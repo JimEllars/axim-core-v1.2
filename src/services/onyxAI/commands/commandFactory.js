@@ -20,9 +20,6 @@ export const createCommand = (definition) => {
      * @returns {object} The parsed arguments, which are the extracted entities.
      */
     parse: (input, extractedEntities = {}) => {
-      // The NLP process now provides a clean object of entities.
-      // We can just return it. Individual commands can override this
-      // for more complex parsing logic if needed.
       return extractedEntities;
     },
     /**
