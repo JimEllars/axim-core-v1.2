@@ -7,7 +7,6 @@ import serviceRegistry from './serviceRegistry';
 import commands from './commands';
 import * as llm from './llm';
 import { CommandNotFoundError, IntentParsingError, CommandExecutionError } from './errors';
-import { v4 as uuidv4 } from 'uuid';
 import logger from '../logging';
 // import connectivityManager from '../connectivityManager'; // To be injected
 // import offlineManager from '../offline'; // To be injected
@@ -21,7 +20,7 @@ class OnyxAI {
     this.name = "Onyx";
     this.version = "1.2.0";
     this.isInitialized = false;
-    this.conversationId = uuidv4();
+    this.conversationId = crypto.randomUUID();
     this.userId = null;
     this.api = null; // To be injected
     this.connectivityManager = null; // To be injected
@@ -67,7 +66,7 @@ class OnyxAI {
    */
   clearConversationHistory() {
     conversationHistory.clear();
-    this.conversationId = uuidv4(); // Start a new conversation stream
+    this.conversationId = crypto.randomUUID(); // Start a new conversation stream
   }
 
   getCommand(command) {
