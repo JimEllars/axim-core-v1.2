@@ -26,8 +26,10 @@ export default [
         throw new CommandExecutionError('Cannot add deal: User ID not found in context.');
       }
       try {
-        // Stub implementation for CRM integration
         const dealData = { dealName, amount, company, stage: 'New', source: 'OnyxAI' };
+
+        // Push to CRM using the generic invokeAximService
+        await aximCore.api.invokeAximService('crm-integration', 'add-deal', dealData, userId);
 
         await aximCore.api.logEvent('crm_deal_created', dealData, userId);
 
