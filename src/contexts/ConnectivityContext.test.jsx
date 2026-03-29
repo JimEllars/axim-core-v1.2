@@ -156,4 +156,30 @@ describe('ConnectivityContext', () => {
 
     expect(result.current).toBe(true);
   });
+
+  it('prevents unnecessary re-renders in consuming components when status remains the same', () => {
+    let renderCount = 0;
+    const RenderCounterComponent = () => {
+      useConnectivity();
+      renderCount++;
+      return null;
+    };
+
+    render(
+      <ConnectivityProvider>
+        <RenderCounterComponent />
+      </ConnectivityProvider>
+    );
+
+    // Initial render
+    expect(renderCount).toBe(1);
+
+    // Trigger online event again while already online
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+    });
+
+    // It should not re-render because the state is strictly equal (true === true)
+    expect(renderCount).toBe(1);
+  });
 });
