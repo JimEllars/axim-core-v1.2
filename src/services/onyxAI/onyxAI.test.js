@@ -200,5 +200,20 @@ describe('OnyxAI', () => {
 
       await expect(OnyxAI.routeCommand('unknown')).rejects.toThrow(CommandNotFoundError);
     });
+
+    it('should throw CommandNotFoundError when no command and no default generateContent command is available', async () => {
+      // Mock getCommand to always return undefined, simulating both the
+      // target command and the 'generateContent' fallback missing.
+      getCommandSpy.mockReturnValue(undefined);
+
+      const commandStr = 'some unknown command';
+      await expect(OnyxAI.routeCommand(commandStr)).rejects.toThrow(
+        new CommandNotFoundError(`The command "${commandStr}" is not recognized and no default command is available.`)
+      );
+
+      // Verify getCommand was called twice: once for the input, once for 'generateContent'
+      expect(getCommandSpy).toHaveBeenCalledWith(commandStr);
+      expect(getCommandSpy).toHaveBeenCalledWith('generateContent');
+    });
   });
 });
