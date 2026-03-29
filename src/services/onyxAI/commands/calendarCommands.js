@@ -26,9 +26,10 @@ export default [
         throw new CommandExecutionError('Cannot schedule meeting: User ID not found in context.');
       }
       try {
-        // Stub implementation for Calendar API integration
-        // In reality, this would call an Edge Function that interacts with Google Calendar API or similar
         const eventData = { title: `Meeting with ${person}`, date, time, status: 'scheduled' };
+
+        // Use the generic invokeAximService to call the external calendar integration
+        await aximCore.api.invokeAximService('calendar-integration', 'schedule', eventData, userId);
 
         // Log the scheduling event to DB for tracking
         await aximCore.api.logEvent('calendar_event_created', eventData, userId);
