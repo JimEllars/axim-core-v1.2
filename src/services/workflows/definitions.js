@@ -274,5 +274,69 @@ export const workflowDefinitions = {
         }
       }
     ]
+  },
+  daily_memory_summary: {
+    name: 'Daily Memory Summarization',
+    description: 'Summarizes AI interactions for the day into a persistent long-term memory entry.',
+    steps: [
+      {
+        name: 'Fetch Recent Interactions',
+        action: async (context) => {
+          const { userId } = context;
+          const interactions = await api.searchChatHistory('', userId);
+          // Filter for the last 24 hours
+          const recentInteractions = interactions.filter(i => {
+            const interactionDate = new Date(i.created_at);
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            return interactionDate > yesterday;
+          });
+
+          return {
+            message: `Fetched ${recentInteractions.length} interactions from the last 24 hours.`,
+            recentInteractions
+          };
+        }
+      },
+      {
+        name: 'Generate Summary',
+        action: async (context) => {
+          const { recentInteractions } = context;
+          if (!recentInteractions || recentInteractions.length === 0) {
+            return { message: 'No interactions to summarize.' };
+          }
+
+          const interactionLog = recentInteractions.map(i => `User: ${i.command}\nAI: ${i.response}`).join('\n\n');
+          const prompt = `Summarize the following user interactions from the past 24 hours into a concise, high-level overview of the user's activities, goals, and interests. This will be stored as long-term memory context for future AI interactions.\n\nInteractions:\n${interactionLog}`;
+
+          const summary = await generateContent(prompt);
+          return {
+            message: 'Generated daily memory summary.',
+            summary
+          };
+        }
+      },
+      {
+        name: 'Store Summary in Memory Bank',
+        action: async (context) => {
+          const { summary, userId } = context;
+          if (!summary) return { message: 'No summary to store.' };
+
+          await api.logAIInteraction(
+             'SYSTEM_BACKGROUND_SUMMARY',
+             summary,
+             0,
+             'success',
+             userId,
+             null,
+             'system',
+             'internal',
+             'internal'
+          );
+
+          return { message: 'Stored daily memory summary in the vector database.' };
+        }
+      }
+    ]
   }
 };

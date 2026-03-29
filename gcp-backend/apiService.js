@@ -765,7 +765,7 @@ class ApiService {
 
   async getWorkflows() {
     try {
-      const result = await this.db.query('SELECT * FROM workflows_ax2024 ORDER BY created_at DESC');
+      const result = await this.db.query('SELECT name, description, slug, definition FROM workflows_ax2024 ORDER BY created_at DESC');
       return result.rows;
     } catch (error) {
       console.error('Error getting workflows:', error);

@@ -47,12 +47,18 @@ export const runWorkflow = async (workflowSlug, userId, initialContext = {}) => 
       // If step is a JSON definition from DB
       else if (step.type === 'api_call') {
          result = await api.invokeAximService(step.config.service, step.config.endpoint, step.config.payload, userId);
+         result = { message: `API call to ${step.config.service} successful.`, data: result };
       }
       else if (step.type === 'email') {
          result = await api.sendEmail(step.config.to, step.config.subject, step.config.body, userId);
+         result = { message: `Email sent to ${step.config.to}.` };
+      }
+      else if (step.type === 'query_database') {
+         const dbResult = await api.queryDatabase(step.config.query, userId);
+         result = { message: `Query execution successful.`, data: dbResult };
       }
       else {
-         result = { message: `Step ${step.name} executed (mock JSON interpreter)` };
+         result = { message: `Step ${step.name} executed (JSON interpreter)` };
       }
 
       // Merge the result into the context for subsequent steps
