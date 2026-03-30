@@ -491,7 +491,7 @@ class SupabaseApiService {
     try {
       const { data, error } = await this.supabase
         .from('workflows_ax2024')
-        .select('name, description, slug');
+        .select('name, description, slug, definition');
       if (error) throw new DatabaseError(error.message);
       return data;
     } catch (error) {
