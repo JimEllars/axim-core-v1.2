@@ -401,7 +401,27 @@ const WorkflowBuilder = () => {
               <SafeIcon icon={FiPlay} className="mr-2" />
               Test Run
             </button>
-            <button className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-md transition-colors shadow-lg shadow-indigo-500/20">
+            <button
+              onClick={async () => {
+                if (!user?.id) {
+                  toast.error("User not authenticated.");
+                  return;
+                }
+                try {
+                  const definition = { steps: nodes };
+                  await api.createWorkflow(
+                    "Custom Workflow " + Date.now(),
+                    "Generated workflow",
+                    "custom_wf_" + Date.now(),
+                    definition,
+                    user.id
+                  );
+                  toast.success("Workflow saved to database!");
+                } catch (err) {
+                  toast.error("Failed to save workflow.");
+                }
+              }}
+              className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-md transition-colors shadow-lg shadow-indigo-500/20">
               <SafeIcon icon={FiSave} className="mr-2" />
               Save Workflow
             </button>

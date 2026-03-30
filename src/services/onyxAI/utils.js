@@ -19,6 +19,7 @@ export const sanitizeInput = (input) => {
   // Prevent commands from starting with dangerous characters, but allow them inside the string
   // This is less aggressive and allows for more flexible command arguments (e.g., URLs, file paths)
   // We use \s* to also remove any whitespace mixed in with the leading dangerous characters
+  // eslint-disable-next-line no-useless-escape
   sanitized = sanitized.replace(/^[;\s'"\\\/&|`<>]+/, '');
 
   // Trim again in case removing leading characters exposed leading whitespace (e.g. "&& ls" -> " ls" -> "ls")
