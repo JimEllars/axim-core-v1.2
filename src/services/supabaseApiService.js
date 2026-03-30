@@ -501,6 +501,25 @@ class SupabaseApiService {
     }
   }
 
+  async createWorkflow(name, description, slug, definition, userId) {
+    if (this._checkConnectivity('createWorkflow', [name, description, slug, definition, userId], true)) {
+      return Promise.resolve();
+    }
+    try {
+      const { data, error } = await this.supabase
+        .from('workflows_ax2024')
+        .insert({ name, description, slug, definition, user_id: userId })
+        .select()
+        .single();
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      toast.error('Failed to create workflow');
+      logger.error('Failed to create workflow:', error);
+      throw new DatabaseError(`Failed to create workflow: ${error.message}`);
+    }
+  }
+
   async deleteIntegration(id) {
     if (this._checkConnectivity('deleteIntegration', [id])) return;
     try {
