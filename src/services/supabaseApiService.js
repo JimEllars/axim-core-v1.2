@@ -576,20 +576,20 @@ class SupabaseApiService {
   async searchMemory(queryEmbedding, limit = 5, userId = null) {
     if (this._checkConnectivity('searchMemory', [queryEmbedding, limit, userId])) return [];
     try {
-      // Stub implementation: calls a hypothetical RPC 'match_ai_interactions'
+      // Calls the RPC 'match_ai_interactions' to perform vector search
       // Requires pgvector and the RPC function to be created in Supabase.
       const { data, error } = await this.supabase.rpc('match_ai_interactions', {
         query_embedding: queryEmbedding,
-        match_threshold: 0.78, // typical threshold
+        match_threshold: 0.70, // Slightly lower threshold for better recall
         match_count: limit,
         p_user_id: userId
       });
 
       if (error) {
-        logger.warn('searchMemory RPC failed (expected if pgvector/rpc not fully set up yet):', error.message);
+        logger.warn('searchMemory RPC failed:', error.message);
         return []; // Return empty array gracefully during development
       }
-      return data;
+      return data || [];
     } catch (error) {
       logger.error('Failed to execute searchMemory:', error);
       return [];
