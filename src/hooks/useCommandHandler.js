@@ -2,11 +2,10 @@ import { useCallback } from 'react';
 import onyxAI from '../services/onyxAI';
 import api from '../services/onyxAI/api';
 import toast from 'react-hot-toast';
-import { v4 as uuidv4 } from 'uuid';
 import { useAuth } from '../contexts/AuthContext';
 
 const createMessage = (content, type = 'user', props = {}) => ({
-  id: uuidv4(),
+  id: crypto.randomUUID(),
   timestamp: new Date(),
   content,
   type,
@@ -48,7 +47,7 @@ export const useCommandHandler = (dispatch) => {
     dispatch({ type: 'ADD_MESSAGE', payload: userMessage });
     dispatch({ type: 'ADD_RECENT_COMMAND', payload: commandStr });
 
-    const assistantMessageId = uuidv4();
+    const assistantMessageId = crypto.randomUUID();
     const assistantTypingMessage = createMessage('...', 'assistant', { isTyping: true, id: assistantMessageId });
     dispatch({ type: 'ADD_MESSAGE', payload: assistantTypingMessage });
 
