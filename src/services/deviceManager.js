@@ -1,5 +1,4 @@
 // src/services/deviceManager.js
-import { v4 as uuidv4 } from 'uuid';
 import ApiService from '@/services/onyxAI/api';
 import logger from '@/services/logging';
 import { getOS } from '@/utils/osDetection';
@@ -59,7 +58,7 @@ export class DeviceManager {
   loadOrGenerateDeviceInfo() {
     this.deviceId = this.storage.getItem(DEVICE_ID_KEY);
     if (!this.deviceId) {
-      this.deviceId = uuidv4();
+      this.deviceId = crypto.randomUUID();
       this.storage.setItem(DEVICE_ID_KEY, this.deviceId);
     }
     this.forceRegister();

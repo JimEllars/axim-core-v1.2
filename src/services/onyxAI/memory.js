@@ -1,6 +1,5 @@
 // src/services/onyxAI/memory.js
 import toast from 'react-hot-toast';
-import { v4 as uuidv4 } from 'uuid';
 import api from './api';
 import logger from '../logging';
 
@@ -68,7 +67,7 @@ class ConversationHistory {
    */
   addMessage(type, content) {
     const message = {
-      messageId: uuidv4(),
+      messageId: crypto.randomUUID(),
       conversationId: this.conversationId,
       userId: this.userId,
       type,

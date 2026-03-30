@@ -190,7 +190,7 @@ const WorkflowBuilder = () => {
     setNodes(nodes.filter(n => n.id !== id));
   };
 
-  const useTemplate = (templateId) => {
+  const loadTemplate = (templateId) => {
     if (templateId === 'auto-reply') {
       setNodes([
         { id: 'start', type: 'trigger', label: 'New Lead Added' },
@@ -293,7 +293,7 @@ const WorkflowBuilder = () => {
         { id: 'export', title: 'Weekly Summary Export', desc: 'Export AI interactions to Drive every Friday.' },
         { id: 'routing', title: 'Support Ticket Routing', desc: 'Route webhook tickets based on priority.' }
       ].map((tpl) => (
-        <div key={tpl.id} onClick={() => useTemplate(tpl.id)} className="bg-onyx-950 border border-onyx-accent/20 rounded-lg p-4 hover:border-indigo-500 transition-colors cursor-pointer group">
+        <div key={tpl.id} onClick={() => loadTemplate(tpl.id)} className="bg-onyx-950 border border-onyx-accent/20 rounded-lg p-4 hover:border-indigo-500 transition-colors cursor-pointer group">
            <h4 className="text-white font-medium mb-2 group-hover:text-indigo-400">{tpl.title}</h4>
            <p className="text-sm text-slate-400 mb-4">{tpl.desc}</p>
            <button className="text-indigo-400 text-sm font-medium hover:text-indigo-300">Use Template &rarr;</button>

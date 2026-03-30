@@ -50,8 +50,7 @@
     "react-router-dom": "^6.30.3",
     "react-syntax-highlighter": "^16.1.0",
     "recharts": "^3.2.1",
-    "redis": "^5.9.0",
-    "uuid": "^13.0.0"
+    "redis": "^5.9.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.30.0",

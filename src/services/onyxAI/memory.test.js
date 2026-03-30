@@ -4,7 +4,6 @@ import conversationHistory from './memory';
 import api from './api';
 import logger from '../logging';
 import toast from 'react-hot-toast';
-import { v4 as uuidv4 } from 'uuid';
 
 // Mock dependencies
 vi.mock('./api');
@@ -29,7 +28,7 @@ describe('ConversationHistory', () => {
     // Use the public clear method to reset the singleton's internal state.
     conversationHistory.clear();
     // Provide a consistent mock for UUID
-    uuidv4.mockReturnValue('mock-uuid-1234');
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue('mock-uuid-1234');
     // Ensure a clean slate for API calls in every test
     api.getChatHistoryForUser.mockResolvedValue([]);
   });
