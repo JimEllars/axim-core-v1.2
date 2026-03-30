@@ -9,11 +9,27 @@ export default [
     keywords: ['list workflows', 'show workflows', 'workflows'],
     category: 'Workflows',
     usage: 'list workflows',
-    execute: () => {
-      const workflows = Object.entries(workflowDefinitions).map(([slug, def]) => {
+    execute: async (args, context) => {
+      let dbWorkflows = [];
+      try {
+        if (context && context.aximCore && context.aximCore.api) {
+          dbWorkflows = await context.aximCore.api.getWorkflows();
+        }
+      } catch (error) {
+        console.warn("Could not fetch workflows from database:", error);
+      }
+
+      const hardcoded = Object.entries(workflowDefinitions).map(([slug, def]) => {
         return `• **${def.name}** (\`${slug}\`)\n  ${def.description}`;
       });
-      return `### Available Workflows\n\n${workflows.join('\n\n')}`;
+
+      const custom = dbWorkflows.map(w => {
+        return `• **${w.name}** (\`${w.slug}\`)\n  ${w.description || 'Custom database workflow'}`;
+      });
+
+      const allWorkflows = [...hardcoded, ...custom];
+
+      return `### Available Workflows\n\n${allWorkflows.length > 0 ? allWorkflows.join('\n\n') : 'No workflows found.'}`;
     }
   }),
   createCommand({
@@ -54,7 +70,20 @@ export default [
       const { slug, argsString } = args;
       const { userId } = context;
 
-      if (!workflowDefinitions[slug]) {
+      let workflow = workflowDefinitions[slug];
+
+      if (!workflow) {
+        try {
+          if (context.aximCore && context.aximCore.api) {
+            const dbWorkflows = await context.aximCore.api.getWorkflows();
+            workflow = dbWorkflows.find(w => w.slug === slug);
+          }
+        } catch (error) {
+          console.warn("Could not fetch workflow from database:", error);
+        }
+      }
+
+      if (!workflow) {
         return {
           type: 'error',
           message: `Workflow "${slug}" not found. Try "list workflows" to see available options.`

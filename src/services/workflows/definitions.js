@@ -322,6 +322,16 @@ export const workflowDefinitions = {
           const { summary, userId } = context;
           if (!summary) return { message: 'No summary to store.' };
 
+          let embedding = null;
+          try {
+            // Generate an embedding for the summary so it can be retrieved via RAG
+            // We use dynamic import for generateEmbedding since it's exported from llm
+            const { generateEmbedding } = await import('../onyxAI/llm');
+            embedding = await generateEmbedding(summary);
+          } catch (e) {
+            console.warn("Failed to generate embedding for summary:", e);
+          }
+
           await api.logAIInteraction(
              'SYSTEM_BACKGROUND_SUMMARY',
              summary,
@@ -331,7 +341,8 @@ export const workflowDefinitions = {
              null,
              'system',
              'internal',
-             'internal'
+             'internal',
+             embedding
           );
 
           return { message: 'Stored daily memory summary in the vector database.' };
