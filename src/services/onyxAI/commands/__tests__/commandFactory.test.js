@@ -113,6 +113,22 @@ describe('createCommand', () => {
       expect(() => command.validate({})).toThrowError(/Missing required argument: "REQUIRED_ARG". Please provide REQUIRED_ARG/);
     });
 
+    it('should throw CommandValidationError without a prompt if prompt is not provided', () => {
+      const definition = {
+        name: 'testCommand',
+        description: 'test',
+        keywords: ['test'],
+        execute: vi.fn(),
+        entities: [
+          { name: 'REQUIRED_ARG', required: true }
+        ],
+      };
+      const command = createCommand(definition);
+
+      expect(() => command.validate({})).toThrowError(CommandValidationError);
+      expect(() => command.validate({})).toThrowError('Missing required argument: "REQUIRED_ARG". ');
+    });
+
     it('should not throw if a required entity object is provided', () => {
       const definition = {
         name: 'testCommand',
