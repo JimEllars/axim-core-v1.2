@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterAll, afterEach } from 'vitest';
 import OnyxAI from './index';
 import * as llm from './llm';
-import { IntentParsingError, CommandNotFoundError } from './errors';
+import { IntentParsingError, CommandNotFoundError, CommandExecutionError } from './errors';
 import logger from '../logging';
 
 // Mock dependencies at the top level.
@@ -129,6 +129,34 @@ describe('OnyxAI', () => {
         await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(IntentParsingError);
         expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.any(Object));
       });
+
+    it('should re-throw IntentParsingError if llm.generateContent throws it', async () => {
+      const userInput = "do something";
+      const customError = new IntentParsingError("Custom parsing error");
+      llm.generateContent.mockRejectedValue(customError);
+
+      await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(customError);
+      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.objectContaining({ originalError: customError }));
+    });
+
+    it('should re-throw CommandExecutionError if llm.generateContent throws it', async () => {
+      const userInput = "do something";
+      const customError = new CommandExecutionError("Custom execution error");
+      llm.generateContent.mockRejectedValue(customError);
+
+      await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(customError);
+      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.objectContaining({ originalError: customError }));
+    });
+
+    it('should throw CommandExecutionError for generic network or API errors', async () => {
+      const userInput = "do something";
+      const networkError = new Error("Network timeout");
+      llm.generateContent.mockRejectedValue(networkError);
+
+      await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(CommandExecutionError);
+      await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow("An unexpected error occurred while communicating with the AI: Network timeout");
+      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.objectContaining({ originalError: networkError }));
+    });
   });
 
   describe('routeCommand', () => {
