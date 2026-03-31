@@ -26,6 +26,17 @@ describe('createCommand', () => {
     expect(command.isDefault).toBe(false);
     expect(typeof command.parse).toBe('function');
     expect(typeof command.validate).toBe('function');
+
+    // Structural properties
+    expect(command).toHaveProperty('name');
+    expect(command).toHaveProperty('description');
+    expect(command).toHaveProperty('keywords');
+    expect(command).toHaveProperty('execute');
+    expect(command).toHaveProperty('aliases');
+    expect(command).toHaveProperty('entities');
+    expect(command).toHaveProperty('isDefault');
+    expect(command).toHaveProperty('parse');
+    expect(command).toHaveProperty('validate');
   });
 
   it('should throw an error if a required field is missing', () => {
@@ -115,6 +126,39 @@ describe('createCommand', () => {
       const command = createCommand(definition);
 
       expect(() => command.validate({ REQUIRED_ARG: 'some value' })).not.toThrow();
+    });
+
+    it('should not throw if a required entity object is provided with a falsy but present value', () => {
+      const definition = {
+        name: 'testCommand',
+        description: 'test',
+        keywords: ['test'],
+        execute: vi.fn(),
+        entities: [
+          { name: 'REQUIRED_ARG', required: true }
+        ],
+      };
+      const command = createCommand(definition);
+
+      expect(() => command.validate({ REQUIRED_ARG: 0 })).not.toThrow();
+      expect(() => command.validate({ REQUIRED_ARG: false })).not.toThrow();
+      expect(() => command.validate({ REQUIRED_ARG: '' })).not.toThrow();
+    });
+
+    it('should throw CommandValidationError when validate is called with null or undefined', () => {
+      const definition = {
+        name: 'testCommand',
+        description: 'test',
+        keywords: ['test'],
+        execute: vi.fn(),
+        entities: [
+          { name: 'REQUIRED_ARG', required: true }
+        ],
+      };
+      const command = createCommand(definition);
+
+      expect(() => command.validate()).toThrowError(CommandValidationError);
+      expect(() => command.validate(null)).toThrowError(CommandValidationError);
     });
 
     it('should handle string entity definitions correctly', () => {

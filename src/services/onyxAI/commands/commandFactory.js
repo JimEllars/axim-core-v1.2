@@ -28,6 +28,10 @@ export const createCommand = (definition) => {
      * @param {object} args The arguments to validate.
      */
     validate: (args) => {
+      if (!args) {
+        throw new CommandValidationError('Arguments must be provided to the command.');
+      }
+
       for (const entity of baseCommand.entities) {
         // Handle entities defined as simple strings (e.g., 'EMAIL') or objects ({ name: 'EMAIL', required: true })
         const entityName = typeof entity === 'string' ? entity : entity.name;
