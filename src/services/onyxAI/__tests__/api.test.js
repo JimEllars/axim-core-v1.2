@@ -73,11 +73,32 @@ describe('ApiService Facade', () => {
           await api.initialize(mockSupabase);
       });
 
+      it('should intercept primary service error and route to secondary service', async () => {
+          const mockPrimary = { testMethod: vi.fn().mockRejectedValue(new Error('Primary Error')) };
+          const mockSecondary = { testMethod: vi.fn().mockResolvedValue('Secondary Success') };
+
+          api.primaryService = mockPrimary;
+          api.secondaryService = mockSecondary;
+
+          const result = await api._executeWithFallback('testMethod', 'arg1', 'arg2');
+
+          expect(mockPrimary.testMethod).toHaveBeenCalledWith('arg1', 'arg2');
+          expect(mockSecondary.testMethod).toHaveBeenCalledWith('arg1', 'arg2');
+          expect(result).toBe('Secondary Success');
+      });
+
       it('should return primary service result if successful', async () => {
-          gcpApiService.queryDatabase.mockResolvedValueOnce(['result']);
-          const result = await api.queryDatabase('q', 'u1');
-          expect(result).toEqual(['result']);
-          expect(supabaseApiService.queryDatabase).not.toHaveBeenCalled();
+          const mockPrimary = { testMethod: vi.fn().mockResolvedValue('Primary Success') };
+          const mockSecondary = { testMethod: vi.fn() };
+
+          api.primaryService = mockPrimary;
+          api.secondaryService = mockSecondary;
+
+          const result = await api._executeWithFallback('testMethod', 'arg1', 'arg2');
+
+          expect(mockPrimary.testMethod).toHaveBeenCalledWith('arg1', 'arg2');
+          expect(mockSecondary.testMethod).not.toHaveBeenCalled();
+          expect(result).toBe('Primary Success');
       });
 
       it('should fall back to secondary service if primary fails', async () => {
@@ -91,11 +112,13 @@ describe('ApiService Facade', () => {
       });
 
       it('should throw if both services fail', async () => {
-          gcpApiService.queryDatabase.mockRejectedValueOnce(new Error('GCP Failed'));
-          supabaseApiService.queryDatabase.mockRejectedValueOnce(new Error('Supabase Failed'));
+          const mockPrimary = { testMethod: vi.fn().mockRejectedValue(new Error('Primary Error')) };
+          const mockSecondary = { testMethod: vi.fn().mockRejectedValue(new Error('Secondary Error')) };
 
-          await expect(api.queryDatabase('q', 'u1')).rejects.toThrow('Supabase Failed');
-          // Note: The implementation throws the *secondary* error if both fail.
+          api.primaryService = mockPrimary;
+          api.secondaryService = mockSecondary;
+
+          await expect(api._executeWithFallback('testMethod', 'arg1')).rejects.toThrow('Secondary Error');
       });
 
       it('should properly delegate searchChatHistory with fallback', async () => {
@@ -106,6 +129,62 @@ describe('ApiService Facade', () => {
           expect(result).toEqual(['search_result']);
           expect(gcpApiService.searchChatHistory).toHaveBeenCalledWith('query', 'user-1');
           expect(supabaseApiService.searchChatHistory).toHaveBeenCalledWith('query', 'user-1');
+      });
+
+      it('should fall back to secondary service if primary service is null', async () => {
+          api.primaryService = null;
+          supabaseApiService.queryDatabase.mockResolvedValueOnce(['secondary_result']);
+
+          const result = await api.queryDatabase('q', 'u1');
+          expect(result).toEqual(['secondary_result']);
+          expect(gcpApiService.queryDatabase).not.toHaveBeenCalled();
+          expect(supabaseApiService.queryDatabase).toHaveBeenCalled();
+      });
+
+      it('should throw an error if no API service is available', async () => {
+          api.primaryService = null;
+          api.secondaryService = null;
+
+          await expect(api.queryDatabase('q', 'u1')).rejects.toThrow('No API service available.');
+      });
+  });
+
+  describe('Custom Fallback Logic (sendEmail)', () => {
+      beforeEach(async () => {
+          config.dataSource = 'gcp'; // The custom fallback ignores dataSource and always tries Supabase first
+          await api.initialize(mockSupabase);
+
+          if (typeof supabaseApiService.sendEmail !== 'function') {
+            supabaseApiService.sendEmail = vi.fn();
+          }
+          if (typeof gcpApiService.sendEmail !== 'function') {
+            gcpApiService.sendEmail = vi.fn();
+          }
+      });
+
+      it('should use Supabase (primary) for sendEmail if successful', async () => {
+          supabaseApiService.sendEmail.mockResolvedValueOnce({ success: true });
+          const result = await api.sendEmail('to@test.com', 'Subj', 'Body', 'u1');
+          expect(result).toEqual({ success: true });
+          expect(supabaseApiService.sendEmail).toHaveBeenCalledWith('to@test.com', 'Subj', 'Body', 'u1');
+          expect(gcpApiService.sendEmail).not.toHaveBeenCalled();
+      });
+
+      it('should fall back to GCP for sendEmail if Supabase fails', async () => {
+          supabaseApiService.sendEmail.mockRejectedValueOnce(new Error('Supabase email fail'));
+          gcpApiService.sendEmail.mockResolvedValueOnce({ backup_success: true });
+
+          const result = await api.sendEmail('to@test.com', 'Subj', 'Body', 'u1');
+          expect(result).toEqual({ backup_success: true });
+          expect(supabaseApiService.sendEmail).toHaveBeenCalled();
+          expect(gcpApiService.sendEmail).toHaveBeenCalled();
+      });
+
+      it('should throw error if both Supabase and GCP fail for sendEmail', async () => {
+          supabaseApiService.sendEmail.mockRejectedValueOnce(new Error('Supabase email fail'));
+          gcpApiService.sendEmail.mockRejectedValueOnce(new Error('GCP email fail'));
+
+          await expect(api.sendEmail('to@test.com', 'Subj', 'Body', 'u1')).rejects.toThrow('GCP email fail');
       });
   });
 
