@@ -1,8 +1,6 @@
 import toast from 'react-hot-toast';
 import logger from './logging';
 import { DatabaseError, CommandExecutionError } from './onyxAI/errors';
-// import connectivityManager from './connectivityManager'; // To be injected
-// import offlineManager from './offline'; // To be injected
 
 class SupabaseApiService {
   constructor() {
