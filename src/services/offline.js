@@ -59,7 +59,7 @@ class OfflineManager {
     logger.log(`Queueing request: ${methodName} with args:`, args);
     toast.info(`Offline: Your request (${methodName}) has been queued.`, { id: `queue-${methodName}` });
     const request = {
-      id: new Date().toISOString() + Math.random().toString(36).substr(2, 9), // Unique ID
+      id: crypto.randomUUID(), // Unique ID
       methodName,
       args,
       attempts: 0,
@@ -77,7 +77,7 @@ class OfflineManager {
     logger.log(`Queueing command: ${command}`);
     toast.info("Offline: Your command has been queued.", { id: 'command-queue' });
     this.commandQueue.push({
-      id: new Date().toISOString() + Math.random().toString(36).substr(2, 9),
+      id: crypto.randomUUID(),
       command,
       createdAt: new Date().toISOString(),
     });
