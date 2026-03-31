@@ -85,8 +85,8 @@ serve(async (req) => {
 
     // Mode 1: URL Scraping & Rewriting
     if (urls.length > 0) {
-        console.log(`Processing ${urls.length} URLs...`);
-        for (const url of urls) {
+        console.log(`Processing ${urls.length} URLs concurrently...`);
+        await Promise.all(urls.map(async (url) => {
             console.log(`Scraping URL: ${url}`);
             try {
                 // 1. Scrape Content (using axim-scraper if available, or fetch)
@@ -134,7 +134,7 @@ serve(async (req) => {
                 console.error(`Failed to process URL ${url}:`, err);
                 results.push({ source: url, status: 'failed', error: err.message });
             }
-        }
+        }));
     }
 
     // Mode 2: Topic-based Generation (Fallback or explicit)
@@ -145,8 +145,8 @@ serve(async (req) => {
              topics = [randomTopic];
         }
 
-        console.log(`Processing ${topics.length} topics...`);
-        for (const topic of topics) {
+        console.log(`Processing ${topics.length} topics concurrently...`);
+        await Promise.all(topics.map(async (topic) => {
              console.log(`Processing topic: ${topic}`);
              try {
                  const prompt = `
@@ -167,7 +167,7 @@ serve(async (req) => {
                  console.error(`Failed to process topic ${topic}:`, err);
                  results.push({ source: topic, status: 'failed', error: err.message });
              }
-        }
+        }));
     }
 
     return new Response(JSON.stringify({
