@@ -1,15 +1,12 @@
 import toast from 'react-hot-toast';
 import { findCommand } from './commandRouter';
 import { sanitizeInput } from './utils';
-// import api from './api'; // To be injected
 import conversationHistory from './memory';
 import serviceRegistry from './serviceRegistry';
 import commands from './commands';
 import * as llm from './llm';
 import { CommandNotFoundError, IntentParsingError, CommandExecutionError } from './errors';
 import logger from '../logging';
-// import connectivityManager from '../connectivityManager'; // To be injected
-// import offlineManager from '../offline'; // To be injected
 
 /**
  * The core class for the Onyx AI, responsible for command routing,
