@@ -225,13 +225,60 @@ describe('ApiService Facade', () => {
     // Parameterized test to check delegation for multiple methods
     const methodsToTest = [
       { name: 'queryDatabase', args: ['test query', 'user-1'] },
-      // addContact removed because it generates an ID and uses dual write
       { name: 'listAllContacts', args: [{}, 'user-1'] },
+      { name: 'getContacts', args: ['searchTerm', 'user-1'] },
+      { name: 'getContactsBySource', args: [] },
+      { name: 'getEventsByType', args: [] },
       { name: 'getSystemStats', args: ['user-1'] },
-      { name: 'logAIInteraction', args: ['cmd', 'resp', 100, 'success', 'user-1', 'conv-1', 'direct', 'gemini', 'pro', null] },
-      { name: 'initiateTranscription', args: ['source_url', 'user-1'] },
+      { name: 'getProjectManagementStats', args: ['user-1'] },
+      { name: 'getAPIStats', args: [] },
+      { name: 'logWorkflowExecution', args: ['workflowName', { data: 'val' }] },
+      { name: 'listAPIIntegrations', args: [] },
+      { name: 'getIntegrationsWithStats', args: [] },
+      { name: 'testAPIIntegration', args: ['integrationName'] },
+      { name: 'getWorkflows', args: [] },
+      { name: 'deleteIntegration', args: ['id'] },
+      { name: 'getChatHistoryForUser', args: ['user-1', 'conv-1'] },
+      { name: 'searchChatHistory', args: ['query', 'user-1'] },
+      { name: 'searchMemory', args: [[0.1, 0.2], 5, 'user-1'] },
+      { name: 'getUsers', args: [] },
+      { name: 'updateUserRole', args: ['user-1', 'admin'] },
       { name: 'deleteUser', args: ['user-to-delete-id'] },
+      { name: 'inviteUser', args: ['email@test.com'] },
+      { name: 'getAvailableProviderNames', args: [] },
+      { name: 'getRecentWorkflows', args: [] },
+      { name: 'getWorkflowExecutions', args: [] },
+      { name: 'recalculateMetrics', args: [] },
+      { name: 'createProject', args: ['name', 'description', 'user-1'] },
+      { name: 'listProjects', args: ['user-1'] },
+      { name: 'getProjectByName', args: ['name'] },
+      { name: 'listTasksForProject', args: ['project-id'] },
+      { name: 'createTasks', args: [[{}], 'user-1'] },
+      { name: 'getTaskByTitle', args: ['title', 'project-id'] },
+      { name: 'updateTaskStatus', args: ['task-id', 'status'] },
+      { name: 'getContactByEmail', args: ['email@test.com'] },
+      { name: 'createNote', args: ['contact-id', 'content', 'user-1'] },
+      { name: 'getNotesForContact', args: ['contact-id'] },
+      { name: 'deleteNote', args: ['note-id'] },
+      { name: 'getUserProfile', args: ['user-1'] },
+      { name: 'getUserSettings', args: ['user-1'] },
+      { name: 'saveUserSettings', args: ['user-1', {}] },
+      { name: 'updateUserProfile', args: ['user-1', {}] },
+      { name: 'listDevices', args: ['user-1'] },
+      { name: 'getDashboardMetrics', args: [] },
+      { name: 'createTaskForProject', args: ['title', 'project-name', 'user-1', 'description'] },
+      { name: 'assignTaskToContact', args: ['task-title', 'contact-email'] },
+      { name: 'bulkDeleteContacts', args: [['email1', 'email2']] },
+      { name: 'initiateTranscription', args: ['source_url', 'user-1'] },
+      { name: 'assignCanvasserToTurf', args: ['contact-email', 'turf-name', 'user-1'] },
       { name: 'invokeAximService', args: ['service-name', 'endpoint', { payload: 'data' }, 'user-1'] },
+      { name: 'getScheduledTasks', args: ['user-1'] },
+      { name: 'createScheduledTask', args: ['cmd', 'schedule', 'user-1'] },
+      { name: 'deleteScheduledTask', args: ['task-id'] },
+      { name: 'triggerDataExport', args: [] },
+      { name: 'fetchUrl', args: ['http://url'] },
+      { name: 'triggerContentEngine', args: [{}] },
+      { name: 'checkSystemHealth', args: [] },
     ];
 
     methodsToTest.forEach(({ name, args }) => {
@@ -246,6 +293,28 @@ describe('ApiService Facade', () => {
 
         await api[name](...args);
         expect(supabaseApiService[name]).toHaveBeenCalledWith(...args);
+      });
+
+      it(`should fall back to the secondary service for ${name} if primary fails`, async () => {
+        config.dataSource = 'supabase'; // Supabase is primary
+        await api.initialize(mockSupabase);
+
+        if (typeof supabaseApiService[name] !== 'function') {
+          supabaseApiService[name] = vi.fn();
+        }
+        if (typeof gcpApiService[name] !== 'function') {
+          gcpApiService[name] = vi.fn();
+        }
+
+        const expectedResult = `fallback_result_for_${name}`;
+        supabaseApiService[name].mockRejectedValueOnce(new Error('Primary Service Failed'));
+        gcpApiService[name].mockResolvedValueOnce(expectedResult);
+
+        const result = await api[name](...args);
+
+        expect(supabaseApiService[name]).toHaveBeenCalledWith(...args);
+        expect(gcpApiService[name]).toHaveBeenCalledWith(...args);
+        expect(result).toBe(expectedResult);
       });
     });
 
@@ -269,6 +338,38 @@ describe('ApiService Facade', () => {
 
       expect(gcpApiService.invokeAximService).toHaveBeenCalledWith(...args);
     });
+
+    const dualWriteMethodsToTest = [
+      { name: 'bulkAddContacts', args: [[{ name: 'n1', email: 'e1' }, { name: 'n2', email: 'e2' }], 'user-1'] },
+      { name: 'deleteContact', args: ['email@test.com', 'user-1'] },
+      { name: 'deleteContactById', args: ['contact-id', 'user-1'] },
+      { name: 'updateContact', args: ['email@test.com', {}, 'user-1'] },
+      { name: 'updateContactById', args: ['contact-id', {}, 'user-1'] },
+      { name: 'registerDevice', args: ['dev-1', 'dev-name', {}, 'user-1'] },
+      { name: 'sendDeviceHeartbeat', args: ['dev-1', {}] },
+      { name: 'updateDevice', args: ['dev-1', {}, 'user-1'] },
+      { name: 'deleteDevice', args: ['dev-1', 'user-1'] },
+      { name: 'logEvent', args: ['type', {}, 'user-1'] },
+    ];
+
+    dualWriteMethodsToTest.forEach(({ name, args }) => {
+      it(`should delegate ${name} call to both primary and secondary services for dual write`, async () => {
+        config.dataSource = 'supabase'; // Supabase is primary
+        await api.initialize(mockSupabase);
+
+        if (typeof supabaseApiService[name] !== 'function') {
+          supabaseApiService[name] = vi.fn().mockResolvedValue({});
+        }
+        if (typeof gcpApiService[name] !== 'function') {
+          gcpApiService[name] = vi.fn().mockResolvedValue({});
+        }
+
+        await api[name](...args);
+
+        expect(supabaseApiService[name]).toHaveBeenCalled();
+        expect(gcpApiService[name]).toHaveBeenCalled();
+      });
+    });
   });
 
   afterEach(() => {
@@ -291,12 +392,30 @@ describe('ApiService Facade', () => {
           expect(supabaseApiService.logAIInteraction).toHaveBeenCalled();
       });
 
+      it('should log to secondary service if primary is successful and secondary is different (dual-write)', async () => {
+          gcpApiService.logAIInteraction.mockResolvedValueOnce({});
+          supabaseApiService.logAIInteraction.mockResolvedValueOnce({});
+
+          await api.logAIInteraction('cmd', 'res', 100, 'success', 'u', 'c', 'type', 'prov', 'model');
+
+          expect(gcpApiService.logAIInteraction).toHaveBeenCalled();
+          expect(supabaseApiService.logAIInteraction).toHaveBeenCalled();
+      });
+
       it('should throw error only if BOTH logs fail', async () => {
           gcpApiService.logAIInteraction.mockRejectedValueOnce(new Error('GCP Log Fail'));
           supabaseApiService.logAIInteraction.mockRejectedValueOnce(new Error('Supabase Log Fail'));
 
           await expect(api.logAIInteraction('cmd', 'res', 100, 'success', 'u', 'c', 'type', 'prov', 'model'))
             .rejects.toThrow('Supabase Log Fail');
+      });
+
+      it('should throw an error if primary fails and there is no secondary service', async () => {
+          api.secondaryService = null;
+          gcpApiService.logAIInteraction.mockRejectedValueOnce(new Error('GCP Log Fail'));
+
+          await expect(api.logAIInteraction('cmd', 'res', 100, 'success', 'u', 'c', 'type', 'prov', 'model'))
+            .rejects.toThrow('All services failed to log AI interaction.');
       });
   });
 });
