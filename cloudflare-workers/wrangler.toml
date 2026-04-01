@@ -8,6 +8,8 @@ compatibility_flags = ["nodejs_compat"]
 GCP_BACKEND_URL = "https://your-gcp-backend-url.com"
 # Supabase URL for specific edge queries
 SUPABASE_URL = "https://your-supabase-url.supabase.co"
+# Allowed origins for CORS policy
+ALLOWED_ORIGINS = "https://axim.us.com,http://localhost:5173"
 
 # Define environments if needed (e.g., staging, production)
 [env.production]
