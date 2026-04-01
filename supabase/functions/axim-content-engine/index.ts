@@ -146,6 +146,7 @@ serve(async (req) => {
         }
 
         console.log(`Processing ${topics.length} topics concurrently...`);
+        // Use Promise.all to run LLM requests concurrently, reducing wait time significantly
         await Promise.all(topics.map(async (topic) => {
              console.log(`Processing topic: ${topic}`);
              try {
