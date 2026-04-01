@@ -13,13 +13,17 @@ describe('paymentVerification service', () => {
   const mockPaymentIntentId = 'pi_12345';
   const mockPartnerKey = 'pk_test_key';
 
+  let originalApiBaseUrl;
+
   beforeEach(() => {
+    originalApiBaseUrl = config.apiBaseUrl;
     vi.stubGlobal('fetch', vi.fn());
     // Suppress console.error in tests
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
+    config.apiBaseUrl = originalApiBaseUrl;
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -28,6 +32,22 @@ describe('paymentVerification service', () => {
     it('should throw an error if paymentIntentId is missing', async () => {
       await expect(verifyPaymentIntent(null)).rejects.toThrow('paymentIntentId is required for verification.');
       await expect(verifyPaymentIntent('')).rejects.toThrow('paymentIntentId is required for verification.');
+    });
+
+    it('should use default localhost endpoint if config.apiBaseUrl is missing', async () => {
+      config.apiBaseUrl = undefined;
+      const mockResponse = { success: true };
+      fetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue(mockResponse),
+      });
+
+      await verifyPaymentIntent(mockPaymentIntentId);
+
+      expect(fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/payments/verify',
+        expect.any(Object)
+      );
     });
 
     it('should call fetch with the correct endpoint, method, and headers (no partnerKey)', async () => {
@@ -101,6 +121,22 @@ describe('paymentVerification service', () => {
 
   describe('createPaymentIntent', () => {
     const mockDetails = { amount: 1000, currency: 'usd', microAppId: 'app_123' };
+
+    it('should use default localhost endpoint if config.apiBaseUrl is missing', async () => {
+      config.apiBaseUrl = undefined;
+      const mockResponse = { clientSecret: 'pi_secret_123' };
+      fetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue(mockResponse),
+      });
+
+      await createPaymentIntent(mockDetails);
+
+      expect(fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/payments/intent',
+        expect.any(Object)
+      );
+    });
 
     it('should call fetch with the correct endpoint, method, and headers (no partnerKey)', async () => {
       const mockResponse = { clientSecret: 'pi_secret_123' };
