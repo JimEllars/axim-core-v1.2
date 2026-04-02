@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  OnyxAIError,
   CommandValidationError,
   ApiKeyError,
   LLMProviderError,
@@ -11,6 +12,7 @@ import {
 
 describe('OnyxAI Custom Errors', () => {
   const testCases = [
+    { ErrorClass: OnyxAIError, name: 'OnyxAIError' },
     { ErrorClass: CommandValidationError, name: 'CommandValidationError' },
     { ErrorClass: ApiKeyError, name: 'ApiKeyError' },
     { ErrorClass: LLMProviderError, name: 'LLMProviderError' },
