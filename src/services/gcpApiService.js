@@ -520,6 +520,19 @@ class GcpApiService {
     }
   }
 
+  // --- Automations ---
+
+  async createAutomation(command, schedule, userId) {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.post('/automations', { command, schedule, userId });
+      return response.data;
+    } catch (error) {
+      logger.error('GCP createAutomation failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
   // --- Placeholders for other methods to trigger fallback ---
   // Any method called by api.js that isn't implemented here will cause a crash if we don't define it?
   // JavaScript classes don't enforce interface implementation.

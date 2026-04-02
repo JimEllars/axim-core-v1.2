@@ -45,8 +45,8 @@ class Scheduler {
         let parsedCommand = {};
         try {
           parsedCommand = JSON.parse(auto.command);
-        } catch (err) {
-          console.warn(`Could not parse command JSON for task ${auto.id}, falling back to default command as type.`);
+        } catch (error) {
+          console.warn(`Could not parse command JSON for task ${auto.id}, falling back to default command as type.`, error.message);
           parsedCommand = { type: auto.command, config: {} };
         }
 
@@ -84,10 +84,8 @@ class Scheduler {
           output = await this.handleGoogleTrendsScan(automation.config);
           break;
         case 'content_engine_feed':
-           // Generic content engine feed (maybe from other sources)
-           // For now, assume it's same as google trends or similar
-           output = { message: 'Content Engine Feed logic not implemented yet' };
-           break;
+          output = await this.handleContentEngineFeed(automation.config, automation.user_id);
+          break;
         case 'memory_summary':
           output = await this.handleMemorySummary(automation.config);
           break;
@@ -152,6 +150,53 @@ class Scheduler {
 
     } catch (error) {
       throw new Error(`Google Trends Scan failed: ${error.message}`);
+    }
+  }
+
+  async handleContentEngineFeed(config, userId) {
+    const feedUrl = config.url || 'https://hnrss.org/frontpage'; // Default to HackerNews RSS if none provided
+    console.log(`Fetching feed for content engine: ${feedUrl}`);
+
+    try {
+      const response = await fetch(feedUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch feed: ${response.statusText}`);
+      }
+      const rawXml = await response.text();
+
+      // Basic regex parsing for RSS (in a real app, use an xml parser like fast-xml-parser)
+      // Extract top 5 item titles and links
+      const items = [];
+      const itemRegex = /<item>[\s\S]*?<title>(.*?)<\/title>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<\/item>/g;
+      let match;
+      let count = 0;
+
+      while ((match = itemRegex.exec(rawXml)) !== null && count < 5) {
+        // Simple CDATA removal if present
+        const cleanTitle = match[1].replace(/<!\[CDATA\[(.*?)\]\]>/g, '$1').trim();
+        const cleanLink = match[2].trim();
+
+        items.push({
+          title: cleanTitle,
+          link: cleanLink
+        });
+        count++;
+      }
+
+      console.log(`Extracted ${items.length} items from feed. Feeding to Content Engine...`);
+
+      const contentEnginePayload = {
+        action: 'process_external_feed',
+        source: feedUrl,
+        items: items,
+        userId: userId
+      };
+
+      const engineResponse = await apiService.triggerContentEngine(contentEnginePayload);
+
+      return { items_processed: items.length, content_engine_response: engineResponse };
+    } catch (error) {
+      throw new Error(`Content Engine Feed failed: ${error.message}`);
     }
   }
 

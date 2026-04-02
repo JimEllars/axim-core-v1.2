@@ -11,6 +11,7 @@ vi.mock('./apiService.js', () => {
             initialize: vi.fn().mockResolvedValue(),
             verifyApiKey: vi.fn(),
             ingestDatasetEvents: vi.fn(),
+    getActiveAutomations: vi.fn().mockResolvedValue([]),
             queryDatasetEvents: vi.fn(),
             updateAssetStatus: vi.fn(),
             createAnnotation: vi.fn(),

@@ -109,9 +109,6 @@ class ApiService {
     try {
       const { sortBy = 'created_at', sortOrder = 'DESC', filter = {} } = options;
 
-      const allowedSortColumns = ['name', 'email', 'source', 'created_at'];
-      const allowedSortOrders = ['ASC', 'DESC'];
-
       let query = `
         SELECT name, email, source, created_at FROM contacts_ax2024
         WHERE user_id = $1
@@ -1061,6 +1058,25 @@ class ApiService {
   }
 
   // --- Automations ---
+
+  async createAutomation(commandPayload, schedule, userId) {
+    if (!commandPayload || !schedule || !userId) {
+      throw new Error('Command, schedule, and user ID are required to create an automation.');
+    }
+    try {
+      const query = `
+        INSERT INTO scheduled_tasks (command, schedule, status, user_id)
+        VALUES ($1, $2, 'active', $3)
+        RETURNING *;
+      `;
+      const values = [commandPayload, schedule, userId];
+      const result = await this.db.query(query, values);
+      return result.rows[0];
+    } catch (error) {
+      console.error('Error creating automation:', error);
+      throw new Error(`Failed to create automation: ${error.message}`);
+    }
+  }
 
   async getActiveAutomations() {
     try {
