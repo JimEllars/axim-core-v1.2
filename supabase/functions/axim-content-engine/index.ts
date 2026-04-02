@@ -12,6 +12,11 @@ const AFFILIATE_LINKS = {
   'growth': 'https://example.com/growth-affiliate'
 };
 
+const PRECOMPILED_AFFILIATE_REGEXES = Object.entries(AFFILIATE_LINKS).map(([keyword, link]) => ({
+  regex: new RegExp(`\\b(${keyword})\\b`, 'i'),
+  link
+}));
+
 const DEFAULT_TOPICS = [
   'Latest trends in Solar Energy software',
   'AI in Construction Management',
@@ -192,8 +197,7 @@ async function processAndSaveArticle(supabase: any, content: string, source: str
     // 1. Inject Affiliate Links (Simple Regex for now, could be improved)
     let injectedCount = 0;
     let articleContent = content;
-    Object.entries(affiliateLinks).forEach(([keyword, link]) => {
-        const regex = new RegExp(`\\b(${keyword})\\b`, 'i');
+    PRECOMPILED_AFFILIATE_REGEXES.forEach(({ regex, link }) => {
         if (regex.test(articleContent)) {
             // Only replace the first occurrence to avoid spamminess
             if (!articleContent.includes(`](${link})`)) {
