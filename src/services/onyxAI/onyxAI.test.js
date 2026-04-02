@@ -130,6 +130,15 @@ describe('OnyxAI', () => {
         expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.any(Object));
       });
 
+    it('should throw IntentParsingError if llm.generateContent throws a SyntaxError directly', async () => {
+      const userInput = "some command";
+      const syntaxError = new SyntaxError("Unexpected token");
+      llm.generateContent.mockRejectedValue(syntaxError);
+
+      await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(IntentParsingError);
+      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.objectContaining({ originalError: syntaxError }));
+    });
+
     it('should re-throw IntentParsingError if llm.generateContent throws it', async () => {
       const userInput = "do something";
       const customError = new IntentParsingError("Custom parsing error");
