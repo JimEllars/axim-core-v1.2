@@ -413,6 +413,10 @@ class ApiService {
     return this._executeWithFallback('triggerDataExport');
   }
 
+  async createAutomation(command, schedule, userId) {
+    return this._executeWithFallback('createAutomation', command, schedule, userId);
+  }
+
   async fetchUrl(url) {
     return this._executeWithFallback('fetchUrl', url);
   }
