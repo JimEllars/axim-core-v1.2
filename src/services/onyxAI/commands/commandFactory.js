@@ -27,12 +27,12 @@ export const createCommand = (definition) => {
      * Throws an error if validation fails.
      * @param {object} args The arguments to validate.
      */
-    validate: (args) => {
+    validate: function(args) {
       if (!args) {
         throw new CommandValidationError('Arguments must be provided to the command.');
       }
 
-      for (const entity of baseCommand.entities) {
+      for (const entity of this.entities) {
         // Handle entities defined as simple strings (e.g., 'EMAIL') or objects ({ name: 'EMAIL', required: true })
         const entityName = typeof entity === 'string' ? entity : entity.name;
         const isRequired = typeof entity === 'object' && entity.required;
@@ -45,9 +45,6 @@ export const createCommand = (definition) => {
   };
 
   const command = { ...baseCommand, ...definition };
-
-  // Re-bind entity access for the default parse/validate functions after merging.
-  baseCommand.entities = command.entities;
 
   if (!command.name || !command.description || !command.keywords || !command.execute) {
     throw new Error(`Command definition for "${command.name}" is missing required fields.`);
