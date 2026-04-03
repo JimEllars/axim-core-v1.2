@@ -5,12 +5,16 @@ import api from './services/onyxAI/api';
 import { cleanup } from '@testing-library/react';
 
 // Mock crypto.randomUUID for JSDOM if not present
-import crypto from 'crypto';
 if (!global.crypto) {
   global.crypto = {};
 }
 if (!global.crypto.randomUUID) {
-  global.crypto.randomUUID = crypto.randomUUID;
+  global.crypto.randomUUID = () => {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  };
 }
 
 // Ensure a div with id="root" exists in the body for React 18's createRoot

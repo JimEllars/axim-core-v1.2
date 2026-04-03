@@ -109,37 +109,29 @@ class ApiService {
     try {
       const { sortBy = 'created_at', sortOrder = 'DESC', filter = {} } = options;
 
+      const allowedSortColumns = ['name', 'email', 'source', 'created_at'];
+      const allowedSortOrders = ['ASC', 'DESC'];
+
+      const sortColumn = allowedSortColumns.includes(sortBy) ? sortBy : 'created_at';
+      const order = allowedSortOrders.includes(sortOrder?.toUpperCase()) ? sortOrder.toUpperCase() : 'DESC';
+
       let query = `
         SELECT name, email, source, created_at FROM contacts_ax2024
         WHERE user_id = $1
       `;
       const values = [userId];
 
+      const allowedFilterColumns = ['source', 'name', 'email'];
       if (filter) {
         Object.keys(filter).forEach((key) => {
-          if (filter[key]) {
-            let column;
-            if (key === 'source') column = 'source';
-            else if (key === 'name') column = 'name';
-            else if (key === 'email') column = 'email';
-
-            if (column) {
-              values.push(filter[key]);
-              query += ` AND ${column} = $${values.length}`;
-            }
+          if (allowedFilterColumns.includes(key) && filter[key]) {
+            values.push(filter[key]);
+            query += ` AND ${key} = $${values.length}`;
           }
         });
       }
 
-      // Secure ORDER BY: Map variables to hardcoded SQL fragments
-      let orderClause = '';
-      if (sortBy === 'name') orderClause = 'ORDER BY name';
-      else if (sortBy === 'email') orderClause = 'ORDER BY email';
-      else if (sortBy === 'source') orderClause = 'ORDER BY source';
-      else orderClause = 'ORDER BY created_at';
-
-      const order = sortOrder?.toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-      query += ` ${orderClause} ${order};`;
+      query += ` ORDER BY ${sortColumn} ${order};`;
 
       const result = await this.db.query(query, values);
       return result.rows;
@@ -762,7 +754,7 @@ class ApiService {
 
   async getWorkflows() {
     try {
-      const result = await this.db.query('SELECT name, description, slug, definition FROM workflows_ax2024 ORDER BY created_at DESC');
+      const result = await this.db.query('SELECT * FROM workflows_ax2024 ORDER BY created_at DESC');
       return result.rows;
     } catch (error) {
       console.error('Error getting workflows:', error);
@@ -1059,30 +1051,11 @@ class ApiService {
 
   // --- Automations ---
 
-  async createAutomation(commandPayload, schedule, userId) {
-    if (!commandPayload || !schedule || !userId) {
-      throw new Error('Command, schedule, and user ID are required to create an automation.');
-    }
-    try {
-      const query = `
-        INSERT INTO scheduled_tasks (command, schedule, status, user_id)
-        VALUES ($1, $2, 'active', $3)
-        RETURNING *;
-      `;
-      const values = [commandPayload, schedule, userId];
-      const result = await this.db.query(query, values);
-      return result.rows[0];
-    } catch (error) {
-      console.error('Error creating automation:', error);
-      throw new Error(`Failed to create automation: ${error.message}`);
-    }
-  }
-
   async getActiveAutomations() {
     try {
       const query = `
-        SELECT * FROM scheduled_tasks
-        WHERE status = 'active'
+        SELECT * FROM automations_ax2024
+        WHERE enabled = true
       `;
       const result = await this.db.query(query);
       return result.rows;
@@ -1095,14 +1068,13 @@ class ApiService {
 
   async logAutomationExecution(automationId, status, output, executionTimeMs) {
     try {
-      // Create event log since automation_logs doesn't exist
       const query = `
-        INSERT INTO events_ax2024 (type, source, data)
-        VALUES ('automation_execution', 'axim_core', $1)
+        INSERT INTO automation_logs_ax2024 (automation_id, status, output, execution_time_ms)
+        VALUES ($1, $2, $3, $4)
         RETURNING id;
       `;
-      const payload = JSON.stringify({ automation_id: automationId, status, output, execution_time_ms: executionTimeMs });
-      await this.db.query(query, [payload]);
+      const values = [automationId, status, JSON.stringify(output), executionTimeMs];
+      await this.db.query(query, values);
     } catch (error) {
       console.error('Error logging automation execution:', error);
       // Don't throw, just log
@@ -1112,8 +1084,8 @@ class ApiService {
   async updateAutomationRunTime(automationId, nextRun) {
     try {
       const query = `
-        UPDATE scheduled_tasks
-        SET last_run_at = NOW(), next_run_at = $2
+        UPDATE automations_ax2024
+        SET last_run = NOW(), next_run = $2
         WHERE id = $1
       `;
       await this.db.query(query, [automationId, nextRun]);

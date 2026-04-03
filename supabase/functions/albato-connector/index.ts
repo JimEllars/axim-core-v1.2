@@ -1,16 +1,14 @@
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+
 
 serve(async (req) => {
   // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('Origin')) });
   }
 
   try {
@@ -24,7 +22,7 @@ serve(async (req) => {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return new Response(JSON.stringify({ error: 'Missing or invalid Authorization header' }), {
             status: 401,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' }
         });
     }
 
@@ -38,7 +36,7 @@ serve(async (req) => {
     if (keyError || !keyData) {
         return new Response(JSON.stringify({ error: 'Invalid API Key' }), {
             status: 401,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' }
         });
     }
 
@@ -83,14 +81,14 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ error: 'Not Found', path: cleanPath }), {
         status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
     console.error('Albato Connector Error:', error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' },
     });
   }
 });
@@ -109,14 +107,14 @@ async function handleIngest(req: Request, supabase: any, userId: string, dataset
     } else {
         return new Response(JSON.stringify({ error: 'Invalid payload. Expected JSON object or array.' }), {
             status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' }
         });
     }
 
     if (eventList.length === 0) {
         return new Response(JSON.stringify({ success: true, count: 0, ids: [] }), {
             status: 201,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' }
         });
     }
 
@@ -137,7 +135,7 @@ async function handleIngest(req: Request, supabase: any, userId: string, dataset
 
     return new Response(JSON.stringify({ success: true, count: data.length, ids: data.map((r: any) => r.id) }), {
         status: 201,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' }
     });
 }
 
@@ -164,7 +162,7 @@ async function handleQuery(req: Request, supabase: any, userId: string, datasetN
 
     return new Response(JSON.stringify(data), {
         status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' }
     });
 }
 
@@ -181,7 +179,7 @@ async function handleUpdateAsset(req: Request, supabase: any, userId: string, as
     if (Object.keys(filteredUpdates).length === 0) {
         return new Response(JSON.stringify({ error: 'No valid fields to update' }), {
             status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' }
         });
     }
 
@@ -200,7 +198,7 @@ async function handleUpdateAsset(req: Request, supabase: any, userId: string, as
         if (error.code === 'PGRST116') {
              return new Response(JSON.stringify({ error: 'Asset not found or access denied' }), {
                 status: 404,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' }
             });
         }
         throw error;
@@ -208,7 +206,7 @@ async function handleUpdateAsset(req: Request, supabase: any, userId: string, as
 
     return new Response(JSON.stringify(data), {
         status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' }
     });
 }
 
@@ -230,7 +228,7 @@ async function handleCreateAnnotation(req: Request, supabase: any, userId: strin
 
     return new Response(JSON.stringify(data), {
         status: 201,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' }
     });
 }
 
@@ -248,7 +246,7 @@ async function handleControl(req: Request, supabase: any, userId: string, unitId
     if (!command) {
         return new Response(JSON.stringify({ error: 'Command required in body or query' }), {
             status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' }
         });
     }
 
@@ -282,6 +280,6 @@ async function handleControl(req: Request, supabase: any, userId: string, unitId
 
     return new Response(JSON.stringify(event), {
         status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' }
     });
 }

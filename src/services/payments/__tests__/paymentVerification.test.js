@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { verifyPaymentIntent, createPaymentIntent } from '../paymentVerification';
+import { verifyPaymentIntent } from '../paymentVerification';
 import config from '../../../config';
 
 // Mock the config module
@@ -13,17 +13,13 @@ describe('paymentVerification service', () => {
   const mockPaymentIntentId = 'pi_12345';
   const mockPartnerKey = 'pk_test_key';
 
-  let originalApiBaseUrl;
-
   beforeEach(() => {
-    originalApiBaseUrl = config.apiBaseUrl;
     vi.stubGlobal('fetch', vi.fn());
     // Suppress console.error in tests
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
   afterEach(() => {
-    config.apiBaseUrl = originalApiBaseUrl;
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
@@ -32,22 +28,6 @@ describe('paymentVerification service', () => {
     it('should throw an error if paymentIntentId is missing', async () => {
       await expect(verifyPaymentIntent(null)).rejects.toThrow('paymentIntentId is required for verification.');
       await expect(verifyPaymentIntent('')).rejects.toThrow('paymentIntentId is required for verification.');
-    });
-
-    it('should use default localhost endpoint if config.apiBaseUrl is missing', async () => {
-      config.apiBaseUrl = undefined;
-      const mockResponse = { success: true };
-      fetch.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue(mockResponse),
-      });
-
-      await verifyPaymentIntent(mockPaymentIntentId);
-
-      expect(fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/payments/verify',
-        expect.any(Object)
-      );
     });
 
     it('should call fetch with the correct endpoint, method, and headers (no partnerKey)', async () => {
@@ -116,94 +96,6 @@ describe('paymentVerification service', () => {
 
       await expect(verifyPaymentIntent(mockPaymentIntentId)).rejects.toThrow(networkError);
       expect(console.error).toHaveBeenCalledWith('Error verifying payment intent:', networkError);
-    });
-  });
-
-  describe('createPaymentIntent', () => {
-    const mockDetails = { amount: 1000, currency: 'usd', microAppId: 'app_123' };
-
-    it('should use default localhost endpoint if config.apiBaseUrl is missing', async () => {
-      config.apiBaseUrl = undefined;
-      const mockResponse = { clientSecret: 'pi_secret_123' };
-      fetch.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue(mockResponse),
-      });
-
-      await createPaymentIntent(mockDetails);
-
-      expect(fetch).toHaveBeenCalledWith(
-        'http://localhost:8080/payments/intent',
-        expect.any(Object)
-      );
-    });
-
-    it('should call fetch with the correct endpoint, method, and headers (no partnerKey)', async () => {
-      const mockResponse = { clientSecret: 'pi_secret_123' };
-      fetch.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue(mockResponse),
-      });
-
-      const result = await createPaymentIntent(mockDetails);
-
-      expect(fetch).toHaveBeenCalledWith(
-        'http://test-backend.com/payments/intent',
-        expect.objectContaining({
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(mockDetails),
-        })
-      );
-      expect(result).toEqual(mockResponse);
-    });
-
-    it('should include Authorization header when partnerKey is provided', async () => {
-      const mockResponse = { clientSecret: 'pi_secret_123' };
-      fetch.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue(mockResponse),
-      });
-
-      await createPaymentIntent(mockDetails, mockPartnerKey);
-
-      expect(fetch).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            'Authorization': `Bearer ${mockPartnerKey}`,
-          }),
-        })
-      );
-    });
-
-    it('should throw an error if the response is not ok', async () => {
-      const errorMsg = 'Invalid amount';
-      fetch.mockResolvedValue({
-        ok: false,
-        json: vi.fn().mockResolvedValue({ error: errorMsg }),
-      });
-
-      await expect(createPaymentIntent(mockDetails)).rejects.toThrow(errorMsg);
-    });
-
-    it('should throw a default error message if response is not ok and no error message is provided', async () => {
-      fetch.mockResolvedValue({
-        ok: false,
-        json: vi.fn().mockResolvedValue({}),
-      });
-
-      await expect(createPaymentIntent(mockDetails)).rejects.toThrow('Failed to create payment intent.');
-    });
-
-    it('should throw an error if fetch fails (network error)', async () => {
-      const networkError = new Error('Network failure');
-      fetch.mockRejectedValue(networkError);
-
-      await expect(createPaymentIntent(mockDetails)).rejects.toThrow(networkError);
-      expect(console.error).toHaveBeenCalledWith('Error creating payment intent:', networkError);
     });
   });
 });

@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 const AFFILIATE_LINKS = {
   'solar': 'https://example.com/solar-affiliate',
@@ -11,11 +11,6 @@ const AFFILIATE_LINKS = {
   'automation': 'https://example.com/automation-affiliate',
   'growth': 'https://example.com/growth-affiliate'
 };
-
-const PRECOMPILED_AFFILIATE_REGEXES = Object.entries(AFFILIATE_LINKS).map(([keyword, link]) => ({
-  regex: new RegExp(`\\b(${keyword})\\b`, 'i'),
-  link
-}));
 
 const DEFAULT_TOPICS = [
   'Latest trends in Solar Energy software',
@@ -57,7 +52,7 @@ async function generateWithGemini(apiKey: string, prompt: string) {
 serve(async (req) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('Origin')) });
   }
 
   try {
@@ -90,8 +85,8 @@ serve(async (req) => {
 
     // Mode 1: URL Scraping & Rewriting
     if (urls.length > 0) {
-        console.log(`Processing ${urls.length} URLs concurrently...`);
-        await Promise.all(urls.map(async (url) => {
+        console.log(`Processing ${urls.length} URLs...`);
+        for (const url of urls) {
             console.log(`Scraping URL: ${url}`);
             try {
                 // 1. Scrape Content (using axim-scraper if available, or fetch)
@@ -139,7 +134,7 @@ serve(async (req) => {
                 console.error(`Failed to process URL ${url}:`, err);
                 results.push({ source: url, status: 'failed', error: err.message });
             }
-        }));
+        }
     }
 
     // Mode 2: Topic-based Generation (Fallback or explicit)
@@ -150,9 +145,8 @@ serve(async (req) => {
              topics = [randomTopic];
         }
 
-        console.log(`Processing ${topics.length} topics concurrently...`);
-        // Use Promise.all to run LLM requests concurrently, reducing wait time significantly
-        await Promise.all(topics.map(async (topic) => {
+        console.log(`Processing ${topics.length} topics...`);
+        for (const topic of topics) {
              console.log(`Processing topic: ${topic}`);
              try {
                  const prompt = `
@@ -173,14 +167,14 @@ serve(async (req) => {
                  console.error(`Failed to process topic ${topic}:`, err);
                  results.push({ source: topic, status: 'failed', error: err.message });
              }
-        }));
+        }
     }
 
     return new Response(JSON.stringify({
         message: "Content Engine execution completed.",
         results
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' },
       status: 200,
     });
 
@@ -188,7 +182,7 @@ serve(async (req) => {
     console.error("Content Engine Fatal Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' },
     });
   }
 });
@@ -197,7 +191,8 @@ async function processAndSaveArticle(supabase: any, content: string, source: str
     // 1. Inject Affiliate Links (Simple Regex for now, could be improved)
     let injectedCount = 0;
     let articleContent = content;
-    PRECOMPILED_AFFILIATE_REGEXES.forEach(({ regex, link }) => {
+    Object.entries(affiliateLinks).forEach(([keyword, link]) => {
+        const regex = new RegExp(`\\b(${keyword})\\b`, 'i');
         if (regex.test(articleContent)) {
             // Only replace the first occurrence to avoid spamminess
             if (!articleContent.includes(`](${link})`)) {

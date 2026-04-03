@@ -190,7 +190,7 @@ const WorkflowBuilder = () => {
     setNodes(nodes.filter(n => n.id !== id));
   };
 
-  const loadTemplate = (templateId) => {
+  const useTemplate = (templateId) => {
     if (templateId === 'auto-reply') {
       setNodes([
         { id: 'start', type: 'trigger', label: 'New Lead Added' },
@@ -293,7 +293,7 @@ const WorkflowBuilder = () => {
         { id: 'export', title: 'Weekly Summary Export', desc: 'Export AI interactions to Drive every Friday.' },
         { id: 'routing', title: 'Support Ticket Routing', desc: 'Route webhook tickets based on priority.' }
       ].map((tpl) => (
-        <div key={tpl.id} onClick={() => loadTemplate(tpl.id)} className="bg-onyx-950 border border-onyx-accent/20 rounded-lg p-4 hover:border-indigo-500 transition-colors cursor-pointer group">
+        <div key={tpl.id} onClick={() => useTemplate(tpl.id)} className="bg-onyx-950 border border-onyx-accent/20 rounded-lg p-4 hover:border-indigo-500 transition-colors cursor-pointer group">
            <h4 className="text-white font-medium mb-2 group-hover:text-indigo-400">{tpl.title}</h4>
            <p className="text-sm text-slate-400 mb-4">{tpl.desc}</p>
            <button className="text-indigo-400 text-sm font-medium hover:text-indigo-300">Use Template &rarr;</button>
@@ -401,27 +401,7 @@ const WorkflowBuilder = () => {
               <SafeIcon icon={FiPlay} className="mr-2" />
               Test Run
             </button>
-            <button
-              onClick={async () => {
-                if (!user?.id) {
-                  toast.error("User not authenticated.");
-                  return;
-                }
-                try {
-                  const definition = { steps: nodes };
-                  await api.createWorkflow(
-                    "Custom Workflow " + Date.now(),
-                    "Generated workflow",
-                    "custom_wf_" + Date.now(),
-                    definition,
-                    user.id
-                  );
-                  toast.success("Workflow saved to database!");
-                } catch (err) {
-                  toast.error("Failed to save workflow.");
-                }
-              }}
-              className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-md transition-colors shadow-lg shadow-indigo-500/20">
+            <button className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-md transition-colors shadow-lg shadow-indigo-500/20">
               <SafeIcon icon={FiSave} className="mr-2" />
               Save Workflow
             </button>

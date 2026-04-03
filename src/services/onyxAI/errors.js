@@ -6,7 +6,7 @@
 /**
  * Base class for all custom OnyxAI errors.
  */
-export class OnyxAIError extends Error {
+class OnyxAIError extends Error {
   constructor(message) {
     super(message);
     this.name = this.constructor.name;

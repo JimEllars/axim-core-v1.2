@@ -2,17 +2,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import externalCommands from '../externalCommands';
 import memoryCommands from '../memoryCommands';
 
-// Move the mock before the import so it applies correctly
-vi.mock('../../llm', () => ({
-  generateEmbedding: vi.fn().mockResolvedValue([0.1, 0.2, 0.3])
-}));
-
 // Mock dependencies
 const mockApi = {
   initiateTranscription: vi.fn(),
   assignCanvasserToTurf: vi.fn(),
-  searchChatHistory: vi.fn(),
-  searchMemory: vi.fn()
+  searchChatHistory: vi.fn()
 };
 
 const mockAximCore = {
@@ -95,21 +89,21 @@ describe('External & Memory Commands Integration', () => {
     const searchCommand = memoryCommands.find(c => c.name === 'searchMemory');
 
     it('should call searchChatHistory with query', async () => {
-      mockApi.searchMemory.mockResolvedValue([
+      mockApi.searchChatHistory.mockResolvedValue([
         { created_at: '2023-01-01T10:00:00Z', command: 'hello', response: 'hi there' }
       ]);
 
       const args = { query: 'hello' };
       const result = await searchCommand.execute(args, { aximCore: mockAximCore, userId: mockAximCore.userId });
 
-      expect(mockApi.searchMemory).toHaveBeenCalledWith([0.1, 0.2, 0.3], 5, 'test-user-id');
+      expect(mockApi.searchChatHistory).toHaveBeenCalledWith('hello', 'test-user-id');
       expect(result.message).toContain('Memory Search Results');
       expect(result.message).toContain('hi there');
       expect(result.type).toBe('markdown');
     });
 
     it('should handle empty results gracefully', async () => {
-        mockApi.searchMemory.mockResolvedValue([]);
+        mockApi.searchChatHistory.mockResolvedValue([]);
 
         const args = { query: 'nonexistent' };
         const result = await searchCommand.execute(args, { aximCore: mockAximCore, userId: mockAximCore.userId });

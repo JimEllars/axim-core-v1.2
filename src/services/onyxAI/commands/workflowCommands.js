@@ -9,27 +9,11 @@ export default [
     keywords: ['list workflows', 'show workflows', 'workflows'],
     category: 'Workflows',
     usage: 'list workflows',
-    execute: async (args, context) => {
-      let dbWorkflows = [];
-      try {
-        if (context && context.aximCore && context.aximCore.api) {
-          dbWorkflows = await context.aximCore.api.getWorkflows();
-        }
-      } catch (error) {
-        console.warn("Could not fetch workflows from database:", error);
-      }
-
-      const hardcoded = Object.entries(workflowDefinitions).map(([slug, def]) => {
+    execute: () => {
+      const workflows = Object.entries(workflowDefinitions).map(([slug, def]) => {
         return `• **${def.name}** (\`${slug}\`)\n  ${def.description}`;
       });
-
-      const custom = dbWorkflows.map(w => {
-        return `• **${w.name}** (\`${w.slug}\`)\n  ${w.description || 'Custom database workflow'}`;
-      });
-
-      const allWorkflows = [...hardcoded, ...custom];
-
-      return `### Available Workflows\n\n${allWorkflows.length > 0 ? allWorkflows.join('\n\n') : 'No workflows found.'}`;
+      return `### Available Workflows\n\n${workflows.join('\n\n')}`;
     }
   }),
   createCommand({
@@ -70,20 +54,7 @@ export default [
       const { slug, argsString } = args;
       const { userId } = context;
 
-      let workflow = workflowDefinitions[slug];
-
-      if (!workflow) {
-        try {
-          if (context.aximCore && context.aximCore.api) {
-            const dbWorkflows = await context.aximCore.api.getWorkflows();
-            workflow = dbWorkflows.find(w => w.slug === slug);
-          }
-        } catch (error) {
-          console.warn("Could not fetch workflow from database:", error);
-        }
-      }
-
-      if (!workflow) {
+      if (!workflowDefinitions[slug]) {
         return {
           type: 'error',
           message: `Workflow "${slug}" not found. Try "list workflows" to see available options.`
@@ -119,69 +90,6 @@ export default [
         return {
           type: 'error',
           message: `Workflow execution failed: ${error.message}`
-        };
-      }
-    }
-  }),
-  createCommand({
-    name: 'scheduleTask',
-    description: 'Schedules a recurring task or automation workflow using a cron expression.',
-    keywords: ['schedule task', 'automate workflow', 'recurring task'],
-    category: 'Workflows',
-    usage: 'schedule task <workflow_or_type> <cron_expression> [json_config]',
-    entities: [
-      { name: 'taskType', required: true, prompt: 'What type of task or workflow would you like to schedule?' },
-      { name: 'schedule', required: true, prompt: 'What is the cron expression for the schedule? (e.g. "0 9 * * *")' }
-    ],
-    parse: (input) => {
-      // Very basic regex to split parts: "schedule task <type> <cron_string> {json}"
-      // This is simplified and might need LLM to properly construct in a real scenario
-      const match = input.match(/schedule task\s+([\w_]+)\s+((?:\S+\s+){4}\S+)(?:\s+(.+))?$/i);
-      if (match) {
-        return {
-          taskType: match[1],
-          schedule: match[2],
-          argsString: match[3]
-        };
-      }
-      return {};
-    },
-    validate: (args) => {
-      if (!args.taskType) throw new Error('Task type is required.');
-      if (!args.schedule) throw new Error('Cron schedule is required. (e.g. "0 * * * *")');
-      if (args.argsString) {
-        try { JSON.parse(args.argsString); }
-        catch(e) { throw new Error('Config arguments must be valid JSON.'); }
-      }
-    },
-    execute: async (args, context) => {
-      const { taskType, schedule, argsString } = args;
-      const { userId } = context;
-
-      let commandConfig = { type: taskType, config: {} };
-      if (argsString) {
-        commandConfig.config = JSON.parse(argsString);
-      }
-
-      try {
-        if (!context.aximCore || !context.aximCore.api) {
-          throw new Error('API client not available.');
-        }
-
-        const automation = await context.aximCore.api.createAutomation(
-          JSON.stringify(commandConfig),
-          schedule,
-          userId
-        );
-
-        return {
-          type: 'success',
-          message: `✅ Scheduled task **${taskType}** successfully.\nSchedule: \`${schedule}\`\nID: ${automation.id}`
-        };
-      } catch (error) {
-        return {
-          type: 'error',
-          message: `Failed to schedule task: ${error.message}`
         };
       }
     }

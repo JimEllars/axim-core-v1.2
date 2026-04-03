@@ -16,10 +16,12 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('[Login] Handling submit...');
     setError('');
 
     try {
       await login(email, password);
+      console.log('[Login] Login successful!');
     } catch (err) {
       console.error('[Login] Login failed:', err);
       setError(err.message || 'An unexpected error occurred during login.');

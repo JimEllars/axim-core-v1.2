@@ -38,7 +38,8 @@ export const workflowDefinitions = {
           const { contacts, emailContent } = context;
           if (!contacts || contacts.length === 0) return { message: 'No contacts.' };
 
-          const emailPromises = contacts.map(async (contact) => {
+          let successCount = 0;
+          for (const contact of contacts) {
              try {
                 // Call actual Email Service endpoint
                 await api.sendEmail(
@@ -47,15 +48,11 @@ export const workflowDefinitions = {
                   emailContent || "Default message",
                   context.userId
                 );
-                return { success: true };
+                successCount++;
              } catch (error) {
                 console.error(`Failed to send to ${contact.email}:`, error);
-                return { success: false };
              }
-          });
-
-          const results = await Promise.all(emailPromises);
-          const successCount = results.filter(r => r.success).length;
+          }
           return { message: `Successfully sent outreach emails to ${successCount} of ${contacts.length} contacts.` };
         },
       },
@@ -271,81 +268,6 @@ export const workflowDefinitions = {
              console.error("Failed to push to CRM:", error);
              throw new Error(`CRM Sync failed: ${error.message}`);
           }
-        }
-      }
-    ]
-  },
-  daily_memory_summary: {
-    name: 'Daily Memory Summarization',
-    description: 'Summarizes AI interactions for the day into a persistent long-term memory entry.',
-    steps: [
-      {
-        name: 'Fetch Recent Interactions',
-        action: async (context) => {
-          const { userId } = context;
-          const interactions = await api.searchChatHistory('', userId);
-          // Filter for the last 24 hours
-          const recentInteractions = interactions.filter(i => {
-            const interactionDate = new Date(i.created_at);
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            return interactionDate > yesterday;
-          });
-
-          return {
-            message: `Fetched ${recentInteractions.length} interactions from the last 24 hours.`,
-            recentInteractions
-          };
-        }
-      },
-      {
-        name: 'Generate Summary',
-        action: async (context) => {
-          const { recentInteractions } = context;
-          if (!recentInteractions || recentInteractions.length === 0) {
-            return { message: 'No interactions to summarize.' };
-          }
-
-          const interactionLog = recentInteractions.map(i => `User: ${i.command}\nAI: ${i.response}`).join('\n\n');
-          const prompt = `Summarize the following user interactions from the past 24 hours into a concise, high-level overview of the user's activities, goals, and interests. This will be stored as long-term memory context for future AI interactions.\n\nInteractions:\n${interactionLog}`;
-
-          const summary = await generateContent(prompt);
-          return {
-            message: 'Generated daily memory summary.',
-            summary
-          };
-        }
-      },
-      {
-        name: 'Store Summary in Memory Bank',
-        action: async (context) => {
-          const { summary, userId } = context;
-          if (!summary) return { message: 'No summary to store.' };
-
-          let embedding = null;
-          try {
-            // Generate an embedding for the summary so it can be retrieved via RAG
-            // We use dynamic import for generateEmbedding since it's exported from llm
-            const { generateEmbedding } = await import('../onyxAI/llm');
-            embedding = await generateEmbedding(summary);
-          } catch (e) {
-            console.warn("Failed to generate embedding for summary:", e);
-          }
-
-          await api.logAIInteraction(
-             'SYSTEM_BACKGROUND_SUMMARY',
-             summary,
-             0,
-             'success',
-             userId,
-             null,
-             'system',
-             'internal',
-             'internal',
-             embedding
-          );
-
-          return { message: 'Stored daily memory summary in the vector database.' };
         }
       }
     ]

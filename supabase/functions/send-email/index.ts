@@ -1,15 +1,13 @@
+import { getCorsHeaders } from '../_shared/cors.ts';
 // supabase/functions/send-email/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: CORS_HEADERS });
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('Origin')) });
   }
 
   try {
@@ -51,7 +49,7 @@ serve(async (req) => {
         message: `Email successfully sent to ${to}`,
         id: `mock-email-${Date.now()}`
       }),
-      { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
@@ -59,7 +57,7 @@ serve(async (req) => {
     const status = error.message.includes('Unauthorized') ? 401 : 500;
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      { status, headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' } }
     );
   }
 });

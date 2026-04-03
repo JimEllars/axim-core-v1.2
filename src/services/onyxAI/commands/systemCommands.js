@@ -4,6 +4,7 @@ import { DatabaseError, CommandValidationError } from '../errors';
 import api from '../api';
 import * as llm from '../llm';
 import { runWorkflow } from '../../workflows/engine';
+import { v4 as uuidv4 } from 'uuid';
 
 const systemCommands = [
   createCommand({
@@ -216,7 +217,7 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
     usage: 'uuid',
     category: 'System',
     execute: () => {
-      const newUuid = crypto.randomUUID();
+      const newUuid = uuidv4();
       return `Generated UUID: ${newUuid}`;
     },
   }),
