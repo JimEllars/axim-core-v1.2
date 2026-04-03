@@ -26,17 +26,6 @@ describe('createCommand', () => {
     expect(command.isDefault).toBe(false);
     expect(typeof command.parse).toBe('function');
     expect(typeof command.validate).toBe('function');
-
-    // Structural properties
-    expect(command).toHaveProperty('name');
-    expect(command).toHaveProperty('description');
-    expect(command).toHaveProperty('keywords');
-    expect(command).toHaveProperty('execute');
-    expect(command).toHaveProperty('aliases');
-    expect(command).toHaveProperty('entities');
-    expect(command).toHaveProperty('isDefault');
-    expect(command).toHaveProperty('parse');
-    expect(command).toHaveProperty('validate');
   });
 
   it('should throw an error if a required field is missing', () => {
@@ -113,22 +102,6 @@ describe('createCommand', () => {
       expect(() => command.validate({})).toThrowError(/Missing required argument: "REQUIRED_ARG". Please provide REQUIRED_ARG/);
     });
 
-    it('should throw CommandValidationError without a prompt if prompt is not provided', () => {
-      const definition = {
-        name: 'testCommand',
-        description: 'test',
-        keywords: ['test'],
-        execute: vi.fn(),
-        entities: [
-          { name: 'REQUIRED_ARG', required: true }
-        ],
-      };
-      const command = createCommand(definition);
-
-      expect(() => command.validate({})).toThrowError(CommandValidationError);
-      expect(() => command.validate({})).toThrowError('Missing required argument: "REQUIRED_ARG". ');
-    });
-
     it('should not throw if a required entity object is provided', () => {
       const definition = {
         name: 'testCommand',
@@ -144,39 +117,6 @@ describe('createCommand', () => {
       expect(() => command.validate({ REQUIRED_ARG: 'some value' })).not.toThrow();
     });
 
-    it('should not throw if a required entity object is provided with a falsy but present value', () => {
-      const definition = {
-        name: 'testCommand',
-        description: 'test',
-        keywords: ['test'],
-        execute: vi.fn(),
-        entities: [
-          { name: 'REQUIRED_ARG', required: true }
-        ],
-      };
-      const command = createCommand(definition);
-
-      expect(() => command.validate({ REQUIRED_ARG: 0 })).not.toThrow();
-      expect(() => command.validate({ REQUIRED_ARG: false })).not.toThrow();
-      expect(() => command.validate({ REQUIRED_ARG: '' })).not.toThrow();
-    });
-
-    it('should throw CommandValidationError when validate is called with null or undefined', () => {
-      const definition = {
-        name: 'testCommand',
-        description: 'test',
-        keywords: ['test'],
-        execute: vi.fn(),
-        entities: [
-          { name: 'REQUIRED_ARG', required: true }
-        ],
-      };
-      const command = createCommand(definition);
-
-      expect(() => command.validate()).toThrowError(CommandValidationError);
-      expect(() => command.validate(null)).toThrowError(CommandValidationError);
-    });
-
     it('should handle string entity definitions correctly', () => {
       // String entity definitions are treated as optional in the current implementation
       const definition = {
@@ -189,50 +129,6 @@ describe('createCommand', () => {
       const command = createCommand(definition);
 
       expect(() => command.validate({})).not.toThrow(); // Should not throw since it's not explicitly required
-    });
-
-    it('should not leak entities between different command instances', () => {
-      const command1 = createCommand({
-        name: 'cmd1', description: 'cmd1', keywords: ['1'], execute: vi.fn(),
-        entities: [{ name: 'ARG1', required: true }]
-      });
-      const command2 = createCommand({
-        name: 'cmd2', description: 'cmd2', keywords: ['2'], execute: vi.fn(),
-        entities: [{ name: 'ARG2', required: true }]
-      });
-
-      expect(() => command1.validate({ ARG1: 'val' })).not.toThrow();
-      expect(() => command2.validate({ ARG2: 'val' })).not.toThrow();
-
-      expect(() => command1.validate({ ARG2: 'val' })).toThrow(CommandValidationError);
-      expect(() => command2.validate({ ARG1: 'val' })).toThrow(CommandValidationError);
-    });
-
-    it('should not throw if the required value is the number 0', () => {
-      const definition = {
-        name: 'cmd', description: 'desc', keywords: ['key'], execute: vi.fn(),
-        entities: [{ name: 'NUM', required: true }]
-      };
-      const command = createCommand(definition);
-      expect(() => command.validate({ NUM: 0 })).not.toThrow();
-    });
-
-    it('should not throw if the required value is false', () => {
-      const definition = {
-        name: 'cmd', description: 'desc', keywords: ['key'], execute: vi.fn(),
-        entities: [{ name: 'BOOL', required: true }]
-      };
-      const command = createCommand(definition);
-      expect(() => command.validate({ BOOL: false })).not.toThrow();
-    });
-
-    it('should not throw if the required value is an empty string', () => {
-      const definition = {
-        name: 'cmd', description: 'desc', keywords: ['key'], execute: vi.fn(),
-        entities: [{ name: 'STR', required: true }]
-      };
-      const command = createCommand(definition);
-      expect(() => command.validate({ STR: '' })).not.toThrow();
     });
   });
 

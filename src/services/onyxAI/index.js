@@ -1,12 +1,16 @@
 import toast from 'react-hot-toast';
 import { findCommand } from './commandRouter';
 import { sanitizeInput } from './utils';
+// import api from './api'; // To be injected
 import conversationHistory from './memory';
 import serviceRegistry from './serviceRegistry';
 import commands from './commands';
 import * as llm from './llm';
 import { CommandNotFoundError, IntentParsingError, CommandExecutionError } from './errors';
+import { v4 as uuidv4 } from 'uuid';
 import logger from '../logging';
+// import connectivityManager from '../connectivityManager'; // To be injected
+// import offlineManager from '../offline'; // To be injected
 
 /**
  * The core class for the Onyx AI, responsible for command routing,
@@ -17,7 +21,7 @@ class OnyxAI {
     this.name = "Onyx";
     this.version = "1.2.0";
     this.isInitialized = false;
-    this.conversationId = crypto.randomUUID();
+    this.conversationId = uuidv4();
     this.userId = null;
     this.api = null; // To be injected
     this.connectivityManager = null; // To be injected
@@ -63,7 +67,7 @@ class OnyxAI {
    */
   clearConversationHistory() {
     conversationHistory.clear();
-    this.conversationId = crypto.randomUUID(); // Start a new conversation stream
+    this.conversationId = uuidv4(); // Start a new conversation stream
   }
 
   getCommand(command) {

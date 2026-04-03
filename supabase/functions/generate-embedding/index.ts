@@ -1,10 +1,10 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 
-import { corsHeaders } from '../_shared/cors.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('Origin')) });
   }
 
   try {
@@ -41,12 +41,12 @@ serve(async (req) => {
     const embedding = data.data[0].embedding;
 
     return new Response(JSON.stringify({ embedding }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' },
     });
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('Origin')), 'Content-Type': 'application/json' },
     });
   }
 });

@@ -20,6 +20,9 @@ export const createCommand = (definition) => {
      * @returns {object} The parsed arguments, which are the extracted entities.
      */
     parse: (input, extractedEntities = {}) => {
+      // The NLP process now provides a clean object of entities.
+      // We can just return it. Individual commands can override this
+      // for more complex parsing logic if needed.
       return extractedEntities;
     },
     /**
@@ -27,12 +30,8 @@ export const createCommand = (definition) => {
      * Throws an error if validation fails.
      * @param {object} args The arguments to validate.
      */
-    validate: function(args) {
-      if (!args) {
-        throw new CommandValidationError('Arguments must be provided to the command.');
-      }
-
-      for (const entity of this.entities) {
+    validate: (args) => {
+      for (const entity of baseCommand.entities) {
         // Handle entities defined as simple strings (e.g., 'EMAIL') or objects ({ name: 'EMAIL', required: true })
         const entityName = typeof entity === 'string' ? entity : entity.name;
         const isRequired = typeof entity === 'object' && entity.required;
@@ -45,6 +44,9 @@ export const createCommand = (definition) => {
   };
 
   const command = { ...baseCommand, ...definition };
+
+  // Re-bind entity access for the default parse/validate functions after merging.
+  baseCommand.entities = command.entities;
 
   if (!command.name || !command.description || !command.keywords || !command.execute) {
     throw new Error(`Command definition for "${command.name}" is missing required fields.`);

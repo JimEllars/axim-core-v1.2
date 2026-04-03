@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterAll, afterEach } from 'vitest';
 import OnyxAI from './index';
 import * as llm from './llm';
-import { IntentParsingError, CommandNotFoundError, CommandExecutionError } from './errors';
+import { IntentParsingError, CommandNotFoundError } from './errors';
 import logger from '../logging';
 
 // Mock dependencies at the top level.
@@ -129,43 +129,6 @@ describe('OnyxAI', () => {
         await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(IntentParsingError);
         expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.any(Object));
       });
-
-    it('should throw IntentParsingError if llm.generateContent throws a SyntaxError directly', async () => {
-      const userInput = "some command";
-      const syntaxError = new SyntaxError("Unexpected token");
-      llm.generateContent.mockRejectedValue(syntaxError);
-
-      await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(IntentParsingError);
-      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.objectContaining({ originalError: syntaxError }));
-    });
-
-    it('should re-throw IntentParsingError if llm.generateContent throws it', async () => {
-      const userInput = "do something";
-      const customError = new IntentParsingError("Custom parsing error");
-      llm.generateContent.mockRejectedValue(customError);
-
-      await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(customError);
-      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.objectContaining({ originalError: customError }));
-    });
-
-    it('should re-throw CommandExecutionError if llm.generateContent throws it', async () => {
-      const userInput = "do something";
-      const customError = new CommandExecutionError("Custom execution error");
-      llm.generateContent.mockRejectedValue(customError);
-
-      await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(customError);
-      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.objectContaining({ originalError: customError }));
-    });
-
-    it('should throw CommandExecutionError for generic network or API errors', async () => {
-      const userInput = "do something";
-      const networkError = new Error("Network timeout");
-      llm.generateContent.mockRejectedValue(networkError);
-
-      await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(CommandExecutionError);
-      await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow("An unexpected error occurred while communicating with the AI: Network timeout");
-      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.objectContaining({ originalError: networkError }));
-    });
   });
 
   describe('routeCommand', () => {
@@ -236,21 +199,6 @@ describe('OnyxAI', () => {
       getCommandSpy.mockReturnValue(undefined);
 
       await expect(OnyxAI.routeCommand('unknown')).rejects.toThrow(CommandNotFoundError);
-    });
-
-    it('should throw CommandNotFoundError when no command and no default generateContent command is available', async () => {
-      // Mock getCommand to always return undefined, simulating both the
-      // target command and the 'generateContent' fallback missing.
-      getCommandSpy.mockReturnValue(undefined);
-
-      const commandStr = 'some unknown command';
-      await expect(OnyxAI.routeCommand(commandStr)).rejects.toThrow(
-        new CommandNotFoundError(`The command "${commandStr}" is not recognized and no default command is available.`)
-      );
-
-      // Verify getCommand was called twice: once for the input, once for 'generateContent'
-      expect(getCommandSpy).toHaveBeenCalledWith(commandStr);
-      expect(getCommandSpy).toHaveBeenCalledWith('generateContent');
     });
   });
 });

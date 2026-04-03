@@ -1,6 +1,8 @@
 import toast from 'react-hot-toast';
 import logger from './logging';
 import { DatabaseError, CommandExecutionError } from './onyxAI/errors';
+// import connectivityManager from './connectivityManager'; // To be injected
+// import offlineManager from './offline'; // To be injected
 
 class SupabaseApiService {
   constructor() {
@@ -489,32 +491,13 @@ class SupabaseApiService {
     try {
       const { data, error } = await this.supabase
         .from('workflows_ax2024')
-        .select('name, description, slug, definition');
+        .select('name, description, slug');
       if (error) throw new DatabaseError(error.message);
       return data;
     } catch (error) {
       toast.error('Failed to get workflows');
       logger.error('Failed to get workflows:', error);
       throw new DatabaseError(`Failed to get workflows: ${error.message}`);
-    }
-  }
-
-  async createWorkflow(name, description, slug, definition, userId) {
-    if (this._checkConnectivity('createWorkflow', [name, description, slug, definition, userId], true)) {
-      return Promise.resolve();
-    }
-    try {
-      const { data, error } = await this.supabase
-        .from('workflows_ax2024')
-        .insert({ name, description, slug, definition, user_id: userId })
-        .select()
-        .single();
-      if (error) throw new DatabaseError(error.message);
-      return data;
-    } catch (error) {
-      toast.error('Failed to create workflow');
-      logger.error('Failed to create workflow:', error);
-      throw new DatabaseError(`Failed to create workflow: ${error.message}`);
     }
   }
 
@@ -593,20 +576,20 @@ class SupabaseApiService {
   async searchMemory(queryEmbedding, limit = 5, userId = null) {
     if (this._checkConnectivity('searchMemory', [queryEmbedding, limit, userId])) return [];
     try {
-      // Calls the RPC 'match_ai_interactions' to perform vector search
+      // Stub implementation: calls a hypothetical RPC 'match_ai_interactions'
       // Requires pgvector and the RPC function to be created in Supabase.
       const { data, error } = await this.supabase.rpc('match_ai_interactions', {
         query_embedding: queryEmbedding,
-        match_threshold: 0.70, // Slightly lower threshold for better recall
+        match_threshold: 0.78, // typical threshold
         match_count: limit,
         p_user_id: userId
       });
 
       if (error) {
-        logger.warn('searchMemory RPC failed:', error.message);
+        logger.warn('searchMemory RPC failed (expected if pgvector/rpc not fully set up yet):', error.message);
         return []; // Return empty array gracefully during development
       }
-      return data || [];
+      return data;
     } catch (error) {
       logger.error('Failed to execute searchMemory:', error);
       return [];

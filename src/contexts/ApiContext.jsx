@@ -65,11 +65,11 @@ export const ApiProvider = ({ children }) => {
   }, [isCloudMode, handleApiCall]);
 
 
-  const value = useMemo(() => ({
+  const value = {
     isLoading,
     error,
     ...apiService,
-  }), [isLoading, error, apiService]);
+  };
 
   return <ApiContext.Provider value={value}>{children}</ApiContext.Provider>;
 };

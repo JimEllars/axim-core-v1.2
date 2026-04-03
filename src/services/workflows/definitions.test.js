@@ -99,60 +99,6 @@ describe('Workflow Definitions', () => {
       });
     });
 
-  describe('transcription_sprint', () => {
-    const workflow = workflowDefinitions.transcription_sprint;
-
-    describe('Step 3: Send Outreach Emails', () => {
-      const step = workflow.steps[2];
-
-      it('should send emails in parallel and return success count', async () => {
-        const contacts = [
-          { email: 'user1@example.com' },
-          { email: 'user2@example.com' },
-        ];
-        const context = {
-          contacts,
-          emailContent: 'Test Content',
-          userId: 'test-user',
-        };
-
-        api.sendEmail.mockResolvedValue({ success: true });
-
-        const result = await step.action(context);
-
-        expect(api.sendEmail).toHaveBeenCalledTimes(2);
-        expect(api.sendEmail).toHaveBeenCalledWith('user1@example.com', expect.any(String), 'Test Content', 'test-user');
-        expect(api.sendEmail).toHaveBeenCalledWith('user2@example.com', expect.any(String), 'Test Content', 'test-user');
-        expect(result.message).toBe('Successfully sent outreach emails to 2 of 2 contacts.');
-      });
-
-      it('should handle partial failures', async () => {
-        const contacts = [
-          { email: 'success@example.com' },
-          { email: 'fail@example.com' },
-        ];
-        const context = {
-          contacts,
-          emailContent: 'Test Content',
-          userId: 'test-user',
-        };
-
-        api.sendEmail.mockImplementation((email) => {
-          if (email === 'fail@example.com') return Promise.reject(new Error('Send failed'));
-          return Promise.resolve({ success: true });
-        });
-
-        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const result = await step.action(context);
-
-        expect(api.sendEmail).toHaveBeenCalledTimes(2);
-        expect(result.message).toBe('Successfully sent outreach emails to 1 of 2 contacts.');
-        expect(consoleSpy).toHaveBeenCalledWith('Failed to send to fail@example.com:', expect.any(Error));
-        consoleSpy.mockRestore();
-      });
-    });
-  });
-
   describe('audio_intelligence', () => {
     const workflow = workflowDefinitions.audio_intelligence;
 

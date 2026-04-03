@@ -3,7 +3,6 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
 import apiService from './apiService.js';
 import scheduler from './scheduler.js';
 import { JURISDICTIONS, MICRO_APPS } from './legalConstants.js';
@@ -747,31 +746,6 @@ app.post('/v1/pulse', authenticateSatellite, async (req, res) => {
 
 // --- Automations Routes ---
 
-app.post('/automations', authenticateApiKey, async (req, res) => {
-  try {
-    const { command, schedule, userId } = req.body;
-    if (!command || !schedule || !userId) {
-      return res.status(400).json({ error: 'Missing required fields: command, schedule, userId' });
-    }
-
-    if (userId !== req.user.id) {
-      return res.status(403).json({ error: 'Unauthorized: Cannot create automation for another user' });
-    }
-
-    // Command usually needs to be stringified JSON
-    const commandPayload = typeof command === 'object' ? JSON.stringify(command) : command;
-
-    const newAutomation = await apiService.createAutomation(commandPayload, schedule, userId);
-
-    // Refresh the scheduler so it picks up the new job immediately
-    await scheduler.refreshScheduler();
-
-    res.status(201).json(newAutomation);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 app.get('/automations', authenticateApiKey, async (req, res) => {
   try {
     const { userId } = req.query;
@@ -829,7 +803,7 @@ app.post('/payments/intent', authenticateApiKey, async (req, res) => {
     console.log(`[Billing Engine] Partner ${req.user.id} requested intent for ${microAppId}: ${amount} ${currency}`);
 
     // Simulate successful intent creation
-    const clientSecret = `pi_mock_${Date.now()}_secret_${crypto.randomBytes(8).toString('hex')}`;
+    const clientSecret = `pi_mock_${Date.now()}_secret_${Math.random().toString(36).substring(7)}`;
 
     res.status(201).json({
       clientSecret,

@@ -24,9 +24,9 @@ describe('Workflow Commands', () => {
     commands = module.default;
   });
 
-  it('should list available workflows', async () => {
+  it('should list available workflows', () => {
     const listCommand = commands.find(c => c.name === 'listWorkflows');
-    const result = await listCommand.execute({}, {});
+    const result = listCommand.execute();
     expect(result).toContain('Test Workflow');
     expect(result).toContain('test_workflow');
   });

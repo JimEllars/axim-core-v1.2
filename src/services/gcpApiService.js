@@ -1,7 +1,7 @@
 import axios from 'axios';
 import config from '../config';
 import logger from './logging';
-import { DatabaseError } from './onyxAI/errors';
+import { DatabaseError, CommandExecutionError } from './onyxAI/errors';
 
 class GcpApiService {
   constructor() {
@@ -516,19 +516,6 @@ class GcpApiService {
       return response.data;
     } catch (error) {
       logger.error('GCP sendEmail failed:', error);
-      throw new DatabaseError(error.response?.data?.error || error.message);
-    }
-  }
-
-  // --- Automations ---
-
-  async createAutomation(command, schedule, userId) {
-    this._ensureInitialized();
-    try {
-      const response = await this.client.post('/automations', { command, schedule, userId });
-      return response.data;
-    } catch (error) {
-      logger.error('GCP createAutomation failed:', error);
       throw new DatabaseError(error.response?.data?.error || error.message);
     }
   }

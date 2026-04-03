@@ -27,16 +27,7 @@ export default [
       }
 
       try {
-        let results = [];
-        try {
-          // Attempt RAG search first
-          const { generateEmbedding } = await import('../llm.js');
-          const embedding = await generateEmbedding(query);
-          results = await aximCore.api.searchMemory(embedding, 5, userId);
-        } catch (embeddingError) {
-          logger.warn('RAG search failed, falling back to text search:', embeddingError);
-          results = await aximCore.api.searchChatHistory(query, userId);
-        }
+        const results = await aximCore.api.searchChatHistory(query, userId);
 
         if (!results || results.length === 0) {
           return {
