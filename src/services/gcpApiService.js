@@ -315,10 +315,10 @@ class GcpApiService {
     }
   }
 
-  async logWorkflowExecution(workflowName, data) {
+  async logWorkflowExecution(workflowName, data, userId) {
      this._ensureInitialized();
      try {
-       const response = await this.client.post('/workflows/log', { workflowName, data });
+       const response = await this.client.post('/workflows/log', { workflowName, data, userId });
        return response.data;
      } catch (error) {
        logger.error('GCP logWorkflowExecution failed:', error);

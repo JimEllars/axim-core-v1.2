@@ -66,6 +66,13 @@ async function handleRequest(request, env, ctx) {
   // --- 2. Proxy to GCP Backend (Foundation) ---
   if (!url.pathname.startsWith('/api/edge/')) {
     try {
+      if (!env.GCP_BACKEND_URL) {
+        return new Response(JSON.stringify({ error: 'Edge Proxy Error: Backend URL not configured' }), {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
       // Modify URL to point to backend
       const targetUrl = new URL(request.url);
       const backendUrl = new URL(env.GCP_BACKEND_URL);

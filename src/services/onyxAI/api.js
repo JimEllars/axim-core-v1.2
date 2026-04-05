@@ -149,8 +149,8 @@ class ApiService {
     return this._executeWithFallback('getAPIStats');
   }
 
-  async logWorkflowExecution(workflowName, data) {
-    return this._executeWithFallback('logWorkflowExecution', workflowName, data);
+  async logWorkflowExecution(workflowName, data, userId) {
+    return this._executeWithFallback('logWorkflowExecution', workflowName, data, userId);
   }
 
   async addContact(name, email, source = 'command_hub', userId) {

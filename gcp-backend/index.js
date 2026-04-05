@@ -582,8 +582,14 @@ app.get('/workflows', authenticateApiKey, async (req, res) => {
 
 app.post('/workflows/log', authenticateApiKey, async (req, res) => {
     try {
-        const { workflowName, data } = req.body;
-        const result = await apiService.logWorkflowExecution(workflowName, data);
+        const { workflowName, data, userId } = req.body;
+
+        if (userId && userId !== req.user.id) {
+            return res.status(403).json({ error: 'Unauthorized: Cannot access data for another user' });
+        }
+
+        const effectiveUserId = userId || req.user.id;
+        const result = await apiService.logWorkflowExecution(workflowName, data, effectiveUserId);
         res.status(201).json(result);
     } catch (error) {
         res.status(500).json({ error: error.message });
