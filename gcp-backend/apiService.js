@@ -769,7 +769,7 @@ class ApiService {
             VALUES ('workflow_execution', 'axim_core', $1)
             RETURNING *;
           `;
-          const payload = JSON.stringify({ workflow: workflowName, userId, ...data });
+          const payload = JSON.stringify({ workflow: workflowName, ...data, userId });
           const result = await this.db.query(query, [payload]);
           return result.rows[0];
       } catch (error) {
