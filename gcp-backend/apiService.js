@@ -505,16 +505,16 @@ class ApiService {
     }
   }
 
-  async sendDeviceHeartbeat(deviceId, systemInfo) {
-    if (!deviceId) throw new Error('Device ID required');
+  async sendDeviceHeartbeat(deviceId, systemInfo, userId) {
+    if (!deviceId || !userId) throw new Error('Device ID and User ID required');
     try {
       const query = `
         UPDATE devices
         SET status = 'online', last_seen = NOW(), system_info = $2
-        WHERE id = $1
+        WHERE id = $1 AND user_id = $3
         RETURNING *;
       `;
-      const result = await this.db.query(query, [deviceId, systemInfo]);
+      const result = await this.db.query(query, [deviceId, systemInfo, userId]);
       if (result.rowCount === 0) {
           throw new Error('Device not found. Please register first.');
       }

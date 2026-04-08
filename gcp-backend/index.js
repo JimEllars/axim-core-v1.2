@@ -124,7 +124,9 @@ app.post('/devices/:id/heartbeat', authenticateApiKey, async (req, res) => {
   try {
     const { id } = req.params;
     const { system_info } = req.body;
-    const device = await apiService.sendDeviceHeartbeat(id, system_info);
+    const userId = req.user.id;
+
+    const device = await apiService.sendDeviceHeartbeat(id, system_info, userId);
     res.json(device);
   } catch (error) {
     res.status(500).json({ error: error.message });
