@@ -1,5 +1,6 @@
 import api from './api';
 import config from '../../config';
+import logger from '../logging';
 
 /**
  * Manages the selection and availability of LLM providers.
@@ -37,7 +38,7 @@ class ProviderManager {
         this.availableProviders = ['openai', 'gemini', 'claude', 'deepseek', 'chatbase'];
       }
     } catch (error) {
-      console.error("Failed to load LLM providers, using fallback list:", error);
+      logger.error("Failed to load LLM providers, using fallback list:", error);
       // Fallback on any error to ensure UI is testable
       this.availableProviders = ['openai', 'gemini', 'claude', 'deepseek', 'chatbase'];
     }
@@ -77,9 +78,9 @@ class ProviderManager {
     if (this.availableProviders.includes(providerName)) {
       this.activeProviderName = providerName;
       localStorage.setItem('llmProvider', providerName);
-      console.log(`LLM Provider set to: ${providerName}`);
+      logger.info(`LLM Provider set to: ${providerName}`);
     } else {
-      console.warn(`Attempted to set an unavailable provider: ${providerName}`);
+      logger.warn(`Attempted to set an unavailable provider: ${providerName}`);
     }
   }
 
