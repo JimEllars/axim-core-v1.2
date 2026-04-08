@@ -183,6 +183,7 @@ class OnyxAI {
       toast.error(`${errorMessage.title}: ${errorMessage.details}`);
       conversationHistory.addMessage('error', errorMessage);
       response = errorMessage; // Store the object, not the stringified version
+      logger.error('Error in routeCommand:', error);
       throw error;
 
     } finally {

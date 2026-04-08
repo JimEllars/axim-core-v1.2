@@ -2,6 +2,7 @@ import { supabase } from '../supabaseClient';
 import config from '../../config';
 import providerManager from './providerManager';
 import { ApiKeyError, LLMProviderError } from './errors';
+import logger from '../logging';
 
 /**
  * Generates a mock response for development and testing purposes.
@@ -55,7 +56,7 @@ export const generateEmbedding = async (input) => {
 
     return data.embedding;
   } catch (error) {
-    console.error("Failed to generate embedding.", error);
+    logger.error("Failed to generate embedding.", error);
     throw error;
   }
 };
@@ -122,12 +123,12 @@ export const generateContent = async (prompt, options = {}) => {
 
     } catch (error) {
       lastError = error;
-      console.warn(`Provider ${provider} failed: ${error.message}. Trying next provider.`);
+      logger.warn(`Provider ${provider} failed: ${error.message}. Trying next provider.`);
     }
   }
 
   // If all providers failed
-  console.error("All LLM providers failed.", lastError);
+  logger.error("All LLM providers failed.", lastError);
   throw new LLMProviderError(`Failed to get a response from any AI provider. Last error: ${lastError.message}`);
 };
 

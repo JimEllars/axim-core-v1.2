@@ -236,6 +236,7 @@ describe('OnyxAI', () => {
       getCommandSpy.mockReturnValue(undefined);
 
       await expect(OnyxAI.routeCommand('unknown')).rejects.toThrow(CommandNotFoundError);
+      expect(logger.error).toHaveBeenCalledWith('Error in routeCommand:', expect.any(CommandNotFoundError));
     });
 
     it('should throw CommandNotFoundError when no command and no default generateContent command is available', async () => {
