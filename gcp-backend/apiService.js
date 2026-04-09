@@ -760,9 +760,15 @@ class ApiService {
 
   // --- Workflows ---
 
-  async getWorkflows() {
+  async getWorkflows(userId) {
+    if (!userId) {
+      throw new Error('User ID is required to fetch workflows.');
+    }
     try {
-      const result = await this.db.query('SELECT name, description, slug, definition FROM workflows_ax2024 ORDER BY created_at DESC');
+      const result = await this.db.query(
+        'SELECT name, description, slug, definition FROM workflows_ax2024 WHERE user_id = $1 OR user_id IS NULL ORDER BY created_at DESC',
+        [userId]
+      );
       return result.rows;
     } catch (error) {
       console.error('Error getting workflows:', error);
