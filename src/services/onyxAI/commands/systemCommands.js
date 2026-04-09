@@ -151,22 +151,15 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
             );
 
             if (foundCommand) {
-                let details = `======= HELP: ${foundCommand.name} =======\n`;
-                details += `Description: ${foundCommand.description}\n`;
-                details += `Category: ${foundCommand.category || 'General'}\n`;
-
-                if (foundCommand.usage) {
-                    details += `Usage: ${foundCommand.usage}\n`;
-                }
-                if (foundCommand.aliases && foundCommand.aliases.length > 0) {
-                    details += `Aliases: ${foundCommand.aliases.join(', ')}\n`;
-                }
-                if (foundCommand.keywords && foundCommand.keywords.length > 0) {
-                    details += `Keywords: ${foundCommand.keywords.join(', ')}\n`;
-                }
-                details += '===================================';
-                return details;
-
+                return [
+                    `======= HELP: ${foundCommand.name} =======`,
+                    `Description: ${foundCommand.description}`,
+                    `Category: ${foundCommand.category || 'General'}`,
+                    foundCommand.usage ? `Usage: ${foundCommand.usage}` : null,
+                    (foundCommand.aliases && foundCommand.aliases.length > 0) ? `Aliases: ${foundCommand.aliases.join(', ')}` : null,
+                    (foundCommand.keywords && foundCommand.keywords.length > 0) ? `Keywords: ${foundCommand.keywords.join(', ')}` : null,
+                    '==================================='
+                ].filter(Boolean).join('\n');
             } else {
                 return `Command "${COMMAND_NAME}" not found. Try "help" to see all available commands.`;
             }
