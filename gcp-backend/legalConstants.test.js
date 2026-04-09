@@ -3,21 +3,27 @@ import { JURISDICTIONS, MICRO_APPS } from './legalConstants.js';
 
 describe('legalConstants', () => {
   describe('JURISDICTIONS', () => {
-    it('should be defined and not empty', () => {
+    it('should be defined and contain exactly 50 states', () => {
       expect(JURISDICTIONS).toBeDefined();
-      expect(Object.keys(JURISDICTIONS).length).toBeGreaterThan(0);
+      expect(Object.keys(JURISDICTIONS).length).toBe(50);
     });
 
-    it('should contain expected properties for each jurisdiction', () => {
+    it('should contain expected properties and valid values for each jurisdiction', () => {
       for (const [code, data] of Object.entries(JURISDICTIONS)) {
         expect(typeof code).toBe('string');
-        expect(code.length).toBe(2);
+        expect(code).toMatch(/^[A-Z]{2}$/);
         expect(data).toHaveProperty('name');
         expect(typeof data.name).toBe('string');
+        expect(data.name.length).toBeGreaterThan(0);
+
         expect(data).toHaveProperty('interestRate');
         expect(typeof data.interestRate).toBe('number');
+        expect(data.interestRate).toBeGreaterThanOrEqual(0);
+        expect(data.interestRate).toBeLessThanOrEqual(100);
+
         expect(data).toHaveProperty('smallClaimsLimit');
         expect(typeof data.smallClaimsLimit).toBe('number');
+        expect(data.smallClaimsLimit).toBeGreaterThan(0);
       }
     });
 
