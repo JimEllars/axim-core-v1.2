@@ -2,6 +2,7 @@ import config from '../../config';
 import gcpApiService from '../gcpApiService';
 import supabaseApiService from '../supabaseApiService';
 import logger from '../logging';
+import { NotImplementedError } from './errors';
 
 class ApiService {
   constructor() {
@@ -40,9 +41,13 @@ class ApiService {
       try {
         return await this.primaryService[methodName](...args);
       } catch (error) {
-        // Log warning but don't toast yet, unless it's a critical error that shouldn't fallback?
-        // Generally we try fallback.
-        logger.warn(`Primary service (${this.primaryService.constructor.name}) failed for ${methodName}:`, error);
+        if (error instanceof NotImplementedError) {
+          logger.debug(`Primary service (${this.primaryService.constructor.name}) does not implement ${methodName}, falling back.`);
+        } else {
+          // Log warning but don't toast yet, unless it's a critical error that shouldn't fallback?
+          // Generally we try fallback.
+          logger.warn(`Primary service (${this.primaryService.constructor.name}) failed for ${methodName}:`, error);
+        }
         primaryError = error;
       }
     }
@@ -53,7 +58,11 @@ class ApiService {
         logger.info(`Falling back to secondary service (${this.secondaryService.constructor.name}) for ${methodName}`);
         return await this.secondaryService[methodName](...args);
       } catch (error) {
-        logger.error(`Secondary service (${this.secondaryService.constructor.name}) failed for ${methodName}:`, error);
+        if (error instanceof NotImplementedError) {
+          logger.debug(`Secondary service (${this.secondaryService.constructor.name}) does not implement ${methodName}.`);
+        } else {
+          logger.error(`Secondary service (${this.secondaryService.constructor.name}) failed for ${methodName}:`, error);
+        }
         // Throw the error from the secondary service (or primary if secondary didn't even run?)
         throw error;
       }
@@ -84,7 +93,11 @@ class ApiService {
         primaryResult = await this.primaryService[methodName](...args);
       } catch (error) {
         primaryError = error;
-        logger.warn(`Primary service (${this.primaryService.constructor.name}) failed for ${methodName}:`, error);
+        if (error instanceof NotImplementedError) {
+          logger.debug(`Primary service (${this.primaryService.constructor.name}) does not implement ${methodName}.`);
+        } else {
+          logger.warn(`Primary service (${this.primaryService.constructor.name}) failed for ${methodName}:`, error);
+        }
       }
     }
 
@@ -96,7 +109,11 @@ class ApiService {
         secondaryResult = await this.secondaryService[methodName](...args);
       } catch (error) {
         secondaryError = error;
-        logger.warn(`Secondary service (${this.secondaryService.constructor.name}) failed for ${methodName}:`, error);
+        if (error instanceof NotImplementedError) {
+          logger.debug(`Secondary service (${this.secondaryService.constructor.name}) does not implement ${methodName}.`);
+        } else {
+          logger.warn(`Secondary service (${this.secondaryService.constructor.name}) failed for ${methodName}:`, error);
+        }
       }
     }
 
