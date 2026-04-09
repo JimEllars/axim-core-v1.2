@@ -154,7 +154,7 @@ class Scheduler {
   }
 
   async handleContentEngineFeed(config, userId) {
-    const feedUrl = config.url || 'https://hnrss.org/frontpage'; // Default to HackerNews RSS if none provided
+    const feedUrl = config.url || process.env.HACKERNEWS_RSS_URL || 'https://hnrss.org/frontpage'; // Default to HackerNews RSS if none provided
     console.log(`Fetching feed for content engine: ${feedUrl}`);
 
     try {
