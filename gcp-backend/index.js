@@ -575,7 +575,11 @@ app.post('/integrations/invoke', authenticateApiKey, async (req, res) => {
 
 app.get('/workflows', authenticateApiKey, async (req, res) => {
     try {
-        const workflows = await apiService.getWorkflows();
+        const { userId } = req.query;
+        if (userId && userId !== req.user.id) {
+            return res.status(403).json({ error: 'Unauthorized: Cannot access workflows for another user' });
+        }
+        const workflows = await apiService.getWorkflows(req.user.id);
         res.json(workflows);
     } catch (error) {
         res.status(500).json({ error: error.message });
