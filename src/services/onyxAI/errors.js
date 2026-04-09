@@ -49,3 +49,8 @@ export class DatabaseError extends OnyxAIError {}
  * Thrown when a command fails to execute for a reason not covered by other error types.
  */
 export class CommandExecutionError extends OnyxAIError {}
+
+/**
+ * Thrown when a method is called but not implemented.
+ */
+export class NotImplementedError extends OnyxAIError {}

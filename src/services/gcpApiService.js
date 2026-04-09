@@ -1,7 +1,7 @@
 import axios from 'axios';
 import config from '../config';
 import logger from './logging';
-import { DatabaseError } from './onyxAI/errors';
+import { DatabaseError, NotImplementedError } from './onyxAI/errors';
 
 class GcpApiService {
   constructor() {
@@ -549,10 +549,16 @@ const handler = {
     if (Reflect.has(target, prop)) {
       return Reflect.get(target, prop, receiver);
     }
+
+    // Do not trap symbols or common internal properties like 'then' or 'toJSON'
+    if (typeof prop === 'symbol' || prop === 'then' || prop === 'toJSON') {
+      return undefined;
+    }
+
     return async function (...args) {
-      // Log and throw to trigger fallback
-      // logger.debug(`Method ${String(prop)} not implemented in GcpApiService, falling back.`);
-      throw new Error(`Method ${String(prop)} not implemented in GcpApiService`);
+      // Log and throw to trigger fallback using a specific error type
+      logger.debug(`Method ${String(prop)} not implemented in GcpApiService, falling back.`);
+      throw new NotImplementedError(`Method ${String(prop)} not implemented in GcpApiService`);
     };
   }
 };
