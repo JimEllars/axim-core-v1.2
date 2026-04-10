@@ -14,13 +14,18 @@ describe('ChatInterface', () => {
     { type: 'assistant', content: 'Hi there!' },
   ];
 
+  const defaultHandlers = {
+    onClearChat: vi.fn(),
+    onCopyContent: vi.fn(),
+  };
+
   it('renders the session log title', () => {
-    render(<ChatInterface messages={[]} />);
+    render(<ChatInterface state={{ messages: [] }} handlers={defaultHandlers} />);
     expect(screen.getByText('Operational Timeline')).toBeInTheDocument();
   });
 
   it('renders a list of messages', () => {
-    render(<ChatInterface messages={mockMessages} />);
+    render(<ChatInterface state={{ messages: mockMessages }} handlers={defaultHandlers} />);
     const messageElements = screen.getAllByTestId('chat-message');
     expect(messageElements).toHaveLength(mockMessages.length);
     expect(messageElements[0]).toHaveTextContent('Hello');
@@ -28,7 +33,7 @@ describe('ChatInterface', () => {
 
   it('calls onClearChat when the "Clear" button is clicked', () => {
     const onClearChatMock = vi.fn();
-    render(<ChatInterface messages={mockMessages} onClearChat={onClearChatMock} />);
+    render(<ChatInterface state={{ messages: mockMessages }} handlers={{ ...defaultHandlers, onClearChat: onClearChatMock }} />);
 
     // Find the button by its accessible name (aria-label) or text content
     const clearButton = screen.getByRole('button', { name: /clear/i });
@@ -38,7 +43,7 @@ describe('ChatInterface', () => {
   });
 
   it('displays the "Clear" text on the clear button', () => {
-    render(<ChatInterface messages={[]} onClearChat={() => {}} />);
+    render(<ChatInterface state={{ messages: [] }} handlers={defaultHandlers} />);
     const clearButton = screen.getByRole('button', { name: /clear/i });
 
     // Check for the span containing the text "Clear"

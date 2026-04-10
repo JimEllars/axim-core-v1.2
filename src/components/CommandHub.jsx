@@ -79,11 +79,9 @@ const CommandHub = () => {
               onSelect={setSelectedAgent}
             />
             <ChatInterface
-              messages={messages}
+              state={{ messages, agentName: selectedAgent?.name }}
+              handlers={{ onCopyContent: handleCopyContent, onClearChat: handleClearChat }}
               messagesEndRef={messagesEndRef}
-              onCopyContent={handleCopyContent}
-              onClearChat={handleClearChat}
-              agentName={selectedAgent?.name}
             />
             <InputForm
               inputValue={inputValue}
