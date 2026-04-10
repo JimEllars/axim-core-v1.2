@@ -678,10 +678,10 @@ app.put('/api/v1/control/:unit_id', authenticateApiKey, async (req, res) => {
     // But we are using express.json(). If they send urlencoded, we need app.use(express.urlencoded()).
     // However, Albato can send JSON. Let's assume JSON body with { command: ... } or query param?
     // "direct commands" might be the body.
-    const command = req.body.command || req.query.command;
+    const command = req.body.command;
 
     if (!command) {
-        return res.status(400).json({ error: 'Command required in body or query' });
+        return res.status(400).json({ error: 'Command required in body' });
     }
 
     const result = await apiService.controlInfrastructure(unit_id, command, req.user.id);
