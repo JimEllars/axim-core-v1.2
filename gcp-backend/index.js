@@ -254,7 +254,9 @@ app.get('/contacts/search', authenticateApiKey, async (req, res) => {
 app.get('/contacts/email/:email', authenticateApiKey, async (req, res) => {
     try {
         const { email } = req.params;
-        const contact = await apiService.getContactByEmail(email);
+        const userId = req.user.id;
+
+        const contact = await apiService.getContactByEmail(email, userId);
         if (!contact) return res.status(404).json({ error: 'Contact not found' });
         res.json(contact);
     } catch (error) {
