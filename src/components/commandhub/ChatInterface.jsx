@@ -28,7 +28,11 @@ const ProcessChain = () => (
   </motion.div>
 );
 
-const ChatInterface = ({ messages, messagesEndRef, onCopyContent, onClearChat, agentName }) => (
+const ChatInterface = ({ state, handlers, messagesEndRef }) => {
+  const { messages, agentName } = state;
+  const { onCopyContent, onClearChat } = handlers;
+
+  return (
   <div className="glass-effect p-4 rounded-lg mb-4 h-[60vh] flex flex-col bg-onyx-950/80 backdrop-blur-md border border-onyx-accent/20 relative overflow-hidden">
     {/* Decorative Scanline */}
     <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(transparent_50%,rgba(34,211,238,1)_50%)] bg-[length:100%_4px]" />
@@ -66,6 +70,7 @@ const ChatInterface = ({ messages, messagesEndRef, onCopyContent, onClearChat, a
       <div ref={messagesEndRef} />
     </div>
   </div>
-);
+  );
+};
 
 export default ChatInterface;

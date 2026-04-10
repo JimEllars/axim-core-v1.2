@@ -16,7 +16,10 @@ vi.mock('../../hooks/useCommandHubState');
 
 // Mock child components for isolation
 vi.mock('../command/SystemStatus', () => ({ default: () => <div data-testid="system-status" /> }));
-vi.mock('./ChatInterface', () => ({ default: ({ messages, onClearChat }) => (
+vi.mock('./ChatInterface', () => ({ default: ({ state, handlers }) => {
+    const { messages = [] } = state || {};
+    const { onClearChat } = handlers || {};
+    return (
     <div>
         <button onClick={onClearChat}>Clear Chat</button>
         <div data-testid="chat-interface">
@@ -27,7 +30,8 @@ vi.mock('./ChatInterface', () => ({ default: ({ messages, onClearChat }) => (
             ))}
         </div>
     </div>
-)}));
+);
+}}));
 
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
