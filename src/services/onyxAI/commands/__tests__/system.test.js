@@ -1,7 +1,7 @@
 // src/services/onyxAI/commands/__tests__/system.test.js
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createCommand } from '../commandFactory';
-import systemCommands from '../systemCommands';
+import systemCommands, { groupCommandsByCategory } from '../systemCommands';
 import api from '../../api';
 import { runWorkflow } from '../../../workflows/engine';
 import { CommandValidationError } from '../../errors';
@@ -104,6 +104,31 @@ describe('OnyxAI System Commands', () => {
     // Extract the UUID from the response string
     const extractedUuid = result.replace('Generated UUID: ', '');
     expect(extractedUuid).toMatch(uuidRegex);
+  });
+
+  describe('groupCommandsByCategory', () => {
+    it('should correctly group commands and ignore default ones', () => {
+      const commands = [
+        { name: 'cmd1', category: 'General', isDefault: false },
+        { name: 'cmd2', category: 'General', isDefault: false },
+        { name: 'cmd3', category: 'System', isDefault: false },
+        { name: 'cmd4', isDefault: true },
+        { name: 'cmd5', isDefault: false }, // Should default to 'General'
+      ];
+
+      const result = groupCommandsByCategory(commands);
+
+      expect(result).toEqual({
+        General: [
+          { name: 'cmd1', category: 'General', isDefault: false },
+          { name: 'cmd2', category: 'General', isDefault: false },
+          { name: 'cmd5', isDefault: false },
+        ],
+        System: [
+          { name: 'cmd3', category: 'System', isDefault: false },
+        ]
+      });
+    });
   });
 
   describe('help', () => {

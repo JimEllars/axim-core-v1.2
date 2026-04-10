@@ -5,6 +5,17 @@ import api from '../api';
 import * as llm from '../llm';
 import { runWorkflow } from '../../workflows/engine';
 
+export function groupCommandsByCategory(commands) {
+    return commands
+        .filter(cmd => !cmd.isDefault)
+        .reduce((acc, cmd) => {
+            const category = cmd.category || 'General';
+            if (!acc[category]) acc[category] = [];
+            acc[category].push(cmd);
+            return acc;
+        }, {});
+}
+
 const systemCommands = [
   createCommand({
     name: 'getSystemReport',
@@ -169,14 +180,7 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
         const header = '======= ONYX AI HELP =======\n';
         const footer = '============================';
 
-        const groupedCommands = allCommands
-            .filter(cmd => !cmd.isDefault)
-            .reduce((acc, cmd) => {
-                const category = cmd.category || 'General';
-                if (!acc[category]) acc[category] = [];
-                acc[category].push(cmd);
-                return acc;
-            }, {});
+        const groupedCommands = groupCommandsByCategory(allCommands);
 
         const sortedCategories = Object.keys(groupedCommands).sort();
 
