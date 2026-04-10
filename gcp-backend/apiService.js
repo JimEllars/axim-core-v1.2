@@ -247,10 +247,11 @@ class ApiService {
     }
   }
 
-  async getContactByEmail(email) {
+  async getContactByEmail(email, userId) {
+    if (!userId) throw new Error('User ID required');
     try {
-      const query = 'SELECT * FROM contacts_ax2024 WHERE email = $1';
-      const result = await this.db.query(query, [email]);
+      const query = 'SELECT * FROM contacts_ax2024 WHERE email = $1 AND user_id = $2';
+      const result = await this.db.query(query, [email, userId]);
       return result.rows[0];
     } catch (error) {
       console.error('Error getting contact by email:', error);
