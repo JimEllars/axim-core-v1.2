@@ -43,7 +43,6 @@ serve(async (req) => {
     // In production, integration with Resend/SendGrid happens here.
 
     // For now, we simulate success.
-    await new Promise(resolve => setTimeout(resolve, 500));
 
     return new Response(
       JSON.stringify({
