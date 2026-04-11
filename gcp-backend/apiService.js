@@ -666,9 +666,15 @@ class ApiService {
 
   // --- Integrations ---
 
-  async listAPIIntegrations() {
+  async listAPIIntegrations(userId) {
+    if (!userId) {
+      throw new Error('User ID is required to fetch integrations.');
+    }
     try {
-      const result = await this.db.query('SELECT * FROM api_integrations_ax2024 ORDER BY created_at DESC');
+      const result = await this.db.query(
+        'SELECT * FROM api_integrations_ax2024 WHERE user_id = $1 OR user_id IS NULL ORDER BY created_at DESC',
+        [userId]
+      );
       return result.rows;
     } catch (error) {
       console.error('Error listing integrations:', error);
@@ -676,16 +682,20 @@ class ApiService {
     }
   }
 
-  async getIntegrationsWithStats() {
+  async getIntegrationsWithStats(userId) {
+    if (!userId) {
+      throw new Error('User ID is required to fetch integrations with stats.');
+    }
     try {
       const query = `
         SELECT i.*,
         (SELECT COUNT(*) FROM api_call_logs_ax2024 l WHERE l.integration_id = i.id) as total_calls,
         (SELECT COUNT(*) FROM api_call_logs_ax2024 l WHERE l.integration_id = i.id AND l.success = true) as success_calls
         FROM api_integrations_ax2024 i
+        WHERE i.user_id = $1 OR i.user_id IS NULL
         ORDER BY created_at DESC
       `;
-      const result = await this.db.query(query);
+      const result = await this.db.query(query, [userId]);
       return result.rows.map(row => ({
           ...row,
           success_rate: row.total_calls > 0 ? (row.success_calls / row.total_calls) * 100 : 0
@@ -696,9 +706,18 @@ class ApiService {
     }
   }
 
-  async deleteIntegration(id) {
+  async deleteIntegration(id, userId) {
+    if (!id || !userId) {
+      throw new Error('Integration ID and User ID are required to delete an integration.');
+    }
     try {
-      const result = await this.db.query('DELETE FROM api_integrations_ax2024 WHERE id = $1 RETURNING *', [id]);
+      const result = await this.db.query(
+        'DELETE FROM api_integrations_ax2024 WHERE id = $1 AND user_id = $2 RETURNING *',
+        [id, userId]
+      );
+      if (result.rowCount === 0) {
+        throw new Error('Integration not found or access denied');
+      }
       return result.rows[0];
     } catch (error) {
       console.error('Error deleting integration:', error);
