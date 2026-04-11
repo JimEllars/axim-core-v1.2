@@ -463,6 +463,30 @@ class ApiService {
     }
     return result;
   }
+
+  async sendToOnyxWorker(payload) {
+    const workerUrl = import.meta.env.VITE_ONYX_WORKER_URL;
+    const secureKey = import.meta.env.VITE_ONYX_SECURE_KEY;
+
+    if (!workerUrl) {
+      throw new Error('Onyx Edge Worker URL is not configured.');
+    }
+
+    const response = await fetch(`${workerUrl}/api/v1/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + secureKey
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Onyx Worker Error: ${response.status} ${response.statusText}`);
+    }
+
+    return response.json();
+  }
 }
 
 export default new ApiService();

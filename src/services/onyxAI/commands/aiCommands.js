@@ -63,6 +63,15 @@ ${historyText ? historyText : "No recent conversation history."}
 Current Request: ${prompt}`;
       }
 
+      try {
+        if (context && context.aximCore && context.aximCore.api && typeof context.aximCore.api.sendToOnyxWorker === 'function') {
+           const workerResponse = await context.aximCore.api.sendToOnyxWorker({ prompt: enhancedPrompt, options: llmOptions, context: historyText });
+           return workerResponse.content || workerResponse.response || workerResponse;
+        }
+      } catch(e) {
+        console.warn("Failed to contact Onyx Worker natively:", e);
+      }
+
       return await llm.generateContent(enhancedPrompt, llmOptions);
     }
   }),
