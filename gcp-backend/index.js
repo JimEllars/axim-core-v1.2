@@ -511,10 +511,10 @@ app.get('/integrations', authenticateApiKey, async (req, res) => {
     try {
         const { stats } = req.query;
         if (stats === 'true') {
-            const integrations = await apiService.getIntegrationsWithStats();
+            const integrations = await apiService.getIntegrationsWithStats(req.user.id);
             return res.json(integrations);
         }
-        const integrations = await apiService.listAPIIntegrations();
+        const integrations = await apiService.listAPIIntegrations(req.user.id);
         res.json(integrations);
     } catch (error) {
         res.status(500).json({ error: error.message });
@@ -524,7 +524,7 @@ app.get('/integrations', authenticateApiKey, async (req, res) => {
 app.delete('/integrations/:id', authenticateApiKey, async (req, res) => {
     try {
         const { id } = req.params;
-        await apiService.deleteIntegration(id);
+        await apiService.deleteIntegration(id, req.user.id);
         res.json({ success: true });
     } catch (error) {
         res.status(500).json({ error: error.message });
