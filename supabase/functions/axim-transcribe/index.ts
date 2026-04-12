@@ -1,12 +1,8 @@
 // supabase/functions/axim-transcribe/index.ts
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { corsHeaders } from '../_shared/cors.ts';
 
 console.log('AXiM Transcribe Service function loaded');
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 serve(async (req) => {
   // Handle preflight requests for CORS
