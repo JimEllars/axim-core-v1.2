@@ -342,14 +342,9 @@ BEGIN
     )
     VALUES (
       admin_user_id, 'authenticated', 'authenticated', 'admin@example.com',
-      crypt('axim2024secure', gen_salt('bf')), now(),
+      crypt(gen_random_uuid()::text, gen_salt('bf')), now(),
       '{"provider": "email", "providers": ["email"]}', '{}', now(), now()
     );
-  ELSE
-    -- If user DOES exist, just update their password to be sure we can log in
-    UPDATE auth.users
-    SET encrypted_password = crypt('axim2024secure', gen_salt('bf'))
-    WHERE id = admin_user_id;
   END IF;
 
   -- 2. Create the corresponding public user with admin role
