@@ -6,16 +6,6 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: './src/vitest.setup.jsx',
-    threads: false, // Run tests sequentially to avoid memory issues
-    coverage: {
-      reporter: ['text', 'json', 'html'],
-    },
-    exclude: ['**/node_modules/**', '**/dist/**', '**/.idea/**', '**/.git/**', '**/.cache/**', '**/gcp-backend/**'],
-  },
-  resolve: {
-    alias: {
-      '@': '/src',
-    },
+    setupFiles: ['./vitest.setup.jsx'],
   },
 });

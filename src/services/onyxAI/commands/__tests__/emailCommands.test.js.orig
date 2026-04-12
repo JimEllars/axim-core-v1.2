@@ -58,7 +58,7 @@ describe('emailCommands', () => {
         expect(parsed.MESSAGE).toBe('Where are you?');
     });
 
-    it.skip('should execute successfully with valid email', async () => {
+    it('should execute successfully with valid email', async () => {
       const mockApi = vi.spyOn(api, 'sendEmail').mockResolvedValue({ success: true });
       const args = { RECIPIENT: 'test@example.com', MESSAGE: 'Hello' };
       const context = { userId: 'user-123' };
@@ -74,7 +74,7 @@ describe('emailCommands', () => {
       expect(result).toContain('successfully sent');
     });
 
-    it.skip('should throw error for invalid email/unknown alias during execution', async () => {
+    it('should throw error for invalid email/unknown alias during execution', async () => {
       const args = { RECIPIENT: 'UnknownPerson', MESSAGE: 'Hi' };
       const context = { userId: 'user-123' };
 
