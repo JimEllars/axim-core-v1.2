@@ -8,6 +8,7 @@ import AIInteractionsChart from './AIInteractionsChart';
 import ApiUsageChart from './ApiUsageChart';
 import config from '../../config';
 import { useDashboard } from '../../contexts/DashboardContext';
+import logger from '../../services/logging';
 
 const { FiBarChart3, FiPieChart, FiAlertTriangle, FiRefreshCw } = FiIcons;
 
@@ -23,7 +24,7 @@ const VisualizationPanel = () => {
     setError(null);
 
     if (config.isMockLlmEnabled) {
-      console.log('Mock mode: providing mock visualization data.');
+      logger.debug('Mock mode: providing mock visualization data.');
       const mockSourceData = [
         { name: 'Website', value: 400, color: '#3B82F6' },
         { name: 'Referral', value: 300, color: '#10B981' },
@@ -65,7 +66,7 @@ const VisualizationPanel = () => {
       setEventData(eventChartData);
 
     } catch (error) {
-      console.error('Error fetching visualization data:', error);
+      logger.error('Error fetching visualization data:', error);
       setError('Failed to load chart data.');
     } finally {
       setLoading(false);

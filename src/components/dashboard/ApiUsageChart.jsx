@@ -21,7 +21,7 @@ const ApiUsageChart = () => {
     setError(null);
 
     if (config.isMockLlmEnabled) {
-      logger.info('Mock mode: providing mock API usage data.');
+      logger.debug('Mock mode: providing mock API usage data.');
       const mockData = [
         { date: '2023-10-01', count: 120 },
         { date: '2023-10-02', count: 150 },
