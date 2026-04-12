@@ -5,6 +5,7 @@ import { CommandValidationError } from '../errors';
 import { parseDate } from '../utils';
 
 const QUOTE_STRIP_REGEX = /^['"]|['"]$/g;
+const FILTER_CLAUSE_REGEX = /(\w+)\s+(contains|is|equals|=|since|before|after|between)\s+('[^']+'|"[^"]+"|\S+)/gi;
 
 const contactCommands = [
   createCommand({
@@ -171,30 +172,24 @@ const contactCommands = [
       // 2. Handle Filtering
       const whereIndex = argsString.toLowerCase().indexOf('where');
       if (whereIndex > -1) {
-        let filtersString = argsString.substring(whereIndex + 5).trim();
-        // Use a regex that properly handles quoted strings to avoid splitting them.
-        const filterClauses = filtersString.match(/(\w+\s+(?:contains|is|equals|=|since|before|after|between)\s+(?:'[^']+'|"[^"]+"|\S+))/gi);
+        const filtersString = argsString.substring(whereIndex + 5).trim();
+        const matches = filtersString.matchAll(FILTER_CLAUSE_REGEX);
 
-        if (filterClauses) {
-          for (const clause of filterClauses) {
-            const clauseMatch = clause.match(/(\w+)\s+(contains|is|equals|=|since|before|after|between)\s+('.+'|".+"|\S+)/i);
-            if (clauseMatch) {
-              const field = clauseMatch[1].trim();
-              const operator = clauseMatch[2].trim().toLowerCase();
-              let value = clauseMatch[3].trim().replace(QUOTE_STRIP_REGEX, ''); // Strip quotes
+        for (const match of matches) {
+          const field = match[1].trim();
+          const operator = match[2].trim().toLowerCase();
+          let value = match[3].trim().replace(QUOTE_STRIP_REGEX, ''); // Strip quotes
 
-              if (['since', 'before', 'after', 'between'].includes(operator)) {
-                const parsed = parseDate(value);
-                value = { startDate: parsed.startDate, endDate: parsed.endDate };
-              }
-
-              options.filters.push({
-                field,
-                operator,
-                value,
-              });
-            }
+          if (['since', 'before', 'after', 'between'].includes(operator)) {
+            const parsed = parseDate(value);
+            value = { startDate: parsed.startDate, endDate: parsed.endDate };
           }
+
+          options.filters.push({
+            field,
+            operator,
+            value,
+          });
         }
       }
       return options;
