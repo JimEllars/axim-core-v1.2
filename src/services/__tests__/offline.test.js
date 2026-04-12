@@ -88,6 +88,30 @@ describe('OfflineManager', () => {
     expect(offlineManager.requestQueue[0].methodName).toBe('someApiMethod');
   });
 
+  describe('loadQueue', () => {
+    it('should return an empty array if there is no stored queue', () => {
+      expect(offlineManager.loadQueue('non-existent-key')).toEqual([]);
+    });
+
+    it('should return parsed queue if there is a valid stored queue', () => {
+      localStorage.setItem('valid-queue', JSON.stringify([{ id: 1, command: 'test' }]));
+      expect(offlineManager.loadQueue('valid-queue')).toEqual([{ id: 1, command: 'test' }]);
+    });
+
+    it('should return an empty array and log an error if the stored queue is invalid JSON', async () => {
+      localStorage.setItem('invalid-queue', 'invalid json string');
+      const { default: logger } = await import('../logging');
+
+      const result = offlineManager.loadQueue('invalid-queue');
+
+      expect(result).toEqual([]);
+      expect(logger.error).toHaveBeenCalledWith(
+        'Failed to load queue invalid-queue from localStorage.',
+        expect.any(SyntaxError)
+      );
+    });
+  });
+
   describe('processQueue', () => {
     it('should process a queued command successfully', async () => {
       offlineManager.queueCommand('help');
