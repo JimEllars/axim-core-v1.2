@@ -5,7 +5,6 @@ import * as useApi from './useApi'; // Mock the entire module
 import config from '../config';
 import { useDashboard } from '../contexts/DashboardContext';
 
-// Mock dependencies
 vi.mock('./useApi');
 vi.mock('../config');
 vi.mock('../contexts/DashboardContext');
