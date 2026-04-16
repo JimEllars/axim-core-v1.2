@@ -336,6 +336,8 @@ BEGIN
     -- If user doesn't exist, create a new UUID and insert them safely
     admin_user_id := gen_random_uuid();
 
+    -- The seed user password is intentionally randomized to force a password reset on first login for security.
+
     INSERT INTO auth.users (
       id, aud, role, email, encrypted_password, email_confirmed_at,
       raw_app_meta_data, raw_user_meta_data, created_at, updated_at
