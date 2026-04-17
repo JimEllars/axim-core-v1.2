@@ -16,10 +16,6 @@ export const useVectorSearch = () => {
       if (!query) return [];
 
       // Step 1: Generate embedding for the query.
-      // Since we don't have a direct edge function proxy for just embeddings yet,
-      // we'll simulate the embedding step or assume an edge function 'generate-embedding' exists.
-      // In a real RAG flow, you'd send `query` to OpenAI to get the vector.
-      // We added a 'generate-embedding' Edge function previously. Let's try to call it.
       const { data: embeddingData, error: embeddingError } = await supabase.functions.invoke('generate-embedding', {
         body: { input: query }
       });
