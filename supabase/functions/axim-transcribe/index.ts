@@ -1,13 +1,13 @@
 // supabase/functions/axim-transcribe/index.ts
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { corsHeaders } from '../_shared/cors.ts';
+import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
 
 console.log('AXiM Transcribe Service function loaded');
 
 serve(async (req) => {
   // Handle preflight requests for CORS
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
   }
 
   try {
@@ -18,7 +18,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Missing required parameters: source and userId are required.' }),
         {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
           status: 400,
         }
       );
@@ -45,7 +45,7 @@ serve(async (req) => {
         status: 'processing',
       }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
         status: 200,
       }
     );
@@ -54,7 +54,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ error: 'Failed to process transcription request.', details: error.message }),
       {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
         status: 500,
       }
     );

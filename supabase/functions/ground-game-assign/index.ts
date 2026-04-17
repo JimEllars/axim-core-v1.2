@@ -1,11 +1,11 @@
 // supabase/functions/ground-game-assign/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { corsHeaders as CORS_HEADERS } from '../_shared/cors.ts';
+import { corsHeaders as CORS_HEADERS, getCorsHeaders } from '../_shared/cors.ts';
 
 // This is a mock service for the Ground Game canvassing app.
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: CORS_HEADERS });
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
   }
 
   try {
@@ -27,12 +27,12 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ assignmentId, status }),
-      { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
     );
   } catch (error) {
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
     );
   }
 });

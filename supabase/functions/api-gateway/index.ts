@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
 import { notifyOnyx } from '../_shared/telemetry.ts';
 import { generatePdf } from '../_shared/pdf-generators/index.ts';
 
@@ -21,7 +21,7 @@ serve(async (req) => {
   const endpoint = new URL(req.url).pathname;
 
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
   }
 
   try {
@@ -29,7 +29,7 @@ serve(async (req) => {
     if (!authHeader || !authHeader.startsWith('Bearer axm_live_')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
       });
     }
 
@@ -46,7 +46,7 @@ serve(async (req) => {
     if (keyError || !apiKeyData) {
       return new Response(JSON.stringify({ error: 'Invalid API Key' }), {
         status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
       });
     }
 
@@ -62,7 +62,7 @@ serve(async (req) => {
       await notifyOnyx(endpoint, 402, { partnerId, reason: 'Insufficient credits' });
       return new Response(JSON.stringify({ error: 'Payment Required' }), {
         status: 402,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
       });
     }
 
@@ -107,7 +107,7 @@ serve(async (req) => {
       download_url: signedUrlData.signedUrl
     }), {
       status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
@@ -115,7 +115,7 @@ serve(async (req) => {
     await notifyOnyx(endpoint, 500, { error: error.message });
     return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
     });
   }
 });

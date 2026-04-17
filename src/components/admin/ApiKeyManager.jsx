@@ -2,12 +2,109 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import toast from 'react-hot-toast';
 import providerManager from '../../services/onyxAI/providerManager';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const ApiKeyManager = ({ user }) => {
-  const [apiKeys, setApiKeys] = useState([]);
+  const queryClient = useQueryClient();
   const [newApiKey, setNewApiKey] = useState({ service: '', api_key: '' });
   const [editingKey, setEditingKey] = useState(null);
   const [availableProviders, setAvailableProviders] = useState([]);
+
+  // New state for API Side Door keys (axm_live_...)
+  const [newB2BKeyName, setNewB2BKeyName] = useState('');
+
+  // Fetch API Keys
+  const { data: apiKeys = [], isLoading: isLoadingKeys } = useQuery({
+    queryKey: ['api_keys', user.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('api_keys')
+        .select('*')
+        .eq('user_id', user.id);
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  // Fetch Partner Credits
+  const { data: partnerCredit, isLoading: isLoadingCredits } = useQuery({
+    queryKey: ['partner_credits', user.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('partner_credits')
+        .select('*')
+        .eq('partner_id', user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    }
+  });
+
+  const generateB2BKeyMutation = useMutation({
+    mutationFn: async (serviceName) => {
+      const newKey = `axm_live_${Math.random().toString(36).substring(2, 15)}`;
+      const { data, error } = await supabase
+        .from('api_keys')
+        .insert({ service: serviceName || 'B2B API Key', api_key: newKey, user_id: user.id });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('B2B API key generated successfully.');
+      setNewB2BKeyName('');
+      queryClient.invalidateQueries({ queryKey: ['api_keys', user.id] });
+    },
+    onError: () => toast.error('Error generating B2B API key.')
+  });
+
+  const addApiKeyMutation = useMutation({
+    mutationFn: async (keyData) => {
+      const { data, error } = await supabase
+        .from('api_keys')
+        .insert({ ...keyData, user_id: user.id });
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('API key added successfully.');
+      setNewApiKey({ service: availableProviders[0] || '', api_key: '' });
+      queryClient.invalidateQueries({ queryKey: ['api_keys', user.id] });
+    },
+    onError: () => toast.error('Error adding API key.')
+  });
+
+  const updateApiKeyMutation = useMutation({
+    mutationFn: async (apiKey) => {
+      const { data, error } = await supabase
+        .from('api_keys')
+        .update({ api_key: apiKey.api_key, service: apiKey.service })
+        .eq('id', apiKey.id);
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success('API key updated successfully.');
+      setEditingKey(null);
+      queryClient.invalidateQueries({ queryKey: ['api_keys', user.id] });
+    },
+    onError: () => toast.error('Error updating API key.')
+  });
+
+  const deleteApiKeyMutation = useMutation({
+    mutationFn: async (id) => {
+      const { error } = await supabase
+        .from('api_keys')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      toast.success('API key revoked successfully.');
+      queryClient.invalidateQueries({ queryKey: ['api_keys', user.id] });
+    },
+    onError: () => toast.error('Error revoking API key.')
+  });
 
   useEffect(() => {
     const initializeProviders = async () => {
@@ -20,79 +117,69 @@ const ApiKeyManager = ({ user }) => {
     };
 
     initializeProviders();
-    fetchApiKeys();
   }, []);
-
-  const fetchApiKeys = async () => {
-    const { data, error } = await supabase
-      .from('api_keys')
-      .select('*')
-      .eq('user_id', user.id);
-
-    if (error) {
-      toast.error('Error fetching API keys.');
-    } else {
-      setApiKeys(data || []);
-    }
-  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setNewApiKey({ ...newApiKey, [name]: value });
   };
 
-  const handleAddApiKey = async (e) => {
+  const handleAddApiKey = (e) => {
     e.preventDefault();
     if (!newApiKey.service) {
       toast.error("Please select a service.");
       return;
     }
-    const { data, error } = await supabase
-      .from('api_keys')
-      .insert({ ...newApiKey, user_id: user.id });
-
-    if (error) {
-      toast.error('Error adding API key.');
-    } else {
-      setApiKeys([...apiKeys, ...data]);
-      setNewApiKey({ service: availableProviders[0] || '', api_key: '' });
-      toast.success('API key added successfully.');
-      fetchApiKeys();
-    }
+    addApiKeyMutation.mutate(newApiKey);
   };
 
-  const handleEditApiKey = async (apiKey) => {
-    const { data, error } = await supabase
-      .from('api_keys')
-      .update({ api_key: apiKey.api_key, service: apiKey.service })
-      .eq('id', apiKey.id);
-
-    if (error) {
-      toast.error('Error updating API key.');
-    } else {
-      toast.success('API key updated successfully.');
-      setEditingKey(null);
-      fetchApiKeys();
-    }
+  const handleEditApiKey = (apiKey) => {
+    updateApiKeyMutation.mutate(apiKey);
   };
 
-  const handleDeleteApiKey = async (id) => {
-    const { error } = await supabase
-      .from('api_keys')
-      .delete()
-      .eq('id', id);
+  const handleDeleteApiKey = (id) => {
+    deleteApiKeyMutation.mutate(id);
+  };
 
-    if (error) {
-      toast.error('Error deleting API key.');
-    } else {
-      setApiKeys(apiKeys.filter((key) => key.id !== id));
-      toast.success('API key deleted successfully.');
-    }
+  const handleGenerateB2BKey = (e) => {
+    e.preventDefault();
+    generateB2BKeyMutation.mutate(newB2BKeyName);
   };
 
   return (
-    <div className="bg-onyx-950 p-6 rounded-lg shadow-lg">
-      <h2 className="text-xl font-bold mb-4">API Key Management</h2>
+    <div className="space-y-6">
+      <div className="bg-onyx-950 p-6 rounded-lg shadow-lg">
+        <h2 className="text-xl font-bold mb-4">API Key Management (B2B API Side Door)</h2>
+        <div className="mb-6 bg-onyx-900/50 p-4 rounded-lg border border-onyx-accent/20">
+          <h3 className="text-md font-semibold mb-2">Generate B2B API Key</h3>
+          <form onSubmit={handleGenerateB2BKey} className="flex gap-4">
+            <input
+              type="text"
+              value={newB2BKeyName}
+              onChange={(e) => setNewB2BKeyName(e.target.value)}
+              placeholder="Key Name (e.g. AXiM Side Door)"
+              className="input input-bordered flex-1 bg-onyx-950"
+            />
+            <button type="submit" className="btn btn-primary" disabled={generateB2BKeyMutation.isPending}>
+              Generate Key
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {partnerCredit && (
+        <div className="bg-onyx-950 p-6 rounded-lg shadow-lg mt-6 border border-onyx-accent/20">
+          <h2 className="text-xl font-bold mb-2">Partner API Credits</h2>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">Credits Remaining:</span>
+            <span className="text-2xl font-bold text-green-400">{partnerCredit.credits_remaining}</span>
+          </div>
+          {/* Note: Top-up logic could be added here or via Billing Portal */}
+        </div>
+      )}
+
+      <div className="bg-onyx-950 p-6 rounded-lg shadow-lg mt-6">
+        <h3 className="text-lg font-bold mb-4">Add Provider Key</h3>
       <form onSubmit={handleAddApiKey} className="mb-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <select
@@ -136,8 +223,8 @@ const ApiKeyManager = ({ user }) => {
                   {editingKey === key.id ? (
                     <input
                       type="text"
-                      value={key.service}
-                      onChange={(e) => setApiKeys(apiKeys.map(k => k.id === key.id ? {...k, service: e.target.value} : k))}
+                      defaultValue={key.service}
+                      onChange={(e) => key.service = e.target.value}
                       className="input input-bordered w-full bg-onyx-950"
                     />
                   ) : (
@@ -148,12 +235,12 @@ const ApiKeyManager = ({ user }) => {
                   {editingKey === key.id ? (
                     <input
                       type="text"
-                      value={key.api_key}
-                      onChange={(e) => setApiKeys(apiKeys.map(k => k.id === key.id ? {...k, api_key: e.target.value} : k))}
+                      defaultValue={key.api_key}
+                      onChange={(e) => key.api_key = e.target.value}
                       className="input input-bordered w-full bg-onyx-950"
                     />
                   ) : (
-                    '••••••••••••••••'
+                    key.api_key.startsWith('axm_live_') ? key.api_key : '••••••••••••••••'
                   )}
                 </td>
                 <td>
@@ -162,13 +249,14 @@ const ApiKeyManager = ({ user }) => {
                   ) : (
                     <button onClick={() => setEditingKey(key.id)} className="btn btn-sm btn-info">Edit</button>
                   )}
-                  <button onClick={() => handleDeleteApiKey(key.id)} className="btn btn-sm btn-danger ml-2">Delete</button>
+                  <button onClick={() => handleDeleteApiKey(key.id)} className="btn btn-sm btn-danger ml-2">Revoke</button>
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+    </div>
     </div>
   );
 };
