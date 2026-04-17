@@ -95,6 +95,57 @@ describe('ApiContext', () => {
       consoleSpy.mockRestore();
     });
 
+    it('should clear previous errors on subsequent successful calls', async () => {
+      // First call fails
+      const error = new Error('First error');
+      apiClient.post.mockRejectedValueOnce(error);
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const wrapper = ({ children }) => <ApiProvider>{children}</ApiProvider>;
+      const { result } = renderHook(() => useApi(), { wrapper });
+
+      await act(async () => {
+        await result.current.addContact('Fail', 'fail@test.com', 'test', 'user1');
+      });
+
+      expect(result.current.error).toBe(error);
+
+      // Second call succeeds
+      apiClient.post.mockResolvedValueOnce({ data: 'success' });
+
+      await act(async () => {
+        await result.current.addContact('Success', 'success@test.com', 'test', 'user1');
+      });
+
+      expect(result.current.error).toBe(null);
+      expect(result.current.isLoading).toBe(false);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('should handle synchronous errors in apiCall and ensure finally block executes', async () => {
+      // Create a mock that throws synchronously instead of rejecting a promise
+      apiClient.post.mockImplementationOnce(() => {
+        throw new Error('Sync error');
+      });
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const wrapper = ({ children }) => <ApiProvider>{children}</ApiProvider>;
+      const { result } = renderHook(() => useApi(), { wrapper });
+
+      let apiResult;
+      await act(async () => {
+        apiResult = await result.current.addContact('Sync Fail', 'sync@test.com', 'test', 'user1');
+      });
+
+      expect(apiResult).toBe(false);
+      expect(result.current.error).toBeInstanceOf(Error);
+      expect(result.current.error.message).toBe('Sync error');
+      expect(result.current.isLoading).toBe(false);
+
+      consoleSpy.mockRestore();
+    });
+
     it('should properly track isLoading state during API call', async () => {
       let resolveApi;
       const apiPromise = new Promise((resolve) => {
