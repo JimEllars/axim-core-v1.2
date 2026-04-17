@@ -1,0 +1,29 @@
+--- supabase/functions/send-email/index.ts
++++ supabase/functions/send-email/index.ts
+@@ -2,6 +2,7 @@
+ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+ import { corsHeaders as CORS_HEADERS } from '../_shared/cors.ts';
++import { validateMicroAppSession } from '../_shared/auth.ts';
+
+ serve(async (req) => {
+   if (req.method === 'OPTIONS') {
+@@ -9,6 +10,9 @@
+   }
+
+   try {
++    // 0. Validate Micro-App Session via JWT
++    await validateMicroAppSession(req);
++
+     // 1. Initialize Supabase Client with Auth Context
+     const supabaseClient = createClient(
+       Deno.env.get('SUPABASE_URL') ?? '',
+@@ -48,7 +52,7 @@
+
+   } catch (error) {
+     console.error('[Email Service] Error:', error);
+-    const status = error.message.includes('Unauthorized') ? 401 : 500;
++    const status = (error.message.includes('Unauthorized') || error.message.includes('Invalid or expired token') || error.message.includes('Missing or invalid Authorization header')) ? 401 : 500;
+     return new Response(
+       JSON.stringify({ error: error.message }),
+       { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }

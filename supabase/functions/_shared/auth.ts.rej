@@ -1,0 +1,14 @@
+--- auth.ts
++++ auth.ts
+@@ -14,10 +14,10 @@
+   // Let's use standard import for cryptoKey
+   const encoder = new TextEncoder();
+   const keyData = encoder.encode(secretString);
+   const cryptoKey = await crypto.subtle.importKey(
+     "raw",
+     keyData,
+-    { name: "HMAC", hash: "SHA-512" },
++    { name: "HMAC", hash: "SHA-256" },
+     true,
+     ["verify"]
+   );

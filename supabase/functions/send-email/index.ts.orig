@@ -2,8 +2,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders as CORS_HEADERS } from '../_shared/cors.ts';
-import { validateMicroAppSession } from '../_shared/auth.ts';
-import { notifyOnyx } from '../_shared/telemetry.ts';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -11,9 +9,6 @@ serve(async (req) => {
   }
 
   try {
-    // 0. Validate Micro-App Session via JWT
-
-
     // 1. Initialize Supabase Client with Auth Context
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -21,10 +16,14 @@ serve(async (req) => {
       { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
     );
 
-    // 2. We already validated the token, we can get user ID from there if it exists, or skip
-    // If you're mixing standard Supabase JWT and micro-app custom JWT, getUser() might fail for the latter.
-    const decodedToken = await validateMicroAppSession(req);
-    const user = decodedToken.user;
+    // 2. Authenticate User
+    const {
+      data: { user },
+    } = await supabaseClient.auth.getUser();
+
+    if (!user) {
+      throw new Error('Unauthorized: No active user session found.');
+    }
 
     // 3. Parse and Validate Body
     const { to, subject, body } = await req.json();
@@ -52,11 +51,7 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('[Email Service] Error:', error);
-    const status = (error.message.includes('Unauthorized') || error.message.includes('Invalid or expired token') || error.message.includes('Missing or invalid Authorization header')) ? 401 : 500;
-
-    if (status === 500) {
-      await notifyOnyx('/send-email', 500, { error: error.message });
-    }
+    const status = error.message.includes('Unauthorized') ? 401 : 500;
     return new Response(
       JSON.stringify({ error: error.message }),
       { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
