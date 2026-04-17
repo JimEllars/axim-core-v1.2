@@ -2,13 +2,12 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { notifyOnyx } from '../_shared/telemetry.ts';
+import { generatePdf } from '../_shared/pdf-generators/index.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-
 
 async function hashApiKey(apiKey: string): Promise<string> {
     const encoder = new TextEncoder();
@@ -36,13 +35,8 @@ serve(async (req) => {
 
     const token = authHeader.split(' ')[1];
 
-    // Hash the token as we would store hashes (or if we store plain, we just query plain)
-    // Actually, if we're cryptographically hashing to verify, let's just use the api_keys table
-    // assuming it stores the raw key or a hash. The prompt says: "Cryptographically hash the key and query the api_keys table"
     const hashedKey = await hashApiKey(token);
 
-    // 2. Query api_keys table
-    // Prompt: "Cryptographically hash the key and query the api_keys table to ensure it is active"
     const { data: apiKeyData, error: keyError } = await supabaseAdmin
       .from('api_keys')
       .select('user_id')
@@ -58,7 +52,6 @@ serve(async (req) => {
 
     const partnerId = apiKeyData.user_id;
 
-    // 3. Query partner_credits table
     const { data: creditData, error: creditError } = await supabaseAdmin
       .from('partner_credits')
       .select('credits_remaining, id')
@@ -73,7 +66,6 @@ serve(async (req) => {
       });
     }
 
-    // 4. Decrement credit
     const { error: updateError } = await supabaseAdmin
       .from('partner_credits')
       .update({ credits_remaining: creditData.credits_remaining - 1 })
@@ -83,12 +75,12 @@ serve(async (req) => {
       throw new Error('Failed to update credits');
     }
 
-    // 5. Route payload / mock headless generator & Secure Artifact Storage
     const body = await req.json();
     const document_data = body.document_data || body;
+    const appSource = body.app_source || 'AXiM API Gateway Document';
 
-    // Mock PDF generation
-    const pdfContent = new TextEncoder().encode(`Mock PDF content for ${JSON.stringify(document_data)}`);
+    // Generate real PDF content using shared pdf generator
+    const pdfContent = await generatePdf(appSource, document_data);
     const fileName = `generated_document_${Date.now()}.pdf`;
 
     const { error: uploadError } = await supabaseAdmin.storage
@@ -102,7 +94,6 @@ serve(async (req) => {
       throw new Error(`Failed to store artifact: ${uploadError.message}`);
     }
 
-    // Generate signed URL (e.g. 15 minutes = 900 seconds)
     const { data: signedUrlData, error: urlError } = await supabaseAdmin.storage
       .from('secure_artifacts')
       .createSignedUrl(fileName, 900);
