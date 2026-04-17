@@ -47,6 +47,16 @@ serve(async (req) => {
         } else {
              console.warn(`Checkout session ${session.id} completed without client_reference_id (userId).`);
         }
+      } else if (session.mode === 'payment') {
+        const userId = session.client_reference_id || session.customer_details?.email;
+        const productId = session.metadata?.product_id;
+        const amountTotal = session.amount_total;
+
+        if (userId && productId) {
+          await recordOneTimePurchase(userId, productId, amountTotal, session.id);
+        } else {
+          console.warn(`Payment session ${session.id} missing userId or product_id metadata.`);
+        }
       }
       break;
     }
@@ -127,4 +137,24 @@ async function updateSubscription(subscription: any) {
     } else {
         console.log(`Subscription updated successfully: ${subscription.id}`);
     }
+}
+
+async function recordOneTimePurchase(userId: string, productId: string, amountTotal: number, sessionId: string) {
+  console.log(`Recording one-time purchase: User ${userId}, Product ${productId}`);
+
+  const { error } = await supabase
+    .from('micro_app_transactions')
+    .insert({
+      user_identifier: userId,
+      product_id: productId,
+      amount_total: amountTotal,
+      stripe_session_id: sessionId,
+      created_at: new Date().toISOString()
+    });
+
+  if (error) {
+    console.error('Error recording one-time purchase:', error);
+  } else {
+    console.log(`Successfully recorded one-time purchase for user ${userId}`);
+  }
 }

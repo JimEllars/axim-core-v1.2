@@ -12,6 +12,7 @@ const mockMetrics = {
   contactChange: 3.2,
   workflowsTriggered: 12,
   activeUsers: 7,
+  totalGenerations: 420,
 };
 
 export const useMetrics = () => {
