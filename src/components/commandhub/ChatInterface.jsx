@@ -122,10 +122,82 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
     window.addEventListener('onyx-stream-response', handleStreamResponse);
     window.addEventListener('onyx-stream-error', handleStreamError);
 
+    const handleActionApproval = async (e) => {
+      const { approved, toolCall } = e.detail;
+      if (approved) {
+         setLocalMessages(prev => [...prev, {
+            id: crypto.randomUUID(),
+            timestamp: new Date(),
+            content: `Executing tool call: ${toolCall.name}...`,
+            type: 'user'
+         }]);
+         try {
+             const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://example.supabase.co';
+             let token = '';
+             for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key.endsWith('-auth-token')) {
+                    const session = localStorage.getItem(key);
+                    if (session) {
+                       try {
+                          token = JSON.parse(session).access_token || '';
+                          break;
+                       } catch (e) {}
+                    }
+                }
+             }
+             const res = await fetch(`${supabaseUrl}/functions/v1/onyx-bridge`, {
+                 method: 'POST',
+                 headers: {
+                     'Content-Type': 'application/json',
+                     'Authorization': `Bearer ${token}`
+                 },
+                 body: JSON.stringify({
+                     command: 'approve_action',
+                     toolCall
+                 })
+             });
+
+             if (res.ok) {
+                 const data = await res.json();
+                 setLocalMessages(prev => [...prev, {
+                     id: crypto.randomUUID(),
+                     timestamp: new Date(),
+                     content: data.response || 'Action executed successfully.',
+                     type: 'assistant',
+                     agentName: 'Onyx mk3'
+                 }]);
+             } else {
+                 throw new Error(await res.text());
+             }
+         } catch (error) {
+             setLocalMessages(prev => [...prev, {
+                 id: crypto.randomUUID(),
+                 timestamp: new Date(),
+                 content: { title: 'Execution Error', details: error.message },
+                 type: 'error'
+             }]);
+         }
+      } else {
+         setLocalMessages(prev => [...prev, {
+            id: crypto.randomUUID(),
+            timestamp: new Date(),
+            content: 'Action denied.',
+            type: 'user'
+         }]);
+      }
+    };
+
+    window.addEventListener('onyx-user-message', handleUserMessage);
+    window.addEventListener('onyx-stream-response', handleStreamResponse);
+    window.addEventListener('onyx-stream-error', handleStreamError);
+    window.addEventListener('onyx-action-approval', handleActionApproval);
+
     return () => {
       window.removeEventListener('onyx-user-message', handleUserMessage);
       window.removeEventListener('onyx-stream-response', handleStreamResponse);
       window.removeEventListener('onyx-stream-error', handleStreamError);
+      window.removeEventListener('onyx-action-approval', handleActionApproval);
     };
   }, []);
 
