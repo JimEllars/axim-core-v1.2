@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { corsHeaders as CORS_HEADERS } from '../_shared/cors.ts';
+import { corsHeaders as CORS_HEADERS, getCorsHeaders } from '../_shared/cors.ts';
 import { notifyOnyx } from '../_shared/telemetry.ts';
 import * as jose from 'https://deno.land/x/jose@v4.14.4/index.ts';
 import { generatePdf } from '../_shared/pdf-generators/index.ts';
@@ -16,7 +16,7 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: CORS_HEADERS });
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
   }
 
   try {
@@ -101,7 +101,7 @@ serve(async (req) => {
         message: `Email successfully sent to ${toEmail}`,
         id: resendData.id
       }),
-      { headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      { headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
@@ -113,7 +113,7 @@ serve(async (req) => {
     }
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
+      { status, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
     );
   }
 });

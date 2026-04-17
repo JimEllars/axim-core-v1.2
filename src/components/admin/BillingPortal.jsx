@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { useSupabase } from '../../contexts/SupabaseContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { FiCreditCard, FiCheckCircle, FiAlertCircle, FiAlertTriangle } from 'react-icons/fi';
+import { FiCreditCard, FiCheckCircle, FiAlertCircle, FiAlertTriangle, FiPlus } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import config from '../../config';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const BillingPortal = () => {
   const { supabase } = useSupabase();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [subscription, setSubscription] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [topUpAmount, setTopUpAmount] = useState(100);
 
   // Use configuration for price ID, fallback to a sensible default or placeholder
   const STRIPE_PRICE_ID = config.stripePriceId || 'price_1234567890';
@@ -40,6 +43,49 @@ const BillingPortal = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const { data: partnerCredit, isLoading: isLoadingCredits } = useQuery({
+    queryKey: ['partner_credits', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('partner_credits')
+        .select('*')
+        .eq('partner_id', user.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user
+  });
+
+  const topUpMutation = useMutation({
+    mutationFn: async (amount) => {
+      let currentCredits = partnerCredit?.credits_remaining || 0;
+      const { data, error } = await supabase
+        .from('partner_credits')
+        .upsert(
+          { partner_id: user.id, credits_remaining: currentCredits + amount },
+          { onConflict: 'partner_id' }
+        );
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      toast.success(`Successfully added ${topUpAmount} credits.`);
+      queryClient.invalidateQueries({ queryKey: ['partner_credits', user.id] });
+    },
+    onError: (error) => {
+      toast.error(`Failed to add credits: ${error.message}`);
+    }
+  });
+
+  const handleTopUp = () => {
+    if (topUpAmount <= 0) {
+      toast.error('Amount must be greater than 0');
+      return;
+    }
+    topUpMutation.mutate(Number(topUpAmount));
   };
 
   const handleSubscribe = async (priceId) => {
@@ -155,6 +201,40 @@ const BillingPortal = () => {
               </button>
             </div>
           )}
+        </div>
+
+        {/* API Credits Section */}
+        <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20">
+          <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
+            <FiPlus className="mr-2 text-blue-400" />
+            B2B Partner API Credits
+          </h3>
+          <div className="flex items-center justify-between p-4 bg-onyx-900/50 rounded-lg border border-onyx-accent/20 mb-4">
+            <span className="text-slate-300 font-medium">Remaining Credits:</span>
+            <span className="text-2xl font-bold text-green-400">
+              {isLoadingCredits ? '...' : (partnerCredit?.credits_remaining || 0)}
+            </span>
+          </div>
+
+          <div className="space-y-4">
+            <label className="block text-sm text-slate-400">Manual Credit Top-up (Admin)</label>
+            <div className="flex gap-2">
+              <input
+                type="number"
+                className="input input-bordered w-full bg-onyx-950"
+                value={topUpAmount}
+                onChange={(e) => setTopUpAmount(e.target.value)}
+                min="1"
+              />
+              <button
+                className="btn btn-primary"
+                onClick={handleTopUp}
+                disabled={topUpMutation.isPending}
+              >
+                Top Up
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Payment Methods (Placeholder) */}

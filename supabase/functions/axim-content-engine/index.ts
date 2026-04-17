@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders } from '../_shared/cors.ts';
+import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
 
 const AFFILIATE_LINKS = {
   'solar': 'https://example.com/solar-affiliate',
@@ -57,7 +57,7 @@ async function generateWithGemini(apiKey: string, prompt: string) {
 serve(async (req) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
   }
 
   try {
@@ -180,7 +180,7 @@ serve(async (req) => {
         message: "Content Engine execution completed.",
         results
     }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
       status: 200,
     });
 
@@ -188,7 +188,7 @@ serve(async (req) => {
     console.error("Content Engine Fatal Error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
     });
   }
 });
