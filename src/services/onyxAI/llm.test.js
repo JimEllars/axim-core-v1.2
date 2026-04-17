@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { supabase } from '../supabaseClient';
 import {
   generateContent,
+  generateEmbedding,
   getActiveProviderName,
   setActiveProvider,
   loadProviders,
@@ -65,6 +66,14 @@ describe('LLM Service', () => {
     it('generateContent should return a mock response', async () => {
       const response = await generateContent('any prompt');
       expect(response).toContain('mock response');
+      expect(supabase.functions.invoke).not.toHaveBeenCalled();
+    });
+
+    it('generateEmbedding should return a zero vector of length 1536', async () => {
+      const response = await generateEmbedding('any input');
+      expect(Array.isArray(response)).toBe(true);
+      expect(response.length).toBe(1536);
+      expect(response.every(v => v === 0)).toBe(true);
       expect(supabase.functions.invoke).not.toHaveBeenCalled();
     });
   });
@@ -176,6 +185,32 @@ describe('LLM Service', () => {
 
       await expect(generateContent('test prompt')).rejects.toThrow('Failed to get a response from any AI provider');
       expect(supabase.functions.invoke).toHaveBeenCalledTimes(2); // Tried both openai and gemini
+    });
+
+    describe('generateEmbedding', () => {
+      it('should call generate-embedding edge function and return the vector', async () => {
+        const mockEmbedding = [0.1, 0.2, 0.3];
+        supabase.functions.invoke.mockResolvedValue({ data: { embedding: mockEmbedding } });
+
+        const result = await generateEmbedding('test input');
+
+        expect(supabase.functions.invoke).toHaveBeenCalledWith('generate-embedding', {
+          body: { input: 'test input' },
+        });
+        expect(result).toEqual(mockEmbedding);
+      });
+
+      it('should throw an error if the proxy invocation returns an error object', async () => {
+        supabase.functions.invoke.mockResolvedValue({ error: { message: 'Network error' } });
+
+        await expect(generateEmbedding('test input')).rejects.toThrow('Embedding Generation Error: Network error');
+      });
+
+      it('should throw an error if the proxy returns a data.error string', async () => {
+        supabase.functions.invoke.mockResolvedValue({ data: { error: 'Invalid input' } });
+
+        await expect(generateEmbedding('test input')).rejects.toThrow('Embedding Generation Error: Invalid input');
+      });
     });
   });
 });
