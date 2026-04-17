@@ -309,7 +309,7 @@ class OnyxAI {
       return JSON.parse(result);
     } catch (error) {
        // Log the original error for debugging, regardless of its type.
-       logger.error("An error occurred in getIntentsFromLLM.", { response: result, originalError: error });
+       logger.error("An error occurred in getIntentsFromLLM.", error, { response: result });
 
        // Check if the error is a JSON parsing error and, if so, wrap it.
        // This ensures that downstream consumers get the specific error type they expect.
