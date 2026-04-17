@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FiDownload, FiTrash2, FiMessageSquare, FiActivity, FiGitCommit, FiCpu, FiCheckCircle } from 'react-icons/fi';
 import ChatMessage from '../command/ChatMessage';
@@ -28,9 +28,109 @@ const ProcessChain = () => (
   </motion.div>
 );
 
+
 const ChatInterface = ({ state, handlers, messagesEndRef }) => {
   const { messages, agentName } = state;
   const { onCopyContent, onClearChat } = handlers;
+
+  const [localMessages, setLocalMessages] = useState([]);
+  const [isStreaming, setIsStreaming] = useState(false);
+
+  useEffect(() => {
+    const handleUserMessage = (e) => {
+      const { prompt } = e.detail;
+      setLocalMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        timestamp: new Date(),
+        content: prompt,
+        type: 'user'
+      }]);
+    };
+
+    const handleStreamError = (e) => {
+      setLocalMessages(prev => [...prev, {
+        id: crypto.randomUUID(),
+        timestamp: new Date(),
+        content: { title: 'Stream Error', details: e.detail.error },
+        type: 'error'
+      }]);
+      setIsStreaming(false);
+    };
+
+    const handleStreamResponse = async (e) => {
+      const { body } = e.detail;
+      if (!body) return;
+
+      setIsStreaming(true);
+      const reader = body.getReader();
+      const decoder = new TextDecoder();
+      const aiMessageId = crypto.randomUUID();
+
+      setLocalMessages(prev => [...prev, {
+        id: aiMessageId,
+        timestamp: new Date(),
+        content: '',
+        type: 'assistant',
+        agentName: 'Onyx mk3',
+        isTyping: true
+      }]);
+
+      try {
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+
+          let eolIndex;
+          while ((eolIndex = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, eolIndex).trim();
+            buffer = buffer.slice(eolIndex + 1);
+
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') break;
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.content) {
+                  setLocalMessages(prev => prev.map(msg =>
+                    msg.id === aiMessageId
+                      ? { ...msg, content: msg.content + parsed.content, isTyping: false }
+                      : msg
+                  ));
+                }
+              } catch (err) {
+                // Skip invalid JSON
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('SSE Read Error:', err);
+      } finally {
+        setIsStreaming(false);
+        setLocalMessages(prev => prev.map(msg =>
+          msg.id === aiMessageId
+            ? { ...msg, isTyping: false }
+            : msg
+        ));
+      }
+    };
+
+    window.addEventListener('onyx-user-message', handleUserMessage);
+    window.addEventListener('onyx-stream-response', handleStreamResponse);
+    window.addEventListener('onyx-stream-error', handleStreamError);
+
+    return () => {
+      window.removeEventListener('onyx-user-message', handleUserMessage);
+      window.removeEventListener('onyx-stream-response', handleStreamResponse);
+      window.removeEventListener('onyx-stream-error', handleStreamError);
+    };
+  }, []);
+
+  const displayMessages = [...messages, ...localMessages];
+
 
   return (
   <div className="glass-effect p-4 rounded-lg mb-4 h-[60vh] flex flex-col bg-onyx-950/80 backdrop-blur-md border border-onyx-accent/20 relative overflow-hidden">
@@ -61,10 +161,10 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
         </button>
       </div>
     </div>
-    {messages.length > 0 && messages[messages.length - 1].isTyping && <ProcessChain />}
+    {displayMessages.length > 0 && displayMessages[displayMessages.length - 1].isTyping && <ProcessChain />}
 
     <div className="flex-grow overflow-y-auto pr-2 custom-scrollbar relative z-10">
-      {messages.map((msg, index) => (
+      {displayMessages.map((msg, index) => (
         <ChatMessage key={index} message={msg} onCopyContent={onCopyContent} />
       ))}
       <div ref={messagesEndRef} />
