@@ -1,0 +1,40 @@
+--- supabase/functions/api-gateway/index.ts
++++ supabase/functions/api-gateway/index.ts
+@@ -1,33 +1,11 @@
+ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+ import { corsHeaders } from '../_shared/cors.ts';
++import { notifyOnyx } from '../_shared/telemetry.ts';
+
+ const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
+ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
+
+ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+-async function notifyOnyx(endpoint: string, errorCode: number, details: any = {}) {
+-  const onyxUrl = Deno.env.get('ONYX_EDGE_URL');
+-  if (!onyxUrl) {
+-    console.warn('ONYX_EDGE_URL not set, skipping telemetry dispatch.');
+-    return;
+-  }
+-
+-  try {
+-    await fetch(`https://${onyxUrl}/api/telemetry`, {
+-      method: 'POST',
+-      headers: {
+-        'Content-Type': 'application/json'
+-      },
+-      body: JSON.stringify({
+-        error_code: errorCode,
+-        endpoint,
+-        timestamp: new Date().toISOString(),
+-        details
+-      })
+-    });
+-  } catch (err) {
+-    console.error('Failed to notify Onyx mk3:', err);
+-  }
+-}
+-
+ async function hashApiKey(apiKey: string): Promise<string> {
+     const encoder = new TextEncoder();

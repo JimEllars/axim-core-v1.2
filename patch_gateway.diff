@@ -1,0 +1,12 @@
+--- supabase/functions/api-gateway/index.ts
++++ supabase/functions/api-gateway/index.ts
+@@ -87,7 +87,8 @@
+     }
+
+     // 5. Route payload / mock headless generator & Secure Artifact Storage
+-    const { document_data } = await req.json();
++    const body = await req.json();
++    const document_data = body.document_data || body;
+
+     // Mock PDF generation
+     const pdfContent = new TextEncoder().encode(`Mock PDF content for ${JSON.stringify(document_data)}`);
