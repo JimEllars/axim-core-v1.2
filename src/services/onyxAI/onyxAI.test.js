@@ -118,7 +118,7 @@ describe('OnyxAI', () => {
 
       // Use rejects.toThrow for async error validation.
       await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(IntentParsingError);
-      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.any(Object));
+      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.any(SyntaxError), { response: llmOutput });
     });
 
     it('should throw IntentParsingError for malformed JSON', async () => {
@@ -127,7 +127,7 @@ describe('OnyxAI', () => {
         llm.generateContent.mockResolvedValue(llmOutput);
 
         await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(IntentParsingError);
-        expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.any(Object));
+        expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.any(SyntaxError), { response: llmOutput });
       });
 
     it('should throw IntentParsingError if llm.generateContent throws a SyntaxError directly', async () => {
@@ -136,7 +136,7 @@ describe('OnyxAI', () => {
       llm.generateContent.mockRejectedValue(syntaxError);
 
       await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(IntentParsingError);
-      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.objectContaining({ originalError: syntaxError }));
+      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", syntaxError, { response: undefined });
     });
 
     it('should re-throw IntentParsingError if llm.generateContent throws it', async () => {
@@ -145,7 +145,7 @@ describe('OnyxAI', () => {
       llm.generateContent.mockRejectedValue(customError);
 
       await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(customError);
-      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.objectContaining({ originalError: customError }));
+      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", customError, { response: undefined });
     });
 
     it('should re-throw CommandExecutionError if llm.generateContent throws it', async () => {
@@ -154,7 +154,7 @@ describe('OnyxAI', () => {
       llm.generateContent.mockRejectedValue(customError);
 
       await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(customError);
-      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.objectContaining({ originalError: customError }));
+      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", customError, { response: undefined });
     });
 
     it('should throw CommandExecutionError for generic network or API errors', async () => {
@@ -164,7 +164,7 @@ describe('OnyxAI', () => {
 
       await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow(CommandExecutionError);
       await expect(OnyxAI.getIntentsFromLLM(userInput)).rejects.toThrow("An unexpected error occurred while communicating with the AI: Network timeout");
-      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", expect.objectContaining({ originalError: networkError }));
+      expect(logger.error).toHaveBeenCalledWith("An error occurred in getIntentsFromLLM.", networkError, { response: undefined });
     });
   });
 
