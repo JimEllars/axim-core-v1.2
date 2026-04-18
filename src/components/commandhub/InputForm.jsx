@@ -119,7 +119,7 @@ const InputForm = ({
       }
 
       // Pass the stream to ChatInterface
-      window.dispatchEvent(new CustomEvent('onyx-stream-response', { detail: { body: response.body } }));
+      window.dispatchEvent(new CustomEvent('onyx-stream-response', { detail: { body: response.body, response: response } }));
     } catch (error) {
       console.error('Error sending payload to Onyx:', error);
       window.dispatchEvent(new CustomEvent('onyx-stream-error', { detail: { error: error.message } }));

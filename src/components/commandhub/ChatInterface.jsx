@@ -58,13 +58,14 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
     };
 
     const handleStreamResponse = async (e) => {
-      const { body } = e.detail;
+      const { body, response } = e.detail;
       if (!body) return;
 
-      setIsStreaming(true);
-      const reader = body.getReader();
-      const decoder = new TextDecoder();
       const aiMessageId = crypto.randomUUID();
+      setIsStreaming(true);
+
+      const contentType = response?.headers?.get('content-type') || '';
+      let agentId = 'onyx';
 
       setLocalMessages(prev => [...prev, {
         id: aiMessageId,
@@ -72,8 +73,38 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
         content: '',
         type: 'assistant',
         agentName: 'Onyx mk3',
+        agentId: agentId,
         isTyping: true
       }]);
+
+      if (contentType.includes('application/json')) {
+         try {
+             // It's a single JSON response, not SSE
+             const data = await response.json();
+             agentId = data.agent_id || 'onyx';
+             setLocalMessages(prev => prev.map(msg =>
+                 msg.id === aiMessageId
+                   ? { ...msg, content: data.response || JSON.stringify(data), isTyping: false, agentId: agentId }
+                   : msg
+             ));
+         } catch (err) {
+             console.error('JSON parse error:', err);
+         } finally {
+             setIsStreaming(false);
+         }
+         return;
+      }
+
+      // Read from header if available for stream
+      agentId = response?.headers?.get('x-agent-id') || 'onyx';
+      setLocalMessages(prev => prev.map(msg =>
+         msg.id === aiMessageId
+           ? { ...msg, agentId: agentId }
+           : msg
+      ));
+
+      const reader = body.getReader();
+      const decoder = new TextDecoder();
 
       try {
         let buffer = '';

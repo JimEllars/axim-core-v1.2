@@ -41,7 +41,7 @@ serve(async (req) => {
 
         const { data: webhooks, error: webhookError } = await supabase
             .from("partner_webhooks")
-            .select("endpoint_url, secret_key")
+            .select("endpoint_url, secret_key, sync_type")
             .eq("partner_id", partnerId)
             .eq("is_active", true);
 
@@ -73,23 +73,48 @@ serve(async (req) => {
         const dispatchResults = [];
 
         for (const webhook of webhooks) {
-            const signature = await generateHmacSignature(webhookPayload, webhook.secret_key);
-
             try {
-                const response = await fetch(webhook.endpoint_url, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "X-AXiM-Signature": signature
-                    },
-                    body: webhookPayload
-                });
+                if (webhook.sync_type === 'blob' && fileUrl) {
+                    // Enterprise Data Sovereignty: stream blob directly to partner S3/Blob endpoint
+                    const fileResponse = await fetch(fileUrl);
+                    if (!fileResponse.ok) {
+                        throw new Error("Failed to fetch file for blob sync");
+                    }
 
-                dispatchResults.push({
-                    endpoint: webhook.endpoint_url,
-                    status: response.status,
-                    success: response.ok
-                });
+                    const response = await fetch(webhook.endpoint_url, {
+                        method: "PUT",
+                        headers: {
+                            "Content-Type": fileResponse.headers.get("content-type") || "application/octet-stream"
+                        },
+                        body: fileResponse.body
+                    });
+
+                    dispatchResults.push({
+                        endpoint: webhook.endpoint_url,
+                        status: response.status,
+                        success: response.ok,
+                        type: 'blob'
+                    });
+                } else {
+                    // Standard webhook payload
+                    const signature = await generateHmacSignature(webhookPayload, webhook.secret_key);
+
+                    const response = await fetch(webhook.endpoint_url, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "X-AXiM-Signature": signature
+                        },
+                        body: webhookPayload
+                    });
+
+                    dispatchResults.push({
+                        endpoint: webhook.endpoint_url,
+                        status: response.status,
+                        success: response.ok,
+                        type: 'webhook'
+                    });
+                }
             } catch (err) {
                 dispatchResults.push({
                     endpoint: webhook.endpoint_url,
