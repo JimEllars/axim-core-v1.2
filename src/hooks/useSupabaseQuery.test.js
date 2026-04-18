@@ -27,10 +27,10 @@ describe('useSupabaseQuery', () => {
     useDashboard.mockReturnValue({ refreshKey: 0 });
 
     // Default successful response
-    supabase.rpc.mockResolvedValue({
+    supabase.rpc.mockReturnValue(Promise.resolve({
       data: [{ id: 1, name: 'Test' }],
       error: null,
-    });
+    }));
   });
 
   it('should fetch data automatically on mount by default', async () => {
@@ -89,10 +89,10 @@ describe('useSupabaseQuery', () => {
   it('should handle errors correctly', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const mockError = new Error('RPC Failed');
-    supabase.rpc.mockResolvedValueOnce({
+    supabase.rpc.mockReturnValueOnce(Promise.resolve({
       data: null,
       error: mockError,
-    });
+    }));
 
     const { result } = renderHook(() => useSupabaseQuery('test_rpc'));
 

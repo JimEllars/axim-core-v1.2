@@ -1,58 +1,12 @@
+const fs = require('fs');
+const filepath = 'src/components/dashboard/RecentWorkflows.test.jsx';
+let content = fs.readFileSync(filepath, 'utf8');
 
+// The component actually uses useSupabaseQuery, so we should mock useSupabaseQuery hook, not supabase directly
+content = content.replace("vi.mock('../../services/supabaseClient');", "vi.mock('../../services/supabaseClient');\nvi.mock('../../hooks/useSupabaseQuery');");
+content = content.replace("import { supabase } from '../../services/supabaseClient';", "import { supabase } from '../../services/supabaseClient';\nimport { useSupabaseQuery } from '../../hooks/useSupabaseQuery';");
 
-Object.defineProperty(window, 'matchMedia', {
-  writable: true,
-  value: vi.fn().mockImplementation(query => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(), // Deprecated
-    removeListener: vi.fn(), // Deprecated
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-});
-
-import React from 'react';
-import { render, screen, waitFor, within } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import RecentWorkflows from './RecentWorkflows';
-import { supabase } from '../../services/supabaseClient';
-import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
-import { DashboardProvider } from '../../contexts/DashboardContext';
-
-// Mock dependencies
-vi.mock('../../services/supabaseClient');
-vi.mock('../../hooks/useSupabaseQuery');
-
-const renderWithProvider = (component) => {
-  return render(<DashboardProvider>{component}</DashboardProvider>);
-};
-
-const mockWorkflows = [
-  {
-    created_at: new Date().toISOString(),
-    data: {
-      workflow_name: 'Successful Workflow',
-      results: [{ success: true }, { success: true }],
-    },
-  },
-  {
-    created_at: new Date().toISOString(),
-    data: {
-      workflow_name: 'Failed Workflow',
-      results: [{ success: true }, { success: false }],
-    },
-  },
-];
-
-describe('RecentWorkflows Widget', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-
+const replaceAllMocks = `
   it('shows a loading state initially', () => {
     useSupabaseQuery.mockReturnValue({ data: [], loading: true });
     renderWithProvider(<RecentWorkflows />);
@@ -92,4 +46,8 @@ describe('RecentWorkflows Widget', () => {
       expect(within(failedWorkflow).getByTestId('failure-icon')).toBeInTheDocument();
     });
   });
-});
+`;
+
+content = content.replace(/it\('shows a loading state initially', \(\) => \{[\s\S]*\}\);/, replaceAllMocks);
+
+fs.writeFileSync(filepath, content);

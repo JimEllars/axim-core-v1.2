@@ -23,6 +23,22 @@ const UserProfile = () => {
     }
   }, [profile]);
 
+
+  const { data: healthData, isLoading: isLoadingHealth } = useQuery({
+    queryKey: ['user_engagement_scores', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('user_engagement_scores')
+        .select('health_index')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error; // ignore no rows
+      return data?.health_index;
+    },
+    enabled: !!user
+  });
+
   const handleSave = async (e) => {
     e.preventDefault();
     setIsLoading(true);
@@ -177,6 +193,24 @@ const UserProfile = () => {
                 {isLoading ? 'Saving...' : 'Save Profile'}
               </motion.button>
             </div>
+
+            <div className="pt-4 border-t border-onyx-accent/20">
+              <h3 className="text-sm font-medium text-slate-300 mb-2">Account Health Index</h3>
+              <div className="flex items-center space-x-4">
+                 <div className={`text-2xl font-bold ${
+                    healthData >= 70 ? 'text-green-400' :
+                    healthData >= 40 ? 'text-yellow-400' :
+                    healthData !== undefined ? 'text-red-400' :
+                    'text-slate-400'
+                 }`}>
+                    {isLoadingHealth ? '...' : (healthData !== undefined ? healthData : 'N/A')}
+                 </div>
+                 <div className="text-xs text-slate-500">
+                    Calculated based on engagement, usage, and system interactions.
+                 </div>
+              </div>
+            </div>
+
           </form>
         </div>
         )}
