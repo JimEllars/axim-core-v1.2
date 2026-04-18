@@ -243,7 +243,7 @@ const BillingPortal = () => {
                 <table className="table w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b border-onyx-accent/20 text-slate-400">
-                      <th className="p-3">Partner Name / Email</th>
+                      <th className="p-3">Partner Name</th>
                       <th className="p-3">Credits Remaining</th>
                       <th className="p-3">Last Month Consumption</th>
                       <th className="p-3">Predicted Next Bill</th>
@@ -271,7 +271,7 @@ const BillingPortal = () => {
                             onClick={() => handleTriggerInvoice(partner.partner_id)}
                             className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded transition-colors"
                           >
-                            Trigger Mid-Cycle Invoice
+                            Force Mid-Cycle Invoice
                           </button>
                         </td>
                       </tr>
