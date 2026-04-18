@@ -68,9 +68,12 @@ serve(async (req) => {
     if (promptText.includes('billing') || promptText.includes('financial') || promptText.includes('invoice')) {
         agent_id = 'finbot';
         personaPrompt = "You are FinBot, the AXiM financial specialist...";
-    } else if (promptText.includes('document') || promptText.includes('demand letter') || promptText.includes('support')) {
+    } else if (promptText.includes('document') || promptText.includes('demand letter')) {
         agent_id = 'docbot';
-        personaPrompt = "You are DocBot, the document and support specialist...";
+        personaPrompt = "You are DocBot, the document specialist...";
+    } else if (promptText.includes('users saying') || promptText.includes('summarize') || promptText.includes('feedback') || promptText.includes('support')) {
+        agent_id = 'prodbot';
+        personaPrompt = "You are ProdBot, the product manager...";
     }
 
     if (!bodyData.context) bodyData.context = {};
