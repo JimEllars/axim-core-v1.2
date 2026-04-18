@@ -5,7 +5,6 @@ import SafeIcon from '../../common/SafeIcon';
 import { FiServer, FiActivity, FiAlertTriangle, FiCheckCircle, FiDollarSign } from 'react-icons/fi';
 import { Switch } from '@headlessui/react';
 import logger from '../../services/logging';
-import toast from 'react-hot-toast';
 
 const FleetStatusMap = () => {
   const { supabase } = useSupabase();

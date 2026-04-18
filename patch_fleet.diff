@@ -1,0 +1,48 @@
+--- src/components/dashboard/FleetStatusMap.jsx
++++ src/components/dashboard/FleetStatusMap.jsx
+@@ -4,6 +4,7 @@
+ import SafeIcon from '../../common/SafeIcon';
+ import { FiServer, FiActivity, FiAlertTriangle, FiCheckCircle, FiDollarSign } from 'react-icons/fi';
+ import { Switch } from '@headlessui/react';
+ import logger from '../../services/logging';
++import toast from 'react-hot-toast';
+
+ const FleetStatusMap = () => {
+   const { supabase } = useSupabase();
+@@ -107,13 +108,31 @@
+                       statusColor: newColor,
+                       telemetry: [
+                           { id: newEvent.id, type: newEvent.type, message: newEvent.type + ' event', status: msgStatus },
+                           ...device.telemetry.slice(0, 2) // keep last 3
+                       ]
+                   };
+                   return newFleet;
+               });
+           })
+           .subscribe();
+
++        const taskSubscription = supabase
++          .channel('task-telemetry')
++          .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'scheduled_tasks' }, payload => {
++              const oldRecord = payload.old;
++              const newRecord = payload.new;
++
++              if (oldRecord.status === 'pending' && newRecord.status === 'executing') {
++                 toast.success(`[EXECUTING_REMOTE_TASK] ${newRecord.command || 'Task'}`, {
++                    icon: '🚀',
++                    style: {
++                        background: '#0d9488', // teal-600
++                        color: '#fff',
++                        fontFamily: 'monospace'
++                    }
++                 });
++              }
++          })
++          .subscribe();
+
+         return () => {
+             supabase.removeChannel(subscription);
++            supabase.removeChannel(taskSubscription);
+         };
+     }
+   }, [supabase]);
