@@ -38,7 +38,30 @@ serve(async (req) => {
       });
     }
 
-    const body = await req.text(); // Assuming JSON payload
+    let bodyData = await req.json();
+
+    // Onyx Recursive Intelligence (Audit Learning)
+    // Join hitl_audit_logs to find the last 5 'Approve' actions
+    const supabaseAdmin = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+    const { data: recentApprovals, error: auditError } = await supabaseAdmin
+      .from('hitl_audit_logs')
+      .select('*')
+      .eq('action', 'Approve')
+      .order('timestamp', { ascending: false })
+      .limit(5);
+
+    if (!auditError && recentApprovals && recentApprovals.length > 0) {
+       // Inject as Historical Precedents into the context or prompt
+       const precedents = recentApprovals.map(log => `Tool: ${log.tool_called}, Action: ${log.action}, Time: ${log.timestamp}`);
+       if (!bodyData.context) bodyData.context = {};
+       bodyData.context.historical_precedents = precedents;
+    }
+
+    const finalBody = JSON.stringify(bodyData);
+
 
     const onyxRequest = new Request(`https://${onyxEdgeUrl}/api/chat`, {
       method: 'POST',
@@ -48,7 +71,7 @@ serve(async (req) => {
         // Pass through accept header if client wants text/event-stream
         'Accept': req.headers.get('Accept') || 'application/json'
       },
-      body: body
+      body: finalBody
     });
 
     const onyxResponse = await fetch(onyxRequest);

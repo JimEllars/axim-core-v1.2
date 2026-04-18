@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSupabase } from '../../contexts/SupabaseContext';
 import SafeIcon from '../../common/SafeIcon';
-import { FiServer, FiActivity, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
+import { FiServer, FiActivity, FiAlertTriangle, FiCheckCircle, FiDollarSign } from 'react-icons/fi';
+import { Switch } from '@headlessui/react';
 import logger from '../../services/logging';
 
 const FleetStatusMap = () => {
@@ -10,6 +11,7 @@ const FleetStatusMap = () => {
   const [fleetStatus, setFleetStatus] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showFinancials, setShowFinancials] = useState(false);
 
   useEffect(() => {
     const fetchFleetData = async () => {
@@ -19,6 +21,22 @@ const FleetStatusMap = () => {
         if (!supabase) throw new Error("Supabase client not initialized.");
 
         // Fetch devices
+        // Fetch transactions for revenue layer
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const { data: transactions, error: txError } = await supabase
+          .from('micro_app_transactions')
+          .select('product_id, amount_total')
+          .gte('created_at', twentyFourHoursAgo);
+
+        if (txError) logger.warn('Failed to fetch transactions', txError);
+
+        // Calculate revenue per app (product_id mapped to device_name for now)
+        const revenueByApp = {};
+        (transactions || []).forEach(tx => {
+            const appName = tx.product_id;
+            revenueByApp[appName] = (revenueByApp[appName] || 0) + (tx.amount_total / 100); // Assuming amount_total is in cents
+        });
+
         const { data: devices, error: deviceError } = await supabase
           .from('devices')
           .select('*')
@@ -39,6 +57,7 @@ const FleetStatusMap = () => {
 
             return {
                 id: device.id,
+                revenue: revenueByApp[device.device_name] || 0,
                 name: device.device_name,
                 status: device.status,
                 statusColor,
@@ -129,6 +148,16 @@ const FleetStatusMap = () => {
           </h3>
           <p className="text-sm text-slate-400">Real-time status of connected micro-apps and services</p>
         </div>
+        <div className="flex items-center space-x-3">
+           <span className="text-sm text-slate-300 font-medium">Financial Metrics</span>
+           <Switch
+             checked={showFinancials}
+             onChange={setShowFinancials}
+             className={`${showFinancials ? 'bg-green-500' : 'bg-slate-600'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 focus:ring-offset-slate-900`}
+           >
+             <span className={`${showFinancials ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`} />
+           </Switch>
+        </div>
       </div>
 
       {loading ? (
@@ -151,12 +180,19 @@ const FleetStatusMap = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                >
+                    {/* Revenue Glow Logic */}
                   <motion.div
-                    className={`p-4 rounded-lg border-2 flex flex-col items-center justify-center h-24 transition-colors duration-500 ${device.statusColor}`}
+                    className={`p-4 rounded-lg border-2 flex flex-col items-center justify-center h-24 transition-all duration-500 relative ${device.statusColor}`}
+                    style={showFinancials && device.revenue > 0 ? { boxShadow: `0 0 ${Math.min(device.revenue / 10 + 5, 20)}px rgba(34, 197, 94, ${Math.min(device.revenue / 100 + 0.2, 0.8)})` } : {}}
                     animate={{ backgroundColor: device.statusColor.split(' ')[0].replace('bg-', '').replace('/20', '') === 'green-500' ? 'rgba(34, 197, 94, 0.2)' : device.statusColor.split(' ')[0].replace('bg-', '').replace('/20', '') === 'yellow-500' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(239, 68, 68, 0.2)' }}
                   >
                       <SafeIcon icon={FiServer} className="mb-2 text-xl" />
                       <span className="text-xs font-semibold truncate w-full text-center">{device.name}</span>
+                      {showFinancials && (
+                          <div className="absolute top-2 right-2 text-green-400 opacity-80">
+                              <SafeIcon icon={FiDollarSign} className="text-sm" />
+                          </div>
+                      )}
                   </motion.div>
 
                   {/* Tooltip on Hover */}
