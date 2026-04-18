@@ -1,10 +1,12 @@
 import React, { useEffect, useRef } from 'react';
 import { Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useState } from 'react';
 import Sidebar from './Sidebar';
 import OfflineIndicator from './common/OfflineIndicator';
 import CommandBar from './layout/CommandBar';
 import WidgetDrawer from './layout/WidgetDrawer';
+import IntelligenceSearchModal from './layout/IntelligenceSearchModal';
 
 // The global `window.electronAPI` is exposed by the preload script.
 const isElectron = !!window.electronAPI;
@@ -14,8 +16,22 @@ const isElectron = !!window.electronAPI;
  * Handles Electron-specific auto-update events to provide user feedback.
  */
 function MainLayout() {
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   // Use a ref to store the toast ID, so it can be updated or dismissed.
   const updateToastId = useRef(null);
+
+  // Global Cmd+K / Ctrl+K listener
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsSearchOpen((prev) => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   useEffect(() => {
     if (!isElectron) return;
@@ -92,6 +108,10 @@ function MainLayout() {
         <WidgetDrawer />
       </main>
       <OfflineIndicator />
+      <IntelligenceSearchModal
+        isOpen={isSearchOpen}
+        onClose={() => setIsSearchOpen(false)}
+      />
     </div>
   );
 }
