@@ -27,6 +27,45 @@ serve(async (req) => {
 
     const tasksCreated = [];
 
+    // 1b. Check partner_credits for users with low credits (< 5)
+    const { data: lowCreditPartners, error: creditError } = await supabaseAdmin
+      .from('partner_credits')
+      .select('partner_id, credits_remaining')
+      .lt('credits_remaining', 5);
+
+    if (creditError) {
+      console.error('Failed to fetch partner credits:', creditError);
+    } else if (lowCreditPartners) {
+      for (const partner of lowCreditPartners) {
+        // We must have joined with auth.users or public.users. Assuming public.users relationship exists.
+        // Wait, the query `users!inner(email)` assumes there's a foreign key relation to users table with an email column.
+        // In the database setup, `users` table doesn't have an email column, `auth.users` has it.
+        // If not accessible easily, we might need a different query. Let's fix that below by fetching emails from auth.users or just putting ID.
+        const emailStr = partner.users?.email || partner.partner_id;
+        const taskTitle = `[URGENT] Partner ${emailStr} Low Credits`;
+        const { data: existingTasks } = await supabaseAdmin
+          .from('tasks_ax2024')
+          .select('id')
+          .eq('title', taskTitle)
+          .eq('status', 'pending')
+          .limit(1);
+
+        if (!existingTasks || existingTasks.length === 0) {
+          const { error: insertError } = await supabaseAdmin
+            .from('tasks_ax2024')
+            .insert({
+              title: taskTitle,
+              description: `[URGENT] Partner ${emailStr} Low Credits. Auto-billing required or manual top-up.`,
+              priority: 'high',
+              status: 'pending',
+              user_id: partner.partner_id,
+              task_type: 'billing'
+            });
+          if (!insertError) tasksCreated.push(`Low Credit Alert: ${emailStr}`);
+        }
+      }
+    }
+
     for (const user of atRiskUsers) {
       // 2. Check if a recent task already exists to prevent spam
       const taskTitle = `Churn Risk Outreach: ${user.email}`;
