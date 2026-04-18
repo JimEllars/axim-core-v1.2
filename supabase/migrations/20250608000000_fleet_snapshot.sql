@@ -7,7 +7,7 @@ AS $$
 DECLARE
     total_fleet_health numeric;
     total_transactions_24h integer;
-    top_at_risk_users jsonb;
+    top_at_risk_user_email text;
     result jsonb;
 BEGIN
     -- 1. Total Fleet Health (average of all device statuses/health_index)
@@ -19,25 +19,16 @@ BEGIN
     FROM micro_app_transactions
     WHERE created_at > NOW() - INTERVAL '24 hours';
 
-    -- 3. Top 3 At-Risk Users
-    SELECT jsonb_agg(
-        jsonb_build_object(
-            'user_id', user_id,
-            'email', email,
-            'health_index', health_index
-        )
-    ) INTO top_at_risk_users
-    FROM (
-        SELECT user_id, email, health_index
-        FROM user_engagement_scores
-        ORDER BY health_index ASC
-        LIMIT 3
-    ) sub;
+    -- 3. Top At-Risk User
+    SELECT email INTO top_at_risk_user_email
+    FROM user_engagement_scores
+    ORDER BY health_index ASC
+    LIMIT 1;
 
     result := jsonb_build_object(
         'total_fleet_health', ROUND(total_fleet_health, 2),
         'total_transactions_24h', total_transactions_24h,
-        'top_at_risk_users', COALESCE(top_at_risk_users, '[]'::jsonb)
+        'top_at_risk_user_email', top_at_risk_user_email
     );
 
     RETURN result;
