@@ -66,7 +66,25 @@ vi.mock('framer-motion', () => {
                 delete props.animate;
                 delete props.transition;
                 return <div ref={ref} {...props}>{children}</div>;
+            }),
+            button: React.forwardRef(({ children, ...rest }, ref) => {
+                const props = { ...rest };
+                // remove framer-motion specific props
+                delete props.whileHover;
+                delete props.whileTap;
+                return <button ref={ref} {...props}>{children}</button>;
             })
         }
     };
+});
+
+vi.mock('react-icons/fi', async () => {
+  const actual = await vi.importActual('react-icons/fi');
+  return {
+    ...actual,
+    FiZap: () => <div data-testid="fi-zap" />,
+    FiDatabase: () => <div data-testid="fi-database" />,
+    FiRefreshCw: () => <div data-testid="fi-refresh-cw" />,
+    FiAlertTriangle: () => <div data-testid="fi-alert-triangle" />,
+  };
 });
