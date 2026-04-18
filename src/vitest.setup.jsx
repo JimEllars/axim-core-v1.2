@@ -1,5 +1,17 @@
 import '@testing-library/jest-dom';
 import { vi, afterEach } from 'vitest';
+
+vi.mock('react-icons/fi', async () => {
+  const actual = await vi.importActual('react-icons/fi');
+  return {
+    ...actual,
+    FiZap: () => <div data-testid="fi-zap" />,
+    FiDatabase: () => <div data-testid="fi-database" />,
+    FiRefreshCw: () => <div data-testid="fi-refresh-cw" />,
+    FiAlertTriangle: () => <div data-testid="fi-alert-triangle" />,
+  };
+});
+
 import React from 'react';
 import api from './services/onyxAI/api';
 import { cleanup } from '@testing-library/react';
@@ -220,3 +232,14 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
 });
+
+window.matchMedia = window.matchMedia || function() {
+    return {
+        matches: false,
+        addListener: function() {},
+        removeListener: function() {},
+        addEventListener: function() {},
+        removeEventListener: function() {},
+        dispatchEvent: function() {},
+    };
+};

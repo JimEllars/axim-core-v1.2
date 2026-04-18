@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
+import { SupabaseProvider } from '../contexts/SupabaseContext';
 import { describe, it, expect, vi } from 'vitest';
 import Dashboard from './Dashboard';
 
@@ -31,7 +32,7 @@ vi.mock('./dashboard/AIInteractionsChart', () => ({
 
 describe('Dashboard Component', () => {
   it('renders the main components of the dashboard', () => {
-    render(<Dashboard />);
+    render(<SupabaseProvider><Dashboard /></SupabaseProvider>);
 
     // Check for the header
     expect(screen.getByText('Operations Center')).toBeInTheDocument();
