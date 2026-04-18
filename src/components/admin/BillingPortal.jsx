@@ -45,6 +45,18 @@ const BillingPortal = () => {
     }
   };
 
+  const { data: allPartners, isLoading: isLoadingPartners } = useQuery({
+    queryKey: ['all_partner_credits'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('partner_credits')
+        .select('*, users!partner_credits_partner_id_fkey(email)');
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user && user.role === 'admin'
+  });
+
   const { data: partnerCredit, isLoading: isLoadingCredits } = useQuery({
     queryKey: ['partner_credits', user?.id],
     queryFn: async () => {
@@ -56,7 +68,7 @@ const BillingPortal = () => {
       if (error) throw error;
       return data;
     },
-    enabled: !!user
+    enabled: !!user && user.role !== 'admin'
   });
 
   const topUpMutation = useMutation({
@@ -144,6 +156,20 @@ const BillingPortal = () => {
     }
   };
 
+  const handleTriggerInvoice = async (partnerId) => {
+    toast('Triggering mid-cycle invoice...', { icon: '🧾' });
+    try {
+      const { error } = await supabase.functions.invoke('autonomous-billing', {
+        body: { partnerId, forceTrigger: true }
+      });
+      if (error) throw error;
+      toast.success('Invoice triggered successfully.');
+    } catch (error) {
+      console.error('Error triggering invoice:', error);
+      toast.error(`Failed to trigger invoice: ${error.message}`);
+    }
+  };
+
   if (loading) {
     return <div className="p-8 text-white">Loading billing information...</div>;
   }
@@ -204,38 +230,91 @@ const BillingPortal = () => {
         </div>
 
         {/* API Credits Section */}
-        <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20">
-          <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
-            <FiPlus className="mr-2 text-blue-400" />
-            B2B Partner API Credits
-          </h3>
-          <div className="flex items-center justify-between p-4 bg-onyx-900/50 rounded-lg border border-onyx-accent/20 mb-4">
-            <span className="text-slate-300 font-medium">Remaining Credits:</span>
-            <span className="text-2xl font-bold text-green-400">
-              {isLoadingCredits ? '...' : (partnerCredit?.credits_remaining || 0)}
-            </span>
+        {user?.role === 'admin' ? (
+          <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20 col-span-1 md:col-span-2">
+            <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
+              <FiPlus className="mr-2 text-blue-400" />
+              B2B Partner Billing Management
+            </h3>
+            {isLoadingPartners ? (
+              <p className="text-slate-400">Loading partners...</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="table w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-onyx-accent/20 text-slate-400">
+                      <th className="p-3">Partner Name / Email</th>
+                      <th className="p-3">Credits Remaining</th>
+                      <th className="p-3">Last Month Consumption</th>
+                      <th className="p-3">Predicted Next Bill</th>
+                      <th className="p-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allPartners?.map(partner => (
+                      <tr key={partner.id} className="border-b border-onyx-accent/10 hover:bg-onyx-900/50 transition-colors text-white">
+                        <td className="p-3">{partner.users?.email || partner.partner_id}</td>
+                        <td className="p-3">
+                          <span className={`font-semibold ${partner.credits_remaining < 100 ? 'text-red-400' : 'text-green-400'}`}>
+                            {partner.credits_remaining}
+                          </span>
+                        </td>
+                        <td className="p-3 text-slate-300">
+                          {/* Placeholder logic for consumption */}
+                          {(1000 - partner.credits_remaining) > 0 ? 1000 - partner.credits_remaining : 0} credits
+                        </td>
+                        <td className="p-3 text-slate-300">
+                          ${(((1000 - partner.credits_remaining) > 0 ? 1000 - partner.credits_remaining : 0) * 0.05).toFixed(2)}
+                        </td>
+                        <td className="p-3 text-right">
+                          <button
+                            onClick={() => handleTriggerInvoice(partner.partner_id)}
+                            className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded transition-colors"
+                          >
+                            Trigger Mid-Cycle Invoice
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
+        ) : (
+          <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20">
+            <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
+              <FiPlus className="mr-2 text-blue-400" />
+              B2B Partner API Credits
+            </h3>
+            <div className="flex items-center justify-between p-4 bg-onyx-900/50 rounded-lg border border-onyx-accent/20 mb-4">
+              <span className="text-slate-300 font-medium">Remaining Credits:</span>
+              <span className="text-2xl font-bold text-green-400">
+                {isLoadingCredits ? '...' : (partnerCredit?.credits_remaining || 0)}
+              </span>
+            </div>
 
-          <div className="space-y-4">
-            <label className="block text-sm text-slate-400">Manual Credit Top-up (Admin)</label>
-            <div className="flex gap-2">
-              <input
-                type="number"
-                className="input input-bordered w-full bg-onyx-950"
-                value={topUpAmount}
-                onChange={(e) => setTopUpAmount(e.target.value)}
-                min="1"
-              />
-              <button
-                className="btn btn-primary"
-                onClick={handleTopUp}
-                disabled={topUpMutation.isPending}
-              >
-                Top Up
-              </button>
+            <div className="space-y-4">
+              <label className="block text-sm text-slate-400">Manual Credit Top-up</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  className="input input-bordered w-full bg-onyx-950 text-white"
+                  value={topUpAmount}
+                  onChange={(e) => setTopUpAmount(e.target.value)}
+                  min="1"
+                />
+                <button
+                  className="btn btn-primary"
+                  onClick={handleTopUp}
+                  disabled={topUpMutation.isPending}
+                >
+                  Top Up
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Payment Methods (Placeholder) */}
         <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20">
