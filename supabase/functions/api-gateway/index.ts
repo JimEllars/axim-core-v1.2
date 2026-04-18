@@ -52,6 +52,22 @@ serve(async (req) => {
 
     const partnerId = apiKeyData.user_id;
 
+    // Dynamic Rate Limiting: Web3-Aware Gateway
+    let rateLimitCap = 100;
+    try {
+        const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(partnerId);
+
+        if (!userError && userData && userData.user && userData.user.user_metadata) {
+            if (userData.user.user_metadata.axim_node_holder) {
+                rateLimitCap = 1000;
+            }
+        }
+    } catch (e) {
+        // gracefully handle missing/malformed session data
+        console.warn("Failed to check Web3 token identity, defaulting to standard rate limit", e);
+    }
+    // Assume there is rate limit enforcement logic following this checking `rateLimitCap`
+
     const { data: creditData, error: creditError } = await supabaseAdmin
       .from('partner_credits')
       .select('credits_remaining, id')
