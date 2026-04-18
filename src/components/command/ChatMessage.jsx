@@ -27,6 +27,19 @@ const ChatMessage = ({ message, onCopyContent }) => {
       : 'bg-onyx-ai/20 border border-onyx-ai/50 text-onyx-ai shadow-[0_0_10px_rgba(168,85,247,0.3)]'
   }`;
 
+
+  let specializedAgentName = null;
+  if (!isUser && !isError && typeof message.content === 'string') {
+    const lowerContent = message.content.toLowerCase();
+    if (lowerContent.includes('billing') || lowerContent.includes('invoice')) {
+        specializedAgentName = 'BILLING BOT';
+    } else if (lowerContent.includes('compliance')) {
+        specializedAgentName = 'COMPLIANCE BOT';
+    }
+  }
+
+  const agentDisplayName = specializedAgentName || message.agentName || 'ONYX.CORE';
+
   const handleCopy = () => {
     let contentToCopy;
     if (isError) {
@@ -102,8 +115,18 @@ const ChatMessage = ({ message, onCopyContent }) => {
           </div>
           <div className="flex-1 overflow-x-hidden">
             <div className="flex items-center justify-between mb-2 pb-2 border-b border-current/10">
+
               <span className="text-[10px] font-bold tracking-widest uppercase opacity-80 flex items-center">
-                {isUser ? 'SYS.ADMIN' : (message.agentName || 'ONYX.CORE')}
+                {isUser ? 'SYS.ADMIN' : (
+                   <div className="flex items-center space-x-2">
+                       <span>{agentDisplayName}</span>
+                       {specializedAgentName && (
+                          <span className="bg-blue-500/20 border border-blue-500/50 text-blue-300 px-1.5 py-0.5 rounded text-[8px] tracking-widest ml-2">
+                             DELEGATED TASK
+                          </span>
+                       )}
+                   </div>
+                )}
                 {!isUser && !isError && <span className="ml-2 w-1.5 h-1.5 bg-onyx-ai rounded-full animate-pulse shadow-[0_0_5px_rgba(168,85,247,0.8)]" />}
               </span>
               <div className="flex items-center space-x-2">

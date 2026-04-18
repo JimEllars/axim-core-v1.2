@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useSupabase } from '../../contexts/SupabaseContext';
 import SafeIcon from '../../common/SafeIcon';
 import { FiServer, FiActivity, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
@@ -18,8 +18,7 @@ const FleetStatusMap = () => {
       try {
         if (!supabase) throw new Error("Supabase client not initialized.");
 
-        // In a real app we'd fetch devices and recent telemetry logs.
-        // For this UI component we will simulate based on the devices table.
+        // Fetch devices
         const { data: devices, error: deviceError } = await supabase
           .from('devices')
           .select('*')
@@ -27,11 +26,10 @@ const FleetStatusMap = () => {
 
         if (deviceError) throw deviceError;
 
-        // Mock event data to represent "telemetry" as described in the requirements
+        // Mock initial event data to represent "telemetry" as described in the requirements
         const mockTelemetry = [
             { id: 1, type: 'api_call', message: 'Latency: 45ms', status: 'success' },
-            { id: 2, type: 'user_login', message: 'Active Session', status: 'success' },
-            { id: 3, type: 'system_check', message: 'CPU Load Normal', status: 'success' }
+            { id: 2, type: 'user_login', message: 'Active Session', status: 'success' }
         ];
 
         const mappedStatus = (devices || []).map(device => {
@@ -60,6 +58,53 @@ const FleetStatusMap = () => {
     };
 
     fetchFleetData();
+
+    // Real-time subscription to events_ax2024 to mimic telemetry updates
+    if (supabase) {
+        const subscription = supabase
+          .channel('fleet-telemetry')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events_ax2024' }, payload => {
+              const newEvent = payload.new;
+              // Randomly assign to a device for mock demo, or match if user_id/device_id aligns
+              setFleetStatus(prev => {
+                  if (prev.length === 0) return prev;
+                  // Pick a random device to update its status or append telemetry
+                  const deviceIndex = Math.floor(Math.random() * prev.length);
+                  const newFleet = [...prev];
+                  const device = newFleet[deviceIndex];
+
+                  // If it's an error event, change status to degraded/busy
+                  let newStatus = device.status;
+                  let newColor = device.statusColor;
+                  let msgStatus = 'success';
+
+                  if (newEvent.type === 'error' || (newEvent.data && newEvent.data.status === 'error')) {
+                     newStatus = 'degraded';
+                     newColor = 'bg-yellow-500/20 border-yellow-500 text-yellow-400';
+                     msgStatus = 'error';
+                  } else {
+                     newStatus = 'operational';
+                     newColor = 'bg-green-500/20 border-green-500 text-green-400';
+                  }
+
+                  newFleet[deviceIndex] = {
+                      ...device,
+                      status: newStatus,
+                      statusColor: newColor,
+                      telemetry: [
+                          { id: newEvent.id, type: newEvent.type, message: newEvent.type + ' event', status: msgStatus },
+                          ...device.telemetry.slice(0, 2) // keep last 3
+                      ]
+                  };
+                  return newFleet;
+              });
+          })
+          .subscribe();
+
+        return () => {
+            supabase.removeChannel(subscription);
+        };
+    }
   }, [supabase]);
 
   if (error) {
@@ -99,28 +144,44 @@ const FleetStatusMap = () => {
       ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {fleetStatus.map(device => (
-               <div key={device.id} className="relative group cursor-pointer">
-                  <div className={`p-4 rounded-lg border-2 flex flex-col items-center justify-center h-24 transition-all duration-300 ${device.statusColor}`}>
+               <motion.div
+                  key={device.id}
+                  className="relative group cursor-pointer"
+                  layout
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+               >
+                  <motion.div
+                    className={`p-4 rounded-lg border-2 flex flex-col items-center justify-center h-24 transition-colors duration-500 ${device.statusColor}`}
+                    animate={{ backgroundColor: device.statusColor.split(' ')[0].replace('bg-', '').replace('/20', '') === 'green-500' ? 'rgba(34, 197, 94, 0.2)' : device.statusColor.split(' ')[0].replace('bg-', '').replace('/20', '') === 'yellow-500' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(239, 68, 68, 0.2)' }}
+                  >
                       <SafeIcon icon={FiServer} className="mb-2 text-xl" />
                       <span className="text-xs font-semibold truncate w-full text-center">{device.name}</span>
-                  </div>
+                  </motion.div>
 
                   {/* Tooltip on Hover */}
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-onyx-950 border border-onyx-accent/30 rounded-lg shadow-xl p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
                      <h4 className="text-white text-xs font-bold mb-2 border-b border-onyx-accent/20 pb-1">{device.name} Telemetry</h4>
                      <ul className="space-y-1">
+                        <AnimatePresence>
                         {device.telemetry.map((event, idx) => (
-                           <li key={idx} className="text-[10px] flex items-center justify-between">
+                           <motion.li
+                              key={event.id || idx}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              className="text-[10px] flex items-center justify-between"
+                           >
                               <span className="text-slate-300 truncate mr-2">{event.message}</span>
                               <SafeIcon
                                 icon={event.status === 'success' ? FiCheckCircle : FiActivity}
                                 className={event.status === 'success' ? 'text-green-400' : 'text-blue-400'}
                               />
-                           </li>
+                           </motion.li>
                         ))}
+                        </AnimatePresence>
                      </ul>
                   </div>
-               </div>
+               </motion.div>
             ))}
           </div>
       )}

@@ -1,10 +1,21 @@
 // src/components/UserProfile.test.jsx
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/onyxAI/api';
 import UserProfile from './UserProfile';
 import { Toaster } from 'react-hot-toast';
+
+const queryClient = new QueryClient();
+
+const renderWithProviders = (ui) => {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      {ui}
+    </QueryClientProvider>
+  );
+};
 
 // Mock dependencies
 vi.mock('../contexts/AuthContext');
@@ -19,6 +30,21 @@ const mockProfile = {
   full_name: 'Test User',
   avatar_url: 'https://example.com/avatar.png',
 };
+
+
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation(query => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(), // Deprecated
+    removeListener: vi.fn(), // Deprecated
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
 
 describe('UserProfile', () => {
   beforeEach(() => {
@@ -36,7 +62,7 @@ describe('UserProfile', () => {
   });
 
   it('should render the user profile with the correct initial data', () => {
-    render(<UserProfile />);
+    renderWithProviders(<UserProfile />);
 
     expect(screen.getByLabelText('Email')).toHaveValue(mockUser.email);
     expect(screen.getByLabelText('Full Name')).toHaveValue(mockProfile.full_name);
@@ -44,7 +70,7 @@ describe('UserProfile', () => {
   });
 
   it('should allow the user to update their full name and avatar URL', () => {
-    render(<UserProfile />);
+    renderWithProviders(<UserProfile />);
 
     const fullNameInput = screen.getByLabelText('Full Name');
     const avatarUrlInput = screen.getByLabelText('Avatar URL');
@@ -64,12 +90,7 @@ describe('UserProfile', () => {
       loadUserProfile: loadUserProfileMock,
     });
 
-    render(
-      <>
-        <UserProfile />
-        <Toaster />
-      </>
-    );
+    renderWithProviders(<><UserProfile /><Toaster /></>);
 
     const fullNameInput = screen.getByLabelText('Full Name');
     fireEvent.change(fullNameInput, { target: { value: 'Updated Name' } });
@@ -95,12 +116,7 @@ describe('UserProfile', () => {
     const errorMessage = 'Failed to connect to the server';
     api.updateUserProfile.mockRejectedValue(new Error(errorMessage));
 
-    render(
-      <>
-        <UserProfile />
-        <Toaster />
-      </>
-    );
+    renderWithProviders(<><UserProfile /><Toaster /></>);
 
     const saveButton = screen.getByRole('button', { name: /Save Profile/i });
     fireEvent.click(saveButton);

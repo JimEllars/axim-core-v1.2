@@ -137,7 +137,7 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
                        try {
                           token = JSON.parse(session).access_token || '';
                           break;
-                       } catch (e) {}
+                       } catch (e) { /* ignore */ }
                     }
                 }
              }
@@ -193,7 +193,7 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
                        try {
                           token = JSON.parse(session).access_token || '';
                           break;
-                       } catch (e) {}
+                       } catch (e) { /* ignore */ }
                     }
                 }
              }

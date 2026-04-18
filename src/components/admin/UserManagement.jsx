@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import api from '../../services/onyxAI/api';
+import { supabase } from '../../services/supabaseClient';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import RoleManagementModal from './RoleManagementModal';
@@ -19,6 +20,7 @@ const UserManagement = ({ currentUser }) => {
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [engagementScores, setEngagementScores] = useState({});
 
   const handleDeleteUser = async (user) => {
     if (user.id === currentUser?.id) {
@@ -71,11 +73,23 @@ const UserManagement = ({ currentUser }) => {
     }
   };
 
+
   const fetchUsers = async () => {
     setLoading(true);
     try {
       const data = await api.getUsers();
       setUsers(data);
+
+      // Fetch engagement scores
+      const { data: scores, error } = await supabase
+        .from('user_engagement_scores')
+        .select('*');
+
+      if (!error && scores) {
+         const scoreMap = {};
+         scores.forEach(s => scoreMap[s.user_id] = s.health_index);
+         setEngagementScores(scoreMap);
+      }
     } catch (err) {
       toast.error(`Failed to fetch users: ${err.message}`);
     } finally {
@@ -158,6 +172,7 @@ const UserManagement = ({ currentUser }) => {
               <th scope="col" className="px-6 py-3">User</th>
               <th scope="col" className="px-6 py-3">Role</th>
               <th scope="col" className="px-6 py-3">Created At</th>
+              <th scope="col" className="px-6 py-3">Health Index</th>
               <th scope="col" className="px-6 py-3">
                 <span className="sr-only">Actions</span>
               </th>
@@ -166,7 +181,7 @@ const UserManagement = ({ currentUser }) => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="4" className="text-center p-8">
+                <td colSpan="5" className="text-center p-8">
                   <p>Loading users...</p>
                 </td>
               </tr>
@@ -186,6 +201,17 @@ const UserManagement = ({ currentUser }) => {
                     </span>
                   </td>
                   <td className="px-6 py-4">{formatDate(user.created_at)}</td>
+
+                  <td className="px-6 py-4">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      engagementScores[user.id] >= 70 ? 'bg-green-900/50 text-green-300' :
+                      engagementScores[user.id] >= 40 ? 'bg-yellow-900/50 text-yellow-300' :
+                      engagementScores[user.id] !== undefined ? 'bg-red-900/50 text-red-300' :
+                      'bg-slate-800 text-slate-300'
+                    }`}>
+                       {engagementScores[user.id] !== undefined ? engagementScores[user.id] : 'N/A'}
+                    </span>
+                  </td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex items-center justify-end space-x-2">
                       <button
