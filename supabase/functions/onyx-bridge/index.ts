@@ -60,6 +60,23 @@ serve(async (req) => {
        bodyData.context.historical_precedents = precedents;
     }
 
+    // Swarm Orchestrator (Intent Classification)
+    let agent_id = 'onyx';
+    let personaPrompt = "You are Onyx, the infrastructure operator...";
+    const promptText = (bodyData.prompt || bodyData.command || '').toLowerCase();
+
+    if (promptText.includes('billing') || promptText.includes('financial') || promptText.includes('invoice')) {
+        agent_id = 'finbot';
+        personaPrompt = "You are FinBot, the AXiM financial specialist...";
+    } else if (promptText.includes('document') || promptText.includes('demand letter') || promptText.includes('support')) {
+        agent_id = 'docbot';
+        personaPrompt = "You are DocBot, the document and support specialist...";
+    }
+
+    if (!bodyData.context) bodyData.context = {};
+    bodyData.context.system_prompt = personaPrompt;
+    bodyData.agent_id = agent_id;
+
     const finalBody = JSON.stringify(bodyData);
 
 
@@ -81,6 +98,24 @@ serve(async (req) => {
     for (const [key, value] of Object.entries(corsH)) {
         responseHeaders.set(key, value);
     }
+
+    // Check if the response is JSON, and if so, append the agent_id
+    const contentType = onyxResponse.headers.get('content-type') || '';
+    if (contentType.includes('application/json') && onyxResponse.ok) {
+        const responseData = await onyxResponse.json();
+        responseData.agent_id = agent_id;
+
+        // Remove content-encoding since we're returning raw stringified JSON
+        responseHeaders.delete('content-encoding');
+
+        return new Response(JSON.stringify(responseData), {
+            status: onyxResponse.status,
+            headers: responseHeaders
+        });
+    }
+
+    // For stream, we append agent_id to the headers
+    responseHeaders.set('x-agent-id', agent_id);
 
     return new Response(onyxResponse.body, {
       status: onyxResponse.status,

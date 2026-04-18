@@ -19,17 +19,26 @@ const ChatMessage = ({ message, onCopyContent }) => {
       : 'bg-onyx-ai/5 border border-onyx-ai/30 text-slate-200 shadow-[0_0_20px_rgba(168,85,247,0.15)]'
   }`;
 
+  const isFinbot = message.agentId === 'finbot';
+  const isDocbot = message.agentId === 'docbot';
+
   const iconContainerClasses = `w-8 h-8 rounded-md flex items-center justify-center flex-shrink-0 ${
     isUser
       ? 'bg-onyx-accent/20 border border-onyx-accent/50 text-onyx-accent shadow-[0_0_10px_rgba(34,211,238,0.3)]'
       : isError
       ? 'bg-red-500/20 border border-red-500/50 text-red-400 shadow-[0_0_10px_rgba(239,68,68,0.3)]'
+      : isFinbot
+      ? 'bg-green-500/20 border border-green-500/50 text-green-400 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
       : 'bg-onyx-ai/20 border border-onyx-ai/50 text-onyx-ai shadow-[0_0_10px_rgba(168,85,247,0.3)]'
   }`;
 
 
   let specializedAgentName = null;
-  if (!isUser && !isError && typeof message.content === 'string') {
+  if (isFinbot) {
+      specializedAgentName = 'AXiM Finance';
+  } else if (isDocbot) {
+      specializedAgentName = 'AXiM DocBot';
+  } else if (!isUser && !isError && typeof message.content === 'string') {
     const lowerContent = message.content.toLowerCase();
     if (lowerContent.includes('billing') || lowerContent.includes('invoice')) {
         specializedAgentName = 'BILLING BOT';

@@ -1,0 +1,1 @@
+select cron.schedule('telemetry_archive', '0 0 * * 0', $$ select net.http_post( url:='https://supabase.local/functions/v1/telemetry-archiver', headers:='{"Authorization": "Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}"}'::jsonb, body:='{}'::jsonb ); $$);
