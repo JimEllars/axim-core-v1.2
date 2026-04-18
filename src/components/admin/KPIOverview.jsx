@@ -1,3 +1,4 @@
+import RevenueHeatmap from '../dashboard/RevenueHeatmap';
 import React, { useEffect, useState } from 'react';
 import { useSupabase } from '../../contexts/SupabaseContext';
 import { FiTrendingUp, FiUsers, FiDollarSign, FiActivity, FiUserPlus, FiTarget, FiPieChart, FiBarChart2 } from 'react-icons/fi';
@@ -161,10 +162,8 @@ const KPIOverview = () => {
 
       {/* Placeholder for future charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20 h-80 flex flex-col items-center justify-center text-center">
-            <FiBarChart2 className="text-slate-600 text-4xl mb-4" />
-            <h3 className="text-lg font-medium text-slate-300">Revenue vs Costs Trend</h3>
-            <p className="text-slate-500 text-sm mt-2">Historical financial data visualization coming soon.</p>
+        <div className="col-span-1">
+            <RevenueHeatmap />
         </div>
         <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20 h-80 flex flex-col items-center justify-center text-center">
             <FiUsers className="text-slate-600 text-4xl mb-4" />
