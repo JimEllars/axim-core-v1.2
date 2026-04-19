@@ -53,7 +53,7 @@ const CommandBar = () => {
       const { data, count, error } = await supabase
         .from('hitl_audit_logs')
         .select('*', { count: 'exact' })
-        .eq('status', 'Pending');
+        .eq('status', 'pending');
 
       if (!error) {
         setPendingLogs(data || []);

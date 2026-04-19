@@ -6,6 +6,12 @@ import { supabase } from '../../services/supabaseClient';
 
 vi.mock('../../services/supabaseClient', () => ({
   supabase: {
+    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
+    removeChannel: vi.fn(),
+    channel: vi.fn(() => ({
+      on: vi.fn().mockReturnThis(),
+      subscribe: vi.fn()
+    })),
     from: vi.fn(() => ({
       update: vi.fn(() => ({
         eq: vi.fn().mockResolvedValue({ error: null })
@@ -61,7 +67,7 @@ describe('ApprovalQueue Component', () => {
     fireEvent.click(approveButton);
 
     await waitFor(() => {
-        expect(supabase.from).toHaveBeenCalledWith('hitl_audit_logs');
+        expect(supabase.rpc).toHaveBeenCalledWith('resolve_hitl_action', expect.anything());
     });
   });
 
@@ -72,7 +78,7 @@ describe('ApprovalQueue Component', () => {
     fireEvent.click(rejectButton);
 
     await waitFor(() => {
-        expect(supabase.from).toHaveBeenCalledWith('hitl_audit_logs');
+        expect(supabase.rpc).toHaveBeenCalledWith('resolve_hitl_action', expect.anything());
     });
   });
 });
