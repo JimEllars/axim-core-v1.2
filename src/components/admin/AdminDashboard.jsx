@@ -13,8 +13,9 @@ import MemoryBank from './MemoryBank';
 import IntelligenceHub from './IntelligenceHub';
 import SecurityAudit from './SecurityAudit';
 import ProductFeedback from './ProductFeedback';
+import EcosystemRegistry from './EcosystemRegistry';
 
-const { FiKey, FiUsers, FiCreditCard, FiGitMerge, FiBarChart2, FiLayers, FiDatabase, FiZap, FiShield, FiMessageSquare } = FiIcons;
+const { FiKey, FiUsers, FiCreditCard, FiGitMerge, FiBarChart2, FiLayers, FiDatabase, FiZap, FiShield, FiMessageSquare, FiBox } = FiIcons;
 
 const AdminDashboard = () => {
   const { user: currentUser } = useAuth();
@@ -31,6 +32,7 @@ const AdminDashboard = () => {
     { id: 'intelligence', label: 'Intelligence Hub', icon: FiZap },
     { id: 'feedback', label: 'Product Feedback', icon: FiMessageSquare },
     { id: 'audit', label: 'Security Audit', icon: FiShield },
+    { id: 'ecosystem', label: 'Ecosystem Registry', icon: FiBox },
   ];
 
   return (
@@ -73,6 +75,7 @@ const AdminDashboard = () => {
           {activeTab === 'intelligence' && <IntelligenceHub />}
           {activeTab === 'feedback' && <ProductFeedback />}
           {activeTab === 'audit' && <SecurityAudit />}
+          {activeTab === 'ecosystem' && <EcosystemRegistry />}
         </div>
       </motion.div>
     </div>
