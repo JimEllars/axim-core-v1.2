@@ -70,9 +70,7 @@ serve(async (req) => {
             timestamp: new Date().toISOString()
         });
 
-        const dispatchResults = [];
-
-        for (const webhook of webhooks) {
+        const dispatchResults = await Promise.all(webhooks.map(async (webhook) => {
             try {
                 if (webhook.sync_type === 'blob' && fileUrl) {
                     // Enterprise Data Sovereignty: stream blob directly to partner S3/Blob endpoint
@@ -89,12 +87,12 @@ serve(async (req) => {
                         body: fileResponse.body
                     });
 
-                    dispatchResults.push({
+                    return {
                         endpoint: webhook.endpoint_url,
                         status: response.status,
                         success: response.ok,
                         type: 'blob'
-                    });
+                    };
                 } else {
                     // Standard webhook payload
                     const signature = await generateHmacSignature(webhookPayload, webhook.secret_key);
@@ -108,21 +106,21 @@ serve(async (req) => {
                         body: webhookPayload
                     });
 
-                    dispatchResults.push({
+                    return {
                         endpoint: webhook.endpoint_url,
                         status: response.status,
                         success: response.ok,
                         type: 'webhook'
-                    });
+                    };
                 }
-            } catch (err) {
-                dispatchResults.push({
+            } catch (err: any) {
+                return {
                     endpoint: webhook.endpoint_url,
                     error: err.message,
                     success: false
-                });
+                };
             }
-        }
+        }));
 
         return new Response(JSON.stringify({ results: dispatchResults }), {
             status: 200,
