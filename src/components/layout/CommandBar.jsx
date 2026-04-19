@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { useNavigate } from 'react-router-dom';
-import supabase from '../../config/supabaseClient';
+import { supabase } from '../../services/supabaseClient';
 
 const { FiTerminal, FiChevronUp, FiChevronDown, FiSend, FiBell } = FiIcons;
 
