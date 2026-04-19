@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
@@ -8,29 +8,57 @@ import toast from 'react-hot-toast';
 const { FiX, FiCheckCircle, FiClock } = FiIcons;
 
 const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
+  useEffect(() => {
+    if (!supabase) return;
+
+    const channel = supabase.channel('public:hitl_audit_logs');
+
+    channel.on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'hitl_audit_logs', filter: "status=eq.pending" },
+      (payload) => {
+        setPendingLogs((prev) => {
+          if (!prev.find(log => log.id === payload.new.id)) {
+            return [payload.new, ...prev];
+          }
+          return prev;
+        });
+      }
+    ).on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'hitl_audit_logs', filter: "status=eq.pending" },
+      (payload) => {
+        setPendingLogs((prev) => {
+          const index = prev.findIndex(log => log.id === payload.new.id);
+          if (index !== -1) {
+            const newLogs = [...prev];
+            newLogs[index] = payload.new;
+            return newLogs;
+          }
+          return prev;
+        });
+      }
+    ).subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [setPendingLogs]);
+
   if (!isOpen) return null;
 
-  const handleApprove = async (logId, actionPayload) => {
+    const handleApprove = async (logId, actionPayload) => {
     try {
       // Optimistic update
       setPendingLogs((prev) => prev.filter((log) => log.id !== logId));
 
-      const { error: updateError } = await supabase
-        .from('hitl_audit_logs')
-        .update({ status: 'Approved' })
-        .eq('id', logId);
+      const { data, error: updateError } = await supabase.rpc('resolve_hitl_action', {
+        p_log_id: logId,
+        p_status: 'Approved',
+        p_action_payload: actionPayload
+      });
 
       if (updateError) throw updateError;
-
-      // Ensure Onyx acts upon the approved action.
-      // If it's a quarantine, trigger the backend.
-      if (actionPayload && actionPayload.action === 'quarantine_app') {
-        const { error: appError } = await supabase
-          .from('ecosystem_apps')
-          .update({ is_active: false })
-          .eq('app_id', actionPayload.target);
-        if (appError) throw appError;
-      }
 
       toast.success('Action approved and dispatched.');
     } catch (err) {
@@ -45,16 +73,18 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
     try {
       setPendingLogs((prev) => prev.filter((log) => log.id !== logId));
 
-      const { error: updateError } = await supabase
-        .from('hitl_audit_logs')
-        .update({ status: 'Rejected' })
-        .eq('id', logId);
+      const { error: updateError } = await supabase.rpc('resolve_hitl_action', {
+        p_log_id: logId,
+        p_status: 'Rejected'
+      });
 
       if (updateError) throw updateError;
 
       toast.success('Action rejected.');
     } catch (err) {
       toast.error(`Failed to reject action: ${err.message}`);
+      const { data } = await supabase.from('hitl_audit_logs').select('*').eq('id', logId).single();
+      if (data) setPendingLogs((prev) => [data, ...prev]);
     }
   };
 

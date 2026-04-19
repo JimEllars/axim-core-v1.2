@@ -3,7 +3,48 @@ const { apixClient, aximClient, onyxClient } = require('./apiClient.cjs');
 const { mapToFile, mapToIngestRecord, mapToOnyxMessage } = require('./apiMappers.cjs');
 const { supabase } = require('./supabaseClient.cjs');
 
+
+
+const os = require('os');
+
 function registerApiHandlers() {
+  ipcMain.handle('system:getDiagnostics', async () => {
+    let detectedOS = 'Unknown';
+    try {
+      // Dynamic import to use ES module getOS
+      const { getOS } = await import('../../src/utils/osDetection.js');
+
+      // getOS relies on window.navigator. In the main process we can polyfill it
+      // temporarily or pass user agent.
+      const originalWindow = global.window;
+      global.window = {
+        navigator: {
+          userAgent: 'Electron/Node.js',
+          userAgentData: { platform: os.platform() }
+        }
+      };
+
+      detectedOS = getOS();
+
+      if (originalWindow) global.window = originalWindow;
+      else delete global.window;
+    } catch (err) {
+      console.error(err);
+    }
+
+    return {
+      os_detection: detectedOS,
+      platform: os.platform(),
+      release: os.release(),
+      arch: os.arch(),
+      totalmem: os.totalmem(),
+      freemem: os.freemem(),
+      cpus: os.cpus().length,
+      loadavg: os.loadavg()
+    };
+  });
+
+
   // External API Handlers
   ipcMain.handle('apix:upload', async (event, fileData) => {
     try {

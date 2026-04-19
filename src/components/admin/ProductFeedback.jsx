@@ -14,6 +14,43 @@ const ProductFeedback = () => {
   const [summarizing, setSummarizing] = useState(false);
   const [summary, setSummary] = useState(null);
 
+  const [newFeedback, setNewFeedback] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmitFeedback = async () => {
+    if (!newFeedback.trim()) return;
+    setSubmitting(true);
+    try {
+      let diagnostics = null;
+      if (window.electronAPI && window.electronAPI.getSystemDiagnostics) {
+        diagnostics = await window.electronAPI.getSystemDiagnostics();
+      }
+
+      const { error } = await supabase
+        .from('product_feedback')
+        .insert([{
+          app_source: 'desktop-client',
+          sentiment: 'neutral',
+          comments: newFeedback,
+          diagnostics: diagnostics
+        }]);
+
+      if (error) throw error;
+      setNewFeedback('');
+      // Refresh list
+      const { data } = await supabase
+        .from('product_feedback')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (data) setFeedback(data);
+    } catch (err) {
+      console.error('Failed to submit feedback:', err);
+    }
+    setSubmitting(false);
+  };
+
+
   useEffect(() => {
     const fetchFeedback = async () => {
       setLoading(true);
@@ -98,7 +135,30 @@ const ProductFeedback = () => {
         )}
       </AnimatePresence>
 
+
+      <div className="glass-effect rounded-xl p-6 flex flex-col space-y-4">
+        <h3 className="text-lg font-bold text-white flex items-center">
+          <SafeIcon icon={FiMessageSquare} className="mr-2 text-indigo-400" />
+          Submit Feedback
+        </h3>
+        <textarea
+          className="w-full bg-onyx-950/50 border border-onyx-accent/20 rounded-lg p-3 text-white focus:outline-none focus:border-indigo-500"
+          rows="3"
+          placeholder="Describe your issue or suggestion..."
+          value={newFeedback}
+          onChange={(e) => setNewFeedback(e.target.value)}
+        />
+        <button
+          onClick={handleSubmitFeedback}
+          disabled={submitting || !newFeedback.trim()}
+          className="self-end bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+        >
+          {submitting ? 'Submitting...' : 'Submit'}
+        </button>
+      </div>
+
       <div className="glass-effect rounded-xl overflow-hidden">
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left text-slate-300">
             <thead className="text-xs text-slate-400 uppercase bg-onyx-950/50">

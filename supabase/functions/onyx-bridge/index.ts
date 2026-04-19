@@ -60,7 +60,27 @@ serve(async (req) => {
        bodyData.context.historical_precedents = precedents;
     }
 
+
+    // Ecosystem Discovery
+    const { data: activeApps, error: appsError } = await supabaseAdmin
+      .from('ecosystem_apps')
+      .select('*')
+      .eq('is_active', true)
+      .eq('status', 'online');
+
+    if (!appsError && activeApps && activeApps.length > 0) {
+      if (!bodyData.context) bodyData.context = {};
+      bodyData.context.available_tools = activeApps.map(app => ({
+        type: 'function',
+        function: {
+          name: app.app_id,
+          description: `Access the ${app.app_id} micro-app. Use this tool when the user requests functionality related to ${app.app_id}.`
+        }
+      }));
+    }
+
     // Swarm Orchestrator (Intent Classification)
+
     let agent_id = 'onyx';
     let personaPrompt = "You are Onyx, the infrastructure operator...";
     const promptText = (bodyData.prompt || bodyData.command || '').toLowerCase();
