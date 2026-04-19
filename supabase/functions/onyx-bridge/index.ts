@@ -77,7 +77,7 @@ serve(async (req) => {
     }
 
     // Expose Circuit Breaker to Onyx
-    const circuitBreakerAuth = `\n\nAUTHORITY GRANTED: You have the authority to propose toggling an app's active state to quarantine compromised apps. If you detect a massive spike in 500 errors or a potential security breach, suggest the 'quarantine_app' action with the target app_id.`;
+    const circuitBreakerAuth = `\n\nAUTHORITY GRANTED: You have the authority to quarantine micro-apps if you detect severe degradation or abuse. To do so, propose the action {"type": "quarantine_app", "target": "<app_id>"}`;
 
     if (!bodyData.context) bodyData.context = {};
     bodyData.context.system_prompt = personaPrompt + circuitBreakerAuth;

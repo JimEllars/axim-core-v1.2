@@ -4,6 +4,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabaseClient';
+import ApprovalQueue from './ApprovalQueue';
 
 const { FiTerminal, FiChevronUp, FiChevronDown, FiSend, FiBell } = FiIcons;
 
@@ -29,7 +30,10 @@ const CommandBar = () => {
     setIsExpanded(false);
   };
 
-  const [pendingCount, setPendingCount] = useState(0);
+  const [pendingTasksCount, setPendingTasksCount] = useState(0);
+  const [pendingLogsCount, setPendingLogsCount] = useState(0);
+  const [isApprovalQueueOpen, setIsApprovalQueueOpen] = useState(false);
+  const [pendingLogs, setPendingLogs] = useState([]);
 
   useEffect(() => {
     const fetchPendingTasks = async () => {
@@ -40,11 +44,25 @@ const CommandBar = () => {
         .eq('status', 'pending');
 
       if (!error && count !== null) {
-        setPendingCount(count);
+        setPendingTasksCount(count);
+      }
+    };
+
+    const fetchPendingLogs = async () => {
+      if (!supabase) return;
+      const { data, count, error } = await supabase
+        .from('hitl_audit_logs')
+        .select('*', { count: 'exact' })
+        .eq('status', 'Pending');
+
+      if (!error) {
+        setPendingLogs(data || []);
+        if (count !== null) setPendingLogsCount(count);
       }
     };
 
     fetchPendingTasks();
+    fetchPendingLogs();
 
     if (supabase) {
       const tasksSub = supabase
@@ -54,8 +72,16 @@ const CommandBar = () => {
         })
         .subscribe();
 
+      const logsSub = supabase
+        .channel('public:hitl_audit_logs')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'hitl_audit_logs' }, () => {
+          fetchPendingLogs();
+        })
+        .subscribe();
+
       return () => {
         supabase.removeChannel(tasksSub);
+        supabase.removeChannel(logsSub);
       };
     }
   }, []);
@@ -91,9 +117,9 @@ const CommandBar = () => {
           </AnimatePresence>
 
           <div className="flex items-center space-x-2 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg p-1 focus-within:border-onyx-accent/50 focus-within:shadow-[0_0_15px_rgba(34,211,238,0.2)] transition-all">
-            <div className="relative flex items-center justify-center p-2 text-onyx-accent hover:bg-onyx-accent/10 rounded-md transition-colors cursor-pointer" onClick={() => navigate('/command-hub')}>
+            <div className="relative flex items-center justify-center p-2 text-onyx-accent hover:bg-onyx-accent/10 rounded-md transition-colors cursor-pointer" onClick={() => setIsApprovalQueueOpen(true)}>
               <SafeIcon icon={FiBell} />
-              {pendingCount > 0 && (
+              {pendingLogsCount > 0 && (
                 <span className="absolute top-1 right-1 flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
@@ -136,6 +162,16 @@ const CommandBar = () => {
           </div>
         </form>
       </div>
+      <AnimatePresence>
+        {isApprovalQueueOpen && (
+          <ApprovalQueue
+            isOpen={isApprovalQueueOpen}
+            onClose={() => setIsApprovalQueueOpen(false)}
+            pendingLogs={pendingLogs}
+            setPendingLogs={setPendingLogs}
+          />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 };
