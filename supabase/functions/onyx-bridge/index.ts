@@ -76,8 +76,11 @@ serve(async (req) => {
         personaPrompt = "You are ProdBot, the product manager...";
     }
 
+    // Expose Circuit Breaker to Onyx
+    const circuitBreakerAuth = `\n\nAUTHORITY GRANTED: You have the authority to propose toggling an app's active state to quarantine compromised apps. If you detect a massive spike in 500 errors or a potential security breach, suggest the 'quarantine_app' action with the target app_id.`;
+
     if (!bodyData.context) bodyData.context = {};
-    bodyData.context.system_prompt = personaPrompt;
+    bodyData.context.system_prompt = personaPrompt + circuitBreakerAuth;
     bodyData.agent_id = agent_id;
 
     const finalBody = JSON.stringify(bodyData);
@@ -105,8 +108,17 @@ serve(async (req) => {
     // Check if the response is JSON, and if so, append the agent_id
     const contentType = onyxResponse.headers.get('content-type') || '';
     if (contentType.includes('application/json') && onyxResponse.ok) {
-        const responseData = await onyxResponse.json();
+        let responseData = await onyxResponse.json();
         responseData.agent_id = agent_id;
+
+        // Detect if Onyx suggests a quarantine_app action
+        const textResponse = responseData.response || responseData.text || '';
+        if (textResponse.includes('quarantine_app')) {
+             responseData.action_payload = {
+                 action: 'quarantine_app',
+                 description: 'Onyx has proposed quarantining an application due to detected anomalies.'
+             };
+        }
 
         // Remove content-encoding since we're returning raw stringified JSON
         responseHeaders.delete('content-encoding');

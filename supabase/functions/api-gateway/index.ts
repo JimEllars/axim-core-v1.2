@@ -25,6 +25,32 @@ serve(async (req) => {
   }
 
   try {
+    // We clone the request before parsing JSON to get app_source if possible,
+    // or just check ecosystem_apps before parsing? We can just clone the request to parse the body safely
+    let clonedReq = req.clone();
+    let body;
+    try {
+        body = await clonedReq.json();
+    } catch (e) {
+        body = {};
+    }
+    const appSource = body?.app_source || 'AXiM API Gateway Document';
+
+    // Ecosystem Circuit Breaker Check
+    const { data: appData, error: appError } = await supabaseAdmin
+      .from('ecosystem_apps')
+      .select('is_active')
+      .eq('app_id', appSource)
+      .single();
+
+    // If app exists and is_active is false, quarantine it
+    if (!appError && appData && appData.is_active === false) {
+      return new Response(JSON.stringify({ error: 'App Quarantined by AXiM Swarm' }), {
+        status: 503,
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+      });
+    }
+
     const authHeader = req.headers.get('Authorization');
     if (!authHeader || !authHeader.startsWith('Bearer axm_live_')) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -91,12 +117,12 @@ serve(async (req) => {
       throw new Error('Failed to update credits');
     }
 
-    const body = await req.json();
-    const document_data = body.document_data || body;
-    const appSource = body.app_source || 'AXiM API Gateway Document';
+    const finalBody = await req.json();
+    const document_data = finalBody.document_data || finalBody;
+    const finalAppSource = finalBody.app_source || 'AXiM API Gateway Document';
 
     // Generate real PDF content using shared pdf generator
-    const pdfContent = await generatePdf(appSource, document_data);
+    const pdfContent = await generatePdf(finalAppSource, document_data);
     const fileName = `generated_document_${Date.now()}.pdf`;
 
     const { error: uploadError } = await supabaseAdmin.storage

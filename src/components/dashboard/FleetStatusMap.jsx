@@ -81,7 +81,7 @@ const FleetStatusMap = () => {
 
     // Real-time subscription to events_ax2024 to mimic telemetry updates
     if (supabase) {
-        const subscription = supabase
+        const eventSub = supabase
           .channel('fleet-telemetry')
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events_ax2024' }, payload => {
               const newEvent = payload.new;
@@ -121,8 +121,33 @@ const FleetStatusMap = () => {
           })
           .subscribe();
 
+        const auditSub = supabase
+          .channel('hitl-audit-logs')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'hitl_audit_logs' }, payload => {
+              const newLog = payload.new;
+              setFleetStatus(prev => {
+                  if (prev.length === 0) return prev;
+                  // For Swarm actions, we might not have a specific device mapping,
+                  // but we update the overall feed. For this demo, let's append to a random or specific "Swarm" device
+                  const deviceIndex = Math.floor(Math.random() * prev.length);
+                  const newFleet = [...prev];
+                  const device = newFleet[deviceIndex];
+
+                  newFleet[deviceIndex] = {
+                      ...device,
+                      telemetry: [
+                          { id: newLog.id, type: 'swarm_action', message: `Onyx: ${newLog.action} (${newLog.tool_called || 'N/A'})`, status: 'success' },
+                          ...device.telemetry.slice(0, 2)
+                      ]
+                  };
+                  return newFleet;
+              });
+          })
+          .subscribe();
+
         return () => {
-            supabase.removeChannel(subscription);
+            supabase.removeChannel(eventSub);
+            supabase.removeChannel(auditSub);
         };
     }
   }, [supabase]);

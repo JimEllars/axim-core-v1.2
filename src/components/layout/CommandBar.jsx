@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { useNavigate } from 'react-router-dom';
+import supabase from '../../config/supabaseClient';
 
-const { FiTerminal, FiChevronUp, FiChevronDown, FiSend } = FiIcons;
+const { FiTerminal, FiChevronUp, FiChevronDown, FiSend, FiBell } = FiIcons;
 
 const CommandBar = () => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -27,6 +28,37 @@ const CommandBar = () => {
     setInputValue('');
     setIsExpanded(false);
   };
+
+  const [pendingCount, setPendingCount] = useState(0);
+
+  useEffect(() => {
+    const fetchPendingTasks = async () => {
+      if (!supabase) return;
+      const { count, error } = await supabase
+        .from('tasks_ax2024')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+
+      if (!error && count !== null) {
+        setPendingCount(count);
+      }
+    };
+
+    fetchPendingTasks();
+
+    if (supabase) {
+      const tasksSub = supabase
+        .channel('public:tasks_ax2024')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks_ax2024' }, () => {
+          fetchPendingTasks();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(tasksSub);
+      };
+    }
+  }, []);
 
   const barVariants = {
     collapsed: { height: '48px', transition: { duration: 0.3 } },
@@ -59,6 +91,16 @@ const CommandBar = () => {
           </AnimatePresence>
 
           <div className="flex items-center space-x-2 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg p-1 focus-within:border-onyx-accent/50 focus-within:shadow-[0_0_15px_rgba(34,211,238,0.2)] transition-all">
+            <div className="relative flex items-center justify-center p-2 text-onyx-accent hover:bg-onyx-accent/10 rounded-md transition-colors cursor-pointer" onClick={() => navigate('/command-hub')}>
+              <SafeIcon icon={FiBell} />
+              {pendingCount > 0 && (
+                <span className="absolute top-1 right-1 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                </span>
+              )}
+            </div>
+
             <button
               type="button"
               onClick={() => setIsExpanded(!isExpanded)}
