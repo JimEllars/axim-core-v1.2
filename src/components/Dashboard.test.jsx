@@ -29,6 +29,9 @@ vi.mock('./dashboard/GenerativeAIPanel', () => ({
 vi.mock('./dashboard/AIInteractionsChart', () => ({
   default: () => <div data-testid="ai-interactions-chart">AIInteractionsChart</div>,
 }));
+vi.mock('./dashboard/FleetStatusMap', () => ({
+  default: () => <div data-testid="fleet-status-map">FleetStatusMap</div>,
+}));
 
 describe('Dashboard Component', () => {
   it('renders the main components of the dashboard', () => {

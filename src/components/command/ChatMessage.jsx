@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import FormattedContent from './FormattedContent';
+import CryptoJS from 'crypto-js';
 
 const { FiTerminal, FiCpu, FiCopy } = FiIcons;
 
@@ -119,11 +120,26 @@ const ChatMessage = ({ message, onCopyContent }) => {
         setActionState('loading');
         setActionError(null);
         try {
-            // Simulated backend RPC call, replace with actual call
-            if (actionPayload.type === 'issue_refund' && actionPayload.target === 'fail@email.com') {
-                 throw new Error("RPC Failed: Target not found");
+            const taskId = actionPayload.taskId || actionPayload.task_id || message.id;
+            const payload = { task_id: taskId };
+            const payloadStr = JSON.stringify(payload);
+            const secret = import.meta.env.VITE_ONYX_SECURE_KEY || 'default-secret';
+            const signature = CryptoJS.HmacSHA256(payloadStr, secret).toString(CryptoJS.enc.Hex);
+
+            const onyxEdgeUrl = import.meta.env.VITE_ONYX_EDGE_URL || 'https://onyx-edge-bridge.axim.us.com';
+            const response = await fetch(`${onyxEdgeUrl}/api/approve`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Signature': signature
+                },
+                body: payloadStr
+            });
+
+            if (!response.ok) {
+                throw new Error(`RPC Failed: ${response.statusText}`);
             }
-            await new Promise(resolve => setTimeout(resolve, 1000));
+
             setActionState('success');
             setTimeout(() => setActionState('idle'), 3000);
         } catch (err) {

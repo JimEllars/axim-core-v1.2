@@ -12,8 +12,9 @@ import WorkflowBuilder from './WorkflowBuilder';
 import MemoryBank from './MemoryBank';
 import IntelligenceHub from './IntelligenceHub';
 import SecurityAudit from './SecurityAudit';
+import ProductFeedback from './ProductFeedback';
 
-const { FiKey, FiUsers, FiCreditCard, FiGitMerge, FiBarChart2, FiLayers, FiDatabase, FiZap, FiShield } = FiIcons;
+const { FiKey, FiUsers, FiCreditCard, FiGitMerge, FiBarChart2, FiLayers, FiDatabase, FiZap, FiShield, FiMessageSquare } = FiIcons;
 
 const AdminDashboard = () => {
   const { user: currentUser } = useAuth();
@@ -28,6 +29,7 @@ const AdminDashboard = () => {
     { id: 'builder', label: 'Workflow Builder', icon: FiLayers },
     { id: 'memory', label: 'Memory Bank', icon: FiDatabase },
     { id: 'intelligence', label: 'Intelligence Hub', icon: FiZap },
+    { id: 'feedback', label: 'Product Feedback', icon: FiMessageSquare },
     { id: 'audit', label: 'Security Audit', icon: FiShield },
   ];
 
@@ -69,6 +71,7 @@ const AdminDashboard = () => {
           {activeTab === 'builder' && <WorkflowBuilder />}
           {activeTab === 'memory' && <MemoryBank />}
           {activeTab === 'intelligence' && <IntelligenceHub />}
+          {activeTab === 'feedback' && <ProductFeedback />}
           {activeTab === 'audit' && <SecurityAudit />}
         </div>
       </motion.div>
