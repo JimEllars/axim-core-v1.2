@@ -14,9 +14,9 @@ vi.mock('react-icons/fi', async () => {
   const actual = await vi.importActual('react-icons/fi');
   return {
     ...actual,
-    FiLogOut: () => <div data-testid="fi-logout" />,
-    FiActivity: () => <div data-testid="fi-activity" />,
-    FiShield: () => <div data-testid="fi-shield" />,
+    FiLogOut: (props) => <div data-testid="fi-logout" {...props} />,
+    FiActivity: (props) => <div data-testid="fi-activity" {...props} />,
+    FiShield: (props) => <div data-testid="fi-shield" {...props} />,
   };
 });
 
