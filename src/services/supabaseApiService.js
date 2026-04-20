@@ -122,6 +122,22 @@ class SupabaseApiService {
     }
   }
 
+  async getDevices() {
+    if (this._checkConnectivity('getDevices', [])) return [];
+    try {
+      const { data, error } = await this.supabase
+        .from('devices')
+        .select('*')
+        .order('device_name');
+
+      if (error) throw new DatabaseError(error.message);
+      return data || [];
+    } catch (error) {
+      logger.error('Failed to get devices:', error);
+      throw new DatabaseError(`Failed to get devices: ${error.message}`);
+    }
+  }
+
   async getContactsBySource() {
     if (this._checkConnectivity('getContactsBySource', [])) return;
     try {

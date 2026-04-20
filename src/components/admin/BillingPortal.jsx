@@ -57,6 +57,43 @@ const BillingPortal = () => {
     enabled: !!user && user.role === 'admin'
   });
 
+  const { data: adminMetrics, isLoading: isLoadingMetrics } = useQuery({
+    queryKey: ['admin_billing_metrics'],
+    queryFn: async () => {
+      // Fetch MRR (sum of active subscriptions)
+      const { data: subscriptions, error: subError } = await supabase
+        .from('subscriptions_ax2024')
+        .select('plan_id, status')
+        .eq('status', 'active');
+
+      if (subError) throw subError;
+
+      // Calculate MRR - mock $99/mo for pro plan for now
+      let mrr = 0;
+      let activeSubs = 0;
+      subscriptions?.forEach(sub => {
+        activeSubs++;
+        mrr += 99; // Standardizing to $99 for MRR calculation
+      });
+
+      // Fetch recent transactions
+      const { data: recentTransactions, error: txError } = await supabase
+        .from('micro_app_transactions')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (txError) throw txError;
+
+      return {
+        mrr,
+        activeSubs,
+        recentTransactions: recentTransactions || []
+      };
+    },
+    enabled: !!user && user.role === 'admin'
+  });
+
   const { data: partnerCredit, isLoading: isLoadingCredits } = useQuery({
     queryKey: ['partner_credits', user?.id],
     queryFn: async () => {
@@ -229,9 +266,64 @@ const BillingPortal = () => {
           )}
         </div>
 
-        {/* API Credits Section */}
+        {/* Admin Overview Section */}
         {user?.role === 'admin' ? (
-          <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20 col-span-1 md:col-span-2">
+          <div className="col-span-1 md:col-span-2 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+               <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20">
+                 <h4 className="text-slate-400 text-sm mb-1">Global MRR</h4>
+                 <div className="text-3xl font-bold text-green-400">
+                    ${isLoadingMetrics ? '...' : adminMetrics?.mrr.toLocaleString()}
+                 </div>
+               </div>
+               <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20">
+                 <h4 className="text-slate-400 text-sm mb-1">Active SaaS Subscriptions</h4>
+                 <div className="text-3xl font-bold text-blue-400">
+                    {isLoadingMetrics ? '...' : adminMetrics?.activeSubs.toLocaleString()}
+                 </div>
+               </div>
+               <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20">
+                 <h4 className="text-slate-400 text-sm mb-1">Recent Transactions</h4>
+                 <div className="text-3xl font-bold text-purple-400">
+                    {isLoadingMetrics ? '...' : adminMetrics?.recentTransactions.length}
+                 </div>
+               </div>
+            </div>
+
+            <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20">
+              <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
+                <FiPlus className="mr-2 text-blue-400" />
+                Recent Transaction Logs
+              </h3>
+              {isLoadingMetrics ? (
+                <p className="text-slate-400">Loading transactions...</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="table w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-onyx-accent/20 text-slate-400">
+                        <th className="p-3">User/Partner ID</th>
+                        <th className="p-3">Product ID</th>
+                        <th className="p-3">Amount</th>
+                        <th className="p-3">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {adminMetrics?.recentTransactions?.map(tx => (
+                        <tr key={tx.id} className="border-b border-onyx-accent/10 hover:bg-onyx-900/50 transition-colors text-white">
+                          <td className="p-3 text-xs">{tx.user_identifier}</td>
+                          <td className="p-3">{tx.product_id}</td>
+                          <td className="p-3 text-green-400 font-medium">${(tx.amount_total / 100).toFixed(2)}</td>
+                          <td className="p-3 text-slate-400 text-sm">{new Date(tx.created_at).toLocaleString()}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+          <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20">
             <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
               <FiPlus className="mr-2 text-blue-400" />
               B2B Partner Billing Management
@@ -280,6 +372,7 @@ const BillingPortal = () => {
                 </table>
               </div>
             )}
+          </div>
           </div>
         ) : (
           <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20">

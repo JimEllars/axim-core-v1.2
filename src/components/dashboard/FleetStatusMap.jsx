@@ -79,8 +79,35 @@ const FleetStatusMap = () => {
 
     fetchFleetData();
 
-    // Real-time subscription to events_ax2024 to mimic telemetry updates
+    // Real-time subscription to devices and events
     if (supabase) {
+        const deviceSub = supabase
+          .channel('fleet-devices')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'devices' }, payload => {
+              if (payload.eventType === 'UPDATE') {
+                  setFleetStatus(prev => {
+                      const newFleet = [...prev];
+                      const deviceIndex = newFleet.findIndex(d => d.id === payload.new.id);
+                      if (deviceIndex > -1) {
+                          const updatedDevice = payload.new;
+                          let statusColor = 'bg-green-500/20 border-green-500 text-green-400';
+                          if (updatedDevice.status === 'busy' || updatedDevice.status === 'degraded') statusColor = 'bg-yellow-500/20 border-yellow-500 text-yellow-400';
+                          if (updatedDevice.status === 'offline') statusColor = 'bg-red-500/20 border-red-500 text-red-400';
+
+                          newFleet[deviceIndex] = {
+                              ...newFleet[deviceIndex],
+                              status: updatedDevice.status,
+                              statusColor
+                          };
+                      }
+                      return newFleet;
+                  });
+              } else if (payload.eventType === 'INSERT') {
+                  fetchFleetData(); // Refresh list if a new device is added
+              }
+          })
+          .subscribe();
+
         const eventSub = supabase
           .channel('fleet-telemetry')
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events_ax2024' }, payload => {
@@ -146,6 +173,7 @@ const FleetStatusMap = () => {
           .subscribe();
 
         return () => {
+            supabase.removeChannel(deviceSub);
             supabase.removeChannel(eventSub);
             supabase.removeChannel(auditSub);
         };

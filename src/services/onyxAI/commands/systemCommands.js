@@ -18,6 +18,52 @@ export function groupCommandsByCategory(commands) {
 
 const systemCommands = [
   createCommand({
+    name: 'getFleetHealth',
+    description: 'Gets the current health status of all connected micro-apps and devices.',
+    keywords: ['fleet health', 'get fleet health', 'device status', 'nodes'],
+    usage: 'fleet health',
+    category: 'System',
+    async execute() {
+      try {
+        const devices = await api.getDevices();
+        if (!devices || devices.length === 0) {
+          return 'No devices are currently registered in the fleet.';
+        }
+
+        const offline = devices.filter(d => d.status === 'offline');
+        const degraded = devices.filter(d => d.status === 'degraded' || d.status === 'busy');
+        const operational = devices.filter(d => d.status === 'operational');
+
+        let report = `======= FLEET HEALTH REPORT =======\n`;
+        report += `Total Nodes: ${devices.length}\n`;
+        report += `✅ Operational: ${operational.length}\n`;
+        report += `⚠️ Degraded/Busy: ${degraded.length}\n`;
+        report += `❌ Offline: ${offline.length}\n\n`;
+
+        if (offline.length > 0) {
+          report += `--- OFFLINE NODES ---\n`;
+          offline.forEach(d => {
+            report += `• ${d.device_name || d.id} (Last Seen: ${d.last_seen ? new Date(d.last_seen).toLocaleString() : 'Unknown'})\n`;
+          });
+          report += '\n';
+        }
+
+        if (degraded.length > 0) {
+          report += `--- DEGRADED NODES ---\n`;
+          degraded.forEach(d => {
+            report += `• ${d.device_name || d.id}\n`;
+          });
+        }
+        report += `===================================`;
+        return report;
+      } catch (error) {
+        console.error('Error fetching fleet health:', error);
+        return 'Failed to fetch fleet health data.';
+      }
+    }
+  }),
+
+  createCommand({
     name: 'getSystemReport',
     description: 'Gets a comprehensive system health and status report.',
     keywords: ['get system report', 'system report', 'status', 'stats', 'report'],
@@ -90,9 +136,12 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
     category: 'System',
     entities: [{ name: 'WORKFLOW_NAME', required: true, prompt: 'Please specify which workflow to trigger.' }],
     parse: (command) => {
-      const parts = command.split(' ').slice(1);
-      const workflowName = parts.join(' ').trim();
-      return { WORKFLOW_NAME: workflowName || undefined };
+      // Adjusted parsing to handle "trigger engagement-guard" or "launch workflow engagement_guard"
+      const match = command.match(/(?:workflow|trigger|launch|start)\s+([\w_-]+)/i);
+      if (match) {
+        return { WORKFLOW_NAME: match[1].replace(/-/g, '_') };
+      }
+      return { WORKFLOW_NAME: undefined };
     },
     async execute({ WORKFLOW_NAME }, { userId }) {
       const workflows = await api.getWorkflows();
