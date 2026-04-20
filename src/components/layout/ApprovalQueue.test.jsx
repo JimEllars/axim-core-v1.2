@@ -3,6 +3,14 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ApprovalQueue from './ApprovalQueue';
 import { supabase } from '../../services/supabaseClient';
+import api from '../../services/onyxAI/api';
+
+vi.mock('../../services/onyxAI/api', () => ({
+  default: {
+    getHitlAuditLog: vi.fn(),
+    resolveHitlAction: vi.fn()
+  }
+}));
 
 vi.mock('../../services/supabaseClient', () => ({
   supabase: {
@@ -67,7 +75,7 @@ describe('ApprovalQueue Component', () => {
     fireEvent.click(approveButton);
 
     await waitFor(() => {
-        expect(supabase.rpc).toHaveBeenCalledWith('resolve_hitl_action', expect.anything());
+        expect(api.resolveHitlAction).toHaveBeenCalledWith('1', 'Approved', { description: 'A test description', target: 'test-target' });
     });
   });
 
@@ -78,7 +86,7 @@ describe('ApprovalQueue Component', () => {
     fireEvent.click(rejectButton);
 
     await waitFor(() => {
-        expect(supabase.rpc).toHaveBeenCalledWith('resolve_hitl_action', expect.anything());
+        expect(api.resolveHitlAction).toHaveBeenCalledWith('1', 'Rejected'); //, expect.anything());
     });
   });
 });

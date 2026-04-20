@@ -2,7 +2,17 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import EcosystemRegistry from './EcosystemRegistry';
-import { supabase } from '../../services/supabaseClient';
+import api from '../../services/onyxAI/api';
+
+vi.mock('../../services/onyxAI/api', () => ({
+  default: {
+    getAllEcosystemApps: vi.fn().mockResolvedValue([
+      { app_id: 'test-app-1', is_active: true, status: 'Active' },
+      { app_id: 'test-app-2', is_active: false, status: 'Quarantined' }
+    ]),
+    updateEcosystemAppStatus: vi.fn().mockResolvedValue({})
+  }
+}));
 
 vi.mock('../../services/supabaseClient', () => ({
   supabase: {

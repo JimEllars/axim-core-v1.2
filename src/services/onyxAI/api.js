@@ -400,7 +400,68 @@ class ApiService {
     return this._executeWithFallback('bulkDeleteContacts', emails);
   }
 
-  // --- External Service Integrations ---
+
+  async verifyApiKey(apiKey) {
+    return this._executeWithFallback('verifyApiKey', apiKey);
+  }
+
+  async getDiscoveryCapabilities() {
+    return this._executeWithFallback('getDiscoveryCapabilities');
+  }
+
+
+  async resolveHitlAction(logId, status, actionPayload = null) {
+    return this._executeDualWrite('resolveHitlAction', logId, status, actionPayload);
+  }
+
+  async getHitlAuditLog(logId) {
+    return this._executeWithFallback('getHitlAuditLog', logId);
+  }
+
+
+  async updateEcosystemAppStatus(appId, newStatus) {
+    return this._executeDualWrite('updateEcosystemAppStatus', appId, newStatus);
+  }
+
+  async getAllEcosystemApps() {
+    return this._executeWithFallback('getAllEcosystemApps');
+  }
+
+
+  async getApiKeys(userId) {
+    return this._executeWithFallback('getApiKeys', userId);
+  }
+
+  async getPartnerCredit(userId) {
+    return this._executeWithFallback('getPartnerCredit', userId);
+  }
+
+  async generateB2BApiKey(serviceName, userId) {
+    return this._executeDualWrite('generateB2BApiKey', serviceName, userId);
+  }
+
+  async addApiKey(keyData, userId) {
+    return this._executeDualWrite('addApiKey', keyData, userId);
+  }
+
+  async updateApiKey(apiKey) {
+    return this._executeDualWrite('updateApiKey', apiKey);
+  }
+
+  async deleteApiKey(id) {
+    return this._executeDualWrite('deleteApiKey', id);
+  }
+
+
+  async submitProductFeedback(feedback) {
+    return this._executeDualWrite('submitProductFeedback', feedback);
+  }
+
+  async getProductFeedback() {
+    return this._executeWithFallback('getProductFeedback');
+  }
+
+// --- External Service Integrations ---
 
   async initiateTranscription(source, userId) {
     return this._executeWithFallback('initiateTranscription', source, userId);
