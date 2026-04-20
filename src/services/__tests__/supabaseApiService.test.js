@@ -130,6 +130,41 @@ describe('SupabaseApiService', () => {
     });
   });
 
+  describe('queryDatabase', () => {
+    it('should return matched data on success', async () => {
+      const mockData = [{ name: 'Test Contact', email: 'test@example.com' }];
+      const mockQuery = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        or: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: mockData, error: null }),
+      };
+      mockSupabase.from.mockReturnValue(mockQuery);
+
+      const result = await supabaseApiService.queryDatabase('test', 'user-1');
+
+      expect(result).toEqual(mockData);
+      expect(mockSupabase.from).toHaveBeenCalledWith('contacts_ax2024');
+      expect(mockQuery.select).toHaveBeenCalledWith('name, email, source, created_at');
+      expect(mockQuery.eq).toHaveBeenCalledWith('user_id', 'user-1');
+      expect(mockQuery.or).toHaveBeenCalledWith('name.ilike.%test%,email.ilike.%test%');
+      expect(mockQuery.limit).toHaveBeenCalledWith(10);
+    });
+
+    it('should throw DatabaseError on query failure', async () => {
+      const mockError = { message: 'DB Query Failed' };
+      const mockQuery = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        or: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: null, error: mockError }),
+      };
+      mockSupabase.from.mockReturnValue(mockQuery);
+
+      await expect(supabaseApiService.queryDatabase('test', 'user-1')).rejects.toThrow(DatabaseError);
+    });
+  });
+
   describe('getProjectByName', () => {
     it('should return project on success', async () => {
       const mockProject = { id: 1, name: 'Test Project' };
