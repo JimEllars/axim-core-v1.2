@@ -26,23 +26,18 @@ const ProductFeedback = () => {
         diagnostics = await window.electronAPI.getSystemDiagnostics();
       }
 
-      const { error } = await supabase
-        .from('product_feedback')
-        .insert([{
+      await api.submitProductFeedback({
           app_source: 'desktop-client',
           sentiment: 'neutral',
           comments: newFeedback,
           diagnostics: diagnostics
-        }]);
+        });
+      const error = null;
 
       if (error) throw error;
       setNewFeedback('');
       // Refresh list
-      const { data } = await supabase
-        .from('product_feedback')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
+      const data = await api.getProductFeedback();
       if (data) setFeedback(data);
     } catch (err) {
       console.error('Failed to submit feedback:', err);
@@ -54,12 +49,9 @@ const ProductFeedback = () => {
   useEffect(() => {
     const fetchFeedback = async () => {
       setLoading(true);
-      if (supabase) {
-        const { data, error } = await supabase
-          .from('product_feedback')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(50);
+      if (true) {
+        const data = await api.getProductFeedback();
+          const error = null;
         if (!error && data) {
           setFeedback(data);
         }
@@ -68,7 +60,7 @@ const ProductFeedback = () => {
     };
 
     fetchFeedback();
-  }, [supabase]);
+  }, []);
 
   const handleSummarize = async () => {
     setSummarizing(true);

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
+import api from '../../services/onyxAI/api';
 import toast from 'react-hot-toast';
 import providerManager from '../../services/onyxAI/providerManager';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -17,10 +18,8 @@ const ApiKeyManager = ({ user }) => {
   const { data: apiKeys = [], isLoading: isLoadingKeys } = useQuery({
     queryKey: ['api_keys', user.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('api_keys')
-        .select('*')
-        .eq('user_id', user.id);
+      const data = await api.getApiKeys(user.id);
+      const error = null;
       if (error) throw error;
       return data;
     }
@@ -30,11 +29,8 @@ const ApiKeyManager = ({ user }) => {
   const { data: partnerCredit, isLoading: isLoadingCredits } = useQuery({
     queryKey: ['partner_credits', user.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('partner_credits')
-        .select('*')
-        .eq('partner_id', user.id)
-        .maybeSingle();
+      const data = await api.getPartnerCredit(user.id);
+      const error = null;
       if (error) throw error;
       return data;
     }
@@ -42,10 +38,9 @@ const ApiKeyManager = ({ user }) => {
 
   const generateB2BKeyMutation = useMutation({
     mutationFn: async (serviceName) => {
-      const newKey = `axm_live_${Math.random().toString(36).substring(2, 15)}`;
-      const { data, error } = await supabase
-        .from('api_keys')
-        .insert({ service: serviceName || 'B2B API Key', api_key: newKey, user_id: user.id });
+      // Key generated in API service
+      const data = await api.generateB2BApiKey(serviceName, user.id);
+      const error = null;
       if (error) throw error;
       return data;
     },
@@ -59,9 +54,8 @@ const ApiKeyManager = ({ user }) => {
 
   const addApiKeyMutation = useMutation({
     mutationFn: async (keyData) => {
-      const { data, error } = await supabase
-        .from('api_keys')
-        .insert({ ...keyData, user_id: user.id });
+      const data = await api.addApiKey(keyData, user.id);
+      const error = null;
       if (error) throw error;
       return data;
     },
@@ -75,10 +69,8 @@ const ApiKeyManager = ({ user }) => {
 
   const updateApiKeyMutation = useMutation({
     mutationFn: async (apiKey) => {
-      const { data, error } = await supabase
-        .from('api_keys')
-        .update({ api_key: apiKey.api_key, service: apiKey.service })
-        .eq('id', apiKey.id);
+      const data = await api.updateApiKey(apiKey);
+      const error = null;
       if (error) throw error;
       return data;
     },
@@ -92,10 +84,8 @@ const ApiKeyManager = ({ user }) => {
 
   const deleteApiKeyMutation = useMutation({
     mutationFn: async (id) => {
-      const { error } = await supabase
-        .from('api_keys')
-        .delete()
-        .eq('id', id);
+      await api.deleteApiKey(id);
+      const error = null;
       if (error) throw error;
       return id;
     },

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
+import api from '../../services/onyxAI/api';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import toast from 'react-hot-toast';
@@ -17,10 +18,8 @@ const EcosystemRegistry = () => {
   const fetchApps = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('ecosystem_apps')
-        .select('*')
-        .order('app_id', { ascending: true });
+      const data = await api.getAllEcosystemApps();
+      const error = null;
 
       if (error) throw error;
       setApps(data || []);
@@ -41,10 +40,8 @@ const EcosystemRegistry = () => {
         app.app_id === appId ? { ...app, is_active: newStatus } : app
       ));
 
-      const { error } = await supabase
-        .from('ecosystem_apps')
-        .update({ is_active: newStatus })
-        .eq('app_id', appId);
+      await api.updateEcosystemAppStatus(appId, newStatus);
+      const error = null;
 
       if (error) throw error;
 

@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { supabase } from '../../services/supabaseClient';
+import api from '../../services/onyxAI/api';
 import toast from 'react-hot-toast';
 
 const { FiX, FiCheckCircle, FiClock } = FiIcons;
@@ -52,19 +53,13 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
       // Optimistic update
       setPendingLogs((prev) => prev.filter((log) => log.id !== logId));
 
-      const { data, error: updateError } = await supabase.rpc('resolve_hitl_action', {
-        p_log_id: logId,
-        p_status: 'Approved',
-        p_action_payload: actionPayload
-      });
-
-      if (updateError) throw updateError;
+      await api.resolveHitlAction(logId, 'Approved', actionPayload);
 
       toast.success('Action approved and dispatched.');
     } catch (err) {
       toast.error(`Failed to approve action: ${err.message}`);
       // Fallback: restore on fail
-      const { data } = await supabase.from('hitl_audit_logs').select('*').eq('id', logId).single();
+      const data = await api.getHitlAuditLog(logId);
       if (data) setPendingLogs((prev) => [data, ...prev]);
     }
   };
@@ -73,17 +68,12 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
     try {
       setPendingLogs((prev) => prev.filter((log) => log.id !== logId));
 
-      const { error: updateError } = await supabase.rpc('resolve_hitl_action', {
-        p_log_id: logId,
-        p_status: 'Rejected'
-      });
-
-      if (updateError) throw updateError;
+      await api.resolveHitlAction(logId, 'Rejected');
 
       toast.success('Action rejected.');
     } catch (err) {
       toast.error(`Failed to reject action: ${err.message}`);
-      const { data } = await supabase.from('hitl_audit_logs').select('*').eq('id', logId).single();
+      const data = await api.getHitlAuditLog(logId);
       if (data) setPendingLogs((prev) => [data, ...prev]);
     }
   };

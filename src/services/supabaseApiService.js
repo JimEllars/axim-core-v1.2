@@ -1278,7 +1278,236 @@ class SupabaseApiService {
     return { count, error: null };
   }
 
-  // --- External Service Integrations ---
+
+  async verifyApiKey(apiKey) {
+    if (this._checkConnectivity('verifyApiKey', [apiKey])) return;
+    try {
+      const { data, error } = await this.supabase
+        .from('api_keys')
+        .select('*')
+        .eq('api_key', apiKey)
+        .single();
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return null; // Not found
+        }
+        throw new DatabaseError(error.message);
+      }
+      return data;
+    } catch (error) {
+      logger.error('Failed to verify API key:', error);
+      throw new DatabaseError(`Failed to verify API key: ${error.message}`);
+    }
+  }
+
+  async getDiscoveryCapabilities() {
+    if (this._checkConnectivity('getDiscoveryCapabilities', [])) return;
+    try {
+      const { data, error } = await this.supabase
+        .from('ecosystem_apps')
+        .select('*')
+        .eq('is_active', true);
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      logger.error('Failed to get discovery capabilities:', error);
+      throw new DatabaseError(`Failed to get discovery capabilities: ${error.message}`);
+    }
+  }
+
+
+  async resolveHitlAction(logId, status, actionPayload = null) {
+    if (this._checkConnectivity('resolveHitlAction', [logId, status, actionPayload], true)) {
+      return Promise.resolve();
+    }
+    try {
+      const { data, error } = await this.supabase.rpc('resolve_hitl_action', {
+        p_log_id: logId,
+        p_status: status,
+        p_action_payload: actionPayload
+      });
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      logger.error('Failed to resolve HITL action:', error);
+      throw new DatabaseError(`Failed to resolve HITL action: ${error.message}`);
+    }
+  }
+
+  async getHitlAuditLog(logId) {
+    if (this._checkConnectivity('getHitlAuditLog', [logId])) return;
+    try {
+      const { data, error } = await this.supabase
+        .from('hitl_audit_logs')
+        .select('*')
+        .eq('id', logId)
+        .single();
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      logger.error('Failed to get HITL audit log:', error);
+      throw new DatabaseError(`Failed to get HITL audit log: ${error.message}`);
+    }
+  }
+
+
+  async updateEcosystemAppStatus(appId, newStatus) {
+    if (this._checkConnectivity('updateEcosystemAppStatus', [appId, newStatus], true)) return;
+    try {
+      const { data, error } = await this.supabase
+        .from('ecosystem_apps')
+        .update({ is_active: newStatus })
+        .eq('app_id', appId);
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      logger.error('Failed to update ecosystem app status:', error);
+      throw new DatabaseError(`Failed to update ecosystem app status: ${error.message}`);
+    }
+  }
+
+  async getAllEcosystemApps() {
+    if (this._checkConnectivity('getAllEcosystemApps', [])) return;
+    try {
+      const { data, error } = await this.supabase
+        .from('ecosystem_apps')
+        .select('*')
+        .order('app_id', { ascending: true });
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      logger.error('Failed to get all ecosystem apps:', error);
+      throw new DatabaseError(`Failed to get all ecosystem apps: ${error.message}`);
+    }
+  }
+
+
+  async getApiKeys(userId) {
+    if (this._checkConnectivity('getApiKeys', [userId])) return;
+    try {
+      const { data, error } = await this.supabase
+        .from('api_keys')
+        .select('*')
+        .eq('user_id', userId);
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      logger.error('Failed to get api keys:', error);
+      throw new DatabaseError(`Failed to get api keys: ${error.message}`);
+    }
+  }
+
+  async getPartnerCredit(userId) {
+    if (this._checkConnectivity('getPartnerCredit', [userId])) return;
+    try {
+      const { data, error } = await this.supabase
+        .from('partner_credits')
+        .select('*')
+        .eq('partner_id', userId)
+        .maybeSingle();
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      logger.error('Failed to get partner credit:', error);
+      throw new DatabaseError(`Failed to get partner credit: ${error.message}`);
+    }
+  }
+
+  async generateB2BApiKey(serviceName, userId) {
+    if (this._checkConnectivity('generateB2BApiKey', [serviceName, userId], true)) return;
+    try {
+      const newKey = `axm_live_${Math.random().toString(36).substring(2, 15)}`;
+      const { data, error } = await this.supabase
+        .from('api_keys')
+        .insert({ service: serviceName || 'B2B API Key', api_key: newKey, user_id: userId })
+        .select();
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      logger.error('Failed to generate B2B api key:', error);
+      throw new DatabaseError(`Failed to generate B2B api key: ${error.message}`);
+    }
+  }
+
+  async addApiKey(keyData, userId) {
+    if (this._checkConnectivity('addApiKey', [keyData, userId], true)) return;
+    try {
+      const { data, error } = await this.supabase
+        .from('api_keys')
+        .insert({ ...keyData, user_id: userId })
+        .select();
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      logger.error('Failed to add api key:', error);
+      throw new DatabaseError(`Failed to add api key: ${error.message}`);
+    }
+  }
+
+  async updateApiKey(apiKey) {
+    if (this._checkConnectivity('updateApiKey', [apiKey], true)) return;
+    try {
+      const { data, error } = await this.supabase
+        .from('api_keys')
+        .update({ api_key: apiKey.api_key, service: apiKey.service })
+        .eq('id', apiKey.id)
+        .select();
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      logger.error('Failed to update api key:', error);
+      throw new DatabaseError(`Failed to update api key: ${error.message}`);
+    }
+  }
+
+  async deleteApiKey(id) {
+    if (this._checkConnectivity('deleteApiKey', [id], true)) return;
+    try {
+      const { error } = await this.supabase
+        .from('api_keys')
+        .delete()
+        .eq('id', id);
+      if (error) throw new DatabaseError(error.message);
+      return id;
+    } catch (error) {
+      logger.error('Failed to delete api key:', error);
+      throw new DatabaseError(`Failed to delete api key: ${error.message}`);
+    }
+  }
+
+
+  async submitProductFeedback(feedback) {
+    if (this._checkConnectivity('submitProductFeedback', [feedback], true)) return;
+    try {
+      const { data, error } = await this.supabase
+        .from('product_feedback')
+        .insert([feedback])
+        .select();
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      logger.error('Failed to submit product feedback:', error);
+      throw new DatabaseError(`Failed to submit product feedback: ${error.message}`);
+    }
+  }
+
+  async getProductFeedback() {
+    if (this._checkConnectivity('getProductFeedback', [])) return;
+    try {
+      const { data, error } = await this.supabase
+        .from('product_feedback')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      logger.error('Failed to get product feedback:', error);
+      throw new DatabaseError(`Failed to get product feedback: ${error.message}`);
+    }
+  }
+
+// --- External Service Integrations ---
 
   async initiateTranscription(source, userId) {
     // This is a "write" operation in the sense that it initiates a state change,

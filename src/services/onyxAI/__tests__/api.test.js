@@ -37,8 +37,8 @@ describe('ApiService Facade', () => {
     supabaseApiService = (await import('../../supabaseApiService')).default;
 
     // Ensure mocks return promises
-    gcpApiService.queryDatabase.mockResolvedValue([]);
-    supabaseApiService.queryDatabase.mockResolvedValue([]);
+
+
 
     api = (await import('../api')).default;
   });

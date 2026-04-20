@@ -352,7 +352,166 @@ class GcpApiService {
     }
   }
 
-  // --- External Service Proxies ---
+
+  async verifyApiKey(apiKey) {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.post('/api-keys/verify', { apiKey });
+      return response.data;
+    } catch (error) {
+      logger.error('GCP verifyApiKey failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
+  async getDiscoveryCapabilities() {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.get('/discovery/capabilities');
+      return response.data;
+    } catch (error) {
+      logger.error('GCP getDiscoveryCapabilities failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
+
+  async resolveHitlAction(logId, status, actionPayload = null) {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.post('/hitl/resolve', { logId, status, actionPayload });
+      return response.data;
+    } catch (error) {
+      logger.error('GCP resolveHitlAction failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
+  async getHitlAuditLog(logId) {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.get(`/hitl/${logId}`);
+      return response.data;
+    } catch (error) {
+      logger.error('GCP getHitlAuditLog failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
+
+  async updateEcosystemAppStatus(appId, newStatus) {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.patch(`/ecosystem/apps/${appId}`, { is_active: newStatus });
+      return response.data;
+    } catch (error) {
+      logger.error('GCP updateEcosystemAppStatus failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
+  async getAllEcosystemApps() {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.get('/ecosystem/apps');
+      return response.data;
+    } catch (error) {
+      logger.error('GCP getAllEcosystemApps failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
+
+  async getApiKeys(userId) {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.get('/api-keys', { params: { userId } });
+      return response.data;
+    } catch (error) {
+      logger.error('GCP getApiKeys failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
+  async getPartnerCredit(userId) {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.get('/partner-credits', { params: { userId } });
+      return response.data;
+    } catch (error) {
+      logger.error('GCP getPartnerCredit failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
+  async generateB2BApiKey(serviceName, userId) {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.post('/api-keys/b2b', { serviceName, userId });
+      return response.data;
+    } catch (error) {
+      logger.error('GCP generateB2BApiKey failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
+  async addApiKey(keyData, userId) {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.post('/api-keys', { ...keyData, userId });
+      return response.data;
+    } catch (error) {
+      logger.error('GCP addApiKey failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
+  async updateApiKey(apiKey) {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.patch(`/api-keys/${apiKey.id}`, apiKey);
+      return response.data;
+    } catch (error) {
+      logger.error('GCP updateApiKey failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
+  async deleteApiKey(id) {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.delete(`/api-keys/${id}`);
+      return response.data;
+    } catch (error) {
+      logger.error('GCP deleteApiKey failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
+
+  async submitProductFeedback(feedback) {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.post('/feedback', feedback);
+      return response.data;
+    } catch (error) {
+      logger.error('GCP submitProductFeedback failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
+  async getProductFeedback() {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.get('/feedback');
+      return response.data;
+    } catch (error) {
+      logger.error('GCP getProductFeedback failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
+// --- External Service Proxies ---
 
   async initiateTranscription(source, userId) {
     this._ensureInitialized();

@@ -53,7 +53,9 @@ serve(async (req) => {
         const amountTotal = session.amount_total;
 
         if (userId && productId) {
-          await recordOneTimePurchase(userId, productId, amountTotal, session.id);
+          const partnerId = session.metadata?.partner_id;
+          const appId = session.metadata?.app_id;
+          await recordOneTimePurchase(userId, productId, amountTotal, session.id, partnerId, appId);
         } else {
           console.warn(`Payment session ${session.id} missing userId or product_id metadata.`);
         }
@@ -139,7 +141,7 @@ async function updateSubscription(subscription: any) {
     }
 }
 
-async function recordOneTimePurchase(userId: string, productId: string, amountTotal: number, sessionId: string) {
+async function recordOneTimePurchase(userId: string, productId: string, amountTotal: number, sessionId: string, partnerId?: string, appId?: string) {
   console.log(`Recording one-time purchase: User ${userId}, Product ${productId}`);
 
   const { error } = await supabase
@@ -149,6 +151,8 @@ async function recordOneTimePurchase(userId: string, productId: string, amountTo
       product_id: productId,
       amount_total: amountTotal,
       stripe_session_id: sessionId,
+      partner_id: partnerId,
+      app_id: appId,
       created_at: new Date().toISOString()
     });
 
