@@ -94,6 +94,17 @@ class GcpApiService {
     }
   }
 
+  async getDevices() {
+    this._ensureInitialized();
+    try {
+      const response = await this.client.get('/devices');
+      return response.data;
+    } catch (error) {
+      logger.error('GCP getDevices failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
   async getContacts(searchTerm, userId) {
     this._ensureInitialized();
     try {

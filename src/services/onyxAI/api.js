@@ -142,6 +142,10 @@ class ApiService {
     return this._executeWithFallback('listAllContacts', options, userId);
   }
 
+  async getDevices() {
+    return this._executeWithFallback('getDevices');
+  }
+
   async getContacts(searchTerm, userId) {
     return this._executeWithFallback('getContacts', searchTerm, userId);
   }

@@ -5,10 +5,21 @@ export const findCommand = (command) => {
   const lowerCaseCommand = command.toLowerCase().trim();
   const commandKeyword = lowerCaseCommand.split(' ')[0];
 
-  const foundCommand = commands.find(c =>
+  // First pass: Direct exact keyword match
+  let foundCommand = commands.find(c =>
     (c.keywords && c.keywords.includes(commandKeyword)) ||
     (c.aliases && c.aliases.includes(commandKeyword))
   );
+
+  // Second pass: Fuzzy match for multi-word triggers or natural language
+  if (!foundCommand) {
+    foundCommand = commands.find(c => {
+      if (c.keywords) {
+        return c.keywords.some(kw => lowerCaseCommand.includes(kw.toLowerCase()));
+      }
+      return false;
+    });
+  }
 
   if (foundCommand) {
     // Return a copy to avoid mutation

@@ -35,19 +35,19 @@ export default [
   createCommand({
     name: 'runWorkflow',
     description: 'Executes a specific automation workflow.',
-    keywords: ['run workflow', 'start workflow', 'execute workflow'],
+    keywords: ['run workflow', 'start workflow', 'execute workflow', 'trigger', 'launch'],
     category: 'Workflows',
-    usage: 'run workflow <slug> [json_arguments]',
+    usage: 'run workflow <slug> [json_arguments] OR trigger <slug>',
     entities: [
       { name: 'slug', required: true, prompt: 'Which workflow would you like to run?' }
     ],
     parse: (input) => {
-      // Regex to capture the slug and the optional remainder (arguments)
-      // Matches: "run workflow my_slug" or "run workflow my_slug { ... }"
-      const match = input.match(/workflow\s+([\w_]+)(?:\s+(.+))?$/i);
+      // Matches "run workflow my_slug", "trigger my_slug", "launch my_slug"
+      // Also optionally captures remaining JSON string arguments
+      const match = input.match(/(?:workflow|trigger|launch)\s+([\w_-]+)(?:\s+(.+))?$/i);
       if (match) {
         return {
-          slug: match[1],
+          slug: match[1].replace(/-/g, '_'), // Normalize dashes to underscores
           argsString: match[2] // Optional JSON string
         };
       }
