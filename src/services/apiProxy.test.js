@@ -1,87 +1,108 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { callApiProxy } from './apiProxy';
+import { supabase } from './supabaseClient';
+
+vi.mock('./supabaseClient', () => {
+  return {
+    supabase: {
+      functions: {
+        invoke: vi.fn(),
+      },
+    },
+  };
+});
 
 describe('callApiProxy', () => {
   beforeEach(() => {
-    vi.resetModules();
+    vi.clearAllMocks();
   });
 
-  it('should call the proxy successfully and return data', async () => {
-    const mockInvoke = vi.fn().mockResolvedValue({
-      data: { success: true },
-      error: null,
-    });
-
-    vi.doMock('./supabaseClient', () => ({
-      supabase: {
-        functions: {
-          invoke: mockInvoke,
-        },
-      },
-    }));
-
-    const { callApiProxy } = await import('./apiProxy');
+  it('should call supabase.functions.invoke with correct parameters and return data on success', async () => {
+    const mockResponse = { data: { success: true }, error: null };
+    supabase.functions.invoke.mockResolvedValueOnce(mockResponse);
 
     const params = {
       integrationId: 'int-123',
       endpoint: '/users',
-      method: 'POST',
+      method: 'GET',
       body: { name: 'test' },
-      headers: { Authorization: 'Bearer test' },
+      headers: { 'Authorization': 'Bearer token' },
     };
 
     const result = await callApiProxy(params);
 
-    expect(mockInvoke).toHaveBeenCalledWith('api-proxy', {
-      body: params,
+    expect(supabase.functions.invoke).toHaveBeenCalledWith('api-proxy', {
+      body: {
+        integrationId: 'int-123',
+        endpoint: '/users',
+        method: 'GET',
+        body: { name: 'test' },
+        headers: { 'Authorization': 'Bearer token' },
+      },
     });
     expect(result).toEqual({ success: true });
   });
 
+  it('should throw an error if supabase.functions.invoke returns an error object', async () => {
+    const mockResponse = { data: null, error: { message: 'Network error' } };
+    supabase.functions.invoke.mockResolvedValueOnce(mockResponse);
+
+    const params = {
+      integrationId: 'int-123',
+      endpoint: '/users',
+      method: 'GET',
+    };
+
+    await expect(callApiProxy(params)).rejects.toThrow('API Proxy Error: Network error');
+  });
+
+  it('should throw an error if the returned data contains an error property', async () => {
+    const mockResponse = { data: { error: 'Invalid API Key' }, error: null };
+    supabase.functions.invoke.mockResolvedValueOnce(mockResponse);
+
+    const params = {
+      integrationId: 'int-123',
+      endpoint: '/users',
+      method: 'GET',
+    };
+
+    await expect(callApiProxy(params)).rejects.toThrow('API Error: Invalid API Key');
+  });
+
   it('should throw an error if supabase client is not initialized', async () => {
-    vi.doMock('./supabaseClient', () => ({
-      supabase: null,
-    }));
-
-    const { callApiProxy } = await import('./apiProxy');
-
-    await expect(callApiProxy({ integrationId: '1' })).rejects.toThrow("Supabase client is not initialized.");
-  });
-
-  it('should throw an API Proxy Error if supabase.functions.invoke returns an error', async () => {
-    const mockInvoke = vi.fn().mockResolvedValue({
-      data: null,
-      error: { message: 'Network timeout' },
+    vi.resetModules();
+    vi.doMock('./supabaseClient', () => {
+      return { supabase: null };
     });
 
-    vi.doMock('./supabaseClient', () => ({
-      supabase: {
-        functions: {
-          invoke: mockInvoke,
-        },
-      },
-    }));
+    const { callApiProxy: dynamicCallApiProxy } = await import('./apiProxy');
 
-    const { callApiProxy } = await import('./apiProxy');
-
-    await expect(callApiProxy({ integrationId: '1' })).rejects.toThrow("API Proxy Error: Network timeout");
+    await expect(dynamicCallApiProxy({
+      integrationId: '123', endpoint: '/test', method: 'GET'
+    })).rejects.toThrow('Supabase client is not initialized.');
   });
 
-  it('should throw an API Error if the returned data contains an error property', async () => {
-    const mockInvoke = vi.fn().mockResolvedValue({
-      data: { error: 'Invalid integration token' },
-      error: null,
-    });
+  it('should call supabase.functions.invoke correctly without optional parameters (body, headers)', async () => {
+    const mockResponse = { data: { success: true }, error: null };
+    supabase.functions.invoke.mockResolvedValueOnce(mockResponse);
 
-    vi.doMock('./supabaseClient', () => ({
-      supabase: {
-        functions: {
-          invoke: mockInvoke,
-        },
+    const params = {
+      integrationId: 'int-456',
+      endpoint: '/health',
+      method: 'GET',
+    };
+
+    const result = await callApiProxy(params);
+
+    expect(supabase.functions.invoke).toHaveBeenCalledWith('api-proxy', {
+      body: {
+        integrationId: 'int-456',
+        endpoint: '/health',
+        method: 'GET',
+        body: undefined,
+        headers: undefined,
       },
-    }));
-
-    const { callApiProxy } = await import('./apiProxy');
-
-    await expect(callApiProxy({ integrationId: '1' })).rejects.toThrow("API Error: Invalid integration token");
+    });
+    expect(result).toEqual({ success: true });
   });
 });
