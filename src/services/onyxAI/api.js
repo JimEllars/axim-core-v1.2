@@ -414,6 +414,10 @@ class ApiService {
   }
 
 
+  async logHitlAction(userId, actionName, toolCalledJson) {
+    return this._executeDualWrite('logHitlAction', userId, actionName, toolCalledJson);
+  }
+
   async resolveHitlAction(logId, status, actionPayload = null) {
     return this._executeDualWrite('resolveHitlAction', logId, status, actionPayload);
   }

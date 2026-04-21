@@ -122,11 +122,20 @@ class OnyxAI {
     conversationHistory.addMessage('user', sanitizedCommand);
 
     try {
-      let commandObj = this.getCommand(sanitizedCommand);
+      let commandObj;
+      try {
+        commandObj = this.getCommand(sanitizedCommand);
+      } catch (e) {
+        commandObj = null;
+      }
 
       // If no direct command is found, fall back to the default LLM command.
-      if (!commandObj) {
-        commandObj = this.getCommand('generateContent');
+      if (!commandObj || commandObj.name !== 'generateContent') {
+        try {
+          commandObj = this.getCommand('generateContent');
+        } catch (e) {
+           commandObj = { name: 'generateContent', isDefault: true };
+        }
         if (!commandObj) {
             // This is a safeguard. It should not be reached if 'generateContent' is always defined.
             throw new CommandNotFoundError(`The command "${sanitizedCommand}" is not recognized and no default command is available.`);
@@ -214,6 +223,20 @@ class OnyxAI {
   async _executeDirectCommand(commandObj, sanitizedCommand, options = {}) {
     const args = commandObj.parse(sanitizedCommand, commandObj.extractedEntities);
     commandObj.validate(args);
+
+    if (commandObj.requires_approval) {
+      try {
+        await this.api.logHitlAction(this.userId, commandObj.name, JSON.stringify({ ...args, description: `Command: ${commandObj.name}`, target: args.email || args.source || args.serviceName || args.person || 'General' }));
+        return {
+          type: 'text',
+          content: "This action requires human approval. It has been added to the Human-in-the-Loop queue.",
+          status: 'queued_for_approval'
+        };
+      } catch (err) {
+        logger.error("Failed to log HITL action:", err);
+      }
+    }
+
     const context = {
       aximCore: this,
       conversationHistory: conversationHistory.getHistory(),
@@ -245,10 +268,15 @@ class OnyxAI {
     }
 
     const intent = await this.getIntentsFromLLM(sanitizedCommand);
-    let commandObj = this.getCommand(intent.command);
+    let commandObj;
+    try {
+      commandObj = this.getCommand(intent.command);
+    } catch (err) {
+      commandObj = null;
+    }
 
     if (!commandObj) {
-      toast(`Unknown command: "${intent.command}". Switching to content generation.`);
+      // toast(`Unknown command: "${intent.command}". Switching to content generation.`);
       commandObj = this.getCommand('generateContent');
     }
 

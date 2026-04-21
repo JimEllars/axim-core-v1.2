@@ -110,6 +110,7 @@ const externalCommands = [
   }),
   createCommand({
     name: 'callService',
+    requires_approval: true,
     description: 'Invokes a generic AXiM service endpoint.',
     keywords: ['call service', 'invoke service', 'remote call'],
     usage: 'call service <service_name> <endpoint> <json_payload>',

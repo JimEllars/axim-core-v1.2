@@ -408,8 +408,26 @@ const WorkflowBuilder = () => {
                   return;
                 }
                 try {
-                  const definition = { steps: nodes };
-                  await api.createWorkflow(
+                  const steps = nodes.map((node, index) => {
+                  let config = {};
+                  if (node.type === 'action') {
+                     config = {
+                        service: 'foreman-os',
+                        endpoint: 'status',
+                        payload: { node_id: node.id }
+                     };
+                  }
+                  if (node.type === 'condition') {
+                     config = { query: 'users' };
+                  }
+                  return {
+                     name: node.label,
+                     type: node.type === 'trigger' ? 'trigger' : (node.type === 'action' ? 'api_call' : 'query_database'),
+                     config
+                  };
+                });
+                const definition = { steps };
+                await api.createWorkflow(
                     "Custom Workflow " + Date.now(),
                     "Generated workflow",
                     "custom_wf_" + Date.now(),

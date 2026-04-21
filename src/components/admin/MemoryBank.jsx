@@ -68,7 +68,7 @@ const MemoryBank = () => {
             <div key={idx} className="p-4 bg-onyx-950/50 rounded-lg border border-onyx-accent/20">
               <div className="flex justify-between items-start mb-2">
                  <div className="text-xs text-slate-400 flex items-center">
-                    <SafeIcon icon={FiMessageSquare} size={12} className="mr-1" /> Match Score: {(result.similarity * 100).toFixed(1)}%
+                    <SafeIcon icon={FiMessageSquare} size={12} className="mr-1" /> <span className={`font-bold ${result.similarity > 0.8 ? 'text-green-400' : result.similarity > 0.6 ? 'text-yellow-400' : 'text-red-400'}`}>Match Score: {(result.similarity * 100).toFixed(1)}%</span>
                  </div>
               </div>
               <div className="mb-2">

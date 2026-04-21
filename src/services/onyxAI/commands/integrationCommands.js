@@ -3,6 +3,7 @@ import { createCommand } from './commandFactory';
 const integrationCommands = [
   createCommand({
     name: 'syncContacts',
+    requires_approval: true,
     description: 'Syncs current contacts with an external CRM integration.',
     keywords: ['sync contacts', 'crm sync', 'push to crm'],
     usage: 'sync contacts',
@@ -30,6 +31,7 @@ const integrationCommands = [
   }),
   createCommand({
     name: 'scheduleMeeting',
+    requires_approval: true,
     description: 'Schedules a meeting via Calendar integration.',
     keywords: ['schedule meeting', 'book meeting', 'calendar meeting'],
     usage: 'schedule meeting with <person>',
