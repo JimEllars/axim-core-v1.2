@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from 'uuid';
+
 const LogLevel = {
   DEBUG: 0,
   INFO: 1,
@@ -8,26 +10,45 @@ const LogLevel = {
 class Logger {
   constructor(level = LogLevel.INFO) {
     this.level = level;
+    if (typeof localStorage !== 'undefined') {
+      this.correlationId = localStorage.getItem('x-axim-correlation-id') || uuidv4();
+      localStorage.setItem('x-axim-correlation-id', this.correlationId);
+    } else {
+      this.correlationId = uuidv4();
+    }
+  }
+
+  getCorrelationId() {
+    return this.correlationId;
+  }
+
+  refreshCorrelationId() {
+    this.correlationId = uuidv4();
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('x-axim-correlation-id', this.correlationId);
+    }
+    return this.correlationId;
   }
 
   log(level, message, ...args) {
     if (level >= this.level) {
       const timestamp = new Date().toISOString();
+      const prefix = `[${timestamp}] [CID: ${this.correlationId}]`;
       switch (level) {
         case LogLevel.DEBUG:
-          console.debug(`[${timestamp}] DEBUG:`, message, ...args);
+          console.debug(`${prefix} DEBUG:`, message, ...args);
           break;
         case LogLevel.INFO:
-          console.info(`[${timestamp}] INFO:`, message, ...args);
+          console.info(`${prefix} INFO:`, message, ...args);
           break;
         case LogLevel.WARN:
-          console.warn(`[${timestamp}] WARN:`, message, ...args);
+          console.warn(`${prefix} WARN:`, message, ...args);
           break;
         case LogLevel.ERROR:
-          console.error(`[${timestamp}] ERROR:`, message, ...args);
+          console.error(`${prefix} ERROR:`, message, ...args);
           break;
         default:
-          console.log(`[${timestamp}]`, message, ...args);
+          console.log(`${prefix}`, message, ...args);
       }
     }
   }

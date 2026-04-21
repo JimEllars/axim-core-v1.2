@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
+import { getCorsHeaders } from '../_shared/cors.ts';
+import { generateAximSessionJwt } from '../_shared/auth.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
@@ -23,7 +24,7 @@ serve(async (req) => {
 
     const token = authHeader.replace('Bearer ', '');
 
-    // Verify the JWT token
+    // Verify the standard Supabase JWT token against the core users table
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
 
     if (userError || !user) {
@@ -46,11 +47,22 @@ serve(async (req) => {
 
     const healthIndex = scoreData ? scoreData.health_index : 100; // Default to 100 if no data
 
+    const role = user.user_metadata?.role || 'user'; // fetch standard access level
+
+    const aximSessionToken = await generateAximSessionJwt({
+        sub: user.id,
+        email: user.email,
+        health_index: healthIndex,
+        role: role
+    });
+
     return new Response(JSON.stringify({
       user_id: user.id,
       email: user.email,
       health_index: healthIndex,
-      verified: true
+      role: role,
+      verified: true,
+      axim_session_token: aximSessionToken
     }), {
       status: 200,
       headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },

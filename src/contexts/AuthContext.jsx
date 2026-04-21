@@ -36,6 +36,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [role, setRole] = useState(null);
   const [settings, setSettings] = useState(null);
+  const [aximSessionToken, setAximSessionToken] = useState(null);
 
   const loadUserSettings = useCallback(async (currentUser) => {
     if (config.isMockLlmEnabled) {
@@ -55,6 +56,32 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  const refreshAximSession = useCallback(async (session) => {
+    if (!session) {
+      setAximSessionToken(null);
+      localStorage.removeItem('axim_session_token');
+      return;
+    }
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/passport-verify`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.axim_session_token) {
+          setAximSessionToken(data.axim_session_token);
+          localStorage.setItem('axim_session_token', data.axim_session_token);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to refresh AXiM session token:", error);
+    }
+  }, []);
+
   const handleSession = useCallback(async (session) => {
     const currentUser = session?.user ?? null;
     setUser(currentUser);
@@ -68,11 +95,13 @@ export const AuthProvider = ({ children }) => {
         .single();
       setRole(userRole?.role || 'user');
       await loadUserSettings(currentUser);
+      await refreshAximSession(session);
     } else {
       setRole(null);
       loadUserSettings(null);
+      await refreshAximSession(null);
     }
-  }, [supabase, loadUserSettings]);
+  }, [supabase, loadUserSettings, refreshAximSession]);
 
   useEffect(() => {
     const isMock = config.isMockLlmEnabled;
@@ -143,6 +172,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated,
     role,
     settings,
+    aximSessionToken,
     loadUserSettings,
     login,
     logout,
