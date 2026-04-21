@@ -2,6 +2,7 @@
 import toast from 'react-hot-toast';
 import api from './api';
 import logger from '../logging';
+import { supabase } from '../supabaseClient';
 
 const LOCAL_STORAGE_KEY_PREFIX = 'axim_chat_history_';
 const AUTOSAVE_INTERVAL = 10 * 60 * 1000; // 10 minutes
@@ -18,6 +19,8 @@ class ConversationHistory {
     this.conversationId = null;
     this.storageKey = null;
     this.autosaveInterval = null;
+    this.summaryThreshold = 15;
+    this.summaryCount = 10;
   }
 
   /**
@@ -62,10 +65,10 @@ class ConversationHistory {
 
   /**
    * Adds a message to the history, enriching it with metadata.
-   * @param {string} type - The type of message ('user', 'assistant', 'error').
+   * @param {string} type - The type of message ('user', 'assistant', 'error', 'system').
    * @param {string|object} content - The message content.
    */
-  addMessage(type, content) {
+  async addMessage(type, content) {
     const message = {
       messageId: crypto.randomUUID(),
       conversationId: this.conversationId,
@@ -76,6 +79,9 @@ class ConversationHistory {
     };
     this.history.push(message);
     this._saveToCache();
+
+    // Check for rolling summary
+    await this._checkAndPerformRollingSummary();
   }
 
   getHistory() {
@@ -104,11 +110,76 @@ class ConversationHistory {
 
   // --- Private Helper Methods ---
 
+  async _checkAndPerformRollingSummary() {
+      // Filter out system messages/summaries from the threshold count
+      const userAndAssistantMessages = this.history.filter(msg => msg.type === 'user' || msg.type === 'assistant');
+
+      if (userAndAssistantMessages.length > this.summaryThreshold) {
+          logger.info(`Message count (${userAndAssistantMessages.length}) exceeded threshold. Triggering rolling summary.`);
+
+          // Identify the oldest N messages
+          const oldestMessages = userAndAssistantMessages.slice(0, this.summaryCount);
+          const messagesToSummarize = oldestMessages.map(m => `${m.type}: ${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`).join('\n');
+
+          try {
+              // In a real application, you might use an edge function to do this summarization
+              // Here we simulate the LLM call using the api proxy or direct instruction
+              const summaryPrompt = `Please provide a dense, concise summary of the following conversation history. Preserve key facts and intent.\n\n${messagesToSummarize}`;
+
+              const { data, error } = await supabase.functions.invoke('llm-proxy', {
+                  body: {
+                      messages: [{ role: 'system', content: summaryPrompt }],
+                      model: 'claude-3-haiku-20240307' // Fast model
+                  }
+              });
+
+              if (error) throw error;
+
+              const summaryText = data?.content || data?.choices?.[0]?.message?.content || "Summary could not be generated.";
+
+              // 1. Create the summary message
+              const summaryMessage = {
+                  messageId: crypto.randomUUID(),
+                  conversationId: this.conversationId,
+                  userId: this.userId,
+                  type: 'system',
+                  content: `[System Memory Summary]: ${summaryText}`,
+                  timestamp: new Date().toISOString(),
+              };
+
+              // 2. Remove the oldest N messages from local history
+              const idsToRemove = new Set(oldestMessages.map(m => m.messageId));
+              this.history = this.history.filter(m => !idsToRemove.has(m.messageId));
+
+              // 3. Add the summary message at the beginning of the local history (after any existing summaries)
+              let insertIndex = 0;
+              while(insertIndex < this.history.length && this.history[insertIndex].type === 'system') {
+                  insertIndex++;
+              }
+              this.history.splice(insertIndex, 0, summaryMessage);
+
+              this._saveToCache();
+
+              // 4. Save to MemoryBank (RAG)
+              await supabase.from('ai_memory_banks').insert({
+                  user_id: this.userId,
+                  content: summaryText,
+                  source_type: 'rolling_summary',
+                  metadata: { conversationId: this.conversationId }
+              });
+
+              logger.info('Rolling summary complete and stored in Memory Bank.');
+          } catch (err) {
+              logger.error('Error during rolling summary generation:', err);
+          }
+      }
+  }
+
   _startAutosave() {
     this._stopAutosave(); // Ensure no duplicate intervals are running
     this.autosaveInterval = setInterval(() => {
       if (this.history.length > 0) {
-        logger.log(`[Autosave] Saving conversation history for ${this.conversationId}`);
+        logger.info(`[Autosave] Saving conversation history for ${this.conversationId}`);
         this._saveToCache();
       }
     }, AUTOSAVE_INTERVAL);
@@ -127,7 +198,7 @@ class ConversationHistory {
       const cachedHistory = localStorage.getItem(this.storageKey);
       if (cachedHistory) {
         this.history = JSON.parse(cachedHistory);
-        logger.log(`Loaded ${this.history.length} messages from cache for conversation ${this.conversationId}`);
+        logger.info(`Loaded ${this.history.length} messages from cache for conversation ${this.conversationId}`);
       }
     } catch (error) {
       logger.error('Failed to load conversation history from cache:', error);
@@ -191,7 +262,7 @@ class ConversationHistory {
     this.history = Array.from(messageMap.values()).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
     this._saveToCache();
-    logger.log(`Merged local and remote history. Total messages: ${this.history.length}`);
+    logger.info(`Merged local and remote history. Total messages: ${this.history.length}`);
   }
 }
 

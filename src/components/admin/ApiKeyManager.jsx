@@ -36,6 +36,21 @@ const ApiKeyManager = ({ user }) => {
     }
   });
 
+  // Fetch API Key Usage
+  const { data: usageLogs = [] } = useQuery({
+    queryKey: ['api_usage_logs', user.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('api_usage_logs')
+        .select('*')
+        .eq('partner_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data;
+    }
+  });
+
   const generateB2BKeyMutation = useMutation({
     mutationFn: async (serviceName) => {
       // Key generated in API service
@@ -203,6 +218,8 @@ const ApiKeyManager = ({ user }) => {
             <tr>
               <th>Service</th>
               <th>API Key</th>
+              <th>Tier</th>
+              <th>Rate Limit (RPM)</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -235,6 +252,30 @@ const ApiKeyManager = ({ user }) => {
                 </td>
                 <td>
                   {editingKey === key.id ? (
+                    <input
+                      type="text"
+                      defaultValue={key.tier || 'standard'}
+                      onChange={(e) => key.tier = e.target.value}
+                      className="input input-bordered w-full bg-onyx-950"
+                    />
+                  ) : (
+                    key.tier || 'standard'
+                  )}
+                </td>
+                <td>
+                  {editingKey === key.id ? (
+                    <input
+                      type="number"
+                      defaultValue={key.rate_limit || 100}
+                      onChange={(e) => key.rate_limit = parseInt(e.target.value, 10)}
+                      className="input input-bordered w-full bg-onyx-950"
+                    />
+                  ) : (
+                    key.rate_limit || 100
+                  )}
+                </td>
+                <td>
+                  {editingKey === key.id ? (
                     <button onClick={() => handleEditApiKey(key)} className="btn btn-sm btn-success">Save</button>
                   ) : (
                     <button onClick={() => setEditingKey(key.id)} className="btn btn-sm btn-info">Edit</button>
@@ -246,6 +287,33 @@ const ApiKeyManager = ({ user }) => {
           </tbody>
         </table>
       </div>
+
+      <div className="mt-8">
+        <h3 className="text-lg font-bold mb-4">Recent Usage Logs</h3>
+        {usageLogs.length === 0 ? (
+            <p className="text-slate-400">No recent usage found.</p>
+        ) : (
+            <div className="overflow-x-auto">
+              <table className="table w-full">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Endpoint</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {usageLogs.map((log) => (
+                    <tr key={log.id}>
+                      <td>{new Date(log.created_at).toLocaleString()}</td>
+                      <td>{log.endpoint}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+        )}
+      </div>
+
     </div>
     </div>
   );

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import logger from './logging';
 
 // In a real-world scenario, the VITE_API_BASE_URL would come from the .env file
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
@@ -17,6 +18,7 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  config.headers['x-axim-correlation-id'] = logger.getCorrelationId();
   return config;
 }, (error) => {
   return Promise.reject(error);
@@ -35,12 +37,13 @@ export const callCloudApi = async (endpoint, payload) => {
     const response = await apiClient.post(`/${endpoint}`, payload);
     return response.data;
   } catch (error) {
-    console.error(`Cloud API call to '${endpoint}' failed:`, error);
+    logger.error(`Cloud API call to '${endpoint}' failed:`, error);
     // Re-throw a structured error similar to the IPC handler's format
     throw {
       success: false,
       error: error.response?.data?.error || 'A network error occurred.',
       source: `apiClient:${endpoint}`,
+      correlationId: logger.getCorrelationId()
     };
   }
 };

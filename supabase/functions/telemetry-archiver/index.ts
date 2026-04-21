@@ -13,6 +13,8 @@ serve(async (req) => {
     }
 
     try {
+        const correlationId = req.headers.get('x-axim-correlation-id') || 'system-generated';
+
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
         const cutoffDate = thirtyDaysAgo.toISOString();
@@ -24,17 +26,17 @@ serve(async (req) => {
             .lt("created_at", cutoffDate);
 
         if (fetchError) {
-            console.error("Error fetching telemetry logs:", fetchError);
-            return new Response(JSON.stringify({ error: "Failed to fetch telemetry logs" }), {
+            console.error(`[CID: ${correlationId}] Error fetching telemetry logs:`, fetchError);
+            return new Response(JSON.stringify({ error: "Failed to fetch telemetry logs", correlationId }), {
                 status: 500,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                headers: { ...corsHeaders, "Content-Type": "application/json", "x-axim-correlation-id": correlationId },
             });
         }
 
         if (!logsToArchive || logsToArchive.length === 0) {
-            return new Response(JSON.stringify({ message: "No logs to archive" }), {
+            return new Response(JSON.stringify({ message: "No logs to archive", correlationId }), {
                 status: 200,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
+                headers: { ...corsHeaders, "Content-Type": "application/json", "x-axim-correlation-id": correlationId },
             });
         }
 
@@ -63,10 +65,10 @@ serve(async (req) => {
             });
 
         if (uploadError) {
-             console.error("Error uploading archive:", uploadError);
-             return new Response(JSON.stringify({ error: "Failed to upload archive" }), {
+             console.error(`[CID: ${correlationId}] Error uploading archive:`, uploadError);
+             return new Response(JSON.stringify({ error: "Failed to upload archive", correlationId }), {
                  status: 500,
-                 headers: { ...corsHeaders, "Content-Type": "application/json" },
+                 headers: { ...corsHeaders, "Content-Type": "application/json", "x-axim-correlation-id": correlationId },
              });
         }
 
@@ -80,23 +82,24 @@ serve(async (req) => {
             .in("id", logIds);
 
         if (deleteError) {
-             console.error("Error deleting archived logs:", deleteError);
-             return new Response(JSON.stringify({ error: "Failed to delete archived logs" }), {
+             console.error(`[CID: ${correlationId}] Error deleting archived logs:`, deleteError);
+             return new Response(JSON.stringify({ error: "Failed to delete archived logs", correlationId }), {
                  status: 500,
-                 headers: { ...corsHeaders, "Content-Type": "application/json" },
+                 headers: { ...corsHeaders, "Content-Type": "application/json", "x-axim-correlation-id": correlationId },
              });
         }
 
-        return new Response(JSON.stringify({ message: `Successfully archived ${logsToArchive.length} logs.` }), {
+        return new Response(JSON.stringify({ message: `Successfully archived ${logsToArchive.length} logs.`, correlationId }), {
             status: 200,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...corsHeaders, "Content-Type": "application/json", "x-axim-correlation-id": correlationId },
         });
 
     } catch (error) {
-        console.error("Telemetry archiver error:", error);
-        return new Response(JSON.stringify({ error: error.message }), {
+        const correlationId = req.headers.get('x-axim-correlation-id') || 'system-generated';
+        console.error(`[CID: ${correlationId}] Telemetry archiver error:`, error);
+        return new Response(JSON.stringify({ error: error.message, correlationId }), {
             status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...corsHeaders, "Content-Type": "application/json", "x-axim-correlation-id": correlationId },
         });
     }
 });

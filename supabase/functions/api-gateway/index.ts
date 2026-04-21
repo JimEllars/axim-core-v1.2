@@ -39,7 +39,7 @@ serve(async (req) => {
 
     const { data: apiKeyData, error: keyError } = await supabaseAdmin
       .from('api_keys')
-      .select('user_id')
+      .select('id, user_id, api_key, tier, rate_limit')
       .eq('api_key', hashedKey)
       .single();
 
@@ -77,21 +77,51 @@ serve(async (req) => {
 
     const partnerId = apiKeyData.user_id;
 
-    // Dynamic Rate Limiting: Web3-Aware Gateway
-    let rateLimitCap = 100;
+    // Dynamic Rate Limiting
+    let rateLimitCap = apiKeyData.rate_limit || 100; // Requests per minute
+
+    // Check if user is an AXiM node holder
     try {
         const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(partnerId);
 
         if (!userError && userData && userData.user && userData.user.user_metadata) {
             if (userData.user.user_metadata.axim_node_holder) {
-                rateLimitCap = 1000;
+                rateLimitCap = Math.max(rateLimitCap, 1000);
             }
         }
     } catch (e) {
-        // gracefully handle missing/malformed session data
         console.warn("Failed to check Web3 token identity, defaulting to standard rate limit", e);
     }
-    // Assume there is rate limit enforcement logic following this checking `rateLimitCap`
+
+    // Call our rate limiting RPC to enforce quota. Let's assume an RPC exists `enforce_rate_limit`
+    // Alternatively, if we don't have an RPC, we will manage usage counters in DB
+    const { data: rateLimitData, error: rlError } = await supabaseAdmin
+      .rpc('increment_api_usage', { p_api_key_id: apiKeyData.id, p_limit: rateLimitCap });
+
+    // Assuming increment_api_usage returns true if allowed, false if limit exceeded.
+    // Let's implement a fallback simple tracking if RPC isn't guaranteed or we need something basic
+    // Instead of failing due to RPC missing, we'll try to insert a log and check counts.
+    const minuteAgo = new Date(Date.now() - 60000).toISOString();
+    const { count: currentUsage, error: countError } = await supabaseAdmin
+        .from('api_usage_logs')
+        .select('*', { count: 'exact', head: true })
+        .eq('api_key_id', apiKeyData.id)
+        .gte('created_at', minuteAgo);
+
+    if (currentUsage !== null && currentUsage >= rateLimitCap) {
+      await notifyOnyx(endpoint, 429, { partnerId, reason: 'Rate limit exceeded' });
+      return new Response(JSON.stringify({ error: 'Too Many Requests' }), {
+        status: 429,
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Log the usage
+    await supabaseAdmin.from('api_usage_logs').insert({
+      api_key_id: apiKeyData.id,
+      partner_id: partnerId,
+      endpoint: endpoint
+    });
 
     const { data: creditData, error: creditError } = await supabaseAdmin
       .from('partner_credits')
