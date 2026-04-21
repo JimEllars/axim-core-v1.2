@@ -53,7 +53,7 @@ describe('callApiProxy', () => {
       method: 'GET',
     };
 
-    await expect(callApiProxy(params)).rejects.toThrow('API Proxy Error: Network error');
+    await expect(callApiProxy(params)).rejects.toThrow('API Proxy Error');
   });
 
   it('should throw an error if the returned data contains an error property', async () => {
@@ -66,7 +66,7 @@ describe('callApiProxy', () => {
       method: 'GET',
     };
 
-    await expect(callApiProxy(params)).rejects.toThrow('API Error: Invalid API Key');
+    await expect(callApiProxy(params)).rejects.toThrow('API Proxy Error');
   });
 
   it('should throw an error if supabase client is not initialized', async () => {

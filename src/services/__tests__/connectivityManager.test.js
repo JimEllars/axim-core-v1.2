@@ -16,7 +16,7 @@ vi.mock('../offline', () => ({
   },
 }));
 
-vi.mock('@/services/logging', () => ({
+vi.mock('../logging', () => ({
   default: {
     log: vi.fn(),
     warn: vi.fn(),
