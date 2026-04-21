@@ -1,4 +1,9 @@
-import { supabase } from './supabaseClient'; // Assuming you have a supabase client export
+const fs = require('fs');
+
+const file = 'src/services/apiProxy.js';
+let content = fs.readFileSync(file, 'utf8');
+
+const newContent = `import { supabase } from './supabaseClient'; // Assuming you have a supabase client export
 import { callCloudApi } from './apiClient';
 import logger from './logging';
 
@@ -34,7 +39,7 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
 
     if (data && data.error) {
       // Logic errors passed from backend
-      throw new Error(`API Error: ${data.error}`);
+      throw new Error(\`API Error: \${data.error}\`);
     }
 
     return data;
@@ -43,7 +48,7 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
 
     // Only failover on true server/network issues, not 4xx client errors
     if (isServerError || !error.status) {
-       logger.warn(`API Proxy Error (Supabase Edge): ${error.message}. Failing over to GCP backend.`);
+       logger.warn(\`API Proxy Error (Supabase Edge): \${error.message}. Failing over to GCP backend.\`);
 
        try {
           // Attempt GCP failover
@@ -55,15 +60,18 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
               headers
           });
 
-          logger.info(`GCP Fallback successful for ${endpoint}`);
+          logger.info(\`GCP Fallback successful for \${endpoint}\`);
           return gcpData;
        } catch (gcpError) {
-          logger.error(`GCP Fallback failed for ${endpoint}`, gcpError);
-          throw new Error(`API Proxy Error (Dual-Backend Failure): ${error.message} | GCP: ${gcpError.message || gcpError.error}`);
+          logger.error(\`GCP Fallback failed for \${endpoint}\`, gcpError);
+          throw new Error(\`API Proxy Error (Dual-Backend Failure): \${error.message} | GCP: \${gcpError.message || gcpError.error}\`);
        }
     }
 
     // If it's a 4xx error or an explicitly returned logic error, don't failover
-    throw new Error(`API Proxy Error: ${error.message}`);
+    throw new Error(\`API Proxy Error: \${error.message}\`);
   }
 };
+`;
+
+fs.writeFileSync(file, newContent, 'utf8');

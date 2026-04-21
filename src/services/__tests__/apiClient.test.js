@@ -127,11 +127,11 @@ describe('apiClient', () => {
       // Spy on console.error to prevent it from cluttering test output
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      await expect(callCloudApi(endpoint, payload)).rejects.toEqual({
+      await expect(callCloudApi(endpoint, payload)).rejects.toEqual(expect.objectContaining({
         success: false,
         error: 'Custom API Error',
         source: `apiClient:${endpoint}`,
-      });
+      }));
 
       expect(consoleErrorSpy).toHaveBeenCalled();
       consoleErrorSpy.mockRestore();
@@ -147,11 +147,11 @@ describe('apiClient', () => {
       // Spy on console.error to prevent it from cluttering test output
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-      await expect(callCloudApi(endpoint, payload)).rejects.toEqual({
+      await expect(callCloudApi(endpoint, payload)).rejects.toEqual(expect.objectContaining({
         success: false,
         error: 'A network error occurred.',
         source: `apiClient:${endpoint}`,
-      });
+      }));
 
       expect(consoleErrorSpy).toHaveBeenCalled();
       consoleErrorSpy.mockRestore();

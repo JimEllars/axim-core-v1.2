@@ -34,6 +34,7 @@ export default [
   }),
   createCommand({
     name: 'runWorkflow',
+    aliases: ['execute_workflow'],
     description: 'Executes a specific automation workflow.',
     keywords: ['run workflow', 'start workflow', 'execute workflow', 'trigger', 'launch'],
     category: 'Workflows',
@@ -44,7 +45,8 @@ export default [
     parse: (input) => {
       // Matches "run workflow my_slug", "trigger my_slug", "launch my_slug"
       // Also optionally captures remaining JSON string arguments
-      const match = input.match(/(?:workflow|trigger|launch)\s+([\w_-]+)(?:\s+(.+))?$/i);
+      // Also match "execute_workflow <slug>"
+      const match = input.match(/(?:workflow|trigger|launch|execute_workflow)\s+([\w_-]+)(?:\s+(.+))?$/i);
       if (match) {
         return {
           slug: match[1].replace(/-/g, '_'), // Normalize dashes to underscores
@@ -76,7 +78,7 @@ export default [
         try {
           if (context.aximCore && context.aximCore.api) {
             const dbWorkflows = await context.aximCore.api.getWorkflows();
-            workflow = dbWorkflows.find(w => w.slug === slug);
+            workflow = dbWorkflows.find(w => w.slug === slug || w.id === slug || w.name === slug);
           }
         } catch (error) {
           console.warn("Could not fetch workflow from database:", error);
