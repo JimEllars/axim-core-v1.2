@@ -387,6 +387,13 @@ class GcpApiService {
   }
 
 
+  async logHitlAction(userId, actionName, toolCalledJson) {
+    return this._fetchWithAuth('/api/v1/hitl', {
+      method: 'POST',
+      body: JSON.stringify({ userId, action: actionName, toolCalled: toolCalledJson, status: 'pending' }),
+    });
+  }
+
   async resolveHitlAction(logId, status, actionPayload = null) {
     this._ensureInitialized();
     try {

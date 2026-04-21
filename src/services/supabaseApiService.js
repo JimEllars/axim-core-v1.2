@@ -1332,6 +1332,20 @@ class SupabaseApiService {
   }
 
 
+  async logHitlAction(userId, actionName, toolCalledJson) {
+    if (!this.supabase) throw new Error("Supabase client not initialized.");
+
+    // Create the log entry
+    const { data, error } = await this.supabase.from('hitl_audit_logs').insert({
+      admin_id: userId,
+      action: actionName,
+      tool_called: toolCalledJson,
+      status: 'pending'
+    }).select().single();
+    if (error) throw error;
+    return data;
+  }
+
   async resolveHitlAction(logId, status, actionPayload = null) {
     if (this._checkConnectivity('resolveHitlAction', [logId, status, actionPayload], true)) {
       return Promise.resolve();
