@@ -151,6 +151,31 @@ const ApiKeyManager = ({ user }) => {
     generateB2BKeyMutation.mutate(newB2BKeyName);
   };
 
+
+  // Fetch Unbilled Usage Logs to calculate estimate
+  const { data: unbilledLogs = [] } = useQuery({
+    queryKey: ['unbilled_usage_logs', user.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('api_usage_logs')
+        .select('*')
+        .eq('partner_id', user.id)
+        .is('billed', false); // Assume false or null
+
+      const { data: nullBilledLogs, error: nullLogsError } = await supabase
+        .from('api_usage_logs')
+        .select('*')
+        .eq('partner_id', user.id)
+        .is('billed', null);
+
+      if (error || nullLogsError) throw (error || nullLogsError);
+      return [...(data || []), ...(nullBilledLogs || [])];
+    }
+  });
+
+  const costPerRequest = 10.00; // $10 per document API request as defined in billing cron
+  const currentEstimate = unbilledLogs.length * costPerRequest;
+
   return (
     <div className="space-y-6">
       <div className="bg-onyx-950 p-6 rounded-lg shadow-lg">
@@ -172,6 +197,7 @@ const ApiKeyManager = ({ user }) => {
         </div>
       </div>
 
+
       {partnerCredit && (
         <div className="bg-onyx-950 p-6 rounded-lg shadow-lg mt-6 border border-onyx-accent/20">
           <h2 className="text-xl font-bold mb-2">Partner API Credits</h2>
@@ -182,6 +208,20 @@ const ApiKeyManager = ({ user }) => {
           {/* Note: Top-up logic could be added here or via Billing Portal */}
         </div>
       )}
+
+      <div className="bg-onyx-950 p-6 rounded-lg shadow-lg mt-6 border border-onyx-accent/20">
+        <h2 className="text-xl font-bold mb-2">Current Billing Cycle Estimate</h2>
+        <div className="flex items-center justify-between">
+          <span className="text-slate-400">Unbilled Requests:</span>
+          <span className="text-xl font-semibold text-white">{unbilledLogs.length}</span>
+        </div>
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-slate-400">Estimated Cost:</span>
+          <span className="text-2xl font-bold text-red-400">${currentEstimate.toFixed(2)}</span>
+        </div>
+        <p className="text-sm text-slate-500 mt-4">Calculated based on ${costPerRequest.toFixed(2)} per API document request.</p>
+      </div>
+
 
       <div className="bg-onyx-950 p-6 rounded-lg shadow-lg mt-6">
         <h3 className="text-lg font-bold mb-4">Add Provider Key</h3>
