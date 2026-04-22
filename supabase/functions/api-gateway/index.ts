@@ -9,6 +9,14 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as s
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+// Edge Cache implementation
+interface CacheEntry {
+    apiKeyData: any;
+    timestamp: number;
+}
+const CACHE_TTL_MS = 60000; // 60 seconds
+const apiCache = new Map<string, CacheEntry>();
+
 async function hashApiKey(apiKey: string): Promise<string> {
     const encoder = new TextEncoder();
     const data = encoder.encode(apiKey);
@@ -34,20 +42,29 @@ serve(async (req) => {
     }
 
     const token = authHeader.split(' ')[1];
-
     const hashedKey = await hashApiKey(token);
 
-    const { data: apiKeyData, error: keyError } = await supabaseAdmin
-      .from('api_keys')
-      .select('id, user_id, api_key, tier, rate_limit')
-      .eq('api_key', hashedKey)
-      .single();
+    let apiKeyData = null;
+    const cached = apiCache.get(hashedKey);
 
-    if (keyError || !apiKeyData) {
-      return new Response(JSON.stringify({ error: 'Invalid API Key' }), {
-        status: 401,
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
-      });
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+        apiKeyData = cached.apiKeyData;
+    } else {
+        const { data, error: keyError } = await supabaseAdmin
+          .from('api_keys')
+          .select('id, user_id, api_key, tier, rate_limit')
+          .eq('api_key', hashedKey)
+          .single();
+
+        if (keyError || !data) {
+          return new Response(JSON.stringify({ error: 'Invalid API Key' }), {
+            status: 401,
+            headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+          });
+        }
+
+        apiKeyData = data;
+        apiCache.set(hashedKey, { apiKeyData, timestamp: Date.now() });
     }
 
     // We clone the request before parsing JSON to get app_source if possible

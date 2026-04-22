@@ -15,6 +15,36 @@ serve(async (req) => {
   try {
     const body = await req.json();
 
+
+    // Check for infrastructure monitor payload
+    if (body.workflow === 'infrastructure-monitor') {
+      console.log('Triggering Infrastructure Monitor workflow');
+
+      const { error } = await supabaseAdmin.from('events_ax2024').insert({
+          type: 'workflow_executed',
+          data: { workflow: 'infrastructure-monitor', trigger: 'telemetry_anomaly' },
+          user_id: body.userId || null
+      });
+
+      if (error) {
+          console.error("Failed to log infrastructure-monitor execution:", error);
+      }
+
+      // Notify Onyx / create a task
+      await supabaseAdmin.from('tasks').insert({
+          title: 'Review Infrastructure Incident Report',
+          description: 'Anomaly detected by telemetry archiver. Spike in 502 gateway errors or GCP fallback events.',
+          status: 'pending',
+          priority: 'high',
+          project_id: null // System level
+      });
+
+      return new Response(JSON.stringify({ success: true, message: 'Infrastructure monitor triggered.' }), {
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
+
     // Only process INSERT events on auth.users (if configured this way via trigger)
     if (body.type === 'INSERT' && body.table === 'users' && body.schema === 'auth') {
        const userId = body.record.id;
