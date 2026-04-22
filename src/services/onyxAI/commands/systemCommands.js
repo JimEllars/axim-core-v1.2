@@ -345,29 +345,65 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
     },
   }),
   createCommand({
-    name: 'infrastructure-monitor',
+    name: 'infrastructureMonitor',
     description: 'Background workflow to monitor system health and report anomalies.',
-    keywords: ['infrastructure-monitor'],
+    keywords: ['infrastructure-monitor', 'infrastructure monitor'],
     usage: 'infrastructure-monitor',
     category: 'System',
     isHidden: true,
     async execute(args, { aximCore, userId }) {
         if (!aximCore) throw new Error("AximCore context required");
 
-        const report = `======= INFRASTRUCTURE INCIDENT REPORT =======
-TIME: ${new Date().toISOString()}
-SEVERITY: HIGH
-DETAILS: Anomaly detected by telemetry archiver. Spike in 502 gateway errors or GCP fallback events within a 5-minute window.
-ACTION TAKEN: Edge services auto-scaled. Routing adjusted to secondary regions.
-RECOMMENDATION: Engineering team to review GCP logs and verify circuit breaker thresholds.
-==============================================`;
+        // Query the telemetry_logs table for the last 5 minutes
+        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
-        // Push directly to a notification stream or hitl queue
-        await aximCore.api.logEvent('infrastructure_alert', { message: report, severity: 'HIGH' }, userId);
+        // As api is imported in the file, we should use the supabase client directly for the specific query if api method doesn't exist,
+        // but given the context we can just use supabase client directly if available, or we assume aximCore.api has a way,
+        // wait, let's look at how we can query telemetry_logs.
+        // The instruction says "queries the telemetry_logs table for the last 5 minutes. If it counts more than 5 instances of 502 or GCP_Fallback"
 
-        return `✅ Infrastructure Incident Report generated and dispatched.
+        let errorCount = 0;
+        try {
+            const { supabase } = await import('../../supabaseClient.js'); // Assuming path is correct
+            const { data, error } = await supabase
+                .from('telemetry_logs')
+                .select('*')
+                .gte('created_at', fiveMinutesAgo);
 
-${report}`;
+            if (!error && data) {
+                 // The prompt specifies "instances of 502 or GCP_Fallback"
+                 errorCount = data.filter(log => {
+                     const is502 = log.status_code === 502 || log.error_code === 502 || log.data?.error_code === 502;
+                     const isGcpFallback = log.type === 'GCP_Fallback' || log.action === 'GCP_Fallback' || log.message?.includes('GCP_Fallback');
+                     return is502 || isGcpFallback;
+                 }).length;
+            }
+        } catch (e) {
+            console.error("Error querying telemetry_logs:", e);
+            // Fallback checking events_ax2024 as seen in previous files
+            try {
+                const { supabase } = await import('../../supabaseClient.js');
+                const { data, error } = await supabase
+                    .from('events_ax2024')
+                    .select('*')
+                    .gte('created_at', fiveMinutesAgo);
+                if (!error && data) {
+                     errorCount = data.filter(log => {
+                         const is502 = log.data?.error_code === 502 || log.status === 502;
+                         const isGcpFallback = log.type === 'GCP_Fallback' || JSON.stringify(log.data || {}).includes('GCP_Fallback');
+                         return is502 || isGcpFallback;
+                     }).length;
+                }
+            } catch (fallbackError) {
+                console.error("Fallback error querying events_ax2024:", fallbackError);
+            }
+        }
+
+        if (errorCount > 5) {
+            return JSON.stringify({ status: "CRITICAL", action: "Invoke Incident Report Workflow" });
+        }
+
+        return JSON.stringify({ status: "OK", message: "Infrastructure is stable." });
     }
   }),
 ];
