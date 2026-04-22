@@ -17,6 +17,39 @@ interface CacheEntry {
 const CACHE_TTL_MS = 60000; // 60 seconds
 const apiCache = new Map<string, CacheEntry>();
 
+async function getCachedApiKeyData(hashedKey: string): Promise<any | null> {
+    try {
+        const cache = await caches.default;
+        const cacheUrl = new URL(`https://api-gateway.local/cache/${hashedKey}`);
+        const response = await cache.match(cacheUrl.toString());
+        if (response) {
+            return await response.json();
+        }
+    } catch (e) {
+        // Fallback to memory Map
+        const cached = apiCache.get(hashedKey);
+        if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+            return cached.apiKeyData;
+        }
+    }
+    return null;
+}
+
+async function setCachedApiKeyData(hashedKey: string, apiKeyData: any) {
+    try {
+        const cache = await caches.default;
+        const cacheUrl = new URL(`https://api-gateway.local/cache/${hashedKey}`);
+        const response = new Response(JSON.stringify(apiKeyData), {
+            headers: { 'Cache-Control': 'max-age=60' }
+        });
+        await cache.put(cacheUrl.toString(), response);
+    } catch (e) {
+        // Fallback to memory Map
+        apiCache.set(hashedKey, { apiKeyData, timestamp: Date.now() });
+    }
+}
+
+
 async function hashApiKey(apiKey: string): Promise<string> {
     const encoder = new TextEncoder();
     const data = encoder.encode(apiKey);
@@ -44,12 +77,9 @@ serve(async (req) => {
     const token = authHeader.split(' ')[1];
     const hashedKey = await hashApiKey(token);
 
-    let apiKeyData = null;
-    const cached = apiCache.get(hashedKey);
+    let apiKeyData = await getCachedApiKeyData(hashedKey);
 
-    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
-        apiKeyData = cached.apiKeyData;
-    } else {
+    if (!apiKeyData) {
         const { data, error: keyError } = await supabaseAdmin
           .from('api_keys')
           .select('id, user_id, api_key, tier, rate_limit')
@@ -64,7 +94,7 @@ serve(async (req) => {
         }
 
         apiKeyData = data;
-        apiCache.set(hashedKey, { apiKeyData, timestamp: Date.now() });
+        await setCachedApiKeyData(hashedKey, apiKeyData);
     }
 
     // We clone the request before parsing JSON to get app_source if possible
