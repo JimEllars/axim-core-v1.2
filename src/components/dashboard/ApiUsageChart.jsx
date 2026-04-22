@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import api from '../../services/onyxAI/api';
 import config from '../../config';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { supabase } from '../../services/supabaseClient';
 import logger from '../../services/logging';
 
 const { FiTrendingUp, FiAlertTriangle } = FiIcons;
@@ -37,11 +38,44 @@ const ApiUsageChart = () => {
     }
 
     try {
-      const apiUsageData = await api.getApiUsageOverTime();
-      const formattedData = apiUsageData.map(item => ({
-        date: new Date(item.date).toLocaleDateString(),
-        count: parseInt(item.count)
-      }));
+      // Get the current user ID
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No authenticated user");
+
+      // Fetch logs for the past 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const { data: logs, error: supabaseError } = await supabase
+        .from('api_usage_logs')
+        .select('created_at, status_code')
+        .eq('partner_id', user.id)
+        .gte('created_at', sevenDaysAgo.toISOString());
+
+      if (supabaseError) throw supabaseError;
+
+      // Aggregate by date
+      const aggregated = {};
+      logs.forEach(log => {
+        const date = new Date(log.created_at).toLocaleDateString();
+        if (!aggregated[date]) {
+          aggregated[date] = { date, successCount: 0, errorCount: 0 };
+        }
+        if (log.status_code >= 200 && log.status_code < 300) {
+          aggregated[date].successCount++;
+        } else {
+          aggregated[date].errorCount++;
+        }
+      });
+
+      // Sort by date and convert to array
+      const formattedData = Object.values(aggregated).sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // If no data, provide an empty structure for today
+      if (formattedData.length === 0) {
+         formattedData.push({ date: new Date().toLocaleDateString(), successCount: 0, errorCount: 0 });
+      }
+
       setData(formattedData);
     } catch (error) {
       logger.error('Error fetching API usage data:', error);
@@ -86,13 +120,15 @@ const ApiUsageChart = () => {
         </div>
       ) : (
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={data}>
+          <BarChart data={data}>
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
             <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
+   <Legend wrapperStyle={{ paddingTop: '20px' }} />
             <YAxis stroke="#9CA3AF" fontSize={12} />
             <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px', color: '#F9FAFB' }} />
-            <Line type="monotone" dataKey="count" stroke="#2DD4BF" strokeWidth={2} />
-          </LineChart>
+            <Bar dataKey="successCount" name="Requests Made" fill="#2DD4BF" radius={[4, 4, 0, 0]} />
+   <Bar dataKey="errorCount" name="Errors" fill="#EF4444" radius={[4, 4, 0, 0]} />
+          </BarChart>
         </ResponsiveContainer>
       )}
     </motion.div>

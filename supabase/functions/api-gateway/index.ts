@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
 import { notifyOnyx } from '../_shared/telemetry.ts';
+declare const EdgeRuntime: any;
 import { generatePdf } from '../_shared/pdf-generators/index.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
@@ -59,6 +60,7 @@ async function hashApiKey(apiKey: string): Promise<string> {
 }
 
 serve(async (req) => {
+  const startTime = Date.now();
   const endpoint = new URL(req.url).pathname;
 
   if (req.method === 'OPTIONS') {
@@ -157,18 +159,28 @@ serve(async (req) => {
 
     if (currentUsage !== null && currentUsage >= rateLimitCap) {
       await notifyOnyx(endpoint, 429, { partnerId, reason: 'Rate limit exceeded' });
-      return new Response(JSON.stringify({ error: 'Too Many Requests' }), {
+      const response = new Response(JSON.stringify({ error: 'Too Many Requests' }), {
         status: 429,
         headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
       });
+
+      const logPromise = supabaseAdmin.from('api_usage_logs').insert({
+        api_key_id: apiKeyData.id,
+        partner_id: partnerId,
+        endpoint: endpoint,
+        status_code: 429,
+        compute_ms: Date.now() - startTime
+      });
+
+      if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+        EdgeRuntime.waitUntil(logPromise);
+      } else {
+        logPromise.catch(console.error);
+      }
+      return response;
     }
 
-    // Log the usage
-    await supabaseAdmin.from('api_usage_logs').insert({
-      api_key_id: apiKeyData.id,
-      partner_id: partnerId,
-      endpoint: endpoint
-    });
+
 
     const { data: creditData, error: creditError } = await supabaseAdmin
       .from('partner_credits')
@@ -178,10 +190,25 @@ serve(async (req) => {
 
     if (creditError || !creditData || creditData.credits_remaining <= 0) {
       await notifyOnyx(endpoint, 402, { partnerId, reason: 'Insufficient credits' });
-      return new Response(JSON.stringify({ error: 'Payment Required' }), {
+      const response = new Response(JSON.stringify({ error: 'Payment Required' }), {
         status: 402,
         headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
       });
+
+      const logPromise = supabaseAdmin.from('api_usage_logs').insert({
+        api_key_id: apiKeyData.id,
+        partner_id: partnerId,
+        endpoint: endpoint,
+        status_code: 402,
+        compute_ms: Date.now() - startTime
+      });
+
+      if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+        EdgeRuntime.waitUntil(logPromise);
+      } else {
+        logPromise.catch(console.error);
+      }
+      return response;
     }
 
     const { error: updateError } = await supabaseAdmin
@@ -220,13 +247,31 @@ serve(async (req) => {
       throw new Error('Failed to generate signed URL');
     }
 
-    return new Response(JSON.stringify({
+    const response = new Response(JSON.stringify({
       success: true,
       download_url: signedUrlData.signedUrl
     }), {
       status: 200,
       headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
     });
+
+    // Log the usage asynchronously using EdgeRuntime
+    const logPromise = supabaseAdmin.from('api_usage_logs').insert({
+      api_key_id: apiKeyData.id,
+      partner_id: partnerId,
+      endpoint: endpoint,
+      status_code: 200,
+      compute_ms: Date.now() - startTime
+    });
+
+    if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+      EdgeRuntime.waitUntil(logPromise);
+    } else {
+      // Fallback for standard Deno
+      logPromise.catch(console.error);
+    }
+
+    return response;
 
   } catch (error) {
     console.error('API Gateway Error:', error);
