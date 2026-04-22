@@ -6,6 +6,7 @@ import { SupabaseProvider } from './contexts/SupabaseContext.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { ConnectivityProvider } from './contexts/ConnectivityContext.jsx';
 import { ApiProvider } from './contexts/ApiContext.jsx';
+import { RealtimeProvider } from './contexts/RealtimeContext.jsx';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import CommandHub from './components/CommandHub';
@@ -143,7 +144,9 @@ function App() {
         <AuthProvider>
           <ConnectivityProvider>
             <ApiProvider>
-              <AppContent />
+              <RealtimeProvider>
+                <AppContent />
+              </RealtimeProvider>
             </ApiProvider>
             <Toaster
               position="top-right"
