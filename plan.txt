@@ -1,0 +1,3 @@
+Okay, the build is fully successful now with `npm run build`.
+I will run `npm run test` just to be sure it does not have syntax errors during tests.
+Then I will submit.

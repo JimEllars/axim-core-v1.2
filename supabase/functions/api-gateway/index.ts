@@ -84,7 +84,7 @@ serve(async (req) => {
     if (!apiKeyData) {
         const { data, error: keyError } = await supabaseAdmin
           .from('api_keys')
-          .select('id, user_id, api_key, tier, rate_limit')
+          .select('id, user_id, api_key, tier, rate_limit, environment, scopes, allowed_ips')
           .eq('api_key', hashedKey)
           .single();
 
@@ -97,6 +97,33 @@ serve(async (req) => {
 
         apiKeyData = data;
         await setCachedApiKeyData(hashedKey, apiKeyData);
+    }
+
+
+    const clientIp = req.headers.get('X-Forwarded-For') || req.headers.get('CF-Connecting-IP') || 'unknown';
+    if (apiKeyData.allowed_ips && apiKeyData.allowed_ips.length > 0) {
+      if (!apiKeyData.allowed_ips.includes(clientIp)) {
+        await notifyOnyx(endpoint, 403, { partnerId: apiKeyData.user_id, reason: 'IP mismatch', ip: clientIp });
+
+        const logPromise = supabaseAdmin.from('api_usage_logs').insert({
+          api_key_id: apiKeyData.id,
+          partner_id: apiKeyData.user_id,
+          endpoint: endpoint,
+          status_code: 403,
+          compute_ms: Date.now() - startTime
+        });
+
+        if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
+          EdgeRuntime.waitUntil(logPromise);
+        } else {
+          logPromise.catch(console.error);
+        }
+
+        return new Response(JSON.stringify({ error: 'Forbidden' }), {
+          status: 403,
+          headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+        });
+      }
     }
 
     // We clone the request before parsing JSON to get app_source if possible
