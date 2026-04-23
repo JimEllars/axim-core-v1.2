@@ -470,9 +470,7 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
         return "An error occurred while monitoring internal infrastructure.";
       }
     }
-  })
-
-
+  }),
 
   createCommand({
     name: 'readSecureArtifact',
