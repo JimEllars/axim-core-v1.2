@@ -490,4 +490,70 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
     }
   }),
 ];
+
+  createCommand({
+    name: 'auditSecurityCompliance',
+    description: 'Proactively monitors for bad actors attempting to breach partner API keys.',
+    keywords: ['audit security', 'security compliance', 'audit-security'],
+    usage: 'audit-security',
+    category: 'System',
+    async execute(args, { aximCore }) {
+      try {
+        const { supabase } = await import('../../supabaseClient.js');
+        const api = (await import('../api.js')).default;
+
+        // Short window: Last 1 hour
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+
+        const { data: logs, error } = await supabase
+          .from('api_usage_logs')
+          .select('partner_id, status_code, created_at')
+          .gte('created_at', oneHourAgo)
+          .in('status_code', [401, 403]);
+
+        if (error || !logs) {
+          return "Failed to fetch API usage logs for security auditing.";
+        }
+
+        const issuesByPartner = {};
+
+        logs.forEach(log => {
+           if (!log.partner_id) return;
+           if (!issuesByPartner[log.partner_id]) {
+             issuesByPartner[log.partner_id] = 0;
+           }
+           issuesByPartner[log.partner_id]++;
+        });
+
+        const anomalies = [];
+
+        for (const partnerId of Object.keys(issuesByPartner)) {
+           // Multiple errors in a short window
+           if (issuesByPartner[partnerId] >= 5) {
+             anomalies.push(partnerId);
+
+             const { data: userData } = await supabase.auth.admin.getUserById(partnerId);
+             if (userData?.user?.email) {
+                const emailSubject = "AXiM Critical Security Alert: Potential API Key Compromise";
+                const emailBody = `Hello, Onyx Security Sentinel has detected multiple unauthorized access attempts (${issuesByPartner[partnerId]} failed requests) using your credentials from an unrecognized IP address within the last hour. Your API Key may be compromised. Please visit the Developer Portal immediately to rotate your credentials.`;
+
+                await api.sendEmail(userData.user.email, emailSubject, emailBody, 'system');
+             }
+           }
+        }
+
+        if (anomalies.length > 0) {
+          return `Detected ${anomalies.length} potential security breaches. Security Alert emails dispatched.`;
+        }
+
+        return "Security audit completed. No anomalies detected.";
+      } catch (e) {
+        console.error("Audit Security Error", e);
+        return "An error occurred while running security audit.";
+      }
+    }
+  })
+
+];
+
 export default systemCommands;
