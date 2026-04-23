@@ -10,7 +10,6 @@ import { RealtimeProvider } from './contexts/RealtimeContext.jsx';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import CommandHub from './components/CommandHub';
-import APIIntegrationCenter from './components/APIIntegrationCenter';
 import AdminDashboard from './components/admin/AdminDashboard';
 import Ingest from './components/ingest/Ingest';
 import Settings from './components/settings/Settings';
@@ -116,7 +115,6 @@ function AppContent() {
           <Route index element={<Navigate to="/dashboard" />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="command-hub" element={<CommandHub />} />
-          <Route path="api-center" element={<APIIntegrationCenter />} />
           <Route path="ingest" element={<Ingest />} />
           <Route path="settings" element={<Settings />} />
           <Route path="profile" element={<UserProfile />} />

@@ -4,9 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import WorkflowExecutionLog from './WorkflowExecutionLog';
-import ApiKeyManager from './ApiKeyManager';
 import UserManagement from './UserManagement';
-import BillingPortal from './BillingPortal';
 import KPIOverview from './KPIOverview';
 import WorkflowBuilder from './WorkflowBuilder';
 import MemoryBank from './MemoryBank';
@@ -24,8 +22,6 @@ const AdminDashboard = () => {
   const tabs = [
     { id: 'overview', label: 'Overview', icon: FiBarChart2 },
     { id: 'users', label: 'User Management', icon: FiUsers },
-    { id: 'keys', label: 'API Keys', icon: FiKey },
-    { id: 'billing', label: 'Billing', icon: FiCreditCard },
     { id: 'workflows', label: 'Workflow Logs', icon: FiGitMerge },
     { id: 'builder', label: 'Workflow Builder', icon: FiLayers },
     { id: 'memory', label: 'Memory Bank', icon: FiDatabase },
@@ -44,7 +40,7 @@ const AdminDashboard = () => {
       >
         <div>
           <h1 className="text-3xl font-bold text-white mb-2">Admin Dashboard</h1>
-          <p className="text-slate-400">Manage users, API keys, billing, and system settings.</p>
+          <p className="text-slate-400">Manage internal systems, users, and infrastructure.</p>
         </div>
 
         <div className="flex space-x-2 border-b border-onyx-accent/20">
@@ -67,8 +63,6 @@ const AdminDashboard = () => {
         <div>
           {activeTab === 'overview' && <KPIOverview />}
           {activeTab === 'users' && <UserManagement currentUser={currentUser} />}
-          {activeTab === 'keys' && <ApiKeyManager user={currentUser} />}
-          {activeTab === 'billing' && <BillingPortal />}
           {activeTab === 'workflows' && <WorkflowExecutionLog />}
           {activeTab === 'builder' && <WorkflowBuilder />}
           {activeTab === 'memory' && <MemoryBank />}

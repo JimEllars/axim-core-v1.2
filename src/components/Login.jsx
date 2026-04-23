@@ -45,7 +45,7 @@ const Login = () => {
               <SafeIcon icon={FiShield} className="text-2xl text-white" />
             </motion.div>
             <h1 className="text-3xl font-bold gradient-text mb-2">Axim Core</h1>
-            <p className="text-slate-400">Secure Operations Dashboard</p>
+            <p className="text-slate-400">AXiM Internal Systems - Authorized Personnel Only</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">

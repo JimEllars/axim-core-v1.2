@@ -141,6 +141,12 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     console.log('[AuthContext] Attempting login for:', email);
+
+    // Strict internal domain check
+    if (!email.endsWith('@axim.us.com')) {
+      throw new Error('Access Denied. AXiM Internal Systems are for authorized personnel only.');
+    }
+
     if (config.isMockLlmEnabled) {
       console.log('[AuthContext] Mock mode enabled. Faking login.');
       setUser({ ...MOCK_USER, email });

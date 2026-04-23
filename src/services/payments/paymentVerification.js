@@ -13,11 +13,9 @@ import config from '../../config.js';
 /**
  * Validates a payment intent with the AXiM Core billing engine.
  *
- * @param {string} paymentIntentId - The ID of the Stripe Payment Intent to verify.
- * @param {string} partnerKey - (Optional) Partner API key for bulk credit usage.
- * @returns {Promise<Object>} - The verification result from the backend.
+ * @param {string} paymentIntentId - The ID of the Stripe Payment Intent to verify. * @returns {Promise<Object>} - The verification result from the backend.
  */
-export const verifyPaymentIntent = async (paymentIntentId, partnerKey = null) => {
+export const verifyPaymentIntent = async (paymentIntentId) => {
   if (!paymentIntentId) {
     throw new Error('paymentIntentId is required for verification.');
   }
@@ -27,10 +25,6 @@ export const verifyPaymentIntent = async (paymentIntentId, partnerKey = null) =>
   const headers = {
     'Content-Type': 'application/json',
   };
-
-  if (partnerKey) {
-    headers['Authorization'] = `Bearer ${partnerKey}`;
-  }
 
   try {
     const response = await fetch(endpoint, {
@@ -55,20 +49,14 @@ export const verifyPaymentIntent = async (paymentIntentId, partnerKey = null) =>
  * Creates a new payment intent via the AXiM Core billing engine.
  * This replaces standalone Stripe logic in individual micro apps.
  *
- * @param {Object} details - The payment details (amount, currency, microAppId).
- * @param {string} partnerKey - (Optional) Partner API key for bulk credit deduction.
- * @returns {Promise<Object>} - The created payment intent data (e.g., clientSecret).
+ * @param {Object} details - The payment details (amount, currency, microAppId). * @returns {Promise<Object>} - The created payment intent data (e.g., clientSecret).
  */
-export const createPaymentIntent = async (details, partnerKey = null) => {
+export const createPaymentIntent = async (details) => {
   const endpoint = `${config.apiBaseUrl || 'http://localhost:8080'}/payments/intent`;
 
   const headers = {
     'Content-Type': 'application/json',
   };
-
-  if (partnerKey) {
-    headers['Authorization'] = `Bearer ${partnerKey}`;
-  }
 
   try {
     const response = await fetch(endpoint, {

@@ -7,57 +7,9 @@ import { generatePdf } from '../_shared/pdf-generators/index.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
+const INTERNAL_SERVICE_KEY = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY') as string || 'fallback_internal_key'; // Default if not set
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-// Edge Cache implementation
-interface CacheEntry {
-    apiKeyData: any;
-    timestamp: number;
-}
-const CACHE_TTL_MS = 60000; // 60 seconds
-const apiCache = new Map<string, CacheEntry>();
-
-async function getCachedApiKeyData(hashedKey: string): Promise<any | null> {
-    try {
-        const cache = await caches.default;
-        const cacheUrl = new URL(`https://api-gateway.local/cache/${hashedKey}`);
-        const response = await cache.match(cacheUrl.toString());
-        if (response) {
-            return await response.json();
-        }
-    } catch (e) {
-        // Fallback to memory Map
-        const cached = apiCache.get(hashedKey);
-        if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
-            return cached.apiKeyData;
-        }
-    }
-    return null;
-}
-
-async function setCachedApiKeyData(hashedKey: string, apiKeyData: any) {
-    try {
-        const cache = await caches.default;
-        const cacheUrl = new URL(`https://api-gateway.local/cache/${hashedKey}`);
-        const response = new Response(JSON.stringify(apiKeyData), {
-            headers: { 'Cache-Control': 'max-age=60' }
-        });
-        await cache.put(cacheUrl.toString(), response);
-    } catch (e) {
-        // Fallback to memory Map
-        apiCache.set(hashedKey, { apiKeyData, timestamp: Date.now() });
-    }
-}
-
-
-async function hashApiKey(apiKey: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(apiKey);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
 
 serve(async (req) => {
   const startTime = Date.now();
@@ -68,188 +20,25 @@ serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer axm_live_')) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
+    const internalKeyHeader = req.headers.get('X-Axim-Internal-Service-Key');
+
+    if (!internalKeyHeader || internalKeyHeader !== INTERNAL_SERVICE_KEY) {
+      await notifyOnyx(endpoint, 403, { reason: 'Invalid internal service key attempt' });
+      return new Response(JSON.stringify({ error: 'Forbidden' }), {
+        status: 403,
         headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
       });
     }
 
-    const token = authHeader.split(' ')[1];
-    const hashedKey = await hashApiKey(token);
-
-    let apiKeyData = await getCachedApiKeyData(hashedKey);
-
-    if (!apiKeyData) {
-        const { data, error: keyError } = await supabaseAdmin
-          .from('api_keys')
-          .select('id, user_id, api_key, tier, rate_limit, environment, scopes, allowed_ips')
-          .eq('api_key', hashedKey)
-          .single();
-
-        if (keyError || !data) {
-          return new Response(JSON.stringify({ error: 'Invalid API Key' }), {
-            status: 401,
-            headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
-          });
-        }
-
-        apiKeyData = data;
-        await setCachedApiKeyData(hashedKey, apiKeyData);
-    }
-
-
-    const clientIp = req.headers.get('X-Forwarded-For') || req.headers.get('CF-Connecting-IP') || 'unknown';
-    if (apiKeyData.allowed_ips && apiKeyData.allowed_ips.length > 0) {
-      if (!apiKeyData.allowed_ips.includes(clientIp)) {
-        await notifyOnyx(endpoint, 403, { partnerId: apiKeyData.user_id, reason: 'IP mismatch', ip: clientIp });
-
-        const logPromise = supabaseAdmin.from('api_usage_logs').insert({
-          api_key_id: apiKeyData.id,
-          partner_id: apiKeyData.user_id,
-          endpoint: endpoint,
-          status_code: 403,
-          compute_ms: Date.now() - startTime
-        });
-
-        if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
-          EdgeRuntime.waitUntil(logPromise);
-        } else {
-          logPromise.catch(console.error);
-        }
-
-        return new Response(JSON.stringify({ error: 'Forbidden' }), {
-          status: 403,
-          headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
-        });
-      }
-    }
-
-    // We clone the request before parsing JSON to get app_source if possible
-    let clonedReq = req.clone();
     let body;
     try {
-        body = await clonedReq.json();
+        body = await req.json();
     } catch (e) {
         body = {};
     }
-    const appSource = body?.app_source || 'AXiM API Gateway Document';
 
-    // Ecosystem Circuit Breaker Check
-    const { data: appData, error: appError } = await supabaseAdmin
-      .from('ecosystem_apps')
-      .select('is_active')
-      .eq('app_id', appSource)
-      .single();
-
-    // If app exists and is_active is false, quarantine it
-    if (!appError && appData && appData.is_active === false) {
-      return new Response(JSON.stringify({ error: 'App Quarantined by AXiM Swarm' }), {
-        status: 503,
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
-      });
-    }
-
-    const partnerId = apiKeyData.user_id;
-
-    // Dynamic Rate Limiting
-    let rateLimitCap = apiKeyData.rate_limit || 100; // Requests per minute
-
-    // Check if user is an AXiM node holder
-    try {
-        const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(partnerId);
-
-        if (!userError && userData && userData.user && userData.user.user_metadata) {
-            if (userData.user.user_metadata.axim_node_holder) {
-                rateLimitCap = Math.max(rateLimitCap, 1000);
-            }
-        }
-    } catch (e) {
-        console.warn("Failed to check Web3 token identity, defaulting to standard rate limit", e);
-    }
-
-    // Call our rate limiting RPC to enforce quota. Let's assume an RPC exists `enforce_rate_limit`
-    // Alternatively, if we don't have an RPC, we will manage usage counters in DB
-    const { data: rateLimitData, error: rlError } = await supabaseAdmin
-      .rpc('increment_api_usage', { p_api_key_id: apiKeyData.id, p_limit: rateLimitCap });
-
-    // Assuming increment_api_usage returns true if allowed, false if limit exceeded.
-    // Let's implement a fallback simple tracking if RPC isn't guaranteed or we need something basic
-    // Instead of failing due to RPC missing, we'll try to insert a log and check counts.
-    const minuteAgo = new Date(Date.now() - 60000).toISOString();
-    const { count: currentUsage, error: countError } = await supabaseAdmin
-        .from('api_usage_logs')
-        .select('*', { count: 'exact', head: true })
-        .eq('api_key_id', apiKeyData.id)
-        .gte('created_at', minuteAgo);
-
-    if (currentUsage !== null && currentUsage >= rateLimitCap) {
-      await notifyOnyx(endpoint, 429, { partnerId, reason: 'Rate limit exceeded' });
-      const response = new Response(JSON.stringify({ error: 'Too Many Requests' }), {
-        status: 429,
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
-      });
-
-      const logPromise = supabaseAdmin.from('api_usage_logs').insert({
-        api_key_id: apiKeyData.id,
-        partner_id: partnerId,
-        endpoint: endpoint,
-        status_code: 429,
-        compute_ms: Date.now() - startTime
-      });
-
-      if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
-        EdgeRuntime.waitUntil(logPromise);
-      } else {
-        logPromise.catch(console.error);
-      }
-      return response;
-    }
-
-
-
-    const { data: creditData, error: creditError } = await supabaseAdmin
-      .from('partner_credits')
-      .select('credits_remaining, id')
-      .eq('partner_id', partnerId)
-      .single();
-
-    if (creditError || !creditData || creditData.credits_remaining <= 0) {
-      await notifyOnyx(endpoint, 402, { partnerId, reason: 'Insufficient credits' });
-      const response = new Response(JSON.stringify({ error: 'Payment Required' }), {
-        status: 402,
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
-      });
-
-      const logPromise = supabaseAdmin.from('api_usage_logs').insert({
-        api_key_id: apiKeyData.id,
-        partner_id: partnerId,
-        endpoint: endpoint,
-        status_code: 402,
-        compute_ms: Date.now() - startTime
-      });
-
-      if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
-        EdgeRuntime.waitUntil(logPromise);
-      } else {
-        logPromise.catch(console.error);
-      }
-      return response;
-    }
-
-    const { error: updateError } = await supabaseAdmin
-      .from('partner_credits')
-      .update({ credits_remaining: creditData.credits_remaining - 1 })
-      .eq('id', creditData.id);
-
-    if (updateError) {
-      throw new Error('Failed to update credits');
-    }
-
-    const finalBody = await req.json();
-    const document_data = finalBody.document_data || finalBody;
-    const finalAppSource = finalBody.app_source || 'AXiM API Gateway Document';
+    const document_data = body.document_data || body;
+    const finalAppSource = body.app_source || 'AXiM Internal Workflow';
 
     // Generate real PDF content using shared pdf generator
     const pdfContent = await generatePdf(finalAppSource, document_data);
@@ -281,22 +70,6 @@ serve(async (req) => {
       status: 200,
       headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
     });
-
-    // Log the usage asynchronously using EdgeRuntime
-    const logPromise = supabaseAdmin.from('api_usage_logs').insert({
-      api_key_id: apiKeyData.id,
-      partner_id: partnerId,
-      endpoint: endpoint,
-      status_code: 200,
-      compute_ms: Date.now() - startTime
-    });
-
-    if (typeof EdgeRuntime !== 'undefined' && typeof EdgeRuntime.waitUntil === 'function') {
-      EdgeRuntime.waitUntil(logPromise);
-    } else {
-      // Fallback for standard Deno
-      logPromise.catch(console.error);
-    }
 
     return response;
 
