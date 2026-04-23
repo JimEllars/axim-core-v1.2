@@ -346,88 +346,6 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
   }),
 
   createCommand({
-    name: 'monitorBillingAnomalies',
-    description: 'Monitors partner API usage to detect and prevent bill shock.',
-    keywords: ['monitor-billing', 'check billing', 'billing anomalies'],
-    usage: 'monitor-billing',
-    category: 'System',
-    async execute(args, { aximCore }) {
-      try {
-        const { supabase } = await import('../../supabaseClient.js');
-        const api = (await import('../api.js')).default;
-
-        // Fetch logs for the past 8 days
-        const eightDaysAgo = new Date();
-        eightDaysAgo.setDate(eightDaysAgo.getDate() - 8);
-
-        const { data: logs, error } = await supabase
-          .from('api_usage_logs')
-          .select('partner_id, created_at')
-          .gte('created_at', eightDaysAgo.toISOString());
-
-        if (error || !logs) {
-          return "Failed to fetch API usage logs for monitoring.";
-        }
-
-        const now = Date.now();
-        const oneDayMs = 24 * 60 * 60 * 1000;
-
-        // Group by partner
-        const usageByPartner = {};
-
-        logs.forEach(log => {
-          const logTime = new Date(log.created_at).getTime();
-          const isLast24Hours = (now - logTime) <= oneDayMs;
-
-          if (!usageByPartner[log.partner_id]) {
-            usageByPartner[log.partner_id] = { last24h: 0, previous7d: 0 };
-          }
-
-          if (isLast24Hours) {
-            usageByPartner[log.partner_id].last24h++;
-          } else {
-            usageByPartner[log.partner_id].previous7d++;
-          }
-        });
-
-        const anomalies = [];
-
-        for (const partnerId of Object.keys(usageByPartner)) {
-          const stats = usageByPartner[partnerId];
-          const dailyAverage7d = stats.previous7d / 7;
-
-          // Spike 500% means last24h > dailyAverage7d * 6 (or 5 depending on interpretation, let's use 5)
-          if (dailyAverage7d > 10 && stats.last24h > dailyAverage7d * 5) {
-             anomalies.push(partnerId);
-
-             // Fetch partner email
-             const { data: userData } = await supabase.auth.admin.getUserById(partnerId);
-             if (userData?.user?.email) {
-                // Dispatch warning email
-                const emailSubject = "AXiM Critical Alert: API Usage Spike Detected";
-                const emailBody = `Hello, we have detected a massive (${Math.round((stats.last24h / dailyAverage7d) * 100)}%) spike in your API usage over the past 24 hours. Your 7-day average was ${Math.round(dailyAverage7d)}, but you have made ${stats.last24h} requests today. Please review your usage immediately to prevent bill shock.`;
-
-                await api.sendEmail(userData.user.email, emailSubject, emailBody, 'system');
-
-                // Push alert to Admin Dashboard
-                await api.logEvent('BILLING_ANOMALY', { partnerId, last24h: stats.last24h, average: dailyAverage7d }, 'system');
-             }
-          }
-        }
-
-        if (anomalies.length > 0) {
-          return `Detected ${anomalies.length} billing anomalies. Warning emails and admin alerts dispatched.`;
-        }
-
-        return "Billing anomaly monitor completed. No anomalies detected.";
-      } catch (e) {
-        console.error("Monitor Billing Error", e);
-        return "An error occurred while monitoring billing anomalies.";
-      }
-    }
-  }),
-
-  createCommand({
     name: 'infrastructureMonitor',
     description: 'Background workflow to monitor system health and report anomalies.',
     keywords: ['infrastructure-monitor', 'infrastructure monitor'],
@@ -489,68 +407,71 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
         return JSON.stringify({ status: "OK", message: "Infrastructure is stable." });
     }
   }),
+
   createCommand({
-    name: 'auditSecurityCompliance',
-    description: 'Proactively monitors for bad actors attempting to breach partner API keys.',
-    keywords: ['audit security', 'security compliance', 'audit-security'],
-    usage: 'audit-security',
+    name: 'analyzeInternalInfrastructure',
+    description: 'Monitors telemetry logs to ensure external micro-apps are successfully reaching the Core.',
+    keywords: ['analyze infrastructure', 'check core', 'monitor system'],
+    usage: 'analyze infrastructure',
     category: 'System',
     async execute(args, { aximCore }) {
       try {
         const { supabase } = await import('../../supabaseClient.js');
         const api = (await import('../api.js')).default;
 
-        // Short window: Last 1 hour
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+        // Fetch logs for the past 24 hours
+        const oneDayAgo = new Date();
+        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
         const { data: logs, error } = await supabase
-          .from('api_usage_logs')
-          .select('partner_id, status_code, created_at')
-          .gte('created_at', oneHourAgo)
-          .in('status_code', [401, 403]);
+          .from('telemetry_logs')
+          .select('status_code, error_code, endpoint, created_at')
+          .gte('created_at', oneDayAgo.toISOString());
 
         if (error || !logs) {
-          return "Failed to fetch API usage logs for security auditing.";
+          return "Failed to fetch telemetry logs for monitoring.";
         }
 
-        const issuesByPartner = {};
+        let errorCount500 = 0;
+        let webhookFailures = 0;
+        let databaseTimeouts = 0;
 
         logs.forEach(log => {
-           if (!log.partner_id) return;
-           if (!issuesByPartner[log.partner_id]) {
-             issuesByPartner[log.partner_id] = 0;
-           }
-           issuesByPartner[log.partner_id]++;
+          if (log.status_code === 500 || log.error_code === 500) {
+            errorCount500++;
+          }
+          if (log.endpoint && log.endpoint.includes('webhook-dispatch') && (log.status_code !== 200)) {
+            webhookFailures++;
+          }
+          if (log.error_code === 'database_timeout' || log.status_code === 504) {
+            databaseTimeouts++;
+          }
         });
 
-        const anomalies = [];
+        let report = `======= INTERNAL INFRASTRUCTURE REPORT =======\n`;
+        report += `• 500 Internal Errors: ${errorCount500}\n`;
+        report += `• Webhook Dispatch Failures: ${webhookFailures}\n`;
+        report += `• Database Timeouts: ${databaseTimeouts}\n`;
 
-        for (const partnerId of Object.keys(issuesByPartner)) {
-           // Multiple errors in a short window
-           if (issuesByPartner[partnerId] >= 5) {
-             anomalies.push(partnerId);
+        if (errorCount500 > 10 || webhookFailures > 5 || databaseTimeouts > 5) {
+            report += `\n⚠️ ALERT: Elevated error rates detected. System health may be compromised.\n`;
 
-             const { data: userData } = await supabase.auth.admin.getUserById(partnerId);
-             if (userData?.user?.email) {
-                const emailSubject = "AXiM Critical Security Alert: Potential API Key Compromise";
-                const emailBody = `Hello, Onyx Security Sentinel has detected multiple unauthorized access attempts (${issuesByPartner[partnerId]} failed requests) using your credentials from an unrecognized IP address within the last hour. Your API Key may be compromised. Please visit the Developer Portal immediately to rotate your credentials.`;
-
-                await api.sendEmail(userData.user.email, emailSubject, emailBody, 'system');
-             }
-           }
+            // Push alert to Admin Dashboard (conceptually)
+            await api.logEvent('INFRASTRUCTURE_ALERT', { errorCount500, webhookFailures, databaseTimeouts }, 'system');
+        } else {
+            report += `\n✅ System infrastructure is operating normally.\n`;
         }
 
-        if (anomalies.length > 0) {
-          return `Detected ${anomalies.length} potential security breaches. Security Alert emails dispatched.`;
-        }
+        report += `==============================================`;
 
-        return "Security audit completed. No anomalies detected.";
+        return report;
       } catch (e) {
-        console.error("Audit Security Error", e);
-        return "An error occurred while running security audit.";
+        console.error("Infrastructure Monitor Error", e);
+        return "An error occurred while monitoring internal infrastructure.";
       }
     }
   })
+
 
 ];
 

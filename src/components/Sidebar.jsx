@@ -32,14 +32,6 @@ const Sidebar = () => {
       path: '/command-hub'
     },
     {
-      id: 'api-center',
-      label: 'API Center',
-      icon: FiGlobe,
-      description: 'Integration Management',
-      new: true,
-      path: '/api-center'
-    },
-    {
       id: 'ingest',
       label: 'Ingest',
       icon: FiUploadCloud,
