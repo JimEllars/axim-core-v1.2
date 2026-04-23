@@ -11,12 +11,36 @@ const INTERNAL_SERVICE_KEY = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY') as string
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+const ALLOWED_ORIGINS = [
+  'https://quickdemandletter.com',
+  'https://your-nda-domain.com'
+];
+
 serve(async (req) => {
   const startTime = Date.now();
   const endpoint = new URL(req.url).pathname;
 
+  const origin = req.headers.get('origin');
+  let corsOrigin = ALLOWED_ORIGINS.includes(origin || '') ? origin : ALLOWED_ORIGINS[0];
+
+  const securityHeaders = {
+    'Access-Control-Allow-Origin': corsOrigin || '',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, X-Axim-Internal-Service-Key',
+    'Strict-Transport-Security': 'max-age=31536000; includeSubDomains'
+  };
+
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
+    return new Response('ok', { headers: securityHeaders });
+  }
+
+  // Bot-Defense middleware: Reject requests lacking a standard User-Agent
+  const userAgent = req.headers.get('user-agent');
+  if (!userAgent || userAgent.trim() === '') {
+    return new Response(JSON.stringify({ error: 'Forbidden: Invalid User-Agent' }), {
+      status: 403,
+      headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+    });
   }
 
   try {
@@ -26,7 +50,7 @@ serve(async (req) => {
       await notifyOnyx(endpoint, 403, { reason: 'Invalid internal service key attempt' });
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403,
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+        headers: { ...securityHeaders, 'Content-Type': 'application/json' }
       });
     }
 
@@ -50,7 +74,7 @@ serve(async (req) => {
 
       return new Response(JSON.stringify({ success: true, message: 'Telemetry event accepted' }), {
         status: 202,
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+        headers: { ...securityHeaders, 'Content-Type': 'application/json' }
       });
     }
 
@@ -92,17 +116,17 @@ serve(async (req) => {
       download_url: signedUrlData.signedUrl
     }), {
       status: 200,
-      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+      headers: { ...securityHeaders, 'Content-Type': 'application/json' }
     });
 
     return response;
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('API Gateway Error:', error);
     await notifyOnyx(endpoint, 500, { error: error.message });
     return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
       status: 500,
-      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+      headers: { ...securityHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
