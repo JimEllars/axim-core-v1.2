@@ -2,8 +2,6 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
 import { notifyOnyx } from '../_shared/telemetry.ts';
-declare const EdgeRuntime: any;
-import { generatePdf } from '../_shared/pdf-generators/index.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
@@ -12,7 +10,6 @@ const INTERNAL_SERVICE_KEY = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY') as string
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 serve(async (req) => {
-  const startTime = Date.now();
   const endpoint = new URL(req.url).pathname;
 
   if (req.method === 'OPTIONS') {
@@ -30,48 +27,27 @@ serve(async (req) => {
       });
     }
 
-    if (req.method === 'POST' && endpoint === '/api/v1/telemetry/ingest') {
-      let body;
-      try {
-        body = await req.json();
-      } catch (e) {
-        body = {};
-      }
+    const formData = await req.formData();
+    const file = formData.get('file') as File;
+    const documentType = formData.get('document_type') as string || 'unknown';
+    const traceId = formData.get('trace_id') as string || 'unknown';
 
-      EdgeRuntime.waitUntil(
-        supabaseAdmin.from('telemetry_logs').insert({
-          session_id: body.session_id,
-          event: body.event,
-          app_type: body.app_type,
-          timestamp: body.timestamp || new Date().toISOString(),
-          details: body.details || {}
-        })
-      );
-
-      return new Response(JSON.stringify({ success: true, message: 'Telemetry event accepted' }), {
-        status: 202,
+    if (!file) {
+      return new Response(JSON.stringify({ error: 'No file uploaded' }), {
+        status: 400,
         headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
       });
     }
 
-    let body;
-    try {
-        body = await req.json();
-    } catch (e) {
-        body = {};
-    }
-
-    const document_data = body.document_data || body;
-    const finalAppSource = body.app_source || 'AXiM Internal Workflow';
-
-    // Generate real PDF content using shared pdf generator
-    const pdfContent = await generatePdf(finalAppSource, document_data);
-    const fileName = `generated_document_${Date.now()}.pdf`;
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${documentType}_${Date.now()}_${traceId}.${fileExt}`;
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfContent = new Uint8Array(arrayBuffer);
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from('secure_artifacts')
       .upload(fileName, pdfContent, {
-        contentType: 'application/pdf',
+        contentType: file.type || 'application/pdf',
         upsert: false
       });
 
@@ -79,26 +55,27 @@ serve(async (req) => {
       throw new Error(`Failed to store artifact: ${uploadError.message}`);
     }
 
-    const { data: signedUrlData, error: urlError } = await supabaseAdmin.storage
-      .from('secure_artifacts')
-      .createSignedUrl(fileName, 900);
+    const { error: dbError } = await supabaseAdmin
+      .from('vault_records')
+      .insert({
+        file_name: fileName,
+        document_type: documentType,
+        trace_id: traceId,
+        bucket_id: 'secure_artifacts'
+      });
 
-    if (urlError || !signedUrlData) {
-      throw new Error('Failed to generate signed URL');
+    if (dbError) {
+      // Don't fail completely if just db insert fails, we already have the file
+      console.error('Failed to insert vault record:', dbError);
     }
 
-    const response = new Response(JSON.stringify({
-      success: true,
-      download_url: signedUrlData.signedUrl
-    }), {
+    return new Response(JSON.stringify({ success: true, file_name: fileName }), {
       status: 200,
       headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
     });
 
-    return response;
-
   } catch (error) {
-    console.error('API Gateway Error:', error);
+    console.error('Vault Upload Error:', error);
     await notifyOnyx(endpoint, 500, { error: error.message });
     return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
       status: 500,
