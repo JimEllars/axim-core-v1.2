@@ -473,6 +473,42 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
   })
 
 
+
+  createCommand({
+    name: 'readSecureArtifact',
+    description: 'Reads and extracts text from a PDF in the secure_artifacts bucket.',
+    keywords: ['read vault', 'read secure artifact', 'extract pdf'],
+    usage: 'read secure artifact <trace_id>',
+    category: 'System',
+    async execute(args, { aximCore }) {
+      if (!args || typeof args !== 'string') {
+        return "Please provide a trace_id to read. Example: read secure artifact AXIM-NDA-XYZ";
+      }
+
+      const traceId = args.trim();
+
+      try {
+        const { supabase } = await import('../../supabaseClient.js');
+
+        const { data, error } = await supabase.storage
+          .from('secure_artifacts')
+          .download(traceId);
+
+        if (error || !data) {
+          return `Failed to fetch artifact for trace_id: ${traceId}. Error: ${error?.message || 'Not found'}`;
+        }
+
+        // Lightweight text extraction
+        const text = await data.text();
+
+        return `Extracted text from ${traceId}:\n${text}`;
+      } catch (e) {
+        console.error("readSecureArtifact Error", e);
+        return `An error occurred while reading the artifact: ${e.message}`;
+      }
+    }
+  }),
+
 ];
 
 export default systemCommands;
