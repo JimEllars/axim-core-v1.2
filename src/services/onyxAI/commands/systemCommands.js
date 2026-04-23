@@ -489,8 +489,6 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
         return JSON.stringify({ status: "OK", message: "Infrastructure is stable." });
     }
   }),
-];
-
   createCommand({
     name: 'auditSecurityCompliance',
     description: 'Proactively monitors for bad actors attempting to breach partner API keys.',
