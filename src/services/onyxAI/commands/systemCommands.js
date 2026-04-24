@@ -507,6 +507,70 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
     }
   }),
 
+
+  createCommand({
+    name: 'raiseQualityAssuranceAlert',
+    description: 'Raises a QA alert when Onyx detects a malformed document.',
+    keywords: ['qa alert', 'quality assurance', 'raise qa alert', 'report malformed document'],
+    usage: 'raise qa alert <trace_id> <issue_description> <severity>',
+    category: 'System',
+    isHidden: true,
+    async execute(args, { aximCore }) {
+      if (!args || typeof args !== 'string') {
+        return "Please provide a valid payload. Expected format: JSON string containing trace_id, issue_description, severity.";
+      }
+
+      let trace_id, issue_description, severity;
+
+      try {
+        // Try parsing as JSON first
+        const parsed = JSON.parse(args);
+        trace_id = parsed.trace_id;
+        issue_description = parsed.issue_description;
+        severity = parsed.severity || 'CRITICAL';
+      } catch (e) {
+         // Fallback to basic string parsing if it's not JSON
+         const parts = args.split(' ');
+         if (parts.length >= 3) {
+             trace_id = parts[0];
+             severity = parts[parts.length - 1];
+             issue_description = parts.slice(1, parts.length - 1).join(' ');
+         } else {
+             return "Invalid arguments. Provide trace_id, issue_description, and severity.";
+         }
+      }
+
+      if (!trace_id || !issue_description) {
+         return "Missing required arguments: trace_id and issue_description.";
+      }
+
+      try {
+        const { supabase } = await import('../../supabaseClient.js');
+
+        const { error } = await supabase
+          .from('telemetry_logs')
+          .insert([{
+            event: 'qa_failure',
+            severity: 'CRITICAL',
+            details: {
+               trace_id: trace_id,
+               issue_description: issue_description,
+               reported_severity: severity
+            }
+          }]);
+
+        if (error) {
+          console.error("QA Alert Error:", error);
+          return "Failed to raise QA alert due to database error.";
+        }
+
+        return `✅ Quality Assurance Alert successfully raised for Trace ID: ${trace_id}`;
+      } catch (error) {
+        console.error("QA Alert System Error:", error);
+        return "An internal error occurred while raising the QA alert.";
+      }
+    }
+  }),
 ];
 
 export default systemCommands;

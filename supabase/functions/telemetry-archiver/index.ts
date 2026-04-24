@@ -58,7 +58,7 @@ serve(async (req) => {
         // Upload to secure_artifacts bucket
         const { error: uploadError } = await supabase
             .storage
-            .from('secure_artifacts')
+            .from('log_archives')
             .upload(fileName, compressedData, {
                 contentType: 'application/gzip',
                 upsert: true
