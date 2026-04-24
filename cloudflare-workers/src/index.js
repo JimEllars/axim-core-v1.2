@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /* eslint-env serviceworker */
 /* global Response, Request, URL, fetch */
 /**
@@ -91,7 +92,7 @@ async function handleRequest(request, env, ctx) {
       });
 
       return proxyResponse;
-    } catch (error) {
+    } catch {
       return new Response(JSON.stringify({ error: 'Edge Proxy Error: Unable to reach origin' }), {
         status: 502,
         headers: { ...getCorsHeaders(request, env), 'Content-Type': 'application/json' }

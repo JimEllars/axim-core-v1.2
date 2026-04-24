@@ -571,6 +571,49 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
       }
     }
   }),
+
+  createCommand({
+    name: 'purgeCloudflareCache',
+    description: 'Purges the edge cache for a specific Cloudflare zone, attempting to resolve 502/503 Edge worker hangs.',
+    keywords: ['purge cache', 'flush cache', 'clear cloudflare', 'purge cloudflare'],
+    usage: 'purge cache <zone_id>',
+    category: 'System',
+    async execute(args, { aximCore }) {
+      if (!args || typeof args !== 'string') {
+        return "Please provide a valid zone_id to purge the cache.";
+      }
+
+      const zoneId = args.trim();
+      const cloudflareToken = import.meta.env.VITE_CLOUDFLARE_API_TOKEN; // Or accessible from environment
+
+      if (!cloudflareToken) {
+          return "Cloudflare API token is not configured in the environment.";
+      }
+
+      try {
+        const response = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${cloudflareToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ purge_everything: true })
+        });
+
+        if (!response.ok) {
+           const errorData = await response.json();
+           console.error("Cloudflare Purge Error:", errorData);
+           return `Failed to purge cache for zone ${zoneId}: ${errorData.errors?.[0]?.message || 'Unknown API error'}`;
+        }
+
+        return `✅ Cloudflare edge cache successfully purged for zone ${zoneId}.`;
+      } catch (error) {
+        console.error("Cloudflare Purge Cache Error:", error);
+        return "An internal error occurred while trying to purge the Cloudflare cache.";
+      }
+    }
+  }),
+
 ];
 
 export default systemCommands;
