@@ -68,7 +68,9 @@ serve(async (req) => {
           event: body.event,
           app_type: body.app_type,
           timestamp: body.timestamp || new Date().toISOString(),
-          details: body.details || {}
+          details: body.details || {},
+          country_code: req.headers.get('CF-IPCountry') || null,
+          ip_address: req.headers.get('CF-Connecting-IP') || null
         })
       );
 

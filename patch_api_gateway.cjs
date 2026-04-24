@@ -1,16 +1,21 @@
 const fs = require('fs');
+const filePath = 'supabase/functions/api-gateway/index.ts';
 
-const content = fs.readFileSync('supabase/functions/api-gateway/index.ts', 'utf8');
+let content = fs.readFileSync(filePath, 'utf8');
 
-// The instruction is to use EdgeRuntime.waitUntil() (or Deno's ctx.waitUntil() / equivalent)
-// to fire an asynchronous INSERT into the api_usage_logs table.
+// Replace the insert part to include headers
+content = content.replace(
+  /supabaseAdmin\.from\('telemetry_logs'\)\.insert\(\{\n\s*session_id: body\.session_id,\n\s*event: body\.event,\n\s*app_type: body\.app_type,\n\s*timestamp: body\.timestamp \|\| new Date\(\)\.toISOString\(\),\n\s*details: body\.details \|\| \{\}\n\s*\}\)/g,
+  `supabaseAdmin.from('telemetry_logs').insert({
+          session_id: body.session_id,
+          event: body.event,
+          app_type: body.app_type,
+          timestamp: body.timestamp || new Date().toISOString(),
+          details: body.details || {},
+          country_code: req.headers.get('CF-IPCountry') || null,
+          ip_address: req.headers.get('CF-Connecting-IP') || null
+        })`
+);
 
-// Let's add EdgeRuntime declare to the top
-let newContent = content.replace("import { generatePdf }", "declare const EdgeRuntime: any;\nimport { generatePdf }");
-
-// And also replace the other error responses to log them, maybe? The prompt says:
-// "The API Gateway must securely log every successful API request without adding latency to the client response."
-// So logging successful API request is the primary goal. We've done that.
-// Let's make sure it's fully correct.
-
-fs.writeFileSync('supabase/functions/api-gateway/index.ts', newContent);
+fs.writeFileSync(filePath, content);
+console.log('patched api-gateway/index.ts');

@@ -721,6 +721,76 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
       }
     }
   }),
+
+
+  createCommand({
+    name: 'blockMaliciousIP',
+    description: 'Blocks an IP address or Country Code at the Cloudflare Edge to prevent malicious traffic.',
+    keywords: ['block ip', 'ban ip', 'block country', 'ban country', 'waf rule', 'firewall'],
+    usage: 'blockMaliciousIP <ip_address|country_code> | <zone_id>',
+    category: 'System',
+    async execute(args, { aximCore }) {
+      if (!args || typeof args !== 'string') {
+        return "Please provide the target (IP or Country Code) and zone_id separated by a pipe (|).";
+      }
+
+      let target, zoneId;
+      try {
+        const parsed = JSON.parse(args);
+        target = parsed.target || parsed.ip_address || parsed.country_code;
+        zoneId = parsed.zone_id;
+      } catch (e) {
+        const parts = args.split('|').map(s => s.trim());
+        if (parts.length >= 2) {
+          target = parts[0];
+          zoneId = parts[1];
+        } else {
+          return "Invalid arguments. Provide target | zone_id.";
+        }
+      }
+
+      if (!target || !zoneId) {
+        return "Missing required arguments: target and zone_id.";
+      }
+
+      const cloudflareToken = import.meta.env.VITE_CLOUDFLARE_API_TOKEN || import.meta.env.VITE_CLOUDFLARE_API_TOKEN;
+
+      if (!cloudflareToken) {
+        return "Cloudflare API token is not configured in the environment.";
+      }
+
+      const isIP = /^\d{1,3}(\.\d{1,3}){3}$/.test(target) || /^[a-fA-F0-9:]+$/.test(target);
+      const targetConfig = isIP
+        ? { target: "ip", value: target }
+        : { target: "country", value: target.toUpperCase() };
+
+      try {
+        const response = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/firewall/access_rules/rules`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${cloudflareToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            mode: "block",
+            configuration: targetConfig,
+            notes: "Automated block via Onyx AI Threat Intelligence"
+          })
+        });
+
+        if (!response.ok) {
+           const errorData = await response.json();
+           console.error("Cloudflare WAF Error:", errorData);
+           return `Failed to apply WAF rule for ${target} on zone ${zoneId}: ${errorData.errors?.[0]?.message || 'Unknown API error'}`;
+        }
+
+        return `✅ Cloudflare WAF block rule successfully applied for ${target}.`;
+      } catch (error) {
+        console.error("Cloudflare WAF Rule Error:", error);
+        return "An internal error occurred while trying to apply the WAF rule.";
+      }
+    }
+  })
 ];
 
 export default systemCommands;
