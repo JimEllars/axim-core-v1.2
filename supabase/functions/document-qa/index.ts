@@ -4,8 +4,6 @@ serve(async (req) => {
     try {
         const payload = await req.json();
 
-        // Extract the trace_id from the webhook payload
-        // The payload might be directly the record (if custom pg_net) or Supabase standard webhook format
         const record = payload.record || payload;
         const traceId = record.trace_id;
 
@@ -29,7 +27,7 @@ serve(async (req) => {
 
         const onyxPrompt = `A new document with Trace ID ${traceId} has been vaulted. Fetch it using your vault tool, read the contents, and verify there are no formatting errors, overlapping text, or missing signatures.`;
 
-        // Internal fetch request to /api/onyx-bridge endpoint
+        // Send POST to onyx-bridge
         const response = await fetch(`${supabaseUrl}/functions/v1/onyx-bridge`, {
             method: 'POST',
             headers: {

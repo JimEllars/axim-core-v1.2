@@ -49,7 +49,7 @@ const ProductFeedback = () => {
   useEffect(() => {
     const fetchFeedback = async () => {
       setLoading(true);
-      if (true) {
+      if (window !== undefined) {
         const data = await api.getProductFeedback();
           const error = null;
         if (!error && data) {
