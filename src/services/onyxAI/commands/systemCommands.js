@@ -614,6 +614,113 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
     }
   }),
 
+
+  createCommand({
+    name: 'verifyUrlStatus',
+    description: 'Verifies the HTTP status of a URL.',
+    keywords: ['verify url status', 'check url', 'ping url'],
+    usage: 'verify url status <url>',
+    category: 'System',
+    async execute(args, { aximCore }) {
+      if (!args || typeof args !== 'string') {
+        return "Please provide a valid URL to verify.";
+      }
+
+      const url = args.trim();
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+        const response = await fetch(url, {
+            method: 'GET',
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        return `Status for ${url}: ${response.status}`;
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          return `Status for ${url}: Timeout`;
+        }
+        console.error("URL Verification Error:", error);
+        return `Failed to verify ${url}: ${error.message}`;
+      }
+    }
+  }),
+
+  createCommand({
+    name: 'escalateToAdmin',
+    description: 'Escalates an issue to the system administrator via email.',
+    keywords: ['escalate', 'alert admin', 'notify admin'],
+    usage: 'escalate <subject> | <severity> | <message>',
+    category: 'System',
+    async execute(args, { aximCore }) {
+      if (!args || typeof args !== 'string') {
+        return "Please provide subject, severity, and message separated by a pipe (|).";
+      }
+
+      // If args is a JSON string from LLM
+      let subject, severity, message;
+      try {
+          const parsed = JSON.parse(args);
+          subject = parsed.subject;
+          severity = parsed.severity;
+          message = parsed.message;
+      } catch (e) {
+          const parts = args.split('|').map(s => s.trim());
+          if (parts.length >= 3) {
+            subject = parts[0];
+            severity = parts[1];
+            message = parts.slice(2).join(' | ');
+          } else {
+             return "Invalid arguments. Provide subject | severity | message.";
+          }
+      }
+
+      if (!subject || !message) {
+         return "Missing required arguments: subject and message.";
+      }
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321';
+      const serviceKey = import.meta.env.VITE_AXIM_SERVICE_KEY || import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+      if (!serviceKey) {
+          return "AXIM_SERVICE_KEY is not configured.";
+      }
+
+      try {
+        const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || 'admin@axim.us.com';
+
+        const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${serviceKey}`
+          },
+          body: JSON.stringify({
+            email: adminEmail,
+            formData: {
+                message: `Severity: ${severity}\n\n${message}`
+            },
+            app_source: subject
+          })
+        });
+
+        if (!response.ok) {
+           const errorData = await response.json();
+           console.error("Escalation Error:", errorData);
+           return `Failed to escalate to admin: ${errorData.error || 'Unknown error'}`;
+        }
+
+        return `✅ Successfully escalated to Admin: ${subject}`;
+      } catch (error) {
+        console.error("Escalation System Error:", error);
+        return "An internal error occurred while escalating to Admin.";
+      }
+    }
+  }),
 ];
 
 export default systemCommands;
