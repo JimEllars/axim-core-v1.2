@@ -304,11 +304,11 @@ class GcpApiService {
 
   // --- AI Interactions ---
 
-  async logAIInteraction(command, response, executionTime, status, userId, conversationId, commandType, llmProvider, llmModel) {
+  async logAIInteraction(command, response, executionTime, status, userId, conversationId, commandType, llmProvider, llmModel, embedding = null) {
     this._ensureInitialized();
     try {
       await this.client.post('/interactions', {
-        command, response, executionTime, status, userId, conversationId, commandType, llmProvider, llmModel
+        command, response, executionTime, status, userId, conversationId, commandType, llmProvider, llmModel, embedding
       });
     } catch (error) {
       logger.error('GCP logAIInteraction failed:', error);

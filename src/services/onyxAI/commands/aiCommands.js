@@ -29,9 +29,17 @@ const aiCommands = [
         }
       }
 
+      // Inject conversation history if available
+      let historyText = "";
+      if (context && context.conversationHistory && context.conversationHistory.length > 0) {
+        // Take the last 5 messages for context
+        const history = context.conversationHistory.slice(-5);
+        historyText = history.map(msg => `${msg.type === 'user' ? 'User' : 'Assistant'}: ${typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}`).join('\n');
+      }
+
       // 1. Vector Database Integration (RAG)
       let ragContextText = "";
-      if (context && context.aximCore && context.aximCore.api) {
+      if (!historyText && context && context.aximCore && context.aximCore.api) {
         try {
           const queryEmbedding = await llm.generateEmbedding(prompt);
           const relevantMemories = await context.aximCore.api.searchMemory(queryEmbedding, 5, context.userId); // fetching 5 deep contexts
@@ -41,14 +49,6 @@ const aiCommands = [
         } catch (error) {
           console.warn("Failed to retrieve RAG context:", error);
         }
-      }
-
-      // Inject conversation history if available
-      let historyText = "";
-      if (context && context.conversationHistory && context.conversationHistory.length > 0) {
-        // Take the last 5 messages for context
-        const history = context.conversationHistory.slice(-5);
-        historyText = history.map(msg => `${msg.type === 'user' ? 'User' : 'Assistant'}: ${typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)}`).join('\n');
       }
 
       if (historyText || ragContextText) {

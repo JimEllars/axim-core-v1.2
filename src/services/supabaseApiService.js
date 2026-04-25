@@ -570,14 +570,11 @@ class SupabaseApiService {
         user_id: userId,
         conversation_id: conversationId,
         command_type: commandType,
+        embedding,
         llm_provider: llmProvider,
         llm_model: llmModel,
       };
 
-      if (embedding) {
-        // Only stringify if required by pgvector driver setup, typically pgvector handles arrays
-        insertData.embedding = JSON.stringify(embedding);
-      }
 
       const { error } = await this.supabase.from('ai_interactions_ax2024').insert(insertData);
       if (error) throw new DatabaseError(error.message);
