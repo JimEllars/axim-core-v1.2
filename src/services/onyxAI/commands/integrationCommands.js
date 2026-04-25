@@ -52,6 +52,41 @@ const integrationCommands = [
       }
     }
   })
+,
+  createCommand({
+    name: 'verifyRoundupsConnection',
+    requires_approval: false,
+    description: 'Verifies the connection pipeline to the Roundups API.',
+    keywords: ['verify roundups', 'check roundups connection', 'test roundups api'],
+    usage: 'verify roundups',
+    category: 'Integrations',
+    async execute(args, context) {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/roundups-connector`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY}`
+          },
+          body: JSON.stringify({ action: 'test_connection' })
+        });
+
+        if (!response.ok) {
+           const errorData = await response.json().catch(() => ({}));
+           throw new Error(`Request failed with status ${response.status}: ${errorData.error || response.statusText}`);
+        }
+
+        const data = await response.json();
+        if (data.status === 'connected') {
+           return "The Roundups API pipeline is secure and the API key is active.";
+        } else {
+           return `Connection test failed: ${JSON.stringify(data)}`;
+        }
+      } catch (error) {
+        return `Failed to verify Roundups connection: ${error.message}`;
+      }
+    }
+  })
 ];
 
 export default integrationCommands;

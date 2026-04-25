@@ -1,0 +1,126 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Roundups API",
+    "version": "1.0",
+    "description": "Roundups API for AI affiliate article generation. Generation is async (typically 1–5 minutes)."
+  },
+  "servers": [
+    {
+      "url": "https://roundups.ai/api/v1"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/roundups": {
+      "post": {
+        "summary": "Create a roundup",
+        "description": "Creates a roundup and starts generation in the background. Returns a response with the roundup id and state.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "headline": { "type": "string" },
+                  "target_audience": { "type": "string" },
+                  "keywords": { "type": "string" },
+                  "product_type": {
+                    "type": "string",
+                    "enum": ["amazon", "appsumo", "envato", "unified"],
+                    "default": "amazon"
+                  },
+                  "products_count": { "type": "integer", "maximum": 50 },
+                  "products_search_queries": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "maxItems": 10
+                  },
+                  "amazon_product_asins": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "maxItems": 50
+                  },
+                  "product_urls": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "maxItems": 50
+                  },
+                  "styles": {
+                    "type": "object",
+                    "properties": {
+                      "tone_of_voice": { "type": "string" },
+                      "language": { "type": "string" },
+                      "comparison_table_enabled": { "type": "boolean" },
+                      "point_of_view": { "type": "string" },
+                      "custom_cta": { "type": "string" },
+                      "include_pricing": { "type": "boolean" },
+                      "include_rating": { "type": "boolean" },
+                      "optimize_output_for": { "type": "string" },
+                      "llm_model": { "type": "string" },
+                      "cover_image_style": { "type": "string" },
+                      "product_count": { "type": "integer", "minimum": 1, "maximum": 10, "default": 1 },
+                      "visual_style": { "type": "string" },
+                      "layout_style": { "type": "string" },
+                      "template_type": { "type": "string" }
+                    }
+                  }
+                },
+                "anyOf": [
+                  { "required": ["headline"] },
+                  { "required": ["target_audience"] },
+                  { "required": ["keywords"] }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Request accepted, generation started."
+          },
+          "400": {
+            "description": "Validation/authorization errors."
+          }
+        }
+      }
+    },
+    "/roundups/{id}": {
+      "get": {
+        "summary": "Fetch a roundup",
+        "description": "Fetches the current state of a roundup and returns the article when it’s ready.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Roundup found."
+          },
+          "404": {
+            "description": "Invalid id."
+          }
+        }
+      }
+    }
+  }
+}
