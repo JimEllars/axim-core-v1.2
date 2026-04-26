@@ -201,6 +201,70 @@ serve(async (req) => {
       });
     }
 
+
+    if (action === "launch_campaign") {
+      const internalKeyHeader = req.headers.get("X-Axim-Internal-Service-Key");
+      const internalKey = Deno.env.get("AXIM_INTERNAL_SERVICE_KEY") || "fallback_internal_key";
+
+      if (!internalKeyHeader || internalKeyHeader !== internalKey) {
+        return new Response(JSON.stringify({ error: "Forbidden: Internal Service Key required" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const { topic } = body;
+      if (!topic) {
+        return new Response(JSON.stringify({ error: "topic is required for launch_campaign" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      const { data: job, error: jobError } = await supabaseAdmin.from("roundups_jobs").insert({
+        headline: topic,
+        status: "pending",
+      }).select().single();
+
+      if (jobError) {
+        return new Response(JSON.stringify({ error: "Failed to queue campaign", details: jobError.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      // Notify Mr. Ellars via Universal Dispatcher
+      const dispatcherUrl = `${SUPABASE_URL}/functions/v1/universal-dispatcher`;
+      try {
+        const dispatchRes = await fetch(dispatcherUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Axim-Internal-Service-Key': internalKey,
+          },
+          body: JSON.stringify({
+            target_service: 'sms',
+            action_type: 'send_sms',
+            payload: {
+              recipient: 'admin',
+              message: `Traffic anomaly detected. Onyx has autonomously queued a new Roundups campaign for: ${topic}.`
+            },
+          }),
+        });
+
+        if (!dispatchRes.ok) {
+           console.error("Failed to notify Mr. Ellars via Universal Dispatcher:", await dispatchRes.text());
+        }
+      } catch (notifyErr: any) {
+        console.error("Error calling Universal Dispatcher:", notifyErr.message);
+      }
+
+      return new Response(JSON.stringify({ status: "success", message: "Campaign queued", job }), {
+        status: 202,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
