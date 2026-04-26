@@ -12,6 +12,7 @@ import IntelligenceHub from './IntelligenceHub';
 import SecurityAudit from './SecurityAudit';
 import ProductFeedback from './ProductFeedback';
 import EcosystemRegistry from './EcosystemRegistry';
+import BillingPortal from './BillingPortal';
 
 const { FiKey, FiUsers, FiCreditCard, FiGitMerge, FiBarChart2, FiLayers, FiDatabase, FiZap, FiShield, FiMessageSquare, FiBox } = FiIcons;
 
@@ -29,6 +30,7 @@ const AdminDashboard = () => {
     { id: 'feedback', label: 'Product Feedback', icon: FiMessageSquare },
     { id: 'audit', label: 'Security Audit', icon: FiShield },
     { id: 'ecosystem', label: 'Ecosystem Registry', icon: FiBox },
+    { id: 'billing', label: 'Fulfillment', icon: FiBox },
   ];
 
   return (
@@ -70,6 +72,7 @@ const AdminDashboard = () => {
           {activeTab === 'feedback' && <ProductFeedback />}
           {activeTab === 'audit' && <SecurityAudit />}
           {activeTab === 'ecosystem' && <EcosystemRegistry />}
+          {activeTab === 'billing' && <BillingPortal />}
         </div>
       </motion.div>
     </div>
