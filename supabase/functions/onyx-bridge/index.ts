@@ -11,6 +11,8 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     const isServiceRole = authHeader === `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`;
 
+
+    let user = null;
     if (!isServiceRole) {
       const supabaseClient = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
@@ -18,7 +20,8 @@ serve(async (req) => {
         { global: { headers: { Authorization: authHeader! } } }
       );
 
-      const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+      const { data: authData, error: userError } = await supabaseClient.auth.getUser();
+      user = authData.user;
 
       if (userError || !user) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -27,6 +30,7 @@ serve(async (req) => {
         });
       }
     }
+
 
     const onyxEdgeUrl = Deno.env.get('ONYX_EDGE_URL');
     const onyxEdgeSecret = Deno.env.get('ONYX_EDGE_SECRET');
@@ -85,6 +89,55 @@ serve(async (req) => {
     let personaPrompt = "You are Onyx, the infrastructure operator...";
     const promptText = (bodyData.prompt || bodyData.command || '').toLowerCase();
 
+
+    // RAG Context Injection (Phase 8)
+    const retrieveMemory = async () => {
+      try {
+        const url = new URL(req.url);
+        const protocol = url.protocol;
+        const host = url.host; // includes port if running locally
+        // Edge function direct fetch or relative endpoint
+        const memoryRetrievalUrl = `${protocol}//${host}/memory-retrieval`;
+
+        const memoryReq = await fetch(memoryRetrievalUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Axim-Internal-Service-Key': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+          },
+          body: JSON.stringify({
+            query: promptText,
+            threshold: 0.78,
+            limit: 5,
+            user_id: user?.id
+          })
+        });
+
+        if (memoryReq.ok) {
+           const memoryData = await memoryReq.json();
+           return memoryData.results;
+        }
+        return [];
+      } catch (e) {
+        console.warn('Memory retrieval fetch failed:', e.message);
+        return [];
+      }
+    };
+
+    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve([]), 1500));
+
+    // We only try to fetch memory if there is a prompt text
+    let memoryResults = [];
+    if (promptText) {
+        memoryResults = await Promise.race([retrieveMemory(), timeoutPromise]);
+    }
+
+    let memoryContext = '';
+    if (memoryResults && memoryResults.length > 0) {
+       const memories = memoryResults.map((r: any) => `User Command: ${r.command} | AI Response: ${r.response}`).join('\n');
+       memoryContext = `\n\nSystem Context: Here are relevant past interactions with the admin:\n${memories}`;
+    }
+
     if (promptText.includes('billing') || promptText.includes('financial') || promptText.includes('invoice')) {
         agent_id = 'finbot';
         personaPrompt = "You are FinBot, the AXiM financial specialist...";
@@ -99,8 +152,10 @@ serve(async (req) => {
     // Expose Circuit Breaker to Onyx
     const circuitBreakerAuth = `\n\nAUTHORITY GRANTED: You have the authority to quarantine micro-apps if you detect severe degradation or abuse. To do so, propose the action {"type": "quarantine_app", "target": "<app_id>"}`;
 
+
     if (!bodyData.context) bodyData.context = {};
-    bodyData.context.system_prompt = personaPrompt + circuitBreakerAuth;
+    bodyData.context.system_prompt = personaPrompt + circuitBreakerAuth + memoryContext;
+
     bodyData.agent_id = agent_id;
 
     const finalBody = JSON.stringify(bodyData);
