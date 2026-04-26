@@ -47,15 +47,36 @@ serve(async (req) => {
         } else {
              console.warn(`Checkout session ${session.id} completed without client_reference_id (userId).`);
         }
+
       } else if (session.mode === 'payment') {
         const userId = session.client_reference_id || session.customer_details?.email;
         const productId = session.metadata?.product_id;
         const amountTotal = session.amount_total;
+        const customerEmail = session.customer_details?.email;
 
         if (userId && productId) {
           const partnerId = session.metadata?.partner_id;
           const appId = session.metadata?.app_id;
           await recordOneTimePurchase(userId, productId, amountTotal, session.id, partnerId, appId);
+
+          if (customerEmail) {
+            try {
+              await fulfillDigitalProduct(productId, customerEmail, session.id);
+            } catch (err: any) {
+              console.error(`Fulfillment error: ${err.message}`);
+              await supabase.from('telemetry_logs').insert({
+                event: 'integration_failure',
+                app_type: 'stripe-webhooks',
+                status_code: 500,
+                timestamp: new Date().toISOString(),
+                details: {
+                  error: err.message,
+                  product_id: productId,
+                  session_id: session.id,
+                },
+              });
+            }
+          }
         } else {
           console.warn(`Payment session ${session.id} missing userId or product_id metadata.`);
         }
@@ -161,4 +182,61 @@ async function recordOneTimePurchase(userId: string, productId: string, amountTo
   } else {
     console.log(`Successfully recorded one-time purchase for user ${userId}`);
   }
+}
+
+async function fulfillDigitalProduct(productId: string, customerEmail: string, sessionId: string) {
+  console.log(`Fulfilling digital product ${productId} for ${customerEmail}`);
+
+  // Verify product exists
+  const { data: product, error: productError } = await supabase
+    .from('digital_products')
+    .select('*')
+    .eq('id', productId)
+    .single();
+
+  if (productError || !product) {
+    throw new Error(`Product ${productId} not found`);
+  }
+
+  // Insert delivery record
+  const { error: deliveryError } = await supabase
+    .from('product_deliveries')
+    .insert({
+      product_id: productId,
+      customer_email: customerEmail,
+      stripe_session_id: sessionId,
+      delivery_status: 'delivered',
+    });
+
+  if (deliveryError) {
+    throw new Error(`Failed to create delivery record: ${deliveryError.message}`);
+  }
+
+  // Dispatch email via universal-dispatcher
+  const internalKey = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY') || 'fallback_internal_key';
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
+  const dispatcherUrl = `${supabaseUrl}/functions/v1/universal-dispatcher`;
+
+  const dispatchRes = await fetch(dispatcherUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Axim-Internal-Service-Key': internalKey,
+    },
+    body: JSON.stringify({
+      target_service: 'email',
+      action_type: 'send_email',
+      payload: {
+        to: customerEmail,
+        subject: `Your product: ${product.name}`,
+        text: `Thank you for your purchase. Here is your secure product link: ${product.download_url}`,
+        recipient: customerEmail,
+      },
+    }),
+  });
+
+  if (!dispatchRes.ok) {
+    throw new Error(`Failed to dispatch email: ${await dispatchRes.text()}`);
+  }
+  console.log(`Successfully dispatched email for ${productId}`);
 }
