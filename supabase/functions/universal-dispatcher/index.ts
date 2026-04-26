@@ -9,7 +9,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get(
 const INTERNAL_SERVICE_KEY =
   (Deno.env.get("AXIM_INTERNAL_SERVICE_KEY") as string) ||
   "fallback_internal_key";
-const ELLARS_MOBILE_NUMBER = Deno.env.get("ELLARS_MOBILE_NUMBER") as string;
+const ELLARS_MOBILE_NUMBER = Deno.env.get("ELLARS_MOBILE_NUMBER") as string || "+19039332672";
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -62,10 +62,17 @@ serve(async (req) => {
         payload.recipient === "admin" ||
         payload.recipient === ELLARS_MOBILE_NUMBER;
       if (isForEllars && ELLARS_MOBILE_NUMBER) {
+        let text = payload.message || payload.text || "";
+        if (text.length > 160) {
+          text = text.substring(0, 150) + "... [Full report on Hub]";
+        }
         payload = {
           ...payload,
           to: ELLARS_MOBILE_NUMBER,
+          body: text,
         };
+      }
+    };
       }
     }
     // ------------------------------------

@@ -9,7 +9,7 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get(
 const INTERNAL_SERVICE_KEY =
   (Deno.env.get("AXIM_INTERNAL_SERVICE_KEY") as string) ||
   "fallback_internal_key";
-const ELLARS_MOBILE_NUMBER = Deno.env.get("ELLARS_MOBILE_NUMBER") as string;
+const ELLARS_MOBILE_NUMBER = Deno.env.get("ELLARS_MOBILE_NUMBER") as string || "+19039332672";
 
 serve(async (req) => {
   const origin = req.headers.get("origin");
