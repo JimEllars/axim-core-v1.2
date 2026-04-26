@@ -13,7 +13,7 @@ const ELLARS_MOBILE_NUMBER = Deno.env.get("ELLARS_MOBILE_NUMBER") as string || "
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -61,18 +61,24 @@ serve(async (req) => {
       const isForEllars =
         payload.recipient === "admin" ||
         payload.recipient === ELLARS_MOBILE_NUMBER;
+
+      let text = payload.message || payload.text || payload.body || "";
+
       if (isForEllars && ELLARS_MOBILE_NUMBER) {
-        let text = payload.message || payload.text || "";
         if (text.length > 160) {
           text = text.substring(0, 150) + "... [Full report on Hub]";
         }
         payload = {
-          ...payload,
-          to: ELLARS_MOBILE_NUMBER,
-          body: text,
+          To: ELLARS_MOBILE_NUMBER,
+          From: payload.from || payload.From || "",
+          Body: text,
         };
-      }
-    };
+      } else {
+        payload = {
+          To: payload.to || payload.To || "",
+          From: payload.from || payload.From || "",
+          Body: text,
+        };
       }
     }
     // ------------------------------------
@@ -98,22 +104,42 @@ serve(async (req) => {
 
     // 2. Prepare and send the payload securely
     const targetUrl = connection.webhook_url;
-    const headers: Record<string, string> = {
+    let headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
 
-    if (connection.api_key) {
-      headers["Authorization"] = `Bearer ${connection.api_key}`;
+    let fetchBody: string | URLSearchParams = JSON.stringify({
+      action_type,
+      payload,
+      timestamp: new Date().toISOString(),
+    });
+
+    if (target_service.toLowerCase() === "sms") {
+      headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+      };
+
+      // Basic Auth for Twilio using api_key (assuming format AccountSid:AuthToken or similar passed in api_key)
+      if (connection.api_key) {
+        headers["Authorization"] = `Basic ${btoa(connection.api_key)}`;
+      }
+
+      const formParams = new URLSearchParams();
+      if (payload.To) formParams.append("To", payload.To);
+      if (payload.From) formParams.append("From", payload.From);
+      if (payload.Body) formParams.append("Body", payload.Body);
+
+      fetchBody = formParams;
+    } else {
+      if (connection.api_key) {
+        headers["Authorization"] = `Bearer ${connection.api_key}`;
+      }
     }
 
     const response = await fetch(targetUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        action_type,
-        payload,
-        timestamp: new Date().toISOString(),
-      }),
+      body: fetchBody,
     });
 
     // 3. Log to telemetry on 500 errors

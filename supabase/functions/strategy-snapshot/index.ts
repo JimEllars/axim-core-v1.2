@@ -8,7 +8,7 @@ const INTERNAL_SERVICE_KEY = Deno.env.get("AXIM_INTERNAL_SERVICE_KEY") as string
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -22,18 +22,16 @@ serve(async (req) => {
   }
 
   try {
-    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const now = Date.now();
+    const twentyFourHoursAgo = new Date(now - 24 * 60 * 60 * 1000).toISOString();
+    const oneHourAgo = new Date(now - 1 * 60 * 60 * 1000).toISOString();
 
-        // 1. Total Revenue (last 24h)
-    // Query vault_records to count generated documents which correlate to revenue
+    // 1. Total Revenue (last 24h)
     const { data: vaultRecords, error: _vaultError } = await supabaseAdmin
       .from("vault_records")
       .select("id")
       .gte("created_at", twentyFourHoursAgo);
 
-    // Assuming a hypothetical stripe_sessions table, but since the instructions explicitly say
-    // "Total Revenue (last 24h) from the vault_records and Stripe session tables."
-    // Let's also query micro_app_transactions which we know handles Stripe sessions
     const { data: transactions, error: txError } = await supabaseAdmin
       .from("micro_app_transactions")
       .select("amount")
@@ -41,20 +39,29 @@ serve(async (req) => {
 
     let totalRevenue = 0;
     if (!txError && transactions) {
-      totalRevenue = transactions.reduce((sum, tx) => sum + (tx.amount || 0), 0);
+      totalRevenue = transactions.reduce((sum: number, tx: any) => sum + (tx.amount || 0), 0);
     }
 
-    // As a fallback/proxy if micro_app_transactions doesn't yield, we might estimate from vault_records
     const vaultCount = vaultRecords ? vaultRecords.length : 0;
-    const documentRevenue = vaultCount * 49; // Proxy value if needed
+    const documentRevenue = vaultCount * 49;
 
     totalRevenue = totalRevenue > 0 ? totalRevenue : documentRevenue;
 
-    // 2. Traffic Highlights (last 24h)
+    // Revenue Reconciliation Integration
+    const { count: recentLeaksCount, error: leakError } = await supabaseAdmin
+      .from("telemetry_logs")
+      .select("*", { count: "exact", head: true })
+      .eq("event", "revenue_leak")
+      .gte("timestamp", twentyFourHoursAgo);
+
+    // 2. Traffic Highlights (last 24h) and Spike Detection
     const { data: telemetry, error: telemetryError } = await supabaseAdmin
       .from("telemetry_logs")
-      .select("app_type, event, details")
+      .select("app_type, event, details, timestamp")
       .gte("timestamp", twentyFourHoursAgo);
+
+    let lastHourCount = 0;
+    let previous23HoursCount = 0;
 
     const trafficHighlights = {
       total_events: telemetry ? telemetry.length : 0,
@@ -62,12 +69,22 @@ serve(async (req) => {
     };
 
     if (!telemetryError && telemetry) {
-      telemetry.forEach(log => {
+      telemetry.forEach((log: any) => {
         if (log.app_type) {
           trafficHighlights.active_apps[log.app_type] = (trafficHighlights.active_apps[log.app_type] || 0) + 1;
         }
+
+        if (log.timestamp >= oneHourAgo) {
+          lastHourCount++;
+        } else {
+          previous23HoursCount++;
+        }
       });
     }
+
+    const averageHourlyRate = previous23HoursCount / 23;
+    const velocityMultiplier = averageHourlyRate > 0 ? lastHourCount / averageHourlyRate : (lastHourCount > 0 ? lastHourCount : 0);
+    const isTrafficSpiking = velocityMultiplier > 1.5; // Threshold for spiking
 
     // 3. Marketing Status
     const { data: roundups, error: roundupsError } = await supabaseAdmin
@@ -82,20 +99,40 @@ serve(async (req) => {
     };
 
     if (!roundupsError && roundups) {
-      roundups.forEach(job => {
+      roundups.forEach((job: any) => {
         if (job.status === "completed") marketingStatus.completed++;
         else if (job.status === "failed") marketingStatus.failed++;
         else if (job.status === "generating") marketingStatus.generating++;
       });
     }
 
+    // 4. Active Ecosystem Verification
+    const targetBridges = ["roundups", "stripe", "zapier"];
+    const { data: connections, error: connectionsError } = await supabaseAdmin
+      .from("ecosystem_connections")
+      .select("service_name")
+      .in("service_name", targetBridges)
+      .eq("status", "active");
+
+    const activeBridges = connections && !connectionsError
+      ? connections.map((c: any) => c.service_name)
+      : [];
+
     return new Response(
       JSON.stringify({
         status: "success",
         data: {
           total_revenue_last_24h: totalRevenue,
+          recent_leaks_count: recentLeaksCount || 0,
           traffic_highlights: trafficHighlights,
+          velocity: {
+            last_hour_events: lastHourCount,
+            average_hourly_rate_23h: averageHourlyRate,
+            velocity_multiplier: velocityMultiplier,
+            is_traffic_spiking: isTrafficSpiking
+          },
           marketing_status: marketingStatus,
+          active_bridges: activeBridges,
           timestamp: new Date().toISOString()
         }
       }),
