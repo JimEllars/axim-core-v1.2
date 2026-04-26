@@ -10,10 +10,14 @@ import { JURISDICTIONS, MICRO_APPS } from './legalConstants.js';
 
 dotenv.config();
 
-const JWT_SECRET = process.env.JWT_SECRET;
+let JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
-  console.error('FATAL: JWT_SECRET environment variable is not set.');
-  process.exit(1);
+  if (process.env.NODE_ENV !== 'test') {
+    console.error('FATAL: JWT_SECRET environment variable is not set.');
+    process.exit(1);
+  } else {
+    JWT_SECRET = 'test_secret';
+  }
 }
 const SATELLITE_TOKEN_EXPIRY = '24h';
 

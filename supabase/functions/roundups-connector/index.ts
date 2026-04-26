@@ -174,17 +174,19 @@ serve(async (req) => {
       // Update roundups_jobs status based on data.state
       if (data.state) {
         let newStatus = data.state;
-        // Handle timeout/error mapping if necessary
-        if (data.state === "timeout") {
+
+        if (data.state === "timeout" || data.state === "error" || data.state === "failed") {
           newStatus = "failed";
+        } else if (data.article) {
+          newStatus = "completed";
         }
 
         const updatePayload: any = { status: newStatus };
         if (data.article) {
-          updatePayload.article = data.article;
+          updatePayload.article_url = data.article.url || data.article.link || data.article;
         }
         if (data.errors) {
-          updatePayload.errors = data.errors;
+          updatePayload.status = "failed";
         }
 
         await supabaseAdmin
