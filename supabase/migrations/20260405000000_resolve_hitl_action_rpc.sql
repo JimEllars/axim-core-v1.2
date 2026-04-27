@@ -9,10 +9,12 @@ SECURITY DEFINER
 AS $$
 DECLARE
     v_target_app TEXT;
+    v_action TEXT;
 BEGIN
     UPDATE hitl_audit_logs
     SET status = p_status
-    WHERE id = p_log_id;
+    WHERE id = p_log_id
+    RETURNING action INTO v_action;
 
     IF p_status = 'Approved' AND p_action_payload IS NOT NULL THEN
         IF p_action_payload->>'action' = 'quarantine_app' THEN
@@ -25,7 +27,10 @@ BEGIN
         END IF;
     END IF;
 
+    -- Note: for "publish_article" action, the edge function invoke will be handled by the client or a specialized edge function
+    -- The updated RPC returns action so we can tell if we need to call an edge function
+
     -- Return success and the updated status
-    RETURN jsonb_build_object('success', true, 'status', p_status);
+    RETURN jsonb_build_object('success', true, 'status', p_status, 'action', v_action);
 END;
 $$;

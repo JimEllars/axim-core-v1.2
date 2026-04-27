@@ -82,9 +82,19 @@ serve(async (req) => {
       console.warn("match_memory_banks failed:", stratError);
     }
 
+    const { data: knowledgeBaseContext, error: kbError } = await supabaseAdmin.rpc("match_knowledge_base", {
+      query_embedding: embedding,
+      match_threshold: threshold,
+      match_count: limit
+    });
+    if (kbError) {
+      console.warn("match_knowledge_base failed:", kbError);
+    }
+
     return new Response(JSON.stringify({
       chat_context: chatContext || [],
-      strategic_context: strategicContext || []
+      strategic_context: strategicContext || [],
+      executive_knowledge_base: knowledgeBaseContext || []
     }), {
       headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
     });

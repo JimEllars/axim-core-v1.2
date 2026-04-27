@@ -137,6 +137,12 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
                     {parsedPayload && parsedPayload.target && (
                       <p className="text-xs text-slate-400 mb-4">Target: {parsedPayload.target}</p>
                     )}
+                    {parsedPayload && parsedPayload.html_content && (
+                      <div className="mt-2 mb-4 max-h-32 overflow-y-auto text-xs text-slate-400 bg-onyx-950 p-2 rounded border border-onyx-accent/10">
+                         <p><strong>Title:</strong> {parsedPayload.title}</p>
+                         <p className="mt-1 truncate">{parsedPayload.html_content.substring(0, 150)}...</p>
+                      </div>
+                    )}
                     <div className="flex justify-end space-x-2">
                       <button
                         onClick={() => handleReject(log.id)}

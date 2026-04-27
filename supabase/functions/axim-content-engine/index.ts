@@ -281,19 +281,27 @@ async function processAndSaveArticle(supabase: any, content: string, source: str
         console.log(`Saved article: ${title}`);
         results.push({ source, status: 'success', id: data.id, title });
 
-        // Asynchronously trigger WordPress publishing if needed
+        // HITL integration
         try {
-            await supabase.functions.invoke('wordpress-publisher', {
-                body: {
-                    title: title,
-                    html_content: articleContent, // Since it's markdown, WP might need plugin to parse or we pass it
-                    status: 'publish',
-                    author_id: 1 // Default author
-                }
-            });
-            console.log(`Triggered wordpress-publisher for article ${data.id}`);
-        } catch (wpError) {
-            console.error(`Failed to trigger wordpress-publisher for article ${data.id}:`, wpError);
+            const wpPayload = {
+                title: title,
+                html_content: articleContent,
+                status: "publish",
+                author_id: 1,
+                description: `Publish article: ${title}`
+            };
+            const { error: hitlError } = await supabase
+                .from("hitl_audit_logs")
+                .insert({
+                    admin_id: "00000000-0000-0000-0000-000000000000", // Fallback service user uuid (ideally we fetch actual admin)
+                    action: "publish_article",
+                    tool_called: JSON.stringify(wpPayload),
+                    status: "pending"
+                });
+            if (hitlError) throw hitlError;
+            console.log(`Article queued for approval: ${title}`);
+        } catch (hitlErr) {
+            console.error(`Failed to queue article ${data.id} for approval:`, hitlErr);
         }
     }
 }
