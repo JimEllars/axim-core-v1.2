@@ -13,6 +13,7 @@ const FleetStatusMap = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showFinancials, setShowFinancials] = useState(false);
+  const [expandedApp, setExpandedApp] = useState(null); // Added for click-to-expand
 
   useEffect(() => {
     const fetchFleetData = async () => {
@@ -21,9 +22,9 @@ const FleetStatusMap = () => {
       try {
         if (!supabase) throw new Error("Supabase client not initialized.");
 
-        // Fetch devices
-        // Fetch transactions for revenue layer
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+        // 1. Fetch transactions for revenue layer
         const { data: transactions, error: txError } = await supabase
           .from('micro_app_transactions')
           .select('product_id, amount_total')
@@ -31,46 +32,99 @@ const FleetStatusMap = () => {
 
         if (txError) logger.warn('Failed to fetch transactions', txError);
 
-        // Calculate revenue per app (product_id mapped to device_name for now)
         const revenueByApp = {};
         (transactions || []).forEach(tx => {
             const appName = tx.product_id;
-            revenueByApp[appName] = (revenueByApp[appName] || 0) + (tx.amount_total / 100); // Assuming amount_total is in cents
+            revenueByApp[appName] = (revenueByApp[appName] || 0) + (tx.amount_total / 100);
         });
 
-        const { data: devices, error: deviceError } = await supabase
-          .from('devices')
-          .select('*')
-          .order('device_name');
+        // 2. Fetch satellite telemetry for health calculation
+        const { data: telemetryLogs, error: telemetryError } = await supabase
+          .from('telemetry_logs')
+          .select('app_type, event, details, timestamp')
+          .gte('timestamp', twentyFourHoursAgo);
 
-        if (deviceError) throw deviceError;
+        if (telemetryError) throw telemetryError;
 
-        // Mock initial event data to represent "telemetry" as described in the requirements
-        const mockTelemetry = [
-            { id: 1, type: 'api_call', message: 'Latency: 45ms', status: 'success' },
-            { id: 2, type: 'user_login', message: 'Active Session', status: 'success' }
-        ];
+        // Process telemetry to calculate app health
+        const appsData = {};
 
-        const mappedStatus = (devices || []).map(device => {
-            let statusColor = 'bg-green-500/20 border-green-500 text-green-400';
-            if (device.status === 'busy') statusColor = 'bg-yellow-500/20 border-yellow-500 text-yellow-400';
-            if (device.status === 'offline') statusColor = 'bg-red-500/20 border-red-500 text-red-400';
+        (telemetryLogs || []).forEach(log => {
+           const appId = log.app_type;
+           if (!appId) return;
 
-            return {
-                id: device.id,
-                revenue: revenueByApp[device.device_name] || 0,
-                name: device.device_name,
-                status: device.status,
-                statusColor,
-                telemetry: [
-                   ...mockTelemetry.map(t => ({...t, id: Math.random()}))
-                ]
-            };
+           if (!appsData[appId]) {
+             appsData[appId] = {
+               id: appId,
+               name: appId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+               totalEvents: 0,
+               errorEvents: 0,
+               totalExecutionMs: 0,
+               executionEvents: 0,
+               revenue: revenueByApp[appId] || 0,
+               telemetry: [], // recent events
+               errors: [] // Store raw errors
+             };
+           }
+
+           const app = appsData[appId];
+           app.totalEvents++;
+
+           if (log.event === 'error' || log.event === 'integration_failure') {
+             app.errorEvents++;
+             app.errors.push({
+                time: log.timestamp,
+                message: log.details && log.details.error || 'Unknown error',
+                stack: log.details && log.details.error_stack
+             });
+           }
+
+           if (log.details && log.details.execution_ms) {
+             app.totalExecutionMs += log.details.execution_ms;
+             app.executionEvents++;
+           }
+
+           // Keep last 3 events for tooltip
+           if (app.telemetry.length < 3) {
+              app.telemetry.push({
+                 id: log.timestamp,
+                 type: log.event,
+                 message: `${log.event} ${log.details && log.details.execution_ms ? `(${log.details.execution_ms}ms)` : ''}`,
+                 status: (log.event === 'error' || log.event === 'integration_failure') ? 'error' : 'success'
+              });
+           }
         });
 
-        setFleetStatus(mappedStatus);
+        // Calculate final status and colors
+        const fleetArray = Object.values(appsData).map(app => {
+           const errorRate = app.totalEvents > 0 ? (app.errorEvents / app.totalEvents) : 0;
+           app.errorRate = errorRate;
+           app.avgExecutionMs = app.executionEvents > 0 ? Math.round(app.totalExecutionMs / app.executionEvents) : 0;
+
+           let status = 'operational';
+           let statusColor = 'bg-green-500/20 border-green-500 text-green-400';
+
+           if (errorRate > 0.05) { // > 5% error rate -> Critical
+              status = 'critical';
+              statusColor = 'bg-red-500/20 border-red-500 text-red-400';
+           } else if (errorRate >= 0.01 || app.avgExecutionMs > 3000) { // 1-5% or high latency -> Degraded
+              status = 'degraded';
+              statusColor = 'bg-yellow-500/20 border-yellow-500 text-yellow-400';
+           }
+
+           app.status = status;
+           app.statusColor = statusColor;
+
+           // Sort errors newest first
+           app.errors.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+           return app;
+        });
+
+        setFleetStatus(fleetArray);
+
       } catch (err) {
-        logger.error('Failed to load fleet status:', err);
+        logger.error("Failed to fetch fleet data", err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -79,103 +133,78 @@ const FleetStatusMap = () => {
 
     fetchFleetData();
 
-    // Real-time subscription to devices and events
     if (supabase) {
-        const deviceSub = supabase
-          .channel('fleet-devices')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'devices' }, payload => {
-              if (payload.eventType === 'UPDATE') {
-                  setFleetStatus(prev => {
-                      const newFleet = [...prev];
-                      const deviceIndex = newFleet.findIndex(d => d.id === payload.new.id);
-                      if (deviceIndex > -1) {
-                          const updatedDevice = payload.new;
-                          let statusColor = 'bg-green-500/20 border-green-500 text-green-400';
-                          if (updatedDevice.status === 'busy' || updatedDevice.status === 'degraded') statusColor = 'bg-yellow-500/20 border-yellow-500 text-yellow-400';
-                          if (updatedDevice.status === 'offline') statusColor = 'bg-red-500/20 border-red-500 text-red-400';
+        // Subscribe to real-time telemetry_logs inserts
+        const telemetrySub = supabase
+          .channel('fleet-telemetry-logs')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telemetry_logs' }, payload => {
+              const newLog = payload.new;
 
-                          newFleet[deviceIndex] = {
-                              ...newFleet[deviceIndex],
-                              status: updatedDevice.status,
-                              statusColor
-                          };
-                      }
-                      return newFleet;
-                  });
-              } else if (payload.eventType === 'INSERT') {
-                  fetchFleetData(); // Refresh list if a new device is added
-              }
-          })
-          .subscribe();
-
-        const eventSub = supabase
-          .channel('fleet-telemetry')
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events_ax2024' }, payload => {
-              const newEvent = payload.new;
-              // Randomly assign to a device for mock demo, or match if user_id/device_id aligns
               setFleetStatus(prev => {
-                  if (prev.length === 0) return prev;
-                  // Pick a random device to update its status or append telemetry
-                  const deviceIndex = Math.floor(Math.random() * prev.length);
                   const newFleet = [...prev];
-                  const device = newFleet[deviceIndex];
+                  const appId = newLog.app_type;
+                  if (!appId) return prev;
 
-                  // If it's an error event, change status to degraded/busy
-                  let newStatus = device.status;
-                  let newColor = device.statusColor;
-                  let msgStatus = 'success';
+                  let deviceIndex = newFleet.findIndex(d => d.id === appId);
 
-                  if (newEvent.type === 'error' || (newEvent.data && newEvent.data.status === 'error')) {
-                     newStatus = 'degraded';
-                     newColor = 'bg-yellow-500/20 border-yellow-500 text-yellow-400';
-                     msgStatus = 'error';
-                  } else {
-                     newStatus = 'operational';
-                     newColor = 'bg-green-500/20 border-green-500 text-green-400';
+                  // If new app, just re-fetch for simplicity to recalculate baseline
+                  if (deviceIndex === -1) {
+                     fetchFleetData();
+                     return prev;
                   }
 
-                  newFleet[deviceIndex] = {
-                      ...device,
-                      status: newStatus,
-                      statusColor: newColor,
-                      telemetry: [
-                          { id: newEvent.id, type: newEvent.type, message: newEvent.type + ' event', status: msgStatus },
-                          ...device.telemetry.slice(0, 2) // keep last 3
-                      ]
-                  };
-                  return newFleet;
-              });
-          })
-          .subscribe();
+                  const app = { ...newFleet[deviceIndex] };
 
-        const auditSub = supabase
-          .channel('hitl-audit-logs')
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'hitl_audit_logs' }, payload => {
-              const newLog = payload.new;
-              setFleetStatus(prev => {
-                  if (prev.length === 0) return prev;
-                  // For Swarm actions, we might not have a specific device mapping,
-                  // but we update the overall feed. For this demo, let's append to a random or specific "Swarm" device
-                  const deviceIndex = Math.floor(Math.random() * prev.length);
-                  const newFleet = [...prev];
-                  const device = newFleet[deviceIndex];
+                  app.totalEvents++;
+                  if (newLog.event === 'error' || newLog.event === 'integration_failure') {
+                     app.errorEvents++;
+                     app.errors = [{
+                        time: newLog.timestamp,
+                        message: newLog.details && newLog.details.error || 'Unknown error',
+                        stack: newLog.details && newLog.details.error_stack
+                     }, ...app.errors];
+                  }
 
-                  newFleet[deviceIndex] = {
-                      ...device,
-                      telemetry: [
-                          { id: newLog.id, type: 'swarm_action', message: `Onyx: ${newLog.action} (${newLog.tool_called || 'N/A'})`, status: 'success' },
-                          ...device.telemetry.slice(0, 2)
-                      ]
-                  };
+                  if (newLog.details && newLog.details.execution_ms) {
+                     app.totalExecutionMs += newLog.details.execution_ms;
+                     app.executionEvents++;
+                  }
+
+                  const errorRate = app.totalEvents > 0 ? (app.errorEvents / app.totalEvents) : 0;
+                  app.errorRate = errorRate;
+                  app.avgExecutionMs = app.executionEvents > 0 ? Math.round(app.totalExecutionMs / app.executionEvents) : 0;
+
+                  let status = 'operational';
+                  let statusColor = 'bg-green-500/20 border-green-500 text-green-400';
+
+                  if (errorRate > 0.05) {
+                     status = 'critical';
+                     statusColor = 'bg-red-500/20 border-red-500 text-red-400';
+                  } else if (errorRate >= 0.01 || app.avgExecutionMs > 3000) {
+                     status = 'degraded';
+                     statusColor = 'bg-yellow-500/20 border-yellow-500 text-yellow-400';
+                  }
+
+                  app.status = status;
+                  app.statusColor = statusColor;
+                  app.telemetry = [
+                     {
+                        id: newLog.timestamp,
+                        type: newLog.event,
+                        message: `${newLog.event}`,
+                        status: (newLog.event === 'error' || newLog.event === 'integration_failure') ? 'error' : 'success'
+                     },
+                     ...app.telemetry.slice(0, 2)
+                  ];
+
+                  newFleet[deviceIndex] = app;
                   return newFleet;
               });
           })
           .subscribe();
 
         return () => {
-            supabase.removeChannel(deviceSub);
-            supabase.removeChannel(eventSub);
-            supabase.removeChannel(auditSub);
+            supabase.removeChannel(telemetrySub);
         };
     }
   }, [supabase]);
@@ -222,7 +251,7 @@ const FleetStatusMap = () => {
           </div>
       ) : fleetStatus.length === 0 ? (
           <div className="text-center p-8 text-slate-500 border border-dashed border-onyx-accent/20 rounded-lg">
-            No devices currently registered in the fleet.
+            No telemetry data available for satellite apps in the last 24 hours.
           </div>
       ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -233,6 +262,7 @@ const FleetStatusMap = () => {
                   layout
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
+                  onClick={() => setExpandedApp(expandedApp === device.id ? null : device.id)}
                >
                     {/* Revenue Glow Logic */}
                   <motion.div
@@ -251,26 +281,48 @@ const FleetStatusMap = () => {
 
                   {/* Tooltip on Hover */}
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-onyx-950 border border-onyx-accent/30 rounded-lg shadow-xl p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                     <h4 className="text-white text-xs font-bold mb-2 border-b border-onyx-accent/20 pb-1">{device.name} Telemetry</h4>
-                     <ul className="space-y-1">
-                        <AnimatePresence>
-                        {device.telemetry.map((event, idx) => (
-                           <motion.li
-                              key={event.id || idx}
-                              initial={{ opacity: 0, x: -10 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              className="text-[10px] flex items-center justify-between"
-                           >
-                              <span className="text-slate-300 truncate mr-2">{event.message}</span>
-                              <SafeIcon
-                                icon={event.status === 'success' ? FiCheckCircle : FiActivity}
-                                className={event.status === 'success' ? 'text-green-400' : 'text-blue-400'}
-                              />
-                           </motion.li>
-                        ))}
-                        </AnimatePresence>
+                     <h4 className="text-white text-xs font-bold mb-2 border-b border-onyx-accent/20 pb-1">{device.name} Stats</h4>
+                     <ul className="space-y-1 text-xs text-slate-300">
+                        <li>Error Rate: {(device.errorRate * 100).toFixed(1)}%</li>
+                        <li>Avg Latency: {device.avgExecutionMs}ms</li>
                      </ul>
                   </div>
+
+                  {/* Click to expand errors */}
+                  <AnimatePresence>
+                     {expandedApp === device.id && (
+                        <motion.div
+                           initial={{ opacity: 0, height: 0 }}
+                           animate={{ opacity: 1, height: 'auto' }}
+                           exit={{ opacity: 0, height: 0 }}
+                           className="col-span-full mt-2 bg-onyx-950 border border-onyx-accent/30 rounded-lg p-4 overflow-hidden z-10 absolute left-0 right-0 w-[300px] shadow-2xl"
+                           style={{ minWidth: 'max-content' }}
+                           onClick={(e) => e.stopPropagation()}
+                        >
+                           <h4 className="text-white font-bold mb-2 flex items-center justify-between">
+                             <span>Recent Errors: {device.name}</span>
+                             <button onClick={() => setExpandedApp(null)} className="text-slate-400 hover:text-white">✕</button>
+                           </h4>
+                           {device.errors.length === 0 ? (
+                              <p className="text-sm text-green-400">No recent errors.</p>
+                           ) : (
+                              <div className="max-h-48 overflow-y-auto space-y-3">
+                                 {device.errors.slice(0, 5).map((err, i) => (
+                                    <div key={i} className="bg-onyx-900/50 p-2 rounded border border-red-500/20">
+                                       <div className="text-xs text-slate-400">{new Date(err.time).toLocaleString()}</div>
+                                       <div className="text-sm text-red-400 font-mono mt-1">{err.message}</div>
+                                       {err.stack && (
+                                          <pre className="text-[10px] text-slate-500 mt-1 overflow-x-auto p-1 bg-black/30 rounded">
+                                             {err.stack}
+                                          </pre>
+                                       )}
+                                    </div>
+                                 ))}
+                              </div>
+                           )}
+                        </motion.div>
+                     )}
+                  </AnimatePresence>
                </motion.div>
             ))}
           </div>
