@@ -12,8 +12,6 @@ export const runWorkflow = async (workflowSlug, userId, initialContext = {}) => 
       const dbWorkflow = dbWorkflows.find(w => w.slug === workflowSlug);
 
       if (dbWorkflow && dbWorkflow.definition) {
-         // Assuming dbWorkflow.definition contains the parsed steps
-         // A real parser would translate JSON nodes into executable actions
          workflow = {
             name: dbWorkflow.name,
             description: dbWorkflow.description,
