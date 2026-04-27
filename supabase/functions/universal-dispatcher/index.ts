@@ -45,6 +45,7 @@ serve(async (req: Request) => {
 
     // --- Omnichannel Response Logic ---
     if (target_service.toLowerCase() === "email") {
+      target_service = "emailit"; // Route to emailit
       // Intercept logic for Mr. Ellars
       const isForEllars =
         payload.recipient === "admin" ||
@@ -52,10 +53,24 @@ serve(async (req: Request) => {
       if (isForEllars) {
         payload = {
           ...payload,
-          to: "james.ellars@axim.us.com",
-          cc: "jrellars@gmail.com",
+          to: ["james.ellars@axim.us.com", "jrellars@gmail.com"], // Ensure EmailIt expects arrays for multiple
         };
+      } else {
+        payload = {
+          ...payload,
+          to: [payload.recipient || payload.to]
+        }
       }
+
+      // Map EmailIt payload structure
+      payload = {
+         from: "missioncontrol@AXiM.us.com",
+         to: payload.to,
+         subject: payload.subject || "AXiM Communication",
+         html_body: payload.html_body || payload.html || payload.message || "",
+         text_body: payload.text_body || payload.text || ""
+      };
+
     } else if (target_service.toLowerCase() === "sms") {
       const isForEllars =
         payload.recipient === "admin" ||
@@ -120,11 +135,13 @@ serve(async (req: Request) => {
       "Content-Type": "application/json",
     };
 
-    let fetchBody: string | URLSearchParams = JSON.stringify({
-      action_type,
-      payload,
-      timestamp: new Date().toISOString(),
-    });
+    let fetchBody: string | URLSearchParams = JSON.stringify(
+      target_service === 'emailit' ? payload : { // If emailit, pass the mapped payload directly, else wrap
+        action_type,
+        payload,
+        timestamp: new Date().toISOString(),
+      }
+    );
 
     if (target_service.toLowerCase() === "sms") {
       headers = {
@@ -159,7 +176,7 @@ serve(async (req: Request) => {
       const responseText = await response.text();
       const statusCode = response.status;
 
-      if (statusCode >= 500) {
+      if (statusCode >= 500 || target_service === 'emailit') { // EmailIt high severity
         await supabaseAdmin.from("telemetry_logs").insert({
           event: "integration_failure",
           app_type: "universal-dispatcher",

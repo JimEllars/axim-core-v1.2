@@ -20,12 +20,11 @@ serve(async (req) => {
   try {
     const body = await req.json();
 
-    // Attempt to extract sender and message depending on webhook format (e.g., SendGrid vs Twilio)
-    // SendGrid inbound parse might have a specific format, Twilio has another.
-    // For simplicity, we assume a unified parsed format from an API gateway or standard payload:
-    const sender = body.sender || body.From; // 'From' for Twilio, 'sender' custom
-    const messageText = body.text || body.Body; // 'Body' for Twilio, 'text' custom
-    const channel = body.channel || (body.From ? "sms" : "email"); // Infer channel
+    // Extract sender email, the subject, and the parsed text body from the payload (EmailIt payload)
+    const sender = body.sender || body.from?.email || body.From; // Handle EmailIt format
+    const messageText = body.text_body || body.text || body.Body; // Handle EmailIt format
+    const subject = body.subject || body.Subject || "";
+    const channel = body.channel || (body.From ? "sms" : "email");
 
     if (!sender || !messageText) {
       return new Response(
@@ -56,18 +55,13 @@ serve(async (req) => {
     }
 
     // Forward to onyx-bridge
-    // The request should originate from inside the network, but we use an internal fetch
-    // We can just construct a request directly to the onyx-bridge
-
-    // We need to fetch the onyx-bridge function locally.
-    // In Edge Functions, you can call other edge functions using the SUPABASE_URL
     const onyxBridgeUrl = `${SUPABASE_URL}/functions/v1/onyx-bridge`;
 
     const bridgeResponse = await fetch(onyxBridgeUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`, // Using service key as it's an internal admin action
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
       },
       body: JSON.stringify({
         command: "admin_inbound_message",
@@ -76,6 +70,7 @@ serve(async (req) => {
           source_channel: channel,
           message_text: messageText,
           sender: sender,
+          subject: subject,
         },
       }),
     });
