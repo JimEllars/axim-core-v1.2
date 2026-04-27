@@ -100,6 +100,7 @@ const WorkflowBuilder = () => {
     { id: 'start', type: 'trigger', label: 'Webhook Received' }
   ]);
   const [scheduledTasks, setScheduledTasks] = useState([]);
+  const [savedWorkflows, setSavedWorkflows] = useState([]);
   const [showScheduleForm, setShowScheduleForm] = useState(false);
   const [newScheduleCommand, setNewScheduleCommand] = useState('');
   const [newScheduleCron, setNewScheduleCron] = useState('');
@@ -108,7 +109,19 @@ const WorkflowBuilder = () => {
     if (activeTab === 'schedule' && user?.id) {
       loadScheduledTasks();
     }
+    if (user?.id) {
+      loadWorkflows();
+    }
   }, [activeTab, user]);
+
+  const loadWorkflows = async () => {
+    try {
+      const workflows = await api.getWorkflows();
+      setSavedWorkflows(workflows || []);
+    } catch (error) {
+      console.error("Failed to load workflows:", error);
+    }
+  };
 
   const loadScheduledTasks = async () => {
     try {
@@ -286,19 +299,59 @@ const WorkflowBuilder = () => {
       </div>
   );
 
+  const loadCustomWorkflow = (workflow) => {
+    if (workflow.definition && workflow.definition.steps) {
+      const loadedNodes = workflow.definition.steps.map((step, idx) => ({
+        id: `node_${Date.now()}_${idx}`,
+        type: step.type === 'trigger' ? 'trigger' : (step.type === 'api_call' ? 'action' : 'condition'),
+        label: step.name
+      }));
+      if (loadedNodes.length > 0) {
+        setNodes(loadedNodes);
+        setActiveTab('builder');
+        toast.success(`Loaded workflow: ${workflow.name}`);
+      } else {
+        toast.error("Workflow definition is empty or invalid.");
+      }
+    } else {
+      toast.error("Workflow definition is empty or invalid.");
+    }
+  };
+
   const renderTemplates = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {[
-        { id: 'auto-reply', title: 'New Lead Auto-Reply', desc: 'Send an email when a new lead is added.' },
-        { id: 'export', title: 'Weekly Summary Export', desc: 'Export AI interactions to Drive every Friday.' },
-        { id: 'routing', title: 'Support Ticket Routing', desc: 'Route webhook tickets based on priority.' }
-      ].map((tpl) => (
-        <div key={tpl.id} onClick={() => loadTemplate(tpl.id)} className="bg-onyx-950 border border-onyx-accent/20 rounded-lg p-4 hover:border-indigo-500 transition-colors cursor-pointer group">
-           <h4 className="text-white font-medium mb-2 group-hover:text-indigo-400">{tpl.title}</h4>
-           <p className="text-sm text-slate-400 mb-4">{tpl.desc}</p>
-           <button className="text-indigo-400 text-sm font-medium hover:text-indigo-300">Use Template &rarr;</button>
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-medium text-white mb-4">Saved Workflows</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {savedWorkflows.length === 0 ? (
+            <p className="text-sm text-slate-500 italic col-span-3">No saved workflows found.</p>
+          ) : (
+            savedWorkflows.map((wf, idx) => (
+              <div key={wf.id || idx} onClick={() => loadCustomWorkflow(wf)} className="bg-onyx-950 border border-onyx-accent/20 rounded-lg p-4 hover:border-indigo-500 transition-colors cursor-pointer group">
+                <h4 className="text-white font-medium mb-2 group-hover:text-indigo-400">{wf.name}</h4>
+                <p className="text-sm text-slate-400 mb-4">{wf.description || 'No description provided.'}</p>
+                <button className="text-indigo-400 text-sm font-medium hover:text-indigo-300">Edit Workflow &rarr;</button>
+              </div>
+            ))
+          )}
         </div>
-      ))}
+      </div>
+      <div>
+        <h3 className="text-lg font-medium text-white mb-4">System Templates</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[
+            { id: 'auto-reply', title: 'New Lead Auto-Reply', desc: 'Send an email when a new lead is added.' },
+            { id: 'export', title: 'Weekly Summary Export', desc: 'Export AI interactions to Drive every Friday.' },
+            { id: 'routing', title: 'Support Ticket Routing', desc: 'Route webhook tickets based on priority.' }
+          ].map((tpl) => (
+            <div key={tpl.id} onClick={() => loadTemplate(tpl.id)} className="bg-onyx-950 border border-onyx-accent/20 rounded-lg p-4 hover:border-indigo-500 transition-colors cursor-pointer group opacity-60">
+               <h4 className="text-white font-medium mb-2 group-hover:text-indigo-400">{tpl.title}</h4>
+               <p className="text-sm text-slate-400 mb-4">{tpl.desc}</p>
+               <button className="text-indigo-400 text-sm font-medium hover:text-indigo-300">Use Template &rarr;</button>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 
@@ -435,6 +488,7 @@ const WorkflowBuilder = () => {
                     user.id
                   );
                   toast.success("Workflow saved to database!");
+                  loadWorkflows();
                 } catch (err) {
                   toast.error("Failed to save workflow.");
                 }

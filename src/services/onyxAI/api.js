@@ -220,6 +220,10 @@ class ApiService {
     return this._executeWithFallback('getWorkflows');
   }
 
+  async createWorkflow(name, description, slug, definition, userId) {
+    return this._executeWithFallback('createWorkflow', name, description, slug, definition, userId);
+  }
+
   async deleteIntegration(id) {
     return this._executeWithFallback('deleteIntegration', id);
   }
