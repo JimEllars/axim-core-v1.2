@@ -2,21 +2,6 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
 
-const AFFILIATE_LINKS = {
-  'solar': 'https://example.com/solar-affiliate',
-  'energy': 'https://example.com/energy-affiliate',
-  'foreman': 'https://foremanos.com/affiliate',
-  'software': 'https://example.com/software-affiliate',
-  'AI': 'https://example.com/ai-tools-affiliate',
-  'automation': 'https://example.com/automation-affiliate',
-  'growth': 'https://example.com/growth-affiliate'
-};
-
-const PRECOMPILED_AFFILIATE_REGEXES = Object.entries(AFFILIATE_LINKS).map(([keyword, link]) => ({
-  regex: new RegExp(`\\b(${keyword})\\b`, 'i'),
-  link
-}));
-
 const DEFAULT_TOPICS = [
   'Latest trends in Solar Energy software',
   'AI in Construction Management',
@@ -37,7 +22,7 @@ async function generateWithGemini(apiKey: string, prompt: string) {
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.7,
-        maxOutputTokens: 2048, // Increased for longer articles
+        maxOutputTokens: 2048,
       },
     }),
   });
@@ -54,8 +39,57 @@ async function generateWithGemini(apiKey: string, prompt: string) {
   return data.candidates[0].content.parts[0].text;
 }
 
+// Fetch active affiliate partners
+async function getAffiliatePartners(supabase: any) {
+  const { data, error } = await supabase
+    .from('affiliate_partners')
+    .select('*')
+    .eq('status', 'active');
+
+  if (error) {
+    console.error("Error fetching affiliate partners:", error);
+    return [];
+  }
+  return data || [];
+}
+
+// Simple semantic matching based on keywords in category and description
+function matchPartnerToTopic(topic: string, partners: any[]) {
+  if (!partners || partners.length === 0) return null;
+
+  const topicLower = topic.toLowerCase();
+
+  // Scoring partners
+  const scoredPartners = partners.map(partner => {
+    let score = 0;
+    const categoryWords = partner.category.toLowerCase().split(/[_\s]+/);
+    const descWords = partner.context_description.toLowerCase().split(/\s+/);
+
+    categoryWords.forEach((word: string) => {
+      if (word.length > 3 && topicLower.includes(word)) score += 3;
+    });
+
+    descWords.forEach((word: string) => {
+      if (word.length > 4 && topicLower.includes(word)) score += 1;
+    });
+
+    return { partner, score };
+  });
+
+  // Sort descending by score
+  scoredPartners.sort((a, b) => b.score - a.score);
+
+  // If we have a matching score > 0, return the best one.
+  // Otherwise, optionally return a random partner or null.
+  if (scoredPartners[0].score > 0) {
+    return scoredPartners[0].partner;
+  }
+
+  // Fallback: pick random active partner
+  return partners[Math.floor(Math.random() * partners.length)];
+}
+
 serve(async (req) => {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
   }
@@ -71,7 +105,6 @@ serve(async (req) => {
         throw new Error("Missing GEMINI_API_KEY environment variable.");
     }
 
-    // Get input (topics or urls) from body
     let topics = [];
     let urls = [];
     try {
@@ -87,14 +120,13 @@ serve(async (req) => {
     }
 
     const results = [];
+    const activePartners = await getAffiliatePartners(supabase);
 
-    // Mode 1: URL Scraping & Rewriting
     if (urls.length > 0) {
         console.log(`Processing ${urls.length} URLs concurrently...`);
         await Promise.all(urls.map(async (url) => {
             console.log(`Scraping URL: ${url}`);
             try {
-                // 1. Scrape Content (using axim-scraper if available, or fetch)
                 let sourceContent = '';
                 try {
                   const { data: scrapeData, error: scrapeError } = await supabase.functions.invoke('axim-scraper', {
@@ -109,11 +141,12 @@ serve(async (req) => {
                    sourceContent = await resp.text();
                 }
 
-                // Truncate content to avoid token limits
-                const truncatedContent = sourceContent.substring(0, 10000); // 10k chars approx
+                const truncatedContent = sourceContent.substring(0, 10000);
 
-                // 2. Generate/Rewrite Article
-                const prompt = `
+                // Try to find a partner based on URL (simple fallback to random if url doesn't have keywords)
+                const matchedPartner = matchPartnerToTopic(url, activePartners);
+
+                let prompt = `
                   You are an expert tech and business journalist.
                   Rewrite the following source content into a compelling, professional news article or blog post.
                   Focus on key insights, actionable takeaways, and industry trends.
@@ -130,10 +163,20 @@ serve(async (req) => {
                   - Formatting: Markdown.
                 `;
 
-                const articleContent = await generateWithGemini(apiKey, prompt);
+                if (matchedPartner) {
+                  prompt += `
 
-                // 3. Inject Links & Save (reusing logic below)
-                await processAndSaveArticle(supabase, articleContent, `Scraped from ${url}`, 'url_rewrite', results, AFFILIATE_LINKS);
+                  IMPORTANT INSTRUCTION:
+                  You must organically recommend the following tool in the article.
+                  Tool: ${matchedPartner.partner_name}
+                  Why it's good: ${matchedPartner.context_description}
+                  You must hyperlink it using exactly this URL: ${matchedPartner.custom_link}
+                  Make the recommendation feel helpful and native to the content.
+                  `;
+                }
+
+                const articleContent = await generateWithGemini(apiKey, prompt);
+                await processAndSaveArticle(supabase, articleContent, `Scraped from ${url}`, 'url_rewrite', results, matchedPartner);
 
             } catch (err) {
                 console.error(`Failed to process URL ${url}:`, err);
@@ -142,20 +185,19 @@ serve(async (req) => {
         }));
     }
 
-    // Mode 2: Topic-based Generation (Fallback or explicit)
     if (topics.length > 0 || (urls.length === 0 && topics.length === 0)) {
         if (topics.length === 0) {
-             // Pick one random topic
              const randomTopic = DEFAULT_TOPICS[Math.floor(Math.random() * DEFAULT_TOPICS.length)];
              topics = [randomTopic];
         }
 
         console.log(`Processing ${topics.length} topics concurrently...`);
-        // Use Promise.all to run LLM requests concurrently, reducing wait time significantly
         await Promise.all(topics.map(async (topic) => {
              console.log(`Processing topic: ${topic}`);
              try {
-                 const prompt = `
+                const matchedPartner = matchPartnerToTopic(topic, activePartners);
+
+                let prompt = `
                   Write a high-quality, engaging news article or blog post about: "${topic}".
 
                   Guidelines:
@@ -166,8 +208,20 @@ serve(async (req) => {
                   - Format: Markdown.
                 `;
 
+                if (matchedPartner) {
+                  prompt += `
+
+                  IMPORTANT INSTRUCTION:
+                  You must organically recommend the following tool in the article.
+                  Tool: ${matchedPartner.partner_name}
+                  Why it's good: ${matchedPartner.context_description}
+                  You must hyperlink it using exactly this URL: ${matchedPartner.custom_link}
+                  Make the recommendation feel helpful and native to the content.
+                  `;
+                }
+
                 const articleContent = await generateWithGemini(apiKey, prompt);
-                await processAndSaveArticle(supabase, articleContent, topic, 'topic_generation', results, AFFILIATE_LINKS);
+                await processAndSaveArticle(supabase, articleContent, topic, 'topic_generation', results, matchedPartner);
 
              } catch (err) {
                  console.error(`Failed to process topic ${topic}:`, err);
@@ -193,38 +247,29 @@ serve(async (req) => {
   }
 });
 
-async function processAndSaveArticle(supabase: any, content: string, source: string, method: string, results: any[], affiliateLinks: any) {
-    // 1. Inject Affiliate Links (Simple Regex for now, could be improved)
-    let injectedCount = 0;
-    let articleContent = content;
-    PRECOMPILED_AFFILIATE_REGEXES.forEach(({ regex, link }) => {
-        if (regex.test(articleContent)) {
-            // Only replace the first occurrence to avoid spamminess
-            if (!articleContent.includes(`](${link})`)) {
-                 articleContent = articleContent.replace(regex, `[$1](${link})`);
-                 injectedCount++;
-            }
-        }
-    });
+async function processAndSaveArticle(supabase: any, content: string, source: string, method: string, results: any[], injectedPartner: any) {
+    const articleContent = content;
 
-    // 2. Extract Title
+    // Extract Title
     const titleMatch = articleContent.match(/^#\s+(.+)$/m) || articleContent.match(/^\*\*(.+)\*\*$/m);
     const title = titleMatch ? titleMatch[1].replace(/\*\*/g, '').trim() : `Article: ${source}`;
 
-    // 3. Save to Database
+    const metadata = {
+        injected_partner: injectedPartner ? injectedPartner.partner_name : null,
+        provider: 'gemini',
+        method: method,
+        generated_at: new Date().toISOString()
+    };
+
+    // Save to Database
     const { data, error } = await supabase
         .from('generated_content_ax2024')
         .insert({
             title: title,
             content: articleContent,
-            topic: source, // Storing source (URL or Topic) in 'topic' column
+            topic: source,
             status: 'published',
-            metadata: {
-                injected_links_count: injectedCount,
-                provider: 'gemini',
-                method: method,
-                generated_at: new Date().toISOString()
-            }
+            metadata: metadata
         })
         .select()
         .single();
@@ -235,5 +280,20 @@ async function processAndSaveArticle(supabase: any, content: string, source: str
     } else {
         console.log(`Saved article: ${title}`);
         results.push({ source, status: 'success', id: data.id, title });
+
+        // Asynchronously trigger WordPress publishing if needed
+        try {
+            await supabase.functions.invoke('wordpress-publisher', {
+                body: {
+                    title: title,
+                    html_content: articleContent, // Since it's markdown, WP might need plugin to parse or we pass it
+                    status: 'publish',
+                    author_id: 1 // Default author
+                }
+            });
+            console.log(`Triggered wordpress-publisher for article ${data.id}`);
+        } catch (wpError) {
+            console.error(`Failed to trigger wordpress-publisher for article ${data.id}:`, wpError);
+        }
     }
 }
