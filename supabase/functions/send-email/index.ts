@@ -1,8 +1,14 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders as CORS_HEADERS, getCorsHeaders } from '../_shared/cors.ts';
 import { notifyOnyx } from '../_shared/telemetry.ts';
 import * as jose from 'https://deno.land/x/jose@v4.14.4/index.ts';
 import { generatePdf } from '../_shared/pdf-generators/index.ts';
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") as string;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") as string;
+
+const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 // Helper to convert Uint8Array to base64
 function uint8ArrayToBase64(bytes: Uint8Array): string {
@@ -60,17 +66,34 @@ serve(async (req) => {
     const pdfBytes = await generatePdf(appSource, formData);
     const pdfBase64 = uint8ArrayToBase64(pdfBytes);
 
-    // 4. Send Email via Resend
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    if (!resendApiKey) {
-      throw new Error('Server configuration error: RESEND_API_KEY not set');
+    // 4. Send Email via EmailIt
+    // Fetch EmailIt credentials from ecosystem_connections
+    const { data: connection, error: connectionError } = await supabaseAdmin
+      .from('ecosystem_connections')
+      .select('webhook_url, api_key, status')
+      .eq('service_name', 'emailit')
+      .single();
+
+    if (connectionError || !connection) {
+        throw new Error('EmailIt integration not found');
     }
 
-    const resendPayload = {
-      from: "AXiM Systems <noreply@axim.us.com>",
+    if (connection.status !== 'active') {
+        throw new Error('EmailIt integration is currently disabled');
+    }
+
+    const emailItApiKey = connection.api_key;
+    const emailItUrl = connection.webhook_url;
+
+    if (!emailItApiKey) {
+      throw new Error('Server configuration error: EmailIt API Key not set in vault');
+    }
+
+    const emailItPayload = {
+      from: "missioncontrol@AXiM.us.com", // Strictly map sender address
       to: [toEmail],
       subject: `Your AXiM Secure Document: ${appSource}`,
-      html: "<p>Thank you for your purchase. Your document is securely attached.</p>",
+      html_body: "<p>Thank you for your purchase. Your document is securely attached.</p>",
       attachments: [
         {
           filename: "AXiM_Document.pdf",
@@ -79,18 +102,33 @@ serve(async (req) => {
       ]
     };
 
-    const resendResponse = await fetch('https://api.resend.com/emails', {
+    const resendResponse = await fetch(emailItUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
+        'Authorization': `Bearer ${emailItApiKey}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(resendPayload)
+      body: JSON.stringify(emailItPayload)
     });
 
     if (!resendResponse.ok) {
-      const errorData = await resendResponse.json();
-      throw new Error(`Resend API Error: ${errorData.message || resendResponse.statusText}`);
+      const errorText = await resendResponse.text();
+      // Log HIGH severity event to telemetry_logs
+      await supabaseAdmin.from('telemetry_logs').insert({
+          event: 'integration_failure',
+          app_type: 'send-email',
+          status_code: resendResponse.status,
+          timestamp: new Date().toISOString(),
+          details: {
+              target_service: 'emailit',
+              error: errorText
+          }
+      });
+      // return 502 Bad Gateway to the caller
+      return new Response(
+        JSON.stringify({ error: `EmailIt API Error: ${errorText}` }),
+        { status: 502, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
+      );
     }
 
     const resendData = await resendResponse.json();
