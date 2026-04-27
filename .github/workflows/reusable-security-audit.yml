@@ -2,6 +2,11 @@ name: Reusable Security Audit
 
 on:
   workflow_call:
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: '0 0 * * 0'
 
 jobs:
   audit:
@@ -19,7 +24,7 @@ jobs:
         run: npm ci
 
       - name: Run security audit
-        run: npm audit --prod
+        run: npm audit --audit-level=high
 
       - name: Run linter
         run: npm run lint

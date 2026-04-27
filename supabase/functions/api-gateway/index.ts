@@ -11,12 +11,72 @@ const INTERNAL_SERVICE_KEY = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY') as string
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+
+// Rate Limiter
+const rateLimitMap = new Map<string, { count: number, resetTime: number }>();
+const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const MAX_REQUESTS = 100;
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(ip);
+
+  if (!record) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+
+  if (now > record.resetTime) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+    return true;
+  }
+
+  if (record.count >= MAX_REQUESTS) {
+    return false;
+  }
+
+  record.count++;
+  return true;
+}
+
+// Payload depth checker
+function getDepth(obj: any): number {
+  if (obj && typeof obj === 'object') {
+    let depth = 0;
+    for (const key in obj) {
+      depth = Math.max(depth, getDepth(obj[key]));
+    }
+    return depth + 1;
+  }
+  return 0;
+}
+
+
 const ALLOWED_ORIGINS = [
   'https://quickdemandletter.com',
   'https://your-nda-domain.com'
 ];
 
 serve(async (req) => {
+
+  async function logSecurityAnomaly(reason: string, details: any = {}) {
+    const ip = req.headers.get('CF-Connecting-IP') || req.headers.get('x-forwarded-for') || 'unknown';
+    console.warn(`Security Anomaly: ${reason} from IP: ${ip}`);
+    if (typeof EdgeRuntime !== 'undefined') {
+      EdgeRuntime.waitUntil(
+        supabaseAdmin.from('telemetry_logs').insert({
+          event: 'security_anomaly',
+          app_type: 'api-gateway',
+          severity: 'HIGH',
+          timestamp: new Date().toISOString(),
+          ip_address: ip,
+          endpoint: endpoint,
+          details: { reason, ...details }
+        })
+      );
+    }
+  }
+
   const startTime = Date.now();
   const endpoint = new URL(req.url).pathname;
 
@@ -37,6 +97,7 @@ serve(async (req) => {
   // Bot-Defense middleware: Reject requests lacking a standard User-Agent
   const userAgent = req.headers.get('user-agent');
   if (!userAgent || userAgent.trim() === '') {
+    await logSecurityAnomaly('Forbidden: Invalid User-Agent');
     return new Response(JSON.stringify({ error: 'Forbidden: Invalid User-Agent' }), {
       status: 403,
       headers: { ...securityHeaders, 'Content-Type': 'application/json' }
@@ -44,15 +105,61 @@ serve(async (req) => {
   }
 
   try {
-    const internalKeyHeader = req.headers.get('X-Axim-Internal-Service-Key');
 
-    if (!internalKeyHeader || internalKeyHeader !== INTERNAL_SERVICE_KEY) {
+  const ip = req.headers.get('CF-Connecting-IP') || req.headers.get('x-forwarded-for') || 'unknown';
+  const internalKeyHeader = req.headers.get('X-Axim-Internal-Service-Key');
+  const isInternal = internalKeyHeader === INTERNAL_SERVICE_KEY;
+
+  if (!isInternal && ip !== 'unknown') {
+    if (!checkRateLimit(ip)) {
+      await logSecurityAnomaly('Rate Limit Exceeded', { limit: MAX_REQUESTS, window: RATE_LIMIT_WINDOW });
+      return new Response(JSON.stringify({ error: 'Too Many Requests' }), {
+        status: 429,
+        headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
+    if (!isInternal) {
+      await logSecurityAnomaly('Invalid internal service key attempt');
       await notifyOnyx(endpoint, 403, { reason: 'Invalid internal service key attempt' });
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403,
         headers: { ...securityHeaders, 'Content-Type': 'application/json' }
       });
     }
+
+
+    if (req.method === 'POST') {
+      // Create a cloned request to read body without consuming the original if needed, but since we read it here we can just replace the logic
+      const clone = req.clone();
+      const text = await clone.text();
+
+      // 5MB limit
+      if (text.length > 5 * 1024 * 1024) {
+        await logSecurityAnomaly('Payload Too Large', { size: text.length });
+        return new Response(JSON.stringify({ error: 'Payload Too Large' }), {
+          status: 413,
+          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+        try {
+          const parsed = JSON.parse(text);
+          if (getDepth(parsed) > 10) {
+            await logSecurityAnomaly('Payload Too Nested', { depth: getDepth(parsed) });
+            return new Response(JSON.stringify({ error: 'Payload Too Large (Too nested)' }), {
+              status: 413,
+              headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+        } catch (e) {
+          // ignore parse error here, will be caught later if needed
+        }
+      }
+    }
+
 
     if (req.method === 'POST' && endpoint === '/api/v1/telemetry/ingest') {
       let body;
