@@ -5,71 +5,56 @@ import logger from '../services/logging';
 export const useVectorSearch = () => {
   const { supabase } = useSupabase();
   const [isSearching, setIsSearching] = useState(false);
-  const [results, setResults] = useState([]);
+  const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
   const debounceTimer = useRef(null);
 
-  const executeSearch = async (query, userId, limit = 5, offset = 0) => {
+  const executeSearch = async (query, userId, limit = 5) => {
     setIsSearching(true);
     setError(null);
     try {
       if (!supabase) throw new Error("Supabase client not initialized.");
-      if (!query) return [];
+      if (!query) return null;
 
-      const { data: embeddingData, error: embeddingError } = await supabase.functions.invoke('generate-embedding', {
-        body: { input: query }
+      const { data, error: functionError } = await supabase.functions.invoke('memory-retrieval', {
+        body: { query, user_id: userId, limit },
+        headers: {
+            'X-Axim-Internal-Service-Key': import.meta.env.VITE_ONYX_SECURE_KEY || 'test_internal_key'
+        }
       });
 
-      let queryEmbedding;
-      if (embeddingError || !embeddingData?.embedding) {
-        logger.warn('Failed to generate embedding via Edge Function. Using dummy embedding for testing.', embeddingError);
-        queryEmbedding = new Array(1536).fill(0.01);
-      } else {
-        queryEmbedding = embeddingData.embedding;
+      if (functionError) {
+        throw functionError;
       }
 
-      const { data: matchData, error: matchError } = await supabase.rpc('match_ai_interactions', {
-        query_embedding: queryEmbedding,
-        match_threshold: 0.70,
-        match_count: limit,
-        p_user_id: userId,
-        p_offset: offset
-      });
-
-      if (matchError) {
-        throw matchError;
-      }
-
-      let res = matchData || [];
-
-      setResults(res);
-      return res;
+      setResults(data);
+      return data;
 
     } catch (err) {
       logger.error('Vector search error:', err);
       setError(err.message);
-      setResults([]);
-      return [];
+      setResults(null);
+      return null;
     } finally {
       setIsSearching(false);
     }
   };
 
-  const searchMemory = useCallback((query, userId, limit = 5, offset = 0) => {
+  const searchMemory = useCallback((query, userId, limit = 5) => {
     return new Promise((resolve) => {
       if (debounceTimer.current) {
         clearTimeout(debounceTimer.current);
       }
 
       if (!query) {
-        setResults([]);
-        return resolve([]);
+        setResults(null);
+        return resolve(null);
       }
 
       setIsSearching(true);
 
       debounceTimer.current = setTimeout(async () => {
-        const res = await executeSearch(query, userId, limit, offset);
+        const res = await executeSearch(query, userId, limit);
         resolve(res);
       }, 300); // 300ms debounce
     });

@@ -46,7 +46,6 @@ serve(async (req: Request) => {
     // --- Omnichannel Response Logic ---
     if (target_service.toLowerCase() === "email") {
       // Intercept logic for Mr. Ellars
-      // if the payload indicates the target is Mr. Ellars or admin
       const isForEllars =
         payload.recipient === "admin" ||
         payload.recipient === "james.ellars@axim.us.com";
@@ -80,6 +79,19 @@ serve(async (req: Request) => {
           Body: text,
         };
       }
+    } else if (target_service.toLowerCase() === "calendar") {
+      payload = {
+        start_time: payload.start_time || payload.startTime || new Date().toISOString(),
+        end_time: payload.end_time || payload.endTime || new Date(Date.now() + 3600000).toISOString(),
+        summary: payload.summary || payload.title || "Meeting",
+        attendees: payload.attendees || []
+      };
+    } else if (target_service.toLowerCase() === "crm") {
+      payload = {
+        contact_name: payload.contact_name || payload.name || "Unknown Lead",
+        email: payload.email || "",
+        lead_status: payload.lead_status || payload.status || "New"
+      };
     }
     // ------------------------------------
 
@@ -119,7 +131,7 @@ serve(async (req: Request) => {
         "Content-Type": "application/x-www-form-urlencoded",
       };
 
-      // Basic Auth for Twilio using api_key (assuming format AccountSid:AuthToken or similar passed in api_key)
+      // Basic Auth for Twilio using api_key
       if (connection.api_key) {
         headers["Authorization"] = `Basic ${btoa(connection.api_key)}`;
       }
