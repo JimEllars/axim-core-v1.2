@@ -1,6 +1,6 @@
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import Stripe from 'https://esm.sh/stripe@12.1.0?target=deno';
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import Stripe from 'https://esm.sh/stripe@14.14.0';
 
 const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string, {
   apiVersion: '2023-10-16',
@@ -61,9 +61,9 @@ serve(async (req) => {
 
           if (customerEmail) {
             try {
-              await fulfillDigitalProduct(productId, customerEmail, session.id, appId, userId);
+              await enqueueFulfillment(productId, customerEmail, session.id, appId, userId);
             } catch (err: any) {
-              console.error(`Fulfillment error: ${err instanceof Error ? err.message : "Unknown error"}`);
+              console.error(`Fulfillment enqueue error: ${err instanceof Error ? err.message : "Unknown error"}`);
               await supabase.from('telemetry_logs').insert({
                 event: 'integration_failure',
                 app_type: appId || 'stripe-webhooks',
@@ -72,6 +72,7 @@ serve(async (req) => {
                   error: err instanceof Error ? err.message : "Unknown error",
                   product_id: productId,
                   session_id: session.id,
+                  stage: 'enqueue_fulfillment'
                 },
               });
             }
@@ -171,119 +172,41 @@ async function recordOneTimePurchase(userId: string, productId: string, amountTo
   }
 }
 
-async function fulfillDigitalProduct(productId: string, customerEmail: string, sessionId: string, appId?: string, userId?: string) {
-  console.log(`Fulfilling digital product ${productId} for ${customerEmail} via app ${appId}`);
+async function enqueueFulfillment(productId: string, customerEmail: string, sessionId: string, appId?: string, userId?: string) {
+  console.log(`Enqueueing fulfillment for digital product ${productId} for ${customerEmail} via app ${appId}`);
 
-  // Insert delivery record
+  // Insert delivery record to track status
   const { error: deliveryError } = await supabase
     .from('product_deliveries')
     .insert({
       product_id: productId,
       customer_email: customerEmail,
       stripe_session_id: sessionId,
-      delivery_status: 'processing',
+      delivery_status: 'pending',
     });
 
   if (deliveryError) {
     throw new Error(`Failed to create delivery record: ${deliveryError.message}`);
   }
 
-  const internalKey = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY') || 'fallback_internal_key';
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
-  let artifactUrl = '';
-
-  if (appId) {
-     // Internal fulfillment orchestration
-     console.log(`Triggering satellite app ${appId} for artifact generation...`);
-     const appUrl = `${supabaseUrl}/functions/v1/${appId}`;
-     const appRes = await fetch(appUrl, {
-       method: 'POST',
-       headers: {
-         'Content-Type': 'application/json',
-         'X-Axim-Internal-Service-Key': internalKey,
-       },
-       body: JSON.stringify({
-         action: 'generate_artifact',
-         session_id: sessionId,
-         user_id: userId,
-         customer_email: customerEmail,
-         product_id: productId
-       })
-     });
-
-     if (!appRes.ok) {
-       throw new Error(`Satellite app ${appId} failed generation: ${await appRes.text()}`);
-     }
-
-     const appData = await appRes.json();
-     const artifactPdfBase64 = appData.artifact;
-
-     if (artifactPdfBase64) {
-       // Secure artifact storage
-       const fileName = `${appId}_${sessionId}.pdf`;
-       const pdfBuffer = Uint8Array.from(atob(artifactPdfBase64), c => c.charCodeAt(0));
-
-       const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('secure_artifacts')
-          .upload(fileName, pdfBuffer, {
-             contentType: 'application/pdf',
-             upsert: true
-          });
-
-       if (uploadError) {
-         throw new Error(`Failed to store artifact: ${uploadError.message}`);
-       }
-
-       // Generate signed url for delivery
-       const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-          .from('secure_artifacts')
-          .createSignedUrl(fileName, 60 * 60 * 24 * 7); // 7 days valid
-
-       if (signedUrlError) {
-          throw new Error(`Failed to generate signed url: ${signedUrlError.message}`);
-       }
-
-       artifactUrl = signedUrlData.signedUrl;
-
-       // Record in vault_records
-       await supabase.from('vault_records').insert({
-          file_name: fileName,
-          document_type: appId,
-          trace_id: sessionId,
-          bucket_id: 'secure_artifacts'
-       });
-     }
-  }
-
-  // Update delivery record to delivered
-  await supabase
-    .from('product_deliveries')
-    .update({ delivery_status: 'delivered' })
-    .eq('stripe_session_id', sessionId);
-
-  // Dispatch email via universal-dispatcher
-  const dispatcherUrl = `${supabaseUrl}/functions/v1/universal-dispatcher`;
-
-  const dispatchRes = await fetch(dispatcherUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Axim-Internal-Service-Key': internalKey,
-    },
-    body: JSON.stringify({
-      target_service: 'email',
-      action_type: 'send_email',
+  // Insert job into satellite_job_queue
+  const { error: queueError } = await supabase
+    .from('satellite_job_queue')
+    .insert({
+      app_id: appId,
       payload: {
-        to: customerEmail,
-        subject: `Your Secure Document Delivery`,
-        text: `Thank you for your purchase. ${artifactUrl ? `Here is your secure document link (valid for 7 days): ${artifactUrl}` : 'Your product is ready.'}`,
-        recipient: customerEmail,
+        product_id: productId,
+        customer_email: customerEmail,
+        session_id: sessionId,
+        user_id: userId
       },
-    }),
-  });
+      status: 'pending',
+      attempts: 0
+    });
 
-  if (!dispatchRes.ok) {
-    throw new Error(`Failed to dispatch email: ${await dispatchRes.text()}`);
+  if (queueError) {
+    throw new Error(`Failed to enqueue job: ${queueError.message}`);
   }
-  console.log(`Successfully fulfilled product ${productId} and dispatched email`);
+
+  console.log(`Successfully enqueued job for product ${productId}`);
 }
