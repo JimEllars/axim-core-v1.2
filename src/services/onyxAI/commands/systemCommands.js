@@ -858,6 +858,76 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
       }
     }
   }),
+
+  createCommand({
+    name: 'troubleshootApp',
+    description: 'Diagnoses issues with a specific satellite micro-app by analyzing its recent telemetry errors.',
+    keywords: ['troubleshoot', 'diagnose', 'why is app failing', 'debug app'],
+    usage: 'troubleshoot <app_id>',
+    category: 'System',
+    async execute(args, { aximCore }) {
+      if (!args || typeof args !== 'string') {
+        return "Please provide the app_id of the satellite app to troubleshoot.";
+      }
+
+      const appId = args.trim();
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321';
+      const serviceKey = import.meta.env.VITE_AXIM_SERVICE_KEY || import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
+
+      if (!serviceKey) {
+        return "AXIM_SERVICE_KEY is not configured.";
+      }
+
+      try {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supabase = createClient(supabaseUrl, serviceKey);
+
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+        const { data: logs, error } = await supabase
+          .from('telemetry_logs')
+          .select('timestamp, details')
+          .eq('app_type', appId)
+          .in('event', ['error', 'integration_failure'])
+          .gte('timestamp', twentyFourHoursAgo)
+          .order('timestamp', { ascending: false })
+          .limit(10);
+
+        if (error) throw error;
+
+        if (!logs || logs.length === 0) {
+           return `✅ No recent errors found for satellite app '${appId}' in the last 24 hours. The app appears to be healthy.`;
+        }
+
+        const formattedLogs = logs.map(l =>
+          `Time: ${l.timestamp}\nError: ${l.details?.error}\nStack: ${l.details?.error_stack || 'N/A'}`
+        ).join('\n\n');
+
+        const prompt = `
+You are a Senior DevOps Engineer analyzing an incident report for the satellite app '${appId}'.
+Analyze the following recent error logs and provide:
+1. A clear, plain-English summary of the root cause.
+2. A suggested actionable fix for the system administrator.
+
+Logs:
+${formattedLogs}
+`;
+
+        let analysis = "LLM provider is not available for analysis.";
+        if (aximCore && aximCore.llm) {
+           analysis = await aximCore.llm.executePrompt(prompt);
+        } else {
+           console.warn("aximCore.llm not available, returning raw logs");
+           analysis = `Raw Error Log Analysis needed:\n\n${formattedLogs}`;
+        }
+
+        return `🛠️ Diagnostic Report for ${appId}:\n\n${analysis}`;
+      } catch (error) {
+        console.error("Troubleshoot App Error:", error);
+        return `An error occurred while trying to diagnose the app: ${error.message}`;
+      }
+    }
+  }),
 ];
 
 export default systemCommands;

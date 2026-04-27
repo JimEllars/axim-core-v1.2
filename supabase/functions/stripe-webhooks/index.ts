@@ -28,8 +28,8 @@ serve(async (req) => {
       cryptoProvider
     );
   } catch (err) {
-    console.error(`Webhook signature verification failed: ${err.message}`);
-    return new Response(err.message, { status: 400 });
+    console.error(`Webhook signature verification failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    return new Response(err instanceof Error ? err.message : "Unknown error", { status: 400 });
   }
 
   // Handle the event
@@ -53,24 +53,23 @@ serve(async (req) => {
         const productId = session.metadata?.product_id;
         const amountTotal = session.amount_total;
         const customerEmail = session.customer_details?.email;
+        const appId = session.metadata?.app_id;
 
         if (userId && productId) {
           const partnerId = session.metadata?.partner_id;
-          const appId = session.metadata?.app_id;
           await recordOneTimePurchase(userId, productId, amountTotal, session.id, partnerId, appId);
 
           if (customerEmail) {
             try {
-              await fulfillDigitalProduct(productId, customerEmail, session.id);
+              await fulfillDigitalProduct(productId, customerEmail, session.id, appId, userId);
             } catch (err: any) {
-              console.error(`Fulfillment error: ${err.message}`);
+              console.error(`Fulfillment error: ${err instanceof Error ? err.message : "Unknown error"}`);
               await supabase.from('telemetry_logs').insert({
                 event: 'integration_failure',
-                app_type: 'stripe-webhooks',
-                status_code: 500,
+                app_type: appId || 'stripe-webhooks',
                 timestamp: new Date().toISOString(),
                 details: {
-                  error: err.message,
+                  error: err instanceof Error ? err.message : "Unknown error",
                   product_id: productId,
                   session_id: session.id,
                 },
@@ -86,9 +85,6 @@ serve(async (req) => {
     case 'customer.subscription.updated':
     case 'customer.subscription.deleted': {
       const subscription = event.data.object;
-      // We need to find the user associated with this subscription.
-      // Assuming we already stored the customer_id -> user_id mapping, or we query by subscription_id.
-      // But for update, we can query by stripe_subscription_id.
       await updateSubscription(subscription);
       break;
     }
@@ -108,9 +104,6 @@ async function upsertSubscription(userId: string, customerId: string, subscripti
     return;
   }
 
-  // LIMITATION: Currently assuming one active subscription per user.
-  // We use user_id as the conflict target. If multiple subscriptions are supported in the future,
-  // this schema and logic must be updated to use 'subscription_id' or a composite key.
   console.log(`Upserting subscription for user ${userId}. Note: enforcing single subscription per user.`);
 
   const { error } = await supabase
@@ -124,7 +117,7 @@ async function upsertSubscription(userId: string, customerId: string, subscripti
       current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
       current_period_end: new Date(subscription.current_period_end * 1000).toISOString(),
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' }); // Assuming one sub per user for now, or use subscription_id as key
+    }, { onConflict: 'user_id' });
 
   if (error) {
     console.error('Error upserting subscription:', error);
@@ -134,12 +127,6 @@ async function upsertSubscription(userId: string, customerId: string, subscripti
 }
 
 async function updateSubscription(subscription: any) {
-    // Determine userId from metadata if possible, or query by subscription_id
-    // But since we upsert based on user_id primarily in the checkout flow, updating by sub id is tricky if we don't know the user.
-    // However, if we upsert based on 'stripe_subscription_id' which should be unique.
-
-    // Let's try to update based on stripe_subscription_id.
-    // Since RLS policies might prevent service role from arbitrary updates? No, service role bypasses RLS.
     console.log(`Updating subscription ${subscription.id} to status: ${subscription.status}`);
 
     const { data, error } = await supabase
@@ -184,19 +171,8 @@ async function recordOneTimePurchase(userId: string, productId: string, amountTo
   }
 }
 
-async function fulfillDigitalProduct(productId: string, customerEmail: string, sessionId: string) {
-  console.log(`Fulfilling digital product ${productId} for ${customerEmail}`);
-
-  // Verify product exists
-  const { data: product, error: productError } = await supabase
-    .from('digital_products')
-    .select('*')
-    .eq('id', productId)
-    .single();
-
-  if (productError || !product) {
-    throw new Error(`Product ${productId} not found`);
-  }
+async function fulfillDigitalProduct(productId: string, customerEmail: string, sessionId: string, appId?: string, userId?: string) {
+  console.log(`Fulfilling digital product ${productId} for ${customerEmail} via app ${appId}`);
 
   // Insert delivery record
   const { error: deliveryError } = await supabase
@@ -205,16 +181,87 @@ async function fulfillDigitalProduct(productId: string, customerEmail: string, s
       product_id: productId,
       customer_email: customerEmail,
       stripe_session_id: sessionId,
-      delivery_status: 'delivered',
+      delivery_status: 'processing',
     });
 
   if (deliveryError) {
     throw new Error(`Failed to create delivery record: ${deliveryError.message}`);
   }
 
-  // Dispatch email via universal-dispatcher
   const internalKey = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY') || 'fallback_internal_key';
   const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
+  let artifactUrl = '';
+
+  if (appId) {
+     // Internal fulfillment orchestration
+     console.log(`Triggering satellite app ${appId} for artifact generation...`);
+     const appUrl = `${supabaseUrl}/functions/v1/${appId}`;
+     const appRes = await fetch(appUrl, {
+       method: 'POST',
+       headers: {
+         'Content-Type': 'application/json',
+         'X-Axim-Internal-Service-Key': internalKey,
+       },
+       body: JSON.stringify({
+         action: 'generate_artifact',
+         session_id: sessionId,
+         user_id: userId,
+         customer_email: customerEmail,
+         product_id: productId
+       })
+     });
+
+     if (!appRes.ok) {
+       throw new Error(`Satellite app ${appId} failed generation: ${await appRes.text()}`);
+     }
+
+     const appData = await appRes.json();
+     const artifactPdfBase64 = appData.artifact;
+
+     if (artifactPdfBase64) {
+       // Secure artifact storage
+       const fileName = `${appId}_${sessionId}.pdf`;
+       const pdfBuffer = Uint8Array.from(atob(artifactPdfBase64), c => c.charCodeAt(0));
+
+       const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('secure_artifacts')
+          .upload(fileName, pdfBuffer, {
+             contentType: 'application/pdf',
+             upsert: true
+          });
+
+       if (uploadError) {
+         throw new Error(`Failed to store artifact: ${uploadError.message}`);
+       }
+
+       // Generate signed url for delivery
+       const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+          .from('secure_artifacts')
+          .createSignedUrl(fileName, 60 * 60 * 24 * 7); // 7 days valid
+
+       if (signedUrlError) {
+          throw new Error(`Failed to generate signed url: ${signedUrlError.message}`);
+       }
+
+       artifactUrl = signedUrlData.signedUrl;
+
+       // Record in vault_records
+       await supabase.from('vault_records').insert({
+          file_name: fileName,
+          document_type: appId,
+          trace_id: sessionId,
+          bucket_id: 'secure_artifacts'
+       });
+     }
+  }
+
+  // Update delivery record to delivered
+  await supabase
+    .from('product_deliveries')
+    .update({ delivery_status: 'delivered' })
+    .eq('stripe_session_id', sessionId);
+
+  // Dispatch email via universal-dispatcher
   const dispatcherUrl = `${supabaseUrl}/functions/v1/universal-dispatcher`;
 
   const dispatchRes = await fetch(dispatcherUrl, {
@@ -228,8 +275,8 @@ async function fulfillDigitalProduct(productId: string, customerEmail: string, s
       action_type: 'send_email',
       payload: {
         to: customerEmail,
-        subject: `Your product: ${product.name}`,
-        text: `Thank you for your purchase. Here is your secure product link: ${product.download_url}`,
+        subject: `Your Secure Document Delivery`,
+        text: `Thank you for your purchase. ${artifactUrl ? `Here is your secure document link (valid for 7 days): ${artifactUrl}` : 'Your product is ready.'}`,
         recipient: customerEmail,
       },
     }),
@@ -238,5 +285,5 @@ async function fulfillDigitalProduct(productId: string, customerEmail: string, s
   if (!dispatchRes.ok) {
     throw new Error(`Failed to dispatch email: ${await dispatchRes.text()}`);
   }
-  console.log(`Successfully dispatched email for ${productId}`);
+  console.log(`Successfully fulfilled product ${productId} and dispatched email`);
 }
