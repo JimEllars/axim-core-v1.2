@@ -51,6 +51,29 @@ export const verifyPaymentIntent = async (paymentIntentId) => {
  *
  * @param {Object} details - The payment details (amount, currency, microAppId). * @returns {Promise<Object>} - The created payment intent data (e.g., clientSecret).
  */
+/**
+ * Fallback verification specifically for micro-apps that explicitly report failure
+ * with their own Stripe integration, queuing a fallback job if necessary.
+ */
+export const executeFallbackBillingVerification = async (sessionId, app_id) => {
+  const endpoint = `${config.apiBaseUrl || 'http://localhost:8080'}/payments/fallback`;
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sessionId, app_id })
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Fallback billing verification failed.');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error executing fallback billing verification:', error);
+    throw error;
+  }
+};
+
 export const createPaymentIntent = async (details) => {
   const endpoint = `${config.apiBaseUrl || 'http://localhost:8080'}/payments/intent`;
 

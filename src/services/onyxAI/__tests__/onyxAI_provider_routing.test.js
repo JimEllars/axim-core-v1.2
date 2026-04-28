@@ -60,6 +60,7 @@ describe('OnyxAI Provider Routing', () => {
       initialize: vi.fn(),
       logAIInteraction: vi.fn().mockResolvedValue(true),
       searchMemory: vi.fn().mockResolvedValue([]),
+      sendToOnyxWorker: vi.fn().mockRejectedValue(Object.assign(new Error('simulated fallback'), { name: 'TypeError' })),
     };
     mockConnectivityManager = {
       getIsOnline: vi.fn().mockReturnValue(true),

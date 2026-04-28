@@ -54,32 +54,28 @@ ${interactions.map(i => `User (${i.user_id}): ${i.command}\nAI: ${i.response}`).
     let summary = "Fallback summary";
     let decisions = [];
 
-    if (openaiApiKey) {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openaiApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [{ role: 'user', content: promptText }],
-          response_format: { type: "json_object" }
-        }),
+    try {
+      // Pass these raw interactions through the LLM proxy to generate a dense, high-level executive summary.
+      // In Edge Function-to-Edge Function calls, we can use invoke.
+      const { data: llmData, error: llmError } = await supabase.functions.invoke('llm-proxy', {
+        body: {
+          provider: 'openai',
+          prompt: promptText,
+          options: { model: 'gpt-4o-mini', response_format: { type: "json_object" } }
+        }
       });
 
-      if (!response.ok) {
-        console.error("OpenAI error:", await response.text());
-        throw new Error("Failed to generate summary from OpenAI.");
-      }
+      if (llmError) throw llmError;
 
-      const llmData = await response.json();
-      const resultObj = JSON.parse(llmData.choices[0].message.content);
-      summary = resultObj.executive_summary;
-      decisions = resultObj.key_decisions;
-    } else {
-      // Mock for sandbox environments without real API keys
-      console.warn("OPENAI_API_KEY missing. Using mock summarization.");
+      if (llmData && llmData.content) {
+          const resultObj = typeof llmData.content === 'string' ? JSON.parse(llmData.content) : llmData.content;
+          summary = resultObj.executive_summary || "Generated summary";
+          decisions = resultObj.key_decisions || [];
+      } else {
+          throw new Error("Invalid response from llm-proxy");
+      }
+    } catch (llmError) {
+      console.warn("LLM proxy failed. Using mock summarization.", llmError);
       summary = `Mock summary of ${interactions.length} interactions.`;
       decisions = ["Review workflows", "Approve API keys"];
     }
@@ -87,25 +83,16 @@ ${interactions.map(i => `User (${i.user_id}): ${i.command}\nAI: ${i.response}`).
     // 3. Vector Generation & Storage
     let embedding = new Array(1536).fill(0.01); // Mock embedding
 
-    if (openaiApiKey) {
-       const embResponse = await fetch('https://api.openai.com/v1/embeddings', {
-         method: 'POST',
-         headers: {
-           'Authorization': `Bearer ${openaiApiKey}`,
-           'Content-Type': 'application/json',
-         },
-         body: JSON.stringify({
-           model: 'text-embedding-3-small',
-           input: summary
-         })
-       });
-
-       if (embResponse.ok) {
-         const embData = await embResponse.json();
-         embedding = embData.data[0].embedding;
-       } else {
-         console.error("OpenAI Embedding error:", await embResponse.text());
-       }
+    try {
+      const { data: embData, error: embError } = await supabase.functions.invoke('generate-embedding', {
+        body: { input: summary }
+      });
+      if (embError) throw embError;
+      if (embData && embData.embedding) {
+          embedding = embData.embedding;
+      }
+    } catch (embError) {
+      console.warn("Embedding proxy failed. Using mock embedding.", embError);
     }
 
     const { error: insertError } = await supabase
