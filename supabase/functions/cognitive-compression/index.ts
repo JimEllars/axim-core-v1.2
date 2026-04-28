@@ -109,11 +109,11 @@ ${interactions.map(i => `User (${i.user_id}): ${i.command}\nAI: ${i.response}`).
     }
 
     const { error: insertError } = await supabase
-      .from('memory_banks')
+      .from('ai_memory_banks')
       .insert({
-        summary_date: yesterday.toISOString().split('T')[0],
-        executive_summary: summary,
-        key_decisions: decisions,
+        user_id: interactions[0]?.user_id, source_type: 'cognitive_compression', metadata: { summary_date: yesterday.toISOString().split('T')[0], key_decisions: decisions }, content: summary,
+
+
         embedding: embedding
       });
 
