@@ -60,7 +60,7 @@ const WebContentIngest = () => {
   return (
     <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20">
       <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
-        <FiGlobe className="mr-2 text-blue-400" />
+        <FiGlobe className="mr-2 text-onyx-accent" />
         Web Content Ingestion
       </h2>
 
@@ -70,12 +70,12 @@ const WebContentIngest = () => {
           value={url}
           onChange={(e) => setUrl(e.target.value)}
           placeholder="Enter URL to scrape..."
-          className="flex-1 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:border-onyx-accent focus:ring-1 focus:ring-onyx-accent"
         />
         <button
           onClick={handleFetchAndSummarize}
           disabled={loading || !url}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+          className="bg-onyx-accent/20 hover:bg-onyx-accent hover:text-onyx-950 text-onyx-accent border border-onyx-accent/50 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
         >
           {loading ? <FiCpu className="animate-spin mr-2" /> : <FiCpu className="mr-2" />}
           {loading ? 'Processing...' : 'Analyze'}
@@ -83,7 +83,7 @@ const WebContentIngest = () => {
         <button
           onClick={handleGenerateNews}
           disabled={loading || !url}
-          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+          className="bg-onyx-800 hover:bg-onyx-700 text-slate-200 border border-slate-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
         >
            {loading ? <FiCpu className="animate-spin mr-2" /> : <FiGlobe className="mr-2" />}
            Generate News

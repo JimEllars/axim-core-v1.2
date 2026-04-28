@@ -115,29 +115,46 @@ serve(async (req) => {
 
         if (memoryReq.ok) {
            const memoryData = await memoryReq.json();
-           return memoryData.results;
+           return memoryData;
         }
-        return [];
+        return null;
       } catch (e) {
         console.warn('Memory retrieval fetch failed:', e.message);
-        return [];
+        return null;
       }
     };
 
-    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve([]), 1500));
+    const timeoutPromise = new Promise((resolve) => setTimeout(() => resolve(null), 1500));
 
     // We only try to fetch memory if there is a prompt text
-    let memoryResults = [];
+    let memoryResults = null;
     if (promptText) {
         memoryResults = await Promise.race([retrieveMemory(), timeoutPromise]);
     }
 
     let memoryContext = '';
-    if (memoryResults && memoryResults.length > 0) {
-       const memories = memoryResults.map((r: any) => `User Command: ${r.command} | AI Response: ${r.response}`).join('\n');
-       memoryContext = `\n\nSystem Context: Here are relevant past interactions with the admin:\n${memories}`;
-    }
+    if (memoryResults) {
+       let memories = '';
+       // Handle legacy structure (array) or new structure (object)
+       if (Array.isArray(memoryResults)) {
+           memories += memoryResults.map((r: any) => `User Command: ${r.command} | AI Response: ${r.response}`).join(`\n`);
+       } else {
+           if (memoryResults.chat_context && memoryResults.chat_context.length > 0) {
+               memories += memoryResults.chat_context.map((r: any) => `User Command: ${r.command} | AI Response: ${r.response}`).join(`\n`);
+           }
+           if (memoryResults.strategic_context && memoryResults.strategic_context.length > 0) {
+               memories += `\n\n` + memoryResults.strategic_context.map((r: any) => `Strategic Memory: ${r.content}`).join(`\n`);
+           }
+       }
+       if (memories) {
+           memoryContext = `\n\nSystem Context: Here are relevant past interactions with the admin:\n${memories}`;
+       }
 
+       if (memoryResults.executive_knowledge_base && memoryResults.executive_knowledge_base.length > 0) {
+           const playbooks = memoryResults.executive_knowledge_base.map((r: any) => `[${r.title}]: ${r.content_chunk}`).join(`\n\n`);
+           memoryContext += `\n\nExecutive Directives & SOPs: [Matched Data]\n${playbooks}`;
+       }
+    }
     if (promptText.includes('billing') || promptText.includes('financial') || promptText.includes('invoice')) {
         agent_id = 'finbot';
         personaPrompt = "You are FinBot, the AXiM financial specialist...";

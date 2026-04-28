@@ -423,7 +423,12 @@ class ApiService {
   }
 
   async resolveHitlAction(logId, status, actionPayload = null) {
-    return this._executeDualWrite('resolveHitlAction', logId, status, actionPayload);
+    // Forward to the new resolve-hitl edge function so it can trigger word-press publisher if needed
+    const { data, error } = await this.supabase.functions.invoke("resolve-hitl", {
+        body: { log_id: logId, status, action_payload: actionPayload }
+    });
+    if (error) throw error;
+    return data;
   }
 
   async getHitlAuditLog(logId) {
