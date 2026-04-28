@@ -144,11 +144,30 @@ class OnyxAI {
 
       commandType = commandObj.isDefault ? 'llm' : 'direct';
 
-      if (commandType === 'llm') {
+if (commandType === 'llm') {
         const providerInfo = llm.getCurrentProvider();
         llmProvider = providerInfo.provider;
         llmModel = providerInfo.model;
-        response = await this._executeLlmCommand(sanitizedCommand, options);
+
+        try {
+          const context = {
+            conversationHistory: conversationHistory.getHistory(),
+            userId: this.userId
+          };
+          const workerResponse = await this.api.sendToOnyxWorker({
+            command: sanitizedCommand,
+            context,
+            options
+          });
+          response = workerResponse.response || workerResponse.content || workerResponse;
+          if (workerResponse.metadata) {
+            llmProvider = workerResponse.metadata.provider || llmProvider;
+            llmModel = workerResponse.metadata.model || llmModel;
+          }
+        } catch (workerError) {
+          logger.warn("Failed to contact Onyx Edge Worker, falling back to local LLM execution", workerError);
+          response = await this._executeLlmCommand(sanitizedCommand, options);
+        }
       } else {
         response = await this._executeDirectCommand(commandObj, sanitizedCommand, options);
       }
@@ -267,7 +286,7 @@ class OnyxAI {
       return await commandObj.execute(sanitizedCommand, context);
     }
 
-    const intent = await this.getIntentsFromLLM(sanitizedCommand);
+const intent = await this.getIntentsFromLLM(sanitizedCommand);
     let commandObj;
     try {
       commandObj = this.getCommand(intent.command);
@@ -275,27 +294,35 @@ class OnyxAI {
       commandObj = null;
     }
 
-    if (!commandObj) {
-      // toast(`Unknown command: "${intent.command}". Switching to content generation.`);
+    if (!commandObj || commandObj.name === 'generateContent') {
       commandObj = this.getCommand('generateContent');
+      // Retrieve relevant past interactions for deep context before calling the LLM
+      let deepContext = '';
+      try {
+        const { generateEmbedding } = await import('./llm');
+        const queryEmbedding = await generateEmbedding(sanitizedCommand);
+        if (queryEmbedding) {
+           const relevantInteractions = await this.api.searchMemory(queryEmbedding, 5, this.userId);
+           if (relevantInteractions && relevantInteractions.length > 0) {
+             deepContext = relevantInteractions.map(i => `Previous Command: ${i.command}\nAI Response: ${i.response}`).join('\n\n');
+           }
+        }
+      } catch (err) {
+         logger.warn('Failed to fetch deep context:', err);
+      }
+
+      const promptWithContext = deepContext ? `Context from previous interactions:\n${deepContext}\n\nCurrent Command: ${sanitizedCommand}` : sanitizedCommand;
+
+      const context = {
+        aximCore: this,
+        conversationHistory: conversationHistory.getHistory(),
+        userId: this.userId,
+        allCommands: commands,
+        options,
+      };
+
+      return await commandObj.execute(promptWithContext, context);
     }
-
-    const context = {
-      aximCore: this,
-      conversationHistory: conversationHistory.getHistory(),
-      userId: this.userId,
-      allCommands: commands,
-      options,
-    };
-
-    if (commandObj.name !== 'generateContent') {
-      const args = commandObj.parse(sanitizedCommand, intent.args);
-      commandObj.validate(args);
-      const result = await commandObj.execute(args, context);
-      return typeof result === 'string' ? result : result;
-    }
-
-    return await commandObj.execute(sanitizedCommand, context);
   }
 
   /**
