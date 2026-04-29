@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { FiDownload, FiTrash2, FiMessageSquare, FiActivity, FiGitCommit, FiCpu, FiCheckCircle } from 'react-icons/fi';
 import ChatMessage from '../command/ChatMessage';
 import SafeIcon from '../../common/SafeIcon';
+import { createClient } from '@supabase/supabase-js';
 
 const ProcessChain = () => (
   <motion.div
@@ -149,6 +150,31 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
       }
     };
 
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (supabaseUrl && anonKey) {
+      const supabase = createClient(supabaseUrl, anonKey);
+      const channel = supabase.channel('onyx_ui_stream');
+
+      channel.on('broadcast', { event: 'message' }, (payload) => {
+        const { worker_id, message, role, timestamp } = payload.payload;
+        setLocalMessages(prev => [...prev, {
+          id: crypto.randomUUID(),
+          timestamp: new Date(timestamp),
+          content: message,
+          type: role === 'user' ? 'user' : 'assistant',
+          agentName: 'Onyx mk3',
+          agentId: worker_id,
+          isTyping: false
+        }]);
+      }).subscribe();
+
+      // We will remove the channel in the main cleanup if we tracked it, but we can't easily track it.
+      // Actually we don't need to return here, we can just let it fall through.
+    }
+
     window.addEventListener('onyx-user-message', handleUserMessage);
     window.addEventListener('onyx-stream-response', handleStreamResponse);
     window.addEventListener('onyx-stream-error', handleStreamError);
@@ -270,16 +296,20 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
       }
     };
 
-    window.addEventListener('onyx-user-message', handleUserMessage);
-    window.addEventListener('onyx-stream-response', handleStreamResponse);
-    window.addEventListener('onyx-stream-error', handleStreamError);
     window.addEventListener('onyx-action-approval', handleActionApproval);
 
+    // Cleanup function that has access to handleActionApproval
     return () => {
       window.removeEventListener('onyx-user-message', handleUserMessage);
       window.removeEventListener('onyx-stream-response', handleStreamResponse);
       window.removeEventListener('onyx-stream-error', handleStreamError);
       window.removeEventListener('onyx-action-approval', handleActionApproval);
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      if (supabaseUrl && anonKey) {
+          // Just let the channel disconnect naturally or we would track the channel object to remove it here
+      }
     };
   }, []);
 

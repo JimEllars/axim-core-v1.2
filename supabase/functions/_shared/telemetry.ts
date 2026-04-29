@@ -1,3 +1,32 @@
+export interface FleetMetrics {
+  app_id: string;
+  timestamp: number;
+  active_users: number;
+  revenue_cents: number;
+  error_rate_percent: number;
+  server_status: string;
+}
+
+export async function emitFleetTelemetry(payload: FleetMetrics) {
+  const onyxUrl = Deno.env.get('ONYX_EDGE_URL');
+  if (!onyxUrl) {
+    console.warn('ONYX_EDGE_URL not set, skipping fleet telemetry dispatch.');
+    return;
+  }
+
+  try {
+    await fetch(`https://${onyxUrl}/api/telemetry`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.error('Failed to dispatch fleet telemetry to Onyx mk3:', err);
+  }
+}
+
 export async function logTelemetry(endpoint: string, errorCode: number, details: any = {}, severity: string = 'INFO', correlationId?: string) {
   if (errorCode >= 500) {
       severity = 'CRITICAL';

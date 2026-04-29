@@ -1,6 +1,18 @@
 import { verify, decode, create, getNumericDate } from "https://deno.land/x/djwt@v2.9.1/mod.ts";
 
+export function validateServiceKey(req: Request): boolean {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader) return false;
+  const expectedKey = Deno.env.get("AXIM_SERVICE_KEY");
+  if (!expectedKey) return false;
+  return authHeader === `Bearer ${expectedKey}`;
+}
+
 export async function validateMicroAppSession(req: Request): Promise<any> {
+  if (validateServiceKey(req)) {
+    return { user: { id: "service_role" }, role: "service_role" };
+  }
+
   const authHeader = req.headers.get("Authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     throw new Error("Missing or invalid Authorization header");
@@ -25,7 +37,6 @@ export async function validateMicroAppSession(req: Request): Promise<any> {
 
   try {
     const payload = await verify(token, cryptoKey);
-    const decodedToken = decode(token);
     return { ...payload, user: { id: payload.sub } };
   } catch (error) {
     throw new Error("Invalid or expired token");
