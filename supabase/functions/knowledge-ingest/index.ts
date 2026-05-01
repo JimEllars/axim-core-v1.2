@@ -46,7 +46,7 @@ serve(async (req) => {
         );
 
         const payload = await req.json();
-        let { title, text, source_type = 'text', file_path } = payload;
+        let { title, text, source_type = 'text', file_path, category = null } = payload;
 
         // If file_path is provided (from bucket upload), fetch the content first
         if (file_path && source_type === 'storage') {
@@ -108,7 +108,8 @@ serve(async (req) => {
                     title,
                     content_chunk: chunk,
                     embedding,
-                    source_type
+                    source_type,
+                    category
                 });
 
             if (insertError) {

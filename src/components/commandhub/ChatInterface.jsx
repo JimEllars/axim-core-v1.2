@@ -39,11 +39,12 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
 
   useEffect(() => {
     const handleUserMessage = (e) => {
-      const { prompt } = e.detail;
+      const { prompt, attachments } = e.detail;
       setLocalMessages(prev => [...prev, {
         id: crypto.randomUUID(),
         timestamp: new Date(),
         content: prompt,
+        attachments: attachments || [],
         type: 'user'
       }]);
     };

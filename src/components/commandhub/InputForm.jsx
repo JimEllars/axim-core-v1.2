@@ -1,6 +1,7 @@
 // src/components/commandhub/InputForm.jsx
 import React, { useState, useEffect, useRef } from 'react';
-import { FiSend } from 'react-icons/fi';
+import { FiSend, FiPaperclip, FiX } from 'react-icons/fi';
+import toast from 'react-hot-toast';
 import CommandSuggestions from './CommandSuggestions';
 import onyxAI from '../../services/onyxAI';
 import { useSupabase } from '../../contexts/SupabaseContext';
@@ -25,6 +26,9 @@ const InputForm = ({
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [localIsProcessing, setLocalIsProcessing] = useState(false);
+  const [attachments, setAttachments] = useState([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
   const allCommands = useRef([]);
   const { supabase } = useSupabase();
 
@@ -94,6 +98,70 @@ const InputForm = ({
   };
 
 
+
+  const handleFileChange = async (e) => {
+    const files = Array.from(e.target.files);
+    await uploadFiles(files);
+  };
+
+  const uploadFiles = async (files) => {
+    if (files.length === 0) return;
+    setLocalIsProcessing(true);
+
+    const newAttachments = [];
+    for (const file of files) {
+      if (!['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/csv'].includes(file.type)) {
+        toast.error(`Invalid file type: ${file.name}. Only PDF, TXT, DOCX, CSV are allowed.`);
+        continue;
+      }
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+      const filePath = `chat_uploads/${fileName}`;
+
+      const { data, error } = await supabase.storage
+        .from('secure_artifacts')
+        .upload(filePath, file);
+
+      if (error) {
+        toast.error(`Failed to upload ${file.name}`);
+        console.error("Upload error:", error);
+      } else {
+        newAttachments.push({ name: file.name, path: data.path, type: file.type });
+      }
+    }
+
+    if (newAttachments.length > 0) {
+      setAttachments(prev => [...prev, ...newAttachments]);
+      toast.success(`${newAttachments.length} file(s) attached.`);
+    }
+    setLocalIsProcessing(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeAttachment = (index) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const files = Array.from(e.dataTransfer.files);
+      await uploadFiles(files);
+    }
+  };
+
   const handleSubmit = async (e) => {
     setLocalIsProcessing(true);
     e.preventDefault();
@@ -101,7 +169,7 @@ const InputForm = ({
 
     // Instead of old onCommand, send payload to onyx-bridge
     // We emit an event so ChatInterface can render the user message immediately
-    window.dispatchEvent(new CustomEvent('onyx-user-message', { detail: { prompt: inputValue } }));
+    window.dispatchEvent(new CustomEvent('onyx-user-message', { detail: { prompt: inputValue, attachments } }));
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -111,7 +179,7 @@ const InputForm = ({
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session?.access_token}`
         },
-        body: JSON.stringify({ prompt: inputValue })
+        body: JSON.stringify({ prompt: inputValue, attachments })
       });
 
       if (!response.ok) {
@@ -129,18 +197,60 @@ const InputForm = ({
     // Clear input
     const syntheticEvent = { target: { value: '' } };
     onInputValueChange(syntheticEvent);
+    setAttachments([]);
   };
 
 
   return (
     <form onSubmit={handleSubmit} className="relative">
-      <div className="relative">
+      <div
+        className={`relative ${isDragging ? 'ring-2 ring-purple-500 rounded-lg' : ''}`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <CommandSuggestions
           suggestions={showSuggestions ? suggestions : []}
           onSelect={handleSelectSuggestion}
           selectedIndex={selectedIndex}
         />
+
+        {/* Attachments preview */}
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2 p-2 bg-gray-800/50 rounded-lg border border-gray-700">
+            {attachments.map((att, index) => (
+              <div key={index} className="flex items-center bg-gray-700 text-xs text-gray-300 px-2 py-1 rounded-md">
+                <FiPaperclip className="mr-1" />
+                <span className="truncate max-w-[150px]">{att.name}</span>
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(index)}
+                  className="ml-2 text-gray-400 hover:text-red-400"
+                >
+                  <FiX />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="flex items-center bg-gray-900/50 backdrop-blur-md border border-gray-700 rounded-lg p-2">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="text-gray-400 hover:text-purple-400 p-2 mr-1 transition-colors"
+            title="Attach file (PDF, TXT, DOCX, CSV)"
+          >
+            <FiPaperclip />
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+            multiple
+            accept=".pdf,.txt,.docx,.csv"
+          />
           <input
             ref={inputRef} // Restored ref
             type="text"
