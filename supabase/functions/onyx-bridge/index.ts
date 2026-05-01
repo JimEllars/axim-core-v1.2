@@ -85,9 +85,30 @@ serve(async (req) => {
 
     // Swarm Orchestrator (Intent Classification)
 
+
     let agent_id = 'onyx';
     let personaPrompt = "You are Onyx, the infrastructure operator...";
     const promptText = (bodyData.prompt || bodyData.command || '').toLowerCase();
+    const contextStr = JSON.stringify(bodyData.context || {}).toLowerCase();
+
+    // Check target domain or context for Persona switching
+    const isPolitical = promptText.includes("ellars.us.com") || contextStr.includes("ellars.us.com") || promptText.includes("political");
+
+    const personaAxim = `
+Voice: Professional, highly innovative Founder & President of AXiM Systems. Authoritative, strategic, and business-focused.
+Core Philosophy: Focuses on leveraging cutting-edge automation, AI orchestration, and efficient systems to drive business value and create high-leverage digital products.`;
+
+    const personaPolitical = `
+Voice: Grounded, working-class advocate, relatable. Raised in Hesperia/Victorville, CA. 4th of 6 children.
+Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve human potential. Advocates for the American Tax Credit and a proactive $12,000/year "Automation Dividend" funded by taxing corporate automation to eliminate the tax cliff.`;
+
+    const jamesPersona = isPolitical ? personaPolitical : personaAxim;
+
+    // Inject James Ellars persona into the base Onyx prompt
+    personaPrompt = `You are Onyx, the AI digital clone of James Ellars.
+    ${jamesPersona}
+    You are also the infrastructure operator for AXiM Core.`;
+
 
 
     // RAG Context Injection (Phase 8)

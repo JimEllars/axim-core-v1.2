@@ -18,31 +18,80 @@ serve(async (req) => {
   }
 
   try {
+
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
 
-    // 1. Fetch Failed Queue Jobs
-    const { data: failedJobs, error: jobsError } = await supabase
-      .from('satellite_job_queue')
-      .select('app_id, error_log')
-      .eq('status', 'failed')
-      .gte('updated_at', fifteenMinutesAgo);
+    // Sentinel Logic: onyx-sentinel should monitor api_usage_logs and satellite_telemetry
+    // If a specific app_id crosses a 5% error rate threshold within a 15-minute window,
+    // the Sentinel must trigger the auto-healer.
 
-    if (jobsError) throw new Error(`Failed to fetch jobs: ${jobsError.message}`);
-
-    // 2. Fetch Critical Telemetry Errors
-    const { data: criticalLogs, error: logsError } = await supabase
-      .from('telemetry_logs')
-      .select('app_type, details')
-      .eq('event', 'critical_job_failure') // or any other critical event types
+    const { data: apiLogs, error: apiLogsError } = await supabase
+      .from('api_usage_logs')
+      .select('app_id, status_code')
       .gte('timestamp', fifteenMinutesAgo);
 
-    if (logsError) throw new Error(`Failed to fetch telemetry logs: ${logsError.message}`);
+    if (apiLogsError) throw new Error(`Failed to fetch api usage logs: ${apiLogsError.message}`);
 
-    const hasAnomalies = (failedJobs && failedJobs.length > 0) || (criticalLogs && criticalLogs.length > 0);
+    // Assuming satellite_pulses is equivalent to satellite_telemetry for this task based on migrations
+    const { data: satelliteLogs, error: satelliteError } = await supabase
+      .from('satellite_pulses')
+      .select('app_id, status')
+      .gte('timestamp', fifteenMinutesAgo);
 
-    if (!hasAnomalies) {
-      return new Response(JSON.stringify({ status: 'ok', message: 'No critical anomalies detected.' }), { headers: { 'Content-Type': 'application/json' } });
+    if (satelliteError) throw new Error(`Failed to fetch satellite telemetry logs: ${satelliteError.message}`);
+
+    const appStats = {};
+
+    if (apiLogs) {
+        apiLogs.forEach(log => {
+            const appId = log.app_id || 'unknown';
+            if (!appStats[appId]) appStats[appId] = { total: 0, errors: 0 };
+            appStats[appId].total++;
+            if (log.status_code >= 400) appStats[appId].errors++;
+        });
     }
+
+    if (satelliteLogs) {
+        satelliteLogs.forEach(log => {
+            const appId = log.app_id || 'unknown';
+            if (!appStats[appId]) appStats[appId] = { total: 0, errors: 0 };
+            appStats[appId].total++;
+            if (log.status === 'error' || log.status === 'failed') appStats[appId].errors++;
+        });
+    }
+
+    const anomalousApps = [];
+    for (const [appId, stats] of Object.entries(appStats)) {
+        if (stats.total > 0) {
+            const errorRate = stats.errors / stats.total;
+            if (errorRate > 0.05 && appId !== 'unknown') {
+                anomalousApps.push({ appId, errorRate, ...stats });
+            }
+        }
+    }
+
+    // Trigger auto-healer for anomalous apps
+    if (anomalousApps.length > 0) {
+        console.log(`Detected anomalies in ${anomalousApps.length} apps. Triggering auto-healer...`);
+        const autoHealerUrl = `${supabaseUrl}/functions/v1/auto-healer`;
+
+        for (const anomaly of anomalousApps) {
+            await fetch(autoHealerUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+                },
+                body: JSON.stringify({ anomaly })
+            });
+        }
+    }
+
+    const hasAnomalies = anomalousApps.length > 0;
+    if (!hasAnomalies) { return new Response(JSON.stringify({ status: 'ok', message: 'No critical anomalies detected.' }), { headers: { 'Content-Type': 'application/json' } }); }
+
+    const criticalLogs = [];
+    const failedJobs = anomalousApps;
 
     console.log(`Anomalies detected: ${failedJobs?.length || 0} failed jobs, ${criticalLogs?.length || 0} critical logs.`);
 

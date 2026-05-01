@@ -105,8 +105,10 @@ serve(async (req) => {
         throw new Error("Missing GEMINI_API_KEY environment variable.");
     }
 
+
     let topics = [];
     let urls = [];
+    let targetDomain = "axim.us.com"; // Default
     try {
         const body = await req.json();
         if (body.topics && Array.isArray(body.topics)) {
@@ -115,9 +117,23 @@ serve(async (req) => {
         if (body.urls && Array.isArray(body.urls)) {
             urls = body.urls;
         }
+        if (body.target_domain) {
+            targetDomain = body.target_domain;
+        }
     } catch (e) {
         // Body parsing failed or empty, ignore
     }
+
+    const personaAxim = `
+Voice: Professional, highly innovative Founder & President of AXiM Systems. Authoritative, strategic, and business-focused.
+Core Philosophy: Focuses on leveraging cutting-edge automation, AI orchestration, and efficient systems to drive business value and create high-leverage digital products.`;
+
+    const personaPolitical = `
+Voice: Grounded, working-class advocate, relatable. Raised in Hesperia/Victorville, CA. 4th of 6 children.
+Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve human potential. Advocates for the American Tax Credit and a proactive $12,000/year "Automation Dividend" funded by taxing corporate automation to eliminate the tax cliff.`;
+
+    const currentPersona = targetDomain.includes("ellars.us.com") ? personaPolitical : personaAxim;
+
 
     const results = [];
     const activePartners = await getAffiliatePartners(supabase);
@@ -147,6 +163,9 @@ serve(async (req) => {
                 const matchedPartner = matchPartnerToTopic(url, activePartners);
 
                 let prompt = `
+                  You are James Ellars.
+                  ${currentPersona}
+
                   You are an expert tech and business journalist.
                   Rewrite the following source content into a compelling, professional news article or blog post.
                   Focus on key insights, actionable takeaways, and industry trends.
@@ -198,6 +217,9 @@ serve(async (req) => {
                 const matchedPartner = matchPartnerToTopic(topic, activePartners);
 
                 let prompt = `
+                  You are James Ellars.
+                  ${currentPersona}
+
                   Write a high-quality, engaging news article or blog post about: "${topic}".
 
                   Guidelines:
