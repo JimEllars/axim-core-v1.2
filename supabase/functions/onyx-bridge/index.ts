@@ -83,8 +83,49 @@ serve(async (req) => {
       }));
     }
 
-    // Swarm Orchestrator (Intent Classification)
+    // --- Vectorize Attachments Immediately ---
+    let attachmentNote = '';
+    if (bodyData.attachments && Array.isArray(bodyData.attachments) && bodyData.attachments.length > 0) {
+        // Run vectorization synchronously so Onyx can search it immediately if needed
+        for (const att of bodyData.attachments) {
+           try {
+               const url = new URL(req.url);
+               const protocol = url.protocol;
+               const host = url.host;
+               const knowledgeIngestUrl = `${protocol}//${host}/knowledge-ingest`;
 
+               // We invoke knowledge-ingest
+               // Note: This requires the storage path.
+               // We uploaded to secure_artifacts in the frontend
+
+               const { data: fileData, error: downloadError } = await supabaseAdmin.storage
+                  .from('secure_artifacts')
+                  .download(att.path);
+
+               if (!downloadError && fileData) {
+                  const text = await fileData.text();
+
+                  await fetch(knowledgeIngestUrl, {
+                      method: 'POST',
+                      headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+                      },
+                      body: JSON.stringify({
+                          title: att.name,
+                          text: text,
+                          source_type: 'attachment'
+                      })
+                  });
+                  attachmentNote += `[System Note: The user has attached a document named '${att.name}'. Its contents have just been added to your vector memory. Use your query_strategic_memory tool to read it if necessary to answer their prompt.]\n`;
+               }
+           } catch (err) {
+               console.error("Failed to vectorize attachment:", err);
+           }
+        }
+    }
+
+    // Check target domain or context for Persona switching
 
     let agent_id = 'onyx';
     let personaPrompt = "You are Onyx, the infrastructure operator...";
@@ -192,7 +233,7 @@ Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve
 
 
     if (!bodyData.context) bodyData.context = {};
-    bodyData.context.system_prompt = personaPrompt + circuitBreakerAuth + memoryContext;
+    bodyData.context.system_prompt = personaPrompt + circuitBreakerAuth + memoryContext + "\n" + attachmentNote;
 
     bodyData.agent_id = agent_id;
 

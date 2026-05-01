@@ -10,11 +10,13 @@ const KnowledgeBaseIngest = () => {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('text'); // text, url, file
-  const [fileToUpload, setFileToUpload] = useState(null);
+  const [filesToUpload, setFilesToUpload] = useState([]);
+  const [personaTag, setPersonaTag] = useState('');
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const { supabase } = useSupabase();
 
   const handleIngest = async () => {
-    if (!title) {
+    if (!title && activeTab !== 'file') {
         toast.error("Please provide a title for the knowledge base entry.");
         return;
     }
@@ -32,51 +34,54 @@ const KnowledgeBaseIngest = () => {
           if (!content) throw new Error('No content retrieved.');
           contentToIngest = content;
           toast.loading("Generating embeddings...", { id: 'ingest' });
-      } else if (activeTab === 'file' && fileToUpload) {
-          toast.loading("Uploading to secure bucket...", { id: 'ingest' });
+      } else if (activeTab === 'file' && filesToUpload.length > 0) {
+          toast.loading("Batch processing files...", { id: 'ingest' });
 
-          const fileExt = fileToUpload.name.split('.').pop();
-          const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
-          const filePath = `playbooks/${fileName}`;
+          setUploadProgress({ current: 0, total: filesToUpload.length });
 
-          const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('executive_knowledge')
-            .upload(filePath, fileToUpload);
+          let successCount = 0;
+          for (let i = 0; i < filesToUpload.length; i++) {
+              const file = filesToUpload[i];
+              const fileTitle = title || file.name;
 
-          if (uploadError) {
-             // Fallback to direct ingest if bucket upload fails (or bucket doesn't exist yet)
-             console.warn("Storage upload failed, falling back to direct ingestion", uploadError);
-          } else {
-             // Let the webhook handle it if we have one, but we also pass it to edge function directly just in case.
-             // But the instructions specify "upload documents directly to a secure Supabase Storage bucket"
-             // "function must download the file..."
+              const fileExt = file.name.split('.').pop();
+              const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+              const filePath = `playbooks/${fileName}`;
 
-             // In our implementation, we'll invoke the edge function and pass the file path
-             toast.loading("Vectorizing from storage...", { id: 'ingest' });
-             const { data, error } = await api.supabase.functions.invoke('knowledge-ingest', {
-                 body: { title, file_path: uploadData.path, source_type: 'storage' }
-             });
+              const { data: uploadData, error: uploadError } = await supabase.storage
+                .from('executive_knowledge')
+                .upload(filePath, file);
 
-             if (error) throw error;
-
-             toast.success(`Successfully ingested ${data.processed_chunks || 0} chunks into Executive Brain.`, { id: 'ingest' });
-             setTitle('');
-             setText('');
-             setUrl('');
-             setFileToUpload(null);
-             setLoading(false);
-             return;
+              if (!uploadError) {
+                  const { error } = await api.supabase.functions.invoke('knowledge-ingest', {
+                     body: {
+                         title: fileTitle,
+                         file_path: uploadData.path,
+                         source_type: 'storage',
+                         category: personaTag
+                     }
+                  });
+                  if (!error) successCount++;
+              }
+              setUploadProgress({ current: i + 1, total: filesToUpload.length });
           }
 
-          toast.loading("Generating embeddings directly...", { id: 'ingest' });
+          toast.success(`Successfully ingested ${successCount} files into Executive Brain.`, { id: 'ingest' });
+          setTitle('');
+          setText('');
+          setUrl('');
+          setFilesToUpload([]);
+          setLoading(false);
+          setUploadProgress({ current: 0, total: 0 });
+          return;
       } else {
           if (!text) throw new Error("Text content is required.");
           toast.loading("Generating embeddings...", { id: 'ingest' });
       }
 
-      // Call Edge Function
+      // Call Edge Function for Text/URL
       const { data, error } = await api.supabase.functions.invoke('knowledge-ingest', {
-          body: { title, text: contentToIngest, source_type: sourceType }
+          body: { title, text: contentToIngest, source_type: sourceType, category: personaTag }
       });
 
       if (error) throw error;
@@ -94,19 +99,22 @@ const KnowledgeBaseIngest = () => {
   };
 
   const handleFileUpload = (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
+      const files = Array.from(e.target.files);
+      if (files.length === 0) return;
 
-      setFileToUpload(file);
-      if (!title) setTitle(file.name);
+      setFilesToUpload(files);
+      if (files.length === 1 && !title) setTitle(files[0].name);
 
-      // We'll still read as text so the user can preview/edit it if they want,
-      // but we will also upload the raw file to bucket
-      const reader = new FileReader();
-      reader.onload = (e) => {
-          setText(e.target.result);
-      };
-      reader.readAsText(file);
+      // We'll still read as text so the user can preview/edit it if they want (only for single file)
+      if (files.length === 1) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+              setText(e.target.result);
+          };
+          reader.readAsText(files[0]);
+      } else {
+          setText(`${files.length} files selected for batch ingestion.`);
+      }
   };
 
   return (
@@ -138,15 +146,30 @@ const KnowledgeBaseIngest = () => {
       </div>
 
       <div className="space-y-4">
-        <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Document Title / Topic</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g., SOP for Client Onboarding"
-              className="w-full bg-onyx-900 border border-onyx-accent/20 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-onyx-accent"
-            />
+        <div className="grid grid-cols-2 gap-4">
+            <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Document Title / Topic (Optional for multiple files)</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="e.g., SOP for Client Onboarding"
+                  className="w-full bg-onyx-900 border border-onyx-accent/20 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-onyx-accent"
+                />
+            </div>
+            <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Context Persona / Tag</label>
+                <select
+                  value={personaTag}
+                  onChange={(e) => setPersonaTag(e.target.value)}
+                  className="w-full bg-onyx-900 border border-onyx-accent/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-onyx-accent"
+                >
+                  <option value="">General Knowledge</option>
+                  <option value="James Ellars / Political">James Ellars / Political</option>
+                  <option value="AXiM / Business">AXiM / Business</option>
+                  <option value="SOP / Internal">SOP / Internal</option>
+                </select>
+            </div>
         </div>
 
         {activeTab === 'url' && (
@@ -164,13 +187,19 @@ const KnowledgeBaseIngest = () => {
 
         {activeTab === 'file' && (
              <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1">Upload File</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Upload File(s)</label>
                 <input
                   type="file"
-                  accept=".txt,.csv,.md"
+                  multiple
+                  accept=".txt,.csv,.md,.pdf,.docx"
                   onChange={handleFileUpload}
                   className="w-full bg-onyx-900 border border-onyx-accent/20 rounded-lg px-4 py-2 text-white focus:outline-none file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-onyx-accent/20 file:text-onyx-accent hover:file:bg-onyx-accent/30"
                 />
+                {uploadProgress.total > 0 && (
+                    <div className="mt-2 text-xs text-onyx-accent">
+                        Processing: {uploadProgress.current} / {uploadProgress.total} files
+                    </div>
+                )}
             </div>
         )}
 
