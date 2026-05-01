@@ -1,3 +1,10 @@
-Okay, the build is fully successful now with `npm run build`.
-I will run `npm run test` just to be sure it does not have syntax errors during tests.
-Then I will submit.
+1. **Objective 1: Automated Podcast Ingestion (RSS Poller)**
+   - Created `supabase/migrations/20261220000000_podcast_poller_cron.sql` containing `system_status` table creation and `pg_cron` setup to poll the edge function every 6 hours.
+   - Created `supabase/functions/podcast-poller/index.ts` to parse the specified feeds (Rants / AXiM Reports), fetch context via `llm-proxy`, generate embeddings via `generate-embedding`, store into `ai_memory_banks`, and emit `NEW_PODCAST_EPISODE`.
+2. **Objective 2: Live Stream Interception Webhook**
+   - Created `supabase/functions/stream-webhook/index.ts` to parse Talk Studio / Cloudflare Stream webhooks, update `system_status` (is_live flag), and emit `LIVE_STREAM_STARTED` and `LIVE_STREAM_ENDED` events.
+3. **Objective 3: Media Workflow Triggers**
+   - Updated `src/services/workflows/definitions.js` with `LIVE_STREAM_STARTED` to draft a post via `onyx-bridge` and push it to the `hitl_approval_queue`.
+   - The Workflow Engine in `engine.js` will automatically pick up `LIVE_STREAM_STARTED` from the local `workflowDefinitions` fallback if not in DB.
+4. **Pre-commit Checks**
+   - Call `pre_commit_instructions` tool and follow the steps.

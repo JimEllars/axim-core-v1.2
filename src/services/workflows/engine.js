@@ -1,5 +1,4 @@
 import api from "../onyxAI/api";
-// We'll optionally load definitions as a fallback if not in DB, but DB takes priority.
 import { workflowDefinitions } from "./definitions";
 
 export const runWorkflow = async (
