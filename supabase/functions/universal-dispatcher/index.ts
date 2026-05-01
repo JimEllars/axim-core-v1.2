@@ -6,12 +6,19 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get(
   "SUPABASE_SERVICE_ROLE_KEY",
 ) as string;
-const INTERNAL_SERVICE_KEY =
+const AXIM_SERVICE_KEY =
+  (Deno.env.get("AXIM_SERVICE_KEY") as string) ||
   (Deno.env.get("AXIM_INTERNAL_SERVICE_KEY") as string) ||
   "fallback_internal_key";
-const ELLARS_MOBILE_NUMBER = Deno.env.get("ELLARS_MOBILE_NUMBER") as string || "+19039332672";
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+const HIGH_STAKES_ACTIONS = [
+  "trigger_marketing_workflow",
+  "publish_article",
+  "mass_email",
+  "quarantine_app"
+];
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -19,8 +26,8 @@ serve(async (req: Request) => {
   }
 
   try {
-    const internalKeyHeader = req.headers.get("X-Axim-Internal-Service-Key");
-    if (!internalKeyHeader || internalKeyHeader !== INTERNAL_SERVICE_KEY) {
+    const internalKeyHeader = req.headers.get("X-Axim-Internal-Service-Key") || req.headers.get("Authorization")?.replace("Bearer ", "");
+    if (!internalKeyHeader || (internalKeyHeader !== AXIM_SERVICE_KEY && internalKeyHeader !== SUPABASE_SERVICE_ROLE_KEY)) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -28,13 +35,12 @@ serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    let { target_service, action_type, payload } = body;
+    const { action_type, payload } = body;
 
-    if (!target_service || !action_type || !payload) {
+    if (!action_type || !payload) {
       return new Response(
         JSON.stringify({
-          error:
-            "Missing required fields: target_service, action_type, or payload",
+          error: "Missing required fields: action_type or payload",
         }),
         {
           status: 400,
@@ -43,198 +49,70 @@ serve(async (req: Request) => {
       );
     }
 
-    // --- Omnichannel Response Logic ---
-    if (target_service.toLowerCase() === "email") {
-      target_service = "emailit"; // Route to emailit
-      // Intercept logic for Mr. Ellars
-      const isForEllars =
-        payload.recipient === "admin" ||
-        payload.recipient === "james.ellars@axim.us.com";
-      if (isForEllars) {
-        payload = {
-          ...payload,
-          to: ["james.ellars@axim.us.com", "jrellars@gmail.com"], // Ensure EmailIt expects arrays for multiple
-        };
-      } else {
-        payload = {
-          ...payload,
-          to: [payload.recipient || payload.to]
-        }
-      }
+    const isHighStakes = HIGH_STAKES_ACTIONS.includes(action_type);
 
-      // Map EmailIt payload structure
-      payload = {
-         from: "missioncontrol@AXiM.us.com",
-         to: payload.to,
-         subject: payload.subject || "AXiM Communication",
-         html_body: payload.html_body || payload.html || payload.message || "",
-         text_body: payload.text_body || payload.text || ""
-      };
+    if (isHighStakes) {
+      console.log(`[Dispatcher] Routing high-stakes action '${action_type}' to HITL Approval Queue.`);
 
-    } else if (target_service.toLowerCase() === "sms") {
-      const isForEllars =
-        payload.recipient === "admin" ||
-        payload.recipient === ELLARS_MOBILE_NUMBER;
+      // Get an admin ID for the audit log
+      const { data: users, error: userError } = await supabaseAdmin.auth.admin.listUsers();
+      // Assuming first user or a dummy user if none available
+      let adminId = users?.users?.[0]?.id;
 
-      let text = payload.message || payload.text || payload.body || "";
+      // We will serialize payload in the action or tool_called field since hitl_audit_logs lacks a payload col
+      const { error: hitlError } = await supabaseAdmin.from("hitl_audit_logs").insert({
+        admin_id: adminId || "00000000-0000-0000-0000-000000000000",
+        action: action_type,
+        tool_called: JSON.stringify(payload).substring(0, 500), // store payload representation in tool_called temporarily
+        status: 'pending'
+      });
 
-      if (isForEllars && ELLARS_MOBILE_NUMBER) {
-        if (text.length > 160) {
-          text = text.substring(0, 150) + "... [Full report on Hub]";
-        }
-        payload = {
-          To: ELLARS_MOBILE_NUMBER,
-          From: payload.from || payload.From || "",
-          Body: text,
-        };
-      } else {
-        payload = {
-          To: payload.to || payload.To || "",
-          From: payload.from || payload.From || "",
-          Body: text,
-        };
-      }
-    } else if (target_service.toLowerCase() === "calendar") {
-      payload = {
-        start_time: payload.start_time || payload.startTime || new Date().toISOString(),
-        end_time: payload.end_time || payload.endTime || new Date(Date.now() + 3600000).toISOString(),
-        summary: payload.summary || payload.title || "Meeting",
-        attendees: payload.attendees || []
-      };
-    } else if (target_service.toLowerCase() === "crm") {
-      payload = {
-        contact_name: payload.contact_name || payload.name || "Unknown Lead",
-        email: payload.email || "",
-        lead_status: payload.lead_status || payload.status || "New"
-      };
-    }
-    // ------------------------------------
-
-    // 1. Query ecosystem_connections for the target_service
-    const { data: connection, error: connectionError } = await supabaseAdmin
-      .from("ecosystem_connections")
-      .select("webhook_url, api_key, status")
-      .eq("service_name", target_service.toLowerCase())
-      .single();
-
-    if (connectionError || !connection) {
-      throw new Error(
-        `Integration not found or inactive for service: ${target_service}`,
-      );
-    }
-
-    if (connection.status !== "active") {
-      throw new Error(
-        `Integration is currently disabled for service: ${target_service}`,
-      );
-    }
-
-    // 2. Prepare and send the payload securely
-    const targetUrl = connection.webhook_url;
-    let headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
-    let fetchBody: string | URLSearchParams = JSON.stringify(
-      target_service === 'emailit' ? payload : { // If emailit, pass the mapped payload directly, else wrap
-        action_type,
-        payload,
-        timestamp: new Date().toISOString(),
-      }
-    );
-
-    if (target_service.toLowerCase() === "sms") {
-      headers = {
-        "Content-Type": "application/x-www-form-urlencoded",
-      };
-
-      // Basic Auth for Twilio using api_key
-      if (connection.api_key) {
-        headers["Authorization"] = `Basic ${btoa(connection.api_key)}`;
-      }
-
-      const formParams = new URLSearchParams();
-      if (payload.To) formParams.append("To", payload.To);
-      if (payload.From) formParams.append("From", payload.From);
-      if (payload.Body) formParams.append("Body", payload.Body);
-
-      fetchBody = formParams;
-    } else {
-      if (connection.api_key) {
-        headers["Authorization"] = `Bearer ${connection.api_key}`;
-      }
-    }
-
-    const response = await fetch(targetUrl, {
-      method: "POST",
-      headers,
-      body: fetchBody,
-    });
-
-    // 3. Log to telemetry on 500 errors
-    if (!response.ok) {
-      const responseText = await response.text();
-      const statusCode = response.status;
-
-      if (statusCode >= 500 || target_service === 'emailit') { // EmailIt high severity
-        await supabaseAdmin.from("telemetry_logs").insert({
-          event: "integration_failure",
-          app_type: "universal-dispatcher",
-          status_code: statusCode,
-          timestamp: new Date().toISOString(),
-          details: {
-            target_service,
-            action_type,
-            error: responseText,
-          },
-        });
-      }
+      if (hitlError) throw hitlError;
 
       return new Response(
         JSON.stringify({
-          error: `Downstream service returned ${statusCode}`,
-          details: responseText,
+          success: true,
+          message: `Action '${action_type}' is high-stakes. Routed to HITL Approval Queue.`,
+          status: 'pending'
         }),
         {
-          status: 502,
+          status: 202,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
-        },
+        }
+      );
+    } else {
+      console.log(`[Dispatcher] Routing low-stakes action '${action_type}' to satellite_job_queue.`);
+
+      const { error: jobError } = await supabaseAdmin.from("satellite_job_queue").insert({
+        app_id: "universal-dispatcher",
+        payload: { action_type, payload },
+        status: 'pending',
+        task_type: action_type
+      });
+
+      if (jobError) throw jobError;
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Action '${action_type}' is low-stakes. Inserted into satellite_job_queue.`,
+          status: 'queued'
+        }),
+        {
+          status: 202,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
-
-    // Success response
-    const downstreamResult = await response.text();
-
-    // Update last_triggered time
-    await supabaseAdmin
-      .from("ecosystem_connections")
-      .update({ last_triggered: new Date().toISOString() })
-      .eq("service_name", target_service.toLowerCase());
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        target_service,
-        action_type,
-        downstreamResponse: downstreamResult,
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
   } catch (error: any) {
     console.error("Universal Dispatcher Error:", error);
 
-    // Log unexpected errors as integration_failures as well
     await supabaseAdmin.from("telemetry_logs").insert({
       event: "integration_failure",
       app_type: "universal-dispatcher",
       status_code: 500,
       timestamp: new Date().toISOString(),
-      details: {
-        error: error.message,
-      },
+      details: { error: error.message },
     });
 
     return new Response(

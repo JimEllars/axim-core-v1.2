@@ -10,7 +10,7 @@ const sendEmailUrl = Deno.env.get("SEND_EMAIL_URL") || `${supabaseUrl}/functions
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 serve(async (req) => {
-    // Basic auth check for CRON trigger (could use a specific secret in practice)
+    // Basic auth check for CRON trigger
     const authHeader = req.headers.get('Authorization');
     if (!authHeader || authHeader.replace('Bearer ', '') !== supabaseKey) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
@@ -21,51 +21,69 @@ serve(async (req) => {
         const { data: fleetSnapshot, error: snapshotError } = await supabase.rpc('get_fleet_snapshot');
         if (snapshotError) throw new Error(`Fleet snapshot error: ${snapshotError.message}`);
 
-        // 2. Query total B2B credits consumed
-        // Assuming a partner_credits table exists with a total_consumed column or similar,
-        // or we aggregate from micro_app_transactions where partner_id is not null.
-        // For this example, we'll sum the cost from micro_app_transactions for the week.
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        // 2. Data Aggregation: Fetch last 24 hours of api_usage_logs
+        const oneDayAgo = new Date();
+        oneDayAgo.setDate(oneDayAgo.getDate() - 1);
+        const isoOneDayAgo = oneDayAgo.toISOString();
 
-        const { data: txData, error: txError } = await supabase
-            .from('micro_app_transactions')
-            .select('amount, credits_used')
-            .gte('created_at', oneWeekAgo.toISOString());
+        const { data: usageLogs, error: usageError } = await supabase
+            .from('api_usage_logs')
+            .select('*')
+            .gte('created_at', isoOneDayAgo);
 
-        if (txError) throw new Error(`Transaction query error: ${txError.message}`);
+        if (usageError) throw new Error(`API usage query error: ${usageError.message}`);
 
-        const totalCreditsConsumed = txData?.reduce((sum, tx) => sum + (tx.credits_used || 0), 0) || 0;
-        const totalRevenue = txData?.reduce((sum, tx) => sum + (tx.amount || 0), 0) || 0;
+        // Aggregate usage stats
+        const apiUsageSummary = (usageLogs || []).reduce((acc: any, log: any) => {
+            acc[log.endpoint] = (acc[log.endpoint] || 0) + 1;
+            return acc;
+        }, {});
 
-        // 3. Prompt LLM Proxy
+        // 3. Fetch latest dense summaries from memory_banks
+        const { data: memoryBanks, error: memoryError } = await supabase
+            .from('memory_banks')
+            .select('executive_summary, key_decisions, summary_date')
+            .order('summary_date', { ascending: false })
+            .limit(3);
+
+        if (memoryError) throw new Error(`Memory banks query error: ${memoryError.message}`);
+
+        // 4. Prompt LLM Proxy
         const rawData = {
             fleetSnapshot,
-            totalCreditsConsumed,
-            totalRevenue,
-            period: 'Last 7 Days',
+            apiUsage24h: apiUsageSummary,
+            totalApiRequests24h: usageLogs?.length || 0,
+            recentOnyxMemories: memoryBanks,
+            period: 'Last 24 Hours',
             date: new Date().toISOString()
         };
 
         const prompt = `
-            You are an automated executive reporting system for AXiM Core.
-            Please generate a concise, professional HTML "Executive Briefing" based on the following data:
+            You are the Chief Operating Officer of AXiM Core.
+            Please generate a concise, professional HTML "Daily Executive Brief" based on the following telemetry and Onyx strategic memory data:
             ${JSON.stringify(rawData, null, 2)}
 
             The output MUST BE valid HTML suitable for email. Do not include markdown wrappers like \`\`\`html.
-            Include styling for a clean, modern, dark-themed look (similar to a sleek dashboard).
-            Highlight key metrics: Fleet Health, Transactions, Credits Consumed, and Revenue.
+            Include styling for a clean, modern, dark-themed look.
+            Highlight key metrics: Fleet Health, 24h API Usage, and Strategic Memories/Key Decisions.
+            Provide actionable insights if anomalies or trends are detected.
         `;
 
+        // The llm-proxy expects { provider, prompt, options }
         const llmResponse = await fetch(llmProxyUrl, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${supabaseKey}`
+                "Authorization": `Bearer ${supabaseKey}` // Using service key which acts as user if llm proxy accepts it or we might need to proxy to claude
             },
             body: JSON.stringify({
-                model: "claude-3-5-sonnet-20240620",
-                messages: [{ role: "user", content: prompt }]
+                provider: "claude",
+                prompt: prompt,
+                options: {
+                    model: "claude-3-haiku-20240307",
+                    max_tokens: 1500,
+                    temperature: 0.5
+                }
             })
         });
 
@@ -75,9 +93,9 @@ serve(async (req) => {
         }
 
         const llmData = await llmResponse.json();
-        const htmlContent = llmData.choices?.[0]?.message?.content || llmData.response || "<p>Error generating report content.</p>";
+        const htmlContent = llmData.content || "<p>Error generating report content.</p>";
 
-        // 4. Send Email
+        // 5. Send Email
         const emailResponse = await fetch(sendEmailUrl, {
             method: "POST",
             headers: {
@@ -85,9 +103,10 @@ serve(async (req) => {
                 "Authorization": `Bearer ${supabaseKey}`
             },
             body: JSON.stringify({
-                to: "admin@axim.us.com", // Replace with actual admin team email
-                subject: `AXiM Executive Briefing - ${new Date().toLocaleDateString()}`,
-                html: htmlContent
+                to: "admin@axim.us.com", // Send to admin
+                subject: `AXiM Daily Executive Brief - ${new Date().toLocaleDateString()}`,
+                body: htmlContent, // send-email uses body/text for HTML
+                app_source: "Executive Report"
             })
         });
 
@@ -96,12 +115,12 @@ serve(async (req) => {
              throw new Error(`Email dispatch error: ${emailResponse.status} ${errorText}`);
         }
 
-        return new Response(JSON.stringify({ success: true, message: "Executive report generated and sent." }), {
+        return new Response(JSON.stringify({ success: true, message: "Daily Executive Brief generated and sent." }), {
             status: 200,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Executive report error:", error);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
