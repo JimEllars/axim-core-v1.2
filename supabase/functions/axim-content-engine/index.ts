@@ -303,6 +303,18 @@ async function processAndSaveArticle(supabase: any, content: string, source: str
         console.log(`Saved article: ${title}`);
         results.push({ source, status: 'success', id: data.id, title });
 
+        // Omnichannel Distribution
+        try {
+            const { error: omniError } = await supabase.functions.invoke("omnichannel-publisher", {
+                body: { content: articleContent, title: title, target_channels: ["beehiiv", "social"], metadata: metadata },
+                headers: { "X-Axim-Internal-Service-Key": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "test_internal_key" }
+            });
+            if (omniError) throw omniError;
+            console.log(`[Content Engine] Triggered omnichannel distribution for: ${title}`);
+        } catch (omniErr) {
+            console.error(`[Content Engine] Failed to trigger omnichannel distribution for ${data.id}:`, omniErr);
+        }
+
         // HITL integration
         try {
             const wpPayload = {
