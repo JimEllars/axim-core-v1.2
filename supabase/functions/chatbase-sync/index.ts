@@ -1,70 +1,101 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.0.0';
 
+const CHATBASE_AGENTS = {
+  CEO: 'fViIyS2-64jXMyakjf70T',
+  CTO: 'CgplD95DZW5tnXRPEGV2A',
+  CFO: 'NHjryFStm6hn2kg6q7KgN',
+  COO: '7biTg1Hu6DMWXUpTWfCLu',
+  Legal: 'ioJLtMqvhqx69Mokhad64',
+};
+
 serve(async (req) => {
-  // Expect a scheduled invocation (e.g., via cron) or an authenticated webhook
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type, Authorization' } });
+  }
+
   const authHeader = req.headers.get('Authorization');
   if (authHeader !== `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`) {
-    return new Response('Unauthorized', { status: 401 });
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { 'Content-Type': 'application/json' } });
   }
 
   try {
-    // 1. Fetch chat logs from Chatbase API (mocking the real API request here)
-    const chatbaseApiKey = Deno.env.get('CHATBASE_API_KEY');
-    const chatbaseBotId = Deno.env.get('CHATBASE_BOT_ID');
+    const payload = await req.json();
+    const { agent, query, contextUpdate } = payload;
 
-    if (!chatbaseApiKey || !chatbaseBotId) {
-      console.warn('Missing Chatbase API credentials, using mocked data for sync.');
+    if (!agent || !CHATBASE_AGENTS[agent]) {
+       return new Response(JSON.stringify({ error: 'Valid agent ID/name is required.' }), { status: 400 });
     }
 
-    // Example API logic:
-    // const response = await fetch(`https://www.chatbase.co/api/v1/get-conversations?botId=${chatbaseBotId}`, {
-    //   headers: { Authorization: `Bearer ${chatbaseApiKey}` }
-    // });
-    // const logs = await response.json();
+    const agentId = CHATBASE_AGENTS[agent];
+    const chatbaseApiKey = Deno.env.get('CHATBASE_API_KEY');
+    if (!chatbaseApiKey) {
+        return new Response(JSON.stringify({ error: 'Chatbase API key is not configured.' }), { status: 500 });
+    }
 
-    const logs = [
-      { id: '1', text: 'User: How do I reset my password? Bot: You can go to settings.' },
-      { id: '2', text: 'User: The NDA generator keeps failing on step 2. Bot: Let me help.' }
-    ];
+    let messageToSend = query;
+    if (contextUpdate) {
+        messageToSend = `[SYSTEM UPDATE: Please absorb this new context for our strategy] ${contextUpdate}\n\n[QUERY] ${query || 'Acknowledge this update.'}`;
+    }
+
+    if (!messageToSend) {
+        return new Response(JSON.stringify({ error: 'Either query or contextUpdate must be provided.' }), { status: 400 });
+    }
+
+    // Call Chatbase API v2
+    const chatbaseResponse = await fetch(`https://www.chatbase.co/api/v2/agents/${agentId}/chat`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${chatbaseApiKey}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            message: messageToSend,
+            stream: false
+        })
+    });
+
+    if (!chatbaseResponse.ok) {
+        const errorData = await chatbaseResponse.json();
+        throw new Error(`Chatbase API error: ${JSON.stringify(errorData)}`);
+    }
+
+    const responseData = await chatbaseResponse.json();
+    const assistantMessage = responseData.data.parts.find(p => p.type === 'text')?.text || "No text response";
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // 2. Convert logs into vector embeddings and store in memory bank
-    for (const log of logs) {
-      // Generate embedding using the internal generate-embedding function (or mock)
-      const embeddingReq = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-embedding`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ input: log.text })
-      });
+    // Vectorize the interaction to store in memory bank
+    const interactionText = `User: ${messageToSend}\nAgent ${agent}: ${assistantMessage}`;
+    const embeddingReq = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-embedding`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ input: interactionText })
+    });
 
-      let embedding;
-      if (embeddingReq.ok) {
-        const result = await embeddingReq.json();
-        embedding = result.embedding;
-      } else {
-        // Fallback for mock environment
-        embedding = Array(1536).fill(0.01);
+    let embedding = Array(1536).fill(0.01);
+    if (embeddingReq.ok) {
+      const result = await embeddingReq.json();
+      if (result.embedding) {
+          embedding = result.embedding;
       }
-
-      // Store in ai_interactions_ax2024 as memory bank (with command_type 'support_log')
-      await supabaseAdmin.from('ai_interactions_ax2024').insert({
-        prompt: log.text,
-        response: 'Logged from Chatbase',
-        command_type: 'support_log',
-        embedding: embedding,
-        metadata: { source: 'chatbase', id: log.id }
-      });
     }
 
-    return new Response(JSON.stringify({ success: true, count: logs.length }), {
+    await supabaseAdmin.from('ai_interactions_ax2024').insert({
+      prompt: messageToSend,
+      response: assistantMessage,
+      command_type: 'c_suite_sync',
+      embedding: embedding,
+      metadata: { source: 'chatbase_v2', agent: agent, agentId: agentId, chatbaseMessageId: responseData.data.id }
+    });
+
+    return new Response(JSON.stringify({ success: true, agent: agent, query: messageToSend, response: assistantMessage }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });

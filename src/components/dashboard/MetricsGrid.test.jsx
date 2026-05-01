@@ -4,6 +4,17 @@ import MetricsGrid from './MetricsGrid';
 import { useMetrics } from '../../hooks/useMetrics';
 import { DashboardProvider } from '../../contexts/DashboardContext';
 
+vi.mock('../../contexts/SupabaseContext', () => ({
+  useSupabase: () => ({
+    supabase: {
+      channel: vi.fn().mockReturnThis(),
+      on: vi.fn().mockReturnThis(),
+      subscribe: vi.fn(),
+      removeChannel: vi.fn(),
+    }
+  })
+}));
+
 vi.mock('../../hooks/useMetrics');
 
 const mockMetrics = {
