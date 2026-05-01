@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import api from '../../services/onyxAI/api';
 import toast from 'react-hot-toast';
 import { FiBookOpen, FiUploadCloud, FiCpu, FiFileText } from 'react-icons/fi';
+import { useSupabase } from '../../contexts/SupabaseContext';
 
 const KnowledgeBaseIngest = () => {
   const [title, setTitle] = useState('');
@@ -9,6 +10,8 @@ const KnowledgeBaseIngest = () => {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('text'); // text, url, file
+  const [fileToUpload, setFileToUpload] = useState(null);
+  const { supabase } = useSupabase();
 
   const handleIngest = async () => {
     if (!title) {
@@ -29,6 +32,43 @@ const KnowledgeBaseIngest = () => {
           if (!content) throw new Error('No content retrieved.');
           contentToIngest = content;
           toast.loading("Generating embeddings...", { id: 'ingest' });
+      } else if (activeTab === 'file' && fileToUpload) {
+          toast.loading("Uploading to secure bucket...", { id: 'ingest' });
+
+          const fileExt = fileToUpload.name.split('.').pop();
+          const fileName = `${Math.random().toString(36).substring(2, 15)}.${fileExt}`;
+          const filePath = `playbooks/${fileName}`;
+
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('executive_knowledge')
+            .upload(filePath, fileToUpload);
+
+          if (uploadError) {
+             // Fallback to direct ingest if bucket upload fails (or bucket doesn't exist yet)
+             console.warn("Storage upload failed, falling back to direct ingestion", uploadError);
+          } else {
+             // Let the webhook handle it if we have one, but we also pass it to edge function directly just in case.
+             // But the instructions specify "upload documents directly to a secure Supabase Storage bucket"
+             // "function must download the file..."
+
+             // In our implementation, we'll invoke the edge function and pass the file path
+             toast.loading("Vectorizing from storage...", { id: 'ingest' });
+             const { data, error } = await api.supabase.functions.invoke('knowledge-ingest', {
+                 body: { title, file_path: uploadData.path, source_type: 'storage' }
+             });
+
+             if (error) throw error;
+
+             toast.success(`Successfully ingested ${data.processed_chunks || 0} chunks into Executive Brain.`, { id: 'ingest' });
+             setTitle('');
+             setText('');
+             setUrl('');
+             setFileToUpload(null);
+             setLoading(false);
+             return;
+          }
+
+          toast.loading("Generating embeddings directly...", { id: 'ingest' });
       } else {
           if (!text) throw new Error("Text content is required.");
           toast.loading("Generating embeddings...", { id: 'ingest' });
@@ -57,10 +97,14 @@ const KnowledgeBaseIngest = () => {
       const file = e.target.files[0];
       if (!file) return;
 
+      setFileToUpload(file);
+      if (!title) setTitle(file.name);
+
+      // We'll still read as text so the user can preview/edit it if they want,
+      // but we will also upload the raw file to bucket
       const reader = new FileReader();
       reader.onload = (e) => {
           setText(e.target.result);
-          if (!title) setTitle(file.name);
       };
       reader.readAsText(file);
   };

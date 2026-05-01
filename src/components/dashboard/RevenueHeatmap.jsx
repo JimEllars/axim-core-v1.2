@@ -19,7 +19,19 @@ const RevenueHeatmap = () => {
 
   useEffect(() => {
     fetchRevenueData();
-  }, []);
+
+    if (supabase) {
+      const subscription = supabase.channel('revenue_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'micro_app_transactions' }, () => {
+          fetchRevenueData();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(subscription);
+      };
+    }
+  }, [supabase]);
 
   const fetchRevenueData = async () => {
     try {

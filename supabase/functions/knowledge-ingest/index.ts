@@ -45,10 +45,25 @@ serve(async (req) => {
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string
         );
 
-        const { title, text, source_type = 'text' } = await req.json();
+        const payload = await req.json();
+        let { title, text, source_type = 'text', file_path } = payload;
+
+        // If file_path is provided (from bucket upload), fetch the content first
+        if (file_path && source_type === 'storage') {
+            const { data: fileData, error: downloadError } = await supabaseAdmin.storage
+                .from('executive_knowledge')
+                .download(file_path);
+
+            if (downloadError) {
+                throw new Error(`Failed to download file from storage: ${downloadError.message}`);
+            }
+
+            // Assume text for now, could be enhanced with PDF parser
+            text = await fileData.text();
+        }
 
         if (!title || !text) {
-            return new Response(JSON.stringify({ error: 'Title and text are required.' }), {
+            return new Response(JSON.stringify({ error: 'Title and text (or file content) are required.' }), {
                 status: 400,
                 headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
             });

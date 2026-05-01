@@ -3,11 +3,49 @@ import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { useMetrics } from '../../hooks/useMetrics';
+import { useSupabase } from '../../contexts/SupabaseContext';
 
 const { FiUsers, FiTrendingUp, FiActivity, FiDatabase, FiAlertTriangle, FiZap, FiFileText } = FiIcons;
 
 const MetricsGrid = () => {
-  const { metrics, loading, error } = useMetrics();
+  const { metrics: initialMetrics, loading, error, refetch } = useMetrics();
+  const { supabase } = useSupabase();
+  const [metrics, setMetrics] = React.useState(null);
+
+  React.useEffect(() => {
+    if (initialMetrics) {
+      setMetrics(initialMetrics);
+    }
+  }, [initialMetrics]);
+
+  React.useEffect(() => {
+    if (!supabase) return;
+
+    // Setup real-time listeners for key tables that affect metrics
+    const apiUsageChannel = supabase.channel('api_usage_logs_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'api_usage_logs' }, () => {
+        refetch();
+      })
+      .subscribe();
+
+    const microAppChannel = supabase.channel('micro_app_transactions_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'micro_app_transactions' }, () => {
+        refetch();
+      })
+      .subscribe();
+
+    const contactsChannel = supabase.channel('contacts_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
+        refetch();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(apiUsageChannel);
+      supabase.removeChannel(microAppChannel);
+      supabase.removeChannel(contactsChannel);
+    };
+  }, [supabase, refetch]);
 
   // Guard clause to prevent rendering with null data
   if (loading || !metrics) {
