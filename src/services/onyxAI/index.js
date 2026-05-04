@@ -154,6 +154,9 @@ if (commandType === 'llm') {
             conversationHistory: conversationHistory.getHistory(),
             userId: this.userId
           };
+
+          options.domain_context = options.domain_context || 'axim_systems';
+
           const workerResponse = await this.api.sendToOnyxWorker({
             command: sanitizedCommand,
             context,

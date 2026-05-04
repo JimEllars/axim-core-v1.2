@@ -1,6 +1,31 @@
 import api from "../onyxAI/api";
 import { workflowDefinitions } from "./definitions";
 
+
+const stepHandlerRegistry = {
+  api_call: async (step, context, userId) => {
+    const res = await api.invokeAximService(
+      step.config.service,
+      step.config.endpoint,
+      step.config.payload,
+      userId
+    );
+    return { message: `API call to ${step.config.service} successful.`, data: res };
+  },
+  email: async (step, context, userId) => {
+    await api.sendEmail(
+      step.config.to,
+      step.config.subject,
+      step.config.body,
+      userId
+    );
+    return { message: `Email sent to ${step.config.to}.` };
+  },
+  query_database: async (step, context, userId) => {
+    return { message: `Query database step executed.` };
+  }
+};
+
 export const runWorkflow = async (
   workflowSlug,
   userId,
@@ -49,42 +74,20 @@ export const runWorkflow = async (
       if (typeof step.action === "function") {
         result = await step.action(context);
       }
-      // If step is a JSON definition from DB
-      else if (step.type === "api_call") {
-        result = await api.invokeAximService(
-          step.config.service,
-          step.config.endpoint,
-          step.config.payload,
-          userId,
-        );
-        result = {
-          message: `API call to ${step.config.service} successful.`,
-          data: result,
-        };
-      } else if (step.type === "email") {
-        result = await api.sendEmail(
-          step.config.to,
-          step.config.subject,
-          step.config.body,
-          userId,
-        );
-        result = { message: `Email sent to ${step.config.to}.` };
-      } else if (step.type === "query_database") {
-        // Not officially implemented in api.js but standard payload mapping
-        result = { message: `Query database step executed.` };
+      else if (stepHandlerRegistry[step.type]) {
+        result = await stepHandlerRegistry[step.type](step, context, userId);
       } else {
         result = { message: `Step ${step.name} executed (JSON interpreter)` };
       }
 
       // Merge the result into the context for subsequent steps
-      context = { ...context, ...result };
+      context = { ...context, ...result, [step.id || step.name]: result && result.data ? result.data : result };
 
       results.push({
         step: step.name,
         success: true,
-        message: result
-          ? result.message || "Completed successfully."
-          : "Completed successfully.",
+        message: result ? result.message || "Completed successfully." : "Completed successfully.",
+        output: result && result.data ? result.data : result
       });
     } catch (error) {
       console.error(`Error in step "${step.name}":`, error);
