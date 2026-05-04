@@ -53,15 +53,15 @@ serve(async (req) => {
     const { data: recentApprovals, error: auditError } = await supabaseAdmin
       .from('hitl_audit_logs')
       .select('*')
-      .eq('action', 'Approve')
       .order('timestamp', { ascending: false })
-      .limit(5);
+      .limit(10);
 
     if (!auditError && recentApprovals && recentApprovals.length > 0) {
        // Inject as Historical Precedents into the context or prompt
-       const precedents = recentApprovals.map(log => `Tool: ${log.tool_called}, Action: ${log.action}, Time: ${log.timestamp}`);
+       const precedents = recentApprovals.filter(log => log.action === 'Approve').slice(0, 5).map(log => `Approved: Tool ${log.tool_called} at ${log.timestamp}`);
+       const rejections = recentApprovals.filter(log => log.action === 'Deny' || log.action === 'Reject' || log.action === 'deny').slice(0, 3).map(log => `Rejected: Tool ${log.tool_called} at ${log.timestamp} - DO NOT DO THIS`);
        if (!bodyData.context) bodyData.context = {};
-       bodyData.context.historical_precedents = precedents;
+       bodyData.context.historical_precedents = [...precedents, ...rejections];
     }
 
 
@@ -132,8 +132,14 @@ serve(async (req) => {
     const promptText = (bodyData.prompt || bodyData.command || '').toLowerCase();
     const contextStr = JSON.stringify(bodyData.context || {}).toLowerCase();
 
-    // Check target domain or context for Persona switching
-    const isPolitical = promptText.includes("ellars.us.com") || contextStr.includes("ellars.us.com") || promptText.includes("political");
+    let isPolitical = false;
+    if (bodyData.options && bodyData.options.domain_context) {
+        isPolitical = bodyData.options.domain_context === 'ellars_political';
+    } else if (bodyData.agent_id && bodyData.agent_id.includes('political')) {
+        isPolitical = true;
+    } else {
+        isPolitical = promptText.includes("ellars.us.com") || contextStr.includes("ellars.us.com") || promptText.includes("political");
+    }
 
     const personaAxim = `
 Voice: Professional, highly innovative Founder & President of AXiM Systems. Authoritative, strategic, and business-focused.
@@ -196,6 +202,16 @@ Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve
 
     let memoryContext = '';
     if (memoryResults) {
+       // Knowledge Partitioning: filter out "American Tax Credit" when not political
+       if (!isPolitical) {
+           if (Array.isArray(memoryResults)) {
+               memoryResults = memoryResults.filter((r: any) => !(r.response && r.response.includes("American Tax Credit")) && !(r.command && r.command.includes("American Tax Credit")));
+           } else {
+               if (memoryResults.chat_context) memoryResults.chat_context = memoryResults.chat_context.filter((r: any) => !(r.response && r.response.includes("American Tax Credit")) && !(r.command && r.command.includes("American Tax Credit")));
+               if (memoryResults.strategic_context) memoryResults.strategic_context = memoryResults.strategic_context.filter((r: any) => !(r.content && r.content.includes("American Tax Credit")));
+           }
+       }
+
        let memories = '';
        // Handle legacy structure (array) or new structure (object)
        if (Array.isArray(memoryResults)) {

@@ -4,6 +4,7 @@ import { FiDownload, FiTrash2, FiMessageSquare, FiActivity, FiGitCommit, FiCpu, 
 import ChatMessage from '../command/ChatMessage';
 import SafeIcon from '../../common/SafeIcon';
 import { createClient } from '@supabase/supabase-js';
+import api from '../../services/onyxAI/api';
 
 const ProcessChain = () => (
   <motion.div
@@ -84,6 +85,19 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
              // It's a single JSON response, not SSE
              const data = await response.json();
              agentId = data.agent_id || 'onyx';
+
+             // Detect and execute quarantine_app action if present
+             if (data.action_payload && data.action_payload.action === 'quarantine_app') {
+                try {
+                  const targetApp = data.action_payload.target || 'unknown';
+                  // Frontend immediately updates ecosystem_apps
+                  await api.updateEcosystemAppStatus(targetApp, 'offline');
+                  data.response = data.response + "\n\n[SYSTEM] Action quarantine_app executed. Target " + targetApp + " is now offline.";
+                } catch (e) {
+                  console.error('Failed to execute quarantine_app', e);
+                }
+             }
+
              setLocalMessages(prev => prev.map(msg =>
                  msg.id === aiMessageId
                    ? { ...msg, content: data.response || JSON.stringify(data), isTyping: false, agentId: agentId }
