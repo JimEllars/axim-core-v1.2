@@ -14,7 +14,8 @@
 const APPROVED_ECOSYSTEM_ORIGINS = [
   'https://axim.us.com',
   'https://quickdemandletter.com',
-  'https://nda-generator.com'
+  'https://nda-generator.com',
+  'https://axim-core-dashboard.pages.dev'
 ];
 
 export function getCorsHeaders(reqOrigin: string | null) {
