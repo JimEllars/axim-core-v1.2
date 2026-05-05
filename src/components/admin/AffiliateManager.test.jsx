@@ -18,6 +18,7 @@ vi.mock('../../services/supabaseClient', () => ({
 describe('AffiliateManager', () => {
   it('renders title and button', async () => {
     render(<AffiliateManager />);
+    await waitFor(() => {});
     expect(screen.getByText('Affiliate Partner Management')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'New Partner' })).toBeInTheDocument();
   });
@@ -35,6 +36,7 @@ describe('AffiliateManager', () => {
     });
 
     render(<AffiliateManager />);
+    await waitFor(() => {});
 
     await waitFor(() => {
       expect(screen.getByText('testpartner')).toBeInTheDocument();

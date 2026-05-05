@@ -152,19 +152,24 @@ class OfflineManager {
    * Executes a single queued request and handles its success or failure.
    * @private
    */
+
   async _executeQueuedRequest(item) {
     try {
       logger.log(`Executing queued request: ${item.methodName} (Attempt: ${item.attempts + 1})`);
       if (typeof api[item.methodName] !== 'function') {
         throw new Error(`Method ${item.methodName} does not exist on ApiService.`);
       }
+      this._currentExecutionId = item.id;
       await api[item.methodName](...item.args);
+      this._currentExecutionId = null;
       return { success: true, item };
     } catch (error) {
+      this._currentExecutionId = null;
       logger.error(`Failed to execute queued request: ${item.methodName}.`, error);
       return { success: false, item, error };
     }
   }
+
 
   /**
    * Handles a failed request by either re-queuing it or moving it to the dead-letter queue.

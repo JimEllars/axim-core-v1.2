@@ -21,8 +21,8 @@ export const SupabaseProvider = ({ children, client = null }) => {
   useEffect(() => {
     const checkConnection = async () => {
       try {
-        const { error } = await supabaseClient.from('events_ax2024').select('*', { count: 'exact', head: true });
-        if (error && !error.message.includes('relation "events_ax2024" does not exist')) {
+        const { error } = await supabaseClient.auth.getSession();
+        if (error) {
           throw error;
         }
         setConnectionError(null);
