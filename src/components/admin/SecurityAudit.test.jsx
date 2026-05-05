@@ -15,6 +15,16 @@ vi.mock('../../contexts/SupabaseContext', () => ({
     supabase: {
       from: vi.fn(() => ({
         select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            gte: vi.fn(() => ({
+              order: vi.fn(() => ({
+                limit: vi.fn().mockResolvedValue({
+                  data: [],
+                  error: null,
+                })
+              }))
+            }))
+          })),
           order: vi.fn(() => ({
             limit: vi.fn().mockResolvedValue({
               data: mockLogs,
