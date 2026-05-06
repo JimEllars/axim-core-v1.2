@@ -68,6 +68,21 @@ serve(async (req) => {
             }
         }
 
+        if (status === 'Approved' && data && data.action === 'omnichannel_broadcast') {
+            try {
+                const omnichannelPayload = action_payload || {};
+                await supabaseAdmin.functions.invoke('omnichannel-publisher', {
+                    body: omnichannelPayload,
+                    headers: {
+                        'X-Axim-Internal-Service-Key': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+                    }
+                });
+                console.log(`Successfully dispatched omnichannel-publisher for log ${log_id}`);
+            } catch (ocError) {
+                console.error(`Failed to dispatch omnichannel-publisher for log ${log_id}`, ocError);
+            }
+        }
+
         return new Response(JSON.stringify({ success: true, ...data }), {
             headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
         });
