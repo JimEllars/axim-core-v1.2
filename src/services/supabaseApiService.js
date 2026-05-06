@@ -522,7 +522,7 @@ class SupabaseApiService {
     try {
       const { data, error } = await this.supabase
         .from('workflows_ax2024')
-        .insert({ name, description, slug, definition, user_id: userId })
+        .upsert({ name, description, slug, definition, user_id: userId }, { onConflict: 'slug' })
         .select()
         .single();
       if (error) throw new DatabaseError(error.message);

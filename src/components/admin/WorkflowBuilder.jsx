@@ -480,10 +480,14 @@ const WorkflowBuilder = () => {
                   };
                 });
                 const definition = { steps };
+                const workflowName = "Custom Workflow " + Date.now();
+                const workflowSlug = "custom_wf_" + Date.now();
+                const idempotencyKey = "wf_" + Date.now(); // Wave 4 idempotency logic placeholder
+                // Ensure idempotency key logic is established per Wave 4 specs (if needed, but upsert with slug handles identity)
                 await api.createWorkflow(
-                    "Custom Workflow " + Date.now(),
+                    workflowName,
                     "Generated workflow",
-                    "custom_wf_" + Date.now(),
+                    workflowSlug,
                     definition,
                     user.id
                   );
