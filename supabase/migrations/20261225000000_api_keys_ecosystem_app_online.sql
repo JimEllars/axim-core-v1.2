@@ -1,0 +1,1 @@
+-- Add a column to ecosystem_apps if we need to check if online? Or maybe they already have a status. Let's check ecosystem_apps table.

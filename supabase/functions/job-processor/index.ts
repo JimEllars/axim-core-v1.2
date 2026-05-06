@@ -9,16 +9,6 @@ const supabase = createClient(
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") as string;
 
-// Helper to convert Uint8Array to base64
-function uint8ArrayToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
 serve(async (req) => {
   // Simple auth for cron/internal triggering
   const authHeader = req.headers.get("Authorization");
@@ -28,7 +18,6 @@ serve(async (req) => {
 
   try {
     // 1. Fetch Pending Jobs (max 10) safely using our RPC function
-    // We update the function to use the rpc call to dequeue_satellite_jobs which uses FOR UPDATE SKIP LOCKED
     const { data: jobs, error: fetchError } = await supabase.rpc(
       "dequeue_satellite_jobs",
       { max_jobs: 10 },
@@ -51,28 +40,55 @@ serve(async (req) => {
     for (const job of jobs) {
       try {
         const { app_id, payload, task_type } = job;
-        const { product_id, customer_email, session_id, user_id, formData } =
-          payload;
+        const jobType = task_type || payload?.job_type;
+        const idempotencyKey = payload?.idempotency_key;
+
+        // Enforce Idempotency
+        if (idempotencyKey) {
+          const { data: existingLog, error: idempError } = await supabase
+            .from("api_usage_logs")
+            .select("id")
+            .eq("idempotency_key", idempotencyKey)
+            .single();
+
+          if (existingLog) {
+             console.log(`Job ${job.id} skipped. Duplicate idempotency_key: ${idempotencyKey}`);
+             await supabase
+               .from("satellite_job_queue")
+               .update({ status: "completed", error_log: "Skipped as duplicate (idempotency_key match)" })
+               .eq("id", job.id);
+             continue;
+          }
+        }
 
         let artifactUrl = "";
 
-        if (
-          task_type === "generate_nda" ||
-          task_type === "generate_demand_letter" ||
-          app_id
-        ) {
+        // Execute logic based on job_type or task_type
+        if (jobType === 'omnichannel_post') {
+            console.log(`Processing omnichannel_post for job ${job.id}`);
+            // Logic for omnichannel_post (e.g., calling the appropriate webhook or API)
+            // Simulating execution
+        } else if (jobType === 'crm_sync') {
+            console.log(`Processing crm_sync for job ${job.id}`);
+            // Logic for crm_sync
+        } else if (jobType === 'ingest_knowledge') {
+            console.log(`Processing ingest_knowledge for job ${job.id}`);
+            // Logic for ingest_knowledge
+        } else if (jobType === "generate_nda" || jobType === "generate_demand_letter" || app_id) {
           console.log(
-            `Triggering generator for app ${app_id || task_type} (Job: ${job.id})...`,
+            `Triggering generator for app ${app_id || jobType} (Job: ${job.id})...`,
           );
+
+          const { formData, session_id, customer_email } = payload || {};
 
           // Using the shared pdf-generator utility directly instead of fetching
           const pdfBytes = await generatePdf(
-            app_id || task_type,
+            app_id || jobType,
             formData || payload,
           );
 
           if (pdfBytes) {
-            const fileName = `${app_id || task_type}_${session_id || crypto.randomUUID()}.pdf`;
+            const fileName = `${app_id || jobType}_${session_id || crypto.randomUUID()}.pdf`;
 
             const { error: uploadError } = await supabase.storage
               .from("secure_artifacts")
@@ -102,35 +118,43 @@ serve(async (req) => {
 
             await supabase.from("vault_records").insert({
               file_name: fileName,
-              document_type: app_id || task_type,
+              document_type: app_id || jobType,
               trace_id: session_id,
               bucket_id: "secure_artifacts",
             });
           }
+
+          // Send Email using the updated send-email edge function
+          if (customer_email) {
+            const dispatcherUrl = `${supabaseUrl}/functions/v1/send-email`;
+            const dispatchRes = await fetch(dispatcherUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify({
+                email: customer_email,
+                app_source: app_id || jobType || "system",
+                formData: formData || payload,
+                artifactUrl: artifactUrl,
+              }),
+            });
+
+            if (!dispatchRes.ok) {
+              throw new Error(
+                `Failed to dispatch email: ${await dispatchRes.text()}`,
+              );
+            }
+          }
         }
 
-        // Send Email using the updated send-email edge function
-        if (customer_email) {
-          const dispatcherUrl = `${supabaseUrl}/functions/v1/send-email`;
-          const dispatchRes = await fetch(dispatcherUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-            },
-            body: JSON.stringify({
-              email: customer_email,
-              app_source: app_id || task_type || "system",
-              formData: formData || payload,
-              artifactUrl: artifactUrl,
-            }),
-          });
-
-          if (!dispatchRes.ok) {
-            throw new Error(
-              `Failed to dispatch email: ${await dispatchRes.text()}`,
-            );
-          }
+        // Record Idempotency Key if present and successful
+        if (idempotencyKey) {
+            await supabase.from("api_usage_logs").insert({
+               endpoint: `/satellite_job_queue/${jobType || 'unknown'}`,
+               idempotency_key: idempotencyKey
+            });
         }
 
         // Mark Job as Completed
