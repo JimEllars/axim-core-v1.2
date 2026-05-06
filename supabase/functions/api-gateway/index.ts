@@ -1,8 +1,5 @@
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
-import { notifyOnyx } from '../_shared/telemetry.ts';
-declare const EdgeRuntime: any;
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { generatePdf } from '../_shared/pdf-generators/index.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
@@ -10,7 +7,6 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as s
 const INTERNAL_SERVICE_KEY = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY') as string || 'fallback_internal_key'; // Default if not set
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
 
 // Rate Limiter
 const rateLimitMap = new Map<string, { count: number, resetTime: number }>();
@@ -51,6 +47,10 @@ function getDepth(obj: any): number {
   return 0;
 }
 
+async function notifyOnyx(endpoint: string, status: number, details: any) {
+    // Dummy notify function
+    console.error(`Onyx Alert: ${status} on ${endpoint}`, details);
+}
 
 const ALLOWED_ORIGINS = [
   'https://quickdemandletter.com',
@@ -105,37 +105,85 @@ serve(async (req) => {
   }
 
   try {
+    const ip = req.headers.get('CF-Connecting-IP') || req.headers.get('x-forwarded-for') || 'unknown';
+    const internalKeyHeader = req.headers.get('X-Axim-Internal-Service-Key');
+    const authHeader = req.headers.get('Authorization');
+    const isInternal = internalKeyHeader === INTERNAL_SERVICE_KEY;
 
-  const ip = req.headers.get('CF-Connecting-IP') || req.headers.get('x-forwarded-for') || 'unknown';
-  const internalKeyHeader = req.headers.get('X-Axim-Internal-Service-Key');
-  const isInternal = internalKeyHeader === INTERNAL_SERVICE_KEY;
+    let partnerId: string | null = null;
+    let apiKeyId: string | null = null;
 
-  if (!isInternal && ip !== 'unknown') {
-    if (!checkRateLimit(ip)) {
-      await logSecurityAnomaly('Rate Limit Exceeded', { limit: MAX_REQUESTS, window: RATE_LIMIT_WINDOW });
-      return new Response(JSON.stringify({ error: 'Too Many Requests' }), {
-        status: 429,
-        headers: { ...securityHeaders, 'Content-Type': 'application/json' }
-      });
+    if (!isInternal && ip !== 'unknown') {
+      if (!checkRateLimit(ip)) {
+        await logSecurityAnomaly('Rate Limit Exceeded', { limit: MAX_REQUESTS, window: RATE_LIMIT_WINDOW });
+        return new Response(JSON.stringify({ error: 'Too Many Requests' }), {
+          status: 429,
+          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+        });
+      }
     }
-  }
 
     if (!isInternal) {
-      await logSecurityAnomaly('Invalid internal service key attempt');
-      await notifyOnyx(endpoint, 403, { reason: 'Invalid internal service key attempt' });
-      return new Response(JSON.stringify({ error: 'Forbidden' }), {
-        status: 403,
-        headers: { ...securityHeaders, 'Content-Type': 'application/json' }
-      });
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        await logSecurityAnomaly('Unauthorized: Missing or invalid Authorization header');
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const apiKey = authHeader.split(' ')[1];
+
+      // Validate the key against the api_keys table
+      const { data: apiKeyData, error: apiKeyError } = await supabaseAdmin
+        .from('api_keys')
+        .select('id, user_id, service')
+        .eq('api_key', apiKey)
+        .single();
+
+      if (apiKeyError || !apiKeyData) {
+        await logSecurityAnomaly('Unauthorized: Invalid API Key');
+        return new Response(JSON.stringify({ error: 'Unauthorized: Invalid API Key' }), {
+          status: 401,
+          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Ensure the associated ecosystem_app is online
+      const { data: appData, error: appError } = await supabaseAdmin
+        .from('ecosystem_apps')
+        .select('is_active, status')
+        .eq('app_id', apiKeyData.service)
+        .single();
+
+      if (appError || !appData || !appData.is_active || appData.status !== 'online') {
+        await logSecurityAnomaly(`Forbidden: Ecosystem app '${apiKeyData.service}' is offline or inactive`);
+        return new Response(JSON.stringify({ error: 'Forbidden: App is offline or inactive' }), {
+          status: 403,
+          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      partnerId = apiKeyData.user_id;
+      apiKeyId = apiKeyData.id;
+
+      // Log the request to api_usage_logs
+      if (typeof EdgeRuntime !== 'undefined') {
+        EdgeRuntime.waitUntil(
+          supabaseAdmin.from('api_usage_logs').insert({
+            api_key_id: apiKeyId,
+            partner_id: partnerId,
+            endpoint: endpoint,
+            created_at: new Date().toISOString()
+          })
+        );
+      }
     }
 
-
     if (req.method === 'POST') {
-      // Create a cloned request to read body without consuming the original if needed, but since we read it here we can just replace the logic
       const clone = req.clone();
       const text = await clone.text();
 
-      // 5MB limit
       if (text.length > 5 * 1024 * 1024) {
         await logSecurityAnomaly('Payload Too Large', { size: text.length });
         return new Response(JSON.stringify({ error: 'Payload Too Large' }), {
@@ -155,20 +203,37 @@ serve(async (req) => {
             });
           }
         } catch (e) {
-          // ignore parse error here, will be caught later if needed
+          // ignore parse error
         }
       }
     }
 
+    let body;
+    try {
+        body = await req.json();
+    } catch (e) {
+        body = {};
+    }
+
+    if (!isInternal && endpoint === '/api/v1/dispatch') {
+      const dispatcherUrl = `${SUPABASE_URL}/functions/v1/universal-dispatcher`;
+      const dispatchRes = await fetch(dispatcherUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+        },
+        body: JSON.stringify({ ...body, partner_id: partnerId, api_key_id: apiKeyId })
+      });
+
+      const dispatchData = await dispatchRes.text();
+      return new Response(dispatchData, {
+        status: dispatchRes.status,
+        headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+      });
+    }
 
     if (req.method === 'POST' && endpoint === '/api/v1/telemetry/ingest') {
-      let body;
-      try {
-        body = await req.json();
-      } catch (e) {
-        body = {};
-      }
-
       EdgeRuntime.waitUntil(
         supabaseAdmin.from('telemetry_logs').insert({
           session_id: body.session_id,
@@ -187,18 +252,7 @@ serve(async (req) => {
       });
     }
 
-
     if (req.method === 'POST' && endpoint === '/api/v1/external-webhook') {
-      let body;
-      try {
-        body = await req.json();
-      } catch (e) {
-        return new Response(JSON.stringify({ error: 'Invalid JSON payload' }), {
-          status: 400,
-          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
       const eventSource = body.event_source;
       if (!eventSource) {
         return new Response(JSON.stringify({ error: 'Missing event_source' }), {
@@ -208,41 +262,43 @@ serve(async (req) => {
       }
 
       if (eventSource === 'tabby') {
-        // Map Tabby accounting payloads
         const amount = body.payload?.amount || 0;
         const type = body.payload?.type; // 'revenue' or 'expense'
         const eventTag = type === 'expense' ? 'expense_logged' : 'revenue_cleared';
 
-        EdgeRuntime.waitUntil(
-          supabaseAdmin.from('telemetry_logs').insert({
-            event: eventTag,
-            app_type: 'tabby-accounting',
-            timestamp: new Date().toISOString(),
-            details: {
-              amount,
-              raw_payload: body.payload
-            }
-          })
-        );
+        if (typeof EdgeRuntime !== 'undefined') {
+          EdgeRuntime.waitUntil(
+            supabaseAdmin.from('telemetry_logs').insert({
+              event: eventTag,
+              app_type: 'tabby-accounting',
+              timestamp: new Date().toISOString(),
+              details: {
+                amount,
+                raw_payload: body.payload
+              }
+            })
+          );
+        }
         return new Response(JSON.stringify({ success: true, message: 'Tabby webhook processed' }), {
           status: 200,
           headers: { ...securityHeaders, 'Content-Type': 'application/json' }
         });
       } else if (eventSource === 'roundups') {
-        // Map RoundUps affiliate payloads
         const eventType = body.payload?.event_type; // 'article_published' or 'affiliate_click'
         const eventTag = eventType === 'article_published' ? 'article_published' : 'affiliate_click';
 
-        EdgeRuntime.waitUntil(
-          supabaseAdmin.from('telemetry_logs').insert({
-            event: eventTag,
-            app_type: 'roundups-affiliate',
-            timestamp: new Date().toISOString(),
-            details: {
-              raw_payload: body.payload
-            }
-          })
-        );
+        if (typeof EdgeRuntime !== 'undefined') {
+          EdgeRuntime.waitUntil(
+            supabaseAdmin.from('telemetry_logs').insert({
+              event: eventTag,
+              app_type: 'roundups-affiliate',
+              timestamp: new Date().toISOString(),
+              details: {
+                raw_payload: body.payload
+              }
+            })
+          );
+        }
         return new Response(JSON.stringify({ success: true, message: 'RoundUps webhook processed' }), {
           status: 200,
           headers: { ...securityHeaders, 'Content-Type': 'application/json' }
@@ -253,14 +309,6 @@ serve(async (req) => {
         status: 400,
         headers: { ...securityHeaders, 'Content-Type': 'application/json' }
       });
-    }
-
-
-    let body;
-    try {
-        body = await req.json();
-    } catch (e) {
-        body = {};
     }
 
     const document_data = body.document_data || body;
