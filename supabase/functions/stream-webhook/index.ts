@@ -4,6 +4,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const webhookSecret = Deno.env.get("STREAM_WEBHOOK_SECRET");
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 serve(async (req) => {
@@ -12,6 +13,17 @@ serve(async (req) => {
     }
 
     try {
+        // Validate webhook secret if configured
+        if (webhookSecret) {
+            const signature = req.headers.get("X-Stream-Signature") || req.headers.get("Webhook-Signature") || req.headers.get("Authorization");
+            if (!signature || signature.replace('Bearer ', '') !== webhookSecret) {
+                console.error("Unauthorized webhook request. Invalid signature.");
+                return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            }
+        } else {
+             console.warn("STREAM_WEBHOOK_SECRET is not configured. Webhook is unauthenticated.");
+        }
+
         const payload = await req.json();
         console.log("Received stream webhook:", payload);
 
