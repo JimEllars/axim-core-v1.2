@@ -5,6 +5,7 @@ import { useAuth } from './AuthContext';
 import { useDashboard } from './DashboardContext';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
+import { listenForWorkflowEvents } from '../services/workflows/engine';
 
 const RealtimeContext = createContext();
 
@@ -15,6 +16,7 @@ export const RealtimeProvider = ({ children }) => {
   const { refreshDashboard } = useDashboard();
   const hitlChannelRef = useRef(null);
   const telemetryChannelRef = useRef(null);
+  const workflowListenerRef = useRef(null);
   const reconnectTimeouts = useRef({ hitl: null, telemetry: null });
 
   useEffect(() => {
@@ -113,12 +115,14 @@ export const RealtimeProvider = ({ children }) => {
 
     setupHitlChannel();
     setupTelemetryChannel();
+    workflowListenerRef.current = listenForWorkflowEvents(supabase);
 
     return () => {
       if (reconnectTimeouts.current.hitl) clearTimeout(reconnectTimeouts.current.hitl);
       if (reconnectTimeouts.current.telemetry) clearTimeout(reconnectTimeouts.current.telemetry);
       if (hitlChannelRef.current) supabase.removeChannel(hitlChannelRef.current);
       if (telemetryChannelRef.current) supabase.removeChannel(telemetryChannelRef.current);
+      if (workflowListenerRef.current) workflowListenerRef.current();
     };
   }, [user]);
 

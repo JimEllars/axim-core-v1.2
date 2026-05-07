@@ -20,8 +20,8 @@ serve(async (req) => {
         }
 
         const feeds = [
-            { url: "https://feed.pod.co/rants", context: "James Ellars", type: "Political" },
-            { url: "https://feed.pod.co/axim-reports", context: "AXiM Systems", type: "Business" }
+            { url: "https://feed.pod.co/rants", context: "James Ellars", type: "ellars_political" },
+            { url: "https://feed.pod.co/axim-reports", context: "AXiM Systems", type: "axim_systems" }
         ];
 
         for (const feed of feeds) {
@@ -87,7 +87,7 @@ serve(async (req) => {
                     });
                     if (llmRes.ok) {
                         const llmData = await llmRes.json();
-                        extractedContext = llmData.response || llmData.text || "";
+                        extractedContext = llmData.response || llmData.text || llmData.content || "";
                     } else {
                          console.error(`LLM proxy failed: ${llmRes.status}`);
                     }
@@ -126,7 +126,7 @@ serve(async (req) => {
                                 link,
                                 pubDate,
                                 context: feed.context,
-                                type: feed.type,
+                                domain: feed.type,
                                 original_description: description
                             },
                             embedding: embedding
@@ -146,7 +146,7 @@ serve(async (req) => {
                         title,
                         link,
                         context: feed.context,
-                        type: feed.type
+                        domain: feed.type
                     }
                 });
             }

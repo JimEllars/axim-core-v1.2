@@ -117,3 +117,34 @@ export const runWorkflow = async (
     results,
   };
 };
+
+export const listenForWorkflowEvents = (supabaseClient) => {
+  if (!supabaseClient) return null;
+
+  const channel = supabaseClient.channel('workflow_events')
+    .on(
+      'postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'events_ax2024' },
+      async (payload) => {
+        const event = payload.new;
+        if (event.type === 'LIVE_STREAM_STARTED') {
+          console.log("Detected LIVE_STREAM_STARTED event, triggering workflow...");
+
+          try {
+            await runWorkflow('LIVE_STREAM_STARTED', 'system', {
+              eventData: event.data
+            });
+          } catch (error) {
+            console.error("Failed to run LIVE_STREAM_STARTED workflow:", error);
+          }
+        }
+      }
+    )
+    .subscribe((status) => {
+      console.log(`Workflow event listener status: ${status}`);
+    });
+
+  return () => {
+    supabaseClient.removeChannel(channel);
+  };
+};
