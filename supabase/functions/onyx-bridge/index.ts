@@ -233,6 +233,66 @@ Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve
            memoryContext += `\n\nExecutive Directives & SOPs: [Matched Data]\n${playbooks}`;
        }
     }
+
+    let isMultiDomain = false;
+    const multiDomainKeywords = ['and compare it against', 'and also', 'furthermore', 'on the other hand', 'at the same time'];
+    for (const keyword of multiDomainKeywords) {
+        if (promptText.includes(keyword)) {
+            isMultiDomain = true;
+            break;
+        }
+    }
+
+    // Also consider it multi-domain if we matched multiple domains based on the previous naive keyword search.
+    let matchedDomains = [];
+    if (promptText.includes('billing') || promptText.includes('financial') || promptText.includes('invoice') || promptText.includes('revenue')) matchedDomains.push('finbot');
+    if (promptText.includes('document') || promptText.includes('demand letter') || promptText.includes('tax code')) matchedDomains.push('docbot');
+    if (promptText.includes('users saying') || promptText.includes('summarize') || promptText.includes('feedback') || promptText.includes('support')) matchedDomains.push('prodbot');
+
+    if (matchedDomains.length > 1) {
+        isMultiDomain = true;
+    }
+
+    if (isMultiDomain) {
+        // Trigger Swarm / Universal Dispatcher
+        console.log("Detected multi-domain intent, yielding to universal-dispatcher...");
+
+        // Let's spawn sub-agents payload
+        const spawnPayload = {
+            action_type: 'spawn_sub_agents',
+            payload: {
+                prompt: promptText,
+                agents: matchedDomains.length > 1 ? matchedDomains : ['finbot', 'docbot'], // fallback
+                context: bodyData.context
+            }
+        };
+
+        // Forward to dispatcher
+        try {
+            const protocol = new URL(req.url).protocol;
+            const host = new URL(req.url).host;
+            const dispatcherUrl = `${protocol}//${host}/universal-dispatcher`;
+
+            // Note: Since this is an edge function, we might just return the payload for the UI to handle,
+            // or we could hit universal-dispatcher directly and wait.
+            // The prompt says "If the Onyx Bridge detects a multi-domain intent, it yields a spawn_sub_agents payload. The universal-dispatcher intercepts this..."
+            // Let's return the payload directly so the frontend can display the swarm orchestration.
+
+            return new Response(JSON.stringify({
+                status: 'swarm_orchestration',
+                action_payload: spawnPayload,
+                message: "Orchestrating Swarm...",
+                agent_id: 'onyx-coordinator'
+            }), {
+                status: 200,
+                headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+            });
+
+        } catch (e) {
+            console.error("Failed to yield to swarm dispatcher:", e);
+        }
+    }
+
     if (promptText.includes('billing') || promptText.includes('financial') || promptText.includes('invoice')) {
         agent_id = 'finbot';
         personaPrompt = "You are FinBot, the AXiM financial specialist...";

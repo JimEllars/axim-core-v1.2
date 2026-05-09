@@ -49,6 +49,100 @@ serve(async (req: Request) => {
       );
     }
 
+
+    if (action_type === 'spawn_sub_agents') {
+        console.log('[Dispatcher] Detected spawn_sub_agents payload. Initializing Swarm Blackboard...');
+
+        const { prompt, agents, context } = payload;
+        const blackboardId = crypto.randomUUID();
+
+        // Let's fire sub-queries
+        const agentPromises = agents.map(async (agent_id) => {
+             // In a real scenario we might hit Onyx Edge with agent_id forced
+             // Here we just mock or call the local function if we want
+             const url = new URL(req.url);
+             const onyxEdgeUrl = Deno.env.get('ONYX_EDGE_URL') || `${url.protocol}//${url.host}/onyx-bridge`;
+
+             try {
+                 const res = await fetch(onyxEdgeUrl, {
+                     method: 'POST',
+                     headers: {
+                         'Content-Type': 'application/json',
+                         'Authorization': `Bearer ${AXIM_SERVICE_KEY}`
+                     },
+                     body: JSON.stringify({
+                         prompt: `[Blackboard Task for ${agent_id}]: ${prompt}`,
+                         agent_id: agent_id,
+                         context: context
+                     })
+                 });
+                 if (res.ok) {
+                     const data = await res.json();
+                     return { agent_id, result: data.response || data.text || JSON.stringify(data) };
+                 }
+                 return { agent_id, result: 'Failed to fetch' };
+             } catch (e) {
+                 return { agent_id, result: e.message };
+             }
+        });
+
+        const results = await Promise.all(agentPromises);
+
+        // Write findings to Blackboard (telemetry_logs as mock Blackboard)
+        await supabaseAdmin.from('telemetry_logs').insert({
+            event: 'swarm_blackboard_update',
+            app_type: 'universal-dispatcher',
+            details: {
+                blackboard_id: blackboardId,
+                results: results
+            }
+        });
+
+        // Feed aggregated context back to main brain
+        let synthesisPrompt = `The sub-agents have completed their tasks for prompt: "${prompt}".\n\nHere are their findings:\n`;
+        results.forEach(r => {
+            synthesisPrompt += `---\
+[${r.agent_id}]: ${r.result}\n`;
+        });
+        synthesisPrompt += `\nPlease synthesize these findings into a cohesive final response.`;
+
+        const url = new URL(req.url);
+        const onyxEdgeUrl = Deno.env.get('ONYX_EDGE_URL') || `${url.protocol}//${url.host}/onyx-bridge`;
+
+        const synthesisRes = await fetch(onyxEdgeUrl, {
+             method: 'POST',
+             headers: {
+                 'Content-Type': 'application/json',
+                 'Authorization': `Bearer ${AXIM_SERVICE_KEY}`
+             },
+             body: JSON.stringify({
+                 prompt: synthesisPrompt,
+                 agent_id: 'onyx-coordinator',
+                 context: context
+             })
+        });
+
+        let finalSynthesis = "Synthesis complete.";
+        if (synthesisRes.ok) {
+            const data = await synthesisRes.json();
+            finalSynthesis = data.response || data.text || JSON.stringify(data);
+        }
+
+        return new Response(
+            JSON.stringify({
+                success: true,
+                message: `Swarm Orchestration complete. ${results.length} agents reported back.`,
+                response: finalSynthesis,
+                blackboard_id: blackboardId
+            }),
+            {
+                status: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+        );
+    }
+
+
     const isHighStakes = HIGH_STAKES_ACTIONS.includes(action_type);
 
     if (isHighStakes) {
