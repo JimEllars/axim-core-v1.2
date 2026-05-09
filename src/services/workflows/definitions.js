@@ -3,6 +3,66 @@ import api from "../onyxAI/api";
 // We are migrating towards fully database-driven workflows.
 // These local stubs serve as fallbacks or examples of hardcoded logic.
 export const workflowDefinitions = {
+
+  NEW_AFFILIATE_LEAD: {
+    name: "Powur Lead Orchestration",
+    description: "Handle new affiliate leads from Powur frontend.",
+    steps: [
+      {
+        name: "Push Lead to CRM",
+        type: "api_call",
+        action: async (context) => {
+          const res = await api.invokeAximService(
+            'generic-axim-service-proxy',
+            '/crm/push',
+            {
+              lead: {
+                name: context.eventData?.name,
+                email: context.eventData?.email,
+                phone: context.eventData?.phone,
+                affiliate_program: context.eventData?.affiliate_program,
+                intent: context.eventData?.intent
+              }
+            },
+            context.userId
+          );
+          return { message: "Pushed lead to CRM", data: res };
+        }
+      },
+      {
+        name: "Create Tracking Task",
+        type: "api_call",
+        action: async (context) => {
+          const title = `Follow up with Solar Lead: ${context.eventData?.name || 'Unknown'}`;
+          const res = await api.createTaskForProject(title, 'Powur Affiliate Tracking', context.userId, `Intent: ${context.eventData?.intent || 'None'}`);
+          return { message: "Created tracking task in PM", data: res };
+        }
+      },
+      {
+        name: "Dispatch Welcome Email",
+        type: "email",
+        action: async (context) => {
+          const email = context.eventData?.email;
+          if (!email) {
+            throw new Error("No email provided in event data");
+          }
+          const link = context.eventData?.affiliate_program === 'seller' ? 'https://powur.com/axim/solar-careers' : 'https://powur.com/axim/solar';
+          const body = `Welcome to Powur! Here is your affiliate link: ${link}`;
+          await api.sendEmail(email, 'Welcome to Powur Solar!', body, context.userId);
+          return { message: "Dispatched welcome email" };
+        }
+      },
+      {
+        name: "Wait for Event",
+        type: "wait_for_event",
+        config: {
+          event_type: "email_opened_or_clicked",
+          timeout_hours: 48
+        }
+      }
+    ]
+  },
+
   LIVE_STREAM_STARTED: {
     name: "Live Stream Omnichannel Broadcast",
     description: "Autonomously draft and push social media updates when a live stream begins.",
