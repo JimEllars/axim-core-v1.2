@@ -124,6 +124,7 @@ const KnowledgeBaseIngest = () => {
         Executive Knowledge Base Ingestion
       </h2>
 
+
       <div className="flex space-x-4 mb-4 border-b border-onyx-accent/20 pb-2">
           <button
               onClick={() => setActiveTab('text')}
@@ -143,7 +144,16 @@ const KnowledgeBaseIngest = () => {
           >
               File Upload (TXT)
           </button>
+          {window.electronAPI && (
+            <button
+                onClick={() => setActiveTab('native')}
+                className={`text-sm pb-2 px-2 transition-colors ${activeTab === 'native' ? 'text-onyx-accent border-b-2 border-onyx-accent font-medium' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+                Native Directory Ingest (Desktop Only)
+            </button>
+          )}
       </div>
+
 
       <div className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
@@ -171,6 +181,72 @@ const KnowledgeBaseIngest = () => {
                 </select>
             </div>
         </div>
+
+
+        {activeTab === 'native' && (
+             <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Native Batch Ingest</label>
+                <button
+                    onClick={async () => {
+                        setLoading(true);
+                        try {
+                           const res = await window.electronAPI.invoke('readLocalDirectory');
+                           if (!res.success) {
+                               setLoading(false);
+                               return;
+                           }
+
+                           setUploadProgress({ current: 0, total: res.files.length });
+
+                           // Setup progress listener
+                           const cleanup = window.electronAPI.on('ingest-progress', (progress) => {
+                               setUploadProgress({ current: progress.current, total: progress.total });
+                           });
+
+                           let token = '';
+                           for (let i = 0; i < localStorage.length; i++) {
+                              const key = localStorage.key(i);
+                              if (key.endsWith('-auth-token')) {
+                                  const session = localStorage.getItem(key);
+                                  if (session) {
+                                     try {
+                                        token = JSON.parse(session).access_token || '';
+                                        break;
+                                     } catch (e) { /* ignore */ }
+                                  }
+                              }
+                           }
+
+                           const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321';
+
+                           const result = await window.electronAPI.invoke('processLocalDirectory', {
+                               dirPath: res.dirPath,
+                               files: res.files,
+                               token,
+                               supabaseUrl
+                           });
+
+                           cleanup();
+                           toast.success(`Native ingest complete. Processed ${result.processed} files.`);
+
+                        } catch(e) {
+                           toast.error(e.message);
+                        } finally {
+                           setLoading(false);
+                           setUploadProgress({ current: 0, total: 0 });
+                        }
+                    }}
+                    className="w-full bg-onyx-900 border border-onyx-accent/20 rounded-lg px-4 py-2 text-onyx-accent focus:outline-none hover:bg-onyx-accent/10"
+                >
+                    Select Folder to Ingest
+                </button>
+                {uploadProgress.total > 0 && (
+                    <div className="mt-2 text-xs text-onyx-accent">
+                        Native Processing: {uploadProgress.current} / {uploadProgress.total} files
+                    </div>
+                )}
+            </div>
+        )}
 
         {activeTab === 'url' && (
             <div>
@@ -218,7 +294,7 @@ const KnowledgeBaseIngest = () => {
 
         <button
           onClick={handleIngest}
-          disabled={loading || !title || (activeTab === 'url' ? !url : !text)}
+          disabled={loading || (activeTab !== 'native' && (!title || (activeTab === 'url' ? !url : !text)))}
           className="w-full bg-onyx-accent/20 border border-onyx-accent/50 hover:bg-onyx-accent hover:text-onyx-950 text-onyx-accent px-4 py-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center font-medium"
         >
           {loading ? <FiCpu className="animate-spin mr-2" /> : <FiUploadCloud className="mr-2" />}

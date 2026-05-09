@@ -54,7 +54,43 @@ export const useCommandHandler = (dispatch) => {
     try {
       const structuredResponse = await onyxAI.routeCommand(commandStr, options);
 
-      // Extract metadata
+
+
+
+      if (structuredResponse.payload && structuredResponse.payload.status === 'swarm_orchestration') {
+          const response = structuredResponse.payload;
+          // Display the orchestrating message
+          const orchestratingMsg = createMessage('Orchestrating Swarm...', 'assistant', { id: assistantMessageId, agentName: 'Onyx Coordinator', isTyping: true });
+          dispatch({ type: 'ADD_OR_UPDATE_MESSAGE', payload: orchestratingMsg });
+
+          try {
+              // Now we manually call the dispatcher endpoint with the spawn payload
+              const dispatcherUrl = import.meta.env.VITE_SUPABASE_URL + '/functions/v1/universal-dispatcher';
+              const internalKey = import.meta.env.VITE_AXIM_SERVICE_KEY || import.meta.env.VITE_AXIM_INTERNAL_SERVICE_KEY || 'fallback_internal_key';
+
+              const res = await fetch(dispatcherUrl, {
+                  method: 'POST',
+                  headers: {
+                      'Content-Type': 'application/json',
+                      'X-Axim-Internal-Service-Key': internalKey
+                  },
+                  body: JSON.stringify(response.action_payload)
+              });
+
+              if (res.ok) {
+                  const data = await res.json();
+                  const finalMsg = createMessage(data.response || 'Swarm operations completed successfully.', 'assistant', { id: assistantMessageId, agentName: 'Onyx Coordinator' });
+                  dispatch({ type: 'ADD_OR_UPDATE_MESSAGE', payload: finalMsg });
+              } else {
+                  throw new Error('Failed to dispatch swarm sub-agents.');
+              }
+          } catch(e) {
+              const errorMsg = createMessage({ title: 'Swarm Execution Error', details: e.message }, 'error', { id: assistantMessageId });
+              dispatch({ type: 'ADD_OR_UPDATE_MESSAGE', payload: errorMsg });
+          }
+          return;
+      }
+
       const { metadata = {}, payload } = structuredResponse;
       const agentName = metadata.agentName;
 

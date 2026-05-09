@@ -23,6 +23,7 @@ serve(async (req) => {
       throw new Error('Missing required parameters: serviceName, endpoint, payload, userId.');
     }
 
+
     const baseUrl = SERVICE_REGISTRY[serviceName];
     if (!baseUrl) {
       throw new Error(`Service "${serviceName}" is not registered.`);
@@ -30,11 +31,28 @@ serve(async (req) => {
 
     const targetUrl = `${baseUrl}/${endpoint}`;
 
-    // Here, you would implement secure service-to-service authentication.
-    // This could involve forwarding a user JWT, using a service account, or a pre-shared key.
-    const serviceToken = Deno.env.get('AXIM_INTERNAL_SERVICE_TOKEN');
+    // Fetch zero-trust bearer token from the ecosystem vault securely
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
+
+    // We use standard fetch here to emulate service role query if createClient is an issue or just use createClient
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { data: vaultData, error: vaultError } = await supabaseAdmin
+        .from('ecosystem_vault')
+        .select('api_key')
+        .eq('service_name', serviceName)
+        .single();
+
+    if (vaultError || !vaultData) {
+        console.warn(`[Service Proxy] Key for ${serviceName} not found in ecosystem_vault. Falling back to internal token.`);
+    }
+
+    // Inject secure token from vault if available, otherwise fallback
+    const serviceToken = vaultData?.api_key || Deno.env.get('AXIM_INTERNAL_SERVICE_TOKEN');
 
     console.log(`[Service Proxy] Forwarding request for user ${userId} to ${targetUrl}`);
+
 
     // Forward the request to the target AXiM service.
     const response = await fetch(targetUrl, {
