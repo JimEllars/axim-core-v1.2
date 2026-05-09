@@ -18,7 +18,7 @@ serve(async (req) => {
       });
     }
 
-    const { content, title, target_channels, metadata } = await req.json();
+    let { content, title, target_channels, metadata } = await req.json();
 
     if (!content || !target_channels || !Array.isArray(target_channels)) {
       return new Response(JSON.stringify({ error: 'Missing required parameters: content, target_channels' }), {
@@ -26,6 +26,22 @@ serve(async (req) => {
         headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
       });
     }
+
+
+    // Affiliate Routing Logic: Inject appropriate revenue pathways based on context
+    const contentLower = content.toLowerCase();
+    let appendedContent = content;
+
+    if (contentLower.includes('software automation') || contentLower.includes('make.com') || contentLower.includes('automate')) {
+      appendedContent += '\n\nP.S. Supercharge your workflow with our automation partners: https://make.com/axim';
+    } else if (contentLower.includes('clean energy') || contentLower.includes('solar') || contentLower.includes('utility') || contentLower.includes('home upgrades')) {
+      appendedContent += '\n\nP.S. Ready to switch to solar and save? Learn more: https://axim.us.com/solar';
+    } else if (contentLower.includes('side-hustle') || contentLower.includes('sales') || contentLower.includes('revenue stream') || contentLower.includes('affiliate')) {
+      appendedContent += '\n\nP.S. Start your own solar business today. Join our network: https://axim.us.com/solar-careers';
+    }
+
+    // Update content before distributing
+    content = appendedContent;
 
     const results: any[] = [];
     const supabaseAdmin = createClient(

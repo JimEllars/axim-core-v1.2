@@ -21,6 +21,11 @@ const stepHandlerRegistry = {
     );
     return { message: `Email sent to ${step.config.to}.` };
   },
+
+  wait_for_event: async (step, context, userId) => {
+    // Return a special status to pause the workflow execution
+    return { status: "paused", message: `Workflow paused, waiting for event: ${step.config.event_type}` };
+  },
   query_database: async (step, context, userId) => {
     return { message: `Query database step executed.` };
   }
@@ -80,8 +85,39 @@ export const runWorkflow = async (
         result = { message: `Step ${step.name} executed (JSON interpreter)` };
       }
 
+
       // Merge the result into the context for subsequent steps
       context = { ...context, ...result, [step.id || step.name]: result && result.data ? result.data : result };
+
+      if (result && result.status === "paused") {
+        results.push({
+          step: step.name,
+          success: true,
+          status: "paused",
+          message: result.message,
+          output: result.data || {}
+        });
+
+        await api.logWorkflowExecution(
+          workflow.name,
+          {
+            status: "paused",
+            workflowRunId,
+            results,
+            paused_at_step: step.name,
+            context: context // Save state to resume later
+          },
+          userId,
+        );
+        console.log(`Workflow paused at step: ${step.name}`);
+        return {
+          workflow: workflow.name,
+          workflowRunId,
+          status: "paused",
+          results,
+        };
+      }
+
 
       results.push({
         step: step.name,
@@ -127,6 +163,7 @@ export const listenForWorkflowEvents = (supabaseClient) => {
       { event: 'INSERT', schema: 'public', table: 'events_ax2024' },
       async (payload) => {
         const event = payload.new;
+
         if (event.type === 'LIVE_STREAM_STARTED') {
           console.log("Detected LIVE_STREAM_STARTED event, triggering workflow...");
 
@@ -136,6 +173,17 @@ export const listenForWorkflowEvents = (supabaseClient) => {
             });
           } catch (error) {
             console.error("Failed to run LIVE_STREAM_STARTED workflow:", error);
+          }
+        }
+
+        if (event.type === 'NEW_AFFILIATE_LEAD') {
+          console.log("Detected NEW_AFFILIATE_LEAD event, triggering Powur orchestration...");
+          try {
+            await runWorkflow('NEW_AFFILIATE_LEAD', 'system', {
+              eventData: event.data
+            });
+          } catch (error) {
+            console.error("Failed to run NEW_AFFILIATE_LEAD workflow:", error);
           }
         }
       }
