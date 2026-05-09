@@ -45,3 +45,7 @@ LEFT JOIN LATERAL (
 ) last_login_event ON true;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_user_engagement_scores_user_id ON user_engagement_scores(user_id);
+
+
+-- Schedule predictive engagement
+select cron.schedule('predictive_engagement_daily', '0 10 * * *', $$ select net.http_post( url:='https://supabase.local/functions/v1/predictive-engagement', headers:='{"Authorization": "Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}", "Content-Type": "application/json"}'::jsonb, body:='{}'::jsonb ); $$);

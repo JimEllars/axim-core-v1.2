@@ -23,14 +23,19 @@ class SuitedashCrm {
       headers: this.headers,
     };
 
-    const response = await fetch(url, config);
+    const response = await api.invokeAximService('api-proxy', '', {
+      integrationId: this.integration.id,
+      endpoint: endpoint,
+      method: options.method || 'GET',
+      body: options.body ? JSON.parse(options.body) : null,
+      headers: { ...this.headers, ...options.headers, 'Idempotency-Key': `sd_${Date.now()}_${Math.random().toString(36).substring(7)}` }
+    });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Suitedash API Error: ${errorData.message || response.statusText}`);
+    if (response.error || response.status >= 400) {
+      throw new Error(`Suitedash API Error: ${response.error || response.data?.message || 'Unknown error'}`);
     }
 
-    return response.json();
+    return response.data;
   }
 
   // Contact Methods

@@ -68,9 +68,44 @@ serve(async (req) => {
             console.log(`Processing omnichannel_post for job ${job.id}`);
             // Logic for omnichannel_post (e.g., calling the appropriate webhook or API)
             // Simulating execution
-        } else if (jobType === 'crm_sync') {
+                } else if (jobType === 'crm_sync') {
             console.log(`Processing crm_sync for job ${job.id}`);
-            // Logic for crm_sync
+            const { contact_id, email, executive_summary, crm_integration_id } = payload || {};
+
+            if (!crm_integration_id || !executive_summary || !email) {
+               console.error(`Missing required fields for crm_sync job ${job.id}`);
+               continue;
+            }
+
+            const idempotencyKey = payload?.idempotency_key || `crm_sync_${job.id}`;
+
+            // Use the generic axim proxy service pattern through standard fetch to the api-proxy
+            const proxyUrl = `${supabaseUrl}/functions/v1/api-proxy`;
+            const proxyRes = await fetch(proxyUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify({
+                integrationId: crm_integration_id,
+                endpoint: `/contact/update/${encodeURIComponent(email)}`, // Generalized endpoint pattern
+                method: 'PUT',
+                body: {
+                  notes: executive_summary,
+                  description: executive_summary
+                },
+                headers: {
+                  'Idempotency-Key': idempotencyKey
+                }
+              })
+            });
+
+            if (!proxyRes.ok) {
+              const errText = await proxyRes.text();
+              throw new Error(`CRM Proxy Error: ${proxyRes.status} - ${errText}`);
+            }
+            console.log(`Successfully synced Executive Summary to CRM for ${email}`);
         } else if (jobType === 'ingest_knowledge') {
             console.log(`Processing ingest_knowledge for job ${job.id}`);
             // Logic for ingest_knowledge

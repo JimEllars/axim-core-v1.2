@@ -14,6 +14,15 @@ class SalesforceCrm {
     // and API calls to the Salesforce REST API.
     console.log(`Syncing contacts from Salesforce: ${this.integration.name}...`);
 
+    // Simulate an external API call through the proxy
+    const mockApiResponse = await api.invokeAximService('api-proxy', '', {
+      integrationId: this.integration.id,
+      endpoint: '/query?q=SELECT+Id,Name,Email+FROM+Contact',
+      method: 'GET',
+      headers: { 'Idempotency-Key': `sf_${Date.now()}_${Math.random().toString(36).substring(7)}` }
+    });
+
+
     const mockSalesforceContacts = [
       { name: 'Salesforce Lead 1', email: 'lead1@salesforce-example.com' },
       { name: 'Salesforce Lead 2', email: 'lead2@salesforce-example.com' },
