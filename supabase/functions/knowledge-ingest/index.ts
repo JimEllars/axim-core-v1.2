@@ -46,7 +46,7 @@ serve(async (req) => {
         );
 
         const payload = await req.json();
-        let { title, text, source_type = 'text', file_path, category = null } = payload;
+        let { title, text, source_type = 'text', file_path, category = null, partner = null } = payload;
 
         // If file_path is provided (from bucket upload), fetch the content first
         if (file_path && source_type === 'storage') {
@@ -102,20 +102,45 @@ serve(async (req) => {
                 embedding = embeddingData.data[0].embedding;
             }
 
-            const { error: insertError } = await supabaseAdmin
-                .from('executive_knowledge_base')
-                .insert({
-                    title,
-                    content_chunk: chunk,
-                    embedding,
-                    source_type,
-                    category
-                });
+            if (partner) {
+                // Insert into ai_memory_banks for Affiliate Partner Context
+                const { error: memError } = await supabaseAdmin
+                    .from('ai_memory_banks')
+                    .insert({
+                        content: chunk,
+                        source_type: source_type,
+                        metadata: {
+                            type: "affiliate_knowledge",
+                            partner: partner,
+                            title: title,
+                            category: category
+                        },
+                        embedding: embedding,
+                        user_id: user?.id
+                    });
 
-            if (insertError) {
-                console.error("Failed to insert chunk into knowledge base:", insertError);
+                if (memError) {
+                    console.error("Failed to insert chunk into ai_memory_banks:", memError);
+                } else {
+                    results.push({ chunk_length: chunk.length, status: 'success' });
+                }
             } else {
-                results.push({ chunk_length: chunk.length, status: 'success' });
+                // Insert into executive_knowledge_base
+                const { error: insertError } = await supabaseAdmin
+                    .from('executive_knowledge_base')
+                    .insert({
+                        title,
+                        content_chunk: chunk,
+                        embedding,
+                        source_type,
+                        category
+                    });
+
+                if (insertError) {
+                    console.error("Failed to insert chunk into knowledge base:", insertError);
+                } else {
+                    results.push({ chunk_length: chunk.length, status: 'success' });
+                }
             }
         }
 

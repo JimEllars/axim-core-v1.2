@@ -8,28 +8,22 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 const llmProxyUrl = Deno.env.get("LLM_PROXY_URL") || `${supabaseUrl}/functions/v1/llm-proxy`;
 
-// Simulated scraping targets
-const TARGETS = [
-    { type: 'threads', url: 'https://www.threads.com/@ellarsjames' },
-    { type: 'tiktok', url: 'https://www.tiktok.com/@ellars' },
-    { type: 'instagram', url: 'https://www.instagram.com/ellarsjames' }
-];
-
 async function ingestPost(post: any) {
+    const postId = post.id || `post-${Date.now()}`;
     // 1. Idempotency Check
     const { data: existing } = await supabase
         .from('events_ax2024')
         .select('id')
         .eq('type', 'NEW_SOCIAL_POST')
-        .eq('data->>post_id', post.id)
-        .single();
+        .eq('data->>post_id', postId)
+        .maybeSingle();
 
     if (existing) {
-        console.log(`Skipping already ingested post: ${post.id}`);
+        console.log(`Skipping already ingested post: ${postId}`);
         return;
     }
 
-    console.log(`Ingesting new post: ${post.id}`);
+    console.log(`Ingesting new post: ${postId}`);
 
     // 2. Dynamic AI Classification
     let domain = 'axim_systems';
@@ -91,10 +85,10 @@ async function ingestPost(post: any) {
             content: post.text,
             source_type: `social_${post.platform}`,
             metadata: {
-                post_id: post.id,
+                post_id: postId,
                 url: post.url,
                 domain: domain,
-                timestamp: post.timestamp
+                timestamp: post.timestamp || new Date().toISOString()
             },
             embedding: embedding
         });
@@ -108,7 +102,7 @@ async function ingestPost(post: any) {
         type: 'NEW_SOCIAL_POST',
         source: 'axim-scraper',
         data: {
-            post_id: post.id,
+            post_id: postId,
             platform: post.platform,
             url: post.url,
             domain: domain
@@ -122,30 +116,24 @@ serve(async (req) => {
     }
 
     try {
-        // Support direct scraping by URL (legacy) or cron-triggered polling
-        const body = await req.json().catch(() => ({}));
-
-        if (body.url) {
-             const response = await fetch(body.url);
-             if (!response.ok) {
-                 throw new Error(`Failed to fetch URL: ${response.status} ${response.statusText}`);
-             }
-             const text = await response.text();
-             return new Response(JSON.stringify({ content: text }), {
-                 headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
-             });
-        }
-
-        // Authentication for automated polling
         const authHeader = req.headers.get('Authorization');
         if (!authHeader || authHeader.replace('Bearer ', '') !== supabaseKey) {
             return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
         }
 
+        const body = await req.json().catch(() => ({}));
+
+        // Handle webhook payload pushing a new post
+        if (body.platform && body.text && body.url) {
+            console.log(`Received incoming webhook for platform: ${body.platform}`);
+            await ingestPost(body);
+            return new Response(JSON.stringify({ success: true, message: "Webhook processed" }), {
+                 headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+            });
+        }
+
         console.log("Starting social media polling...");
 
-        // In a real scenario, this would use Apify or similar to fetch actual posts.
-        // For demonstration/implementation, we simulate fetching recent posts.
         const mockPosts = [
             { id: `threads-${Date.now()}-1`, platform: 'threads', url: 'https://threads.net/@ellarsjames/post1', text: "The American Tax Credit is the only way forward for the working class.", timestamp: new Date().toISOString() },
             { id: `linkedin-${Date.now()}-2`, platform: 'linkedin', url: 'https://linkedin.com/in/ellars/post2', text: "Just launched a new omnichannel automation workflow for AXiM Core. Incredible efficiency.", timestamp: new Date().toISOString() }
@@ -160,6 +148,7 @@ serve(async (req) => {
         });
 
     } catch (error: any) {
+        console.error("Error processing request:", error);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
             headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },

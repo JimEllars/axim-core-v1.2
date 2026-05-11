@@ -12,6 +12,7 @@ const KnowledgeBaseIngest = () => {
   const [activeTab, setActiveTab] = useState('text'); // text, url, file
   const [filesToUpload, setFilesToUpload] = useState([]);
   const [personaTag, setPersonaTag] = useState('');
+  const [affiliatePartner, setAffiliatePartner] = useState('None');
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const { supabase } = useSupabase();
 
@@ -54,12 +55,7 @@ const KnowledgeBaseIngest = () => {
 
               if (!uploadError) {
                   const { error } = await api.supabase.functions.invoke('knowledge-ingest', {
-                     body: {
-                         title: fileTitle,
-                         file_path: uploadData.path,
-                         source_type: 'storage',
-                         category: personaTag
-                     }
+                     body: { title: fileTitle, file_path: uploadData.path, source_type: 'storage', category: personaTag, partner: affiliatePartner === 'None' ? null : affiliatePartner }
                   });
                   if (!error) successCount++;
               }
@@ -81,7 +77,7 @@ const KnowledgeBaseIngest = () => {
 
       // Call Edge Function for Text/URL
       const { data, error } = await api.supabase.functions.invoke('knowledge-ingest', {
-          body: { title, text: contentToIngest, source_type: sourceType, category: personaTag }
+          body: { title, text: contentToIngest, source_type: sourceType, category: personaTag, partner: affiliatePartner === 'None' ? null : affiliatePartner }
       });
 
       if (error) throw error;
@@ -156,7 +152,7 @@ const KnowledgeBaseIngest = () => {
 
 
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1">Document Title / Topic (Optional for multiple files)</label>
                 <input
@@ -178,6 +174,19 @@ const KnowledgeBaseIngest = () => {
                   <option value="James Ellars / Political">James Ellars / Political</option>
                   <option value="AXiM / Business">AXiM / Business</option>
                   <option value="SOP / Internal">SOP / Internal</option>
+                </select>
+            </div>
+            <div>
+                <label className="block text-xs font-medium text-slate-400 mb-1">Affiliate Partner</label>
+                <select
+                  value={affiliatePartner}
+                  onChange={(e) => setAffiliatePartner(e.target.value)}
+                  className="w-full bg-onyx-900 border border-onyx-accent/20 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-onyx-accent"
+                >
+                  <option value="None">None</option>
+                  <option value="Make.com">Make.com</option>
+                  <option value="Powur Solar">Powur Solar</option>
+                  <option value="Roundups">Roundups</option>
                 </select>
             </div>
         </div>
