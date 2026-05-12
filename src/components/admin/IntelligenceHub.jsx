@@ -1,15 +1,42 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useVectorSearch } from '../../hooks/useVectorSearch';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSupabase } from '../../contexts/SupabaseContext';
 import SafeIcon from '../../common/SafeIcon';
-import { FiSearch, FiMessageSquare, FiLoader, FiZap } from 'react-icons/fi';
+import { FiSearch, FiMessageSquare, FiLoader, FiZap, FiActivity } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const IntelligenceHub = () => {
   const [query, setQuery] = useState('');
   const { searchMemory, isSearching, results, error } = useVectorSearch();
   const { user } = useAuth();
+  const { supabase } = useSupabase();
+  const [liveStream, setLiveStream] = useState([]);
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    const channel = supabase.channel('realtime:ai_memory_banks')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'ai_memory_banks' },
+        (payload) => {
+          const newEntry = {
+            id: payload.new.id,
+            content: payload.new.content,
+            source_type: payload.new.source_type,
+            created_at: payload.new.created_at
+          };
+          setLiveStream((prev) => [newEntry, ...prev].slice(0, 10)); // Keep only the latest 10 items
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase]);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -28,73 +55,124 @@ const IntelligenceHub = () => {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="glass-effect rounded-xl p-6"
-    >
-      <div className="mb-6">
-        <h2 className="text-xl font-bold text-white flex items-center">
-          <SafeIcon icon={FiZap} className="mr-2 text-indigo-400" />
-          Vector Intelligence Hub
-        </h2>
-        <p className="text-sm text-slate-400">Semantic search through ecosystem Memory.</p>
-      </div>
-
-      <form onSubmit={handleSearch} className="mb-6">
-        <div className="relative">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search past interactions, documentation..."
-            className="w-full bg-onyx-950 border border-onyx-accent/20 rounded-lg px-4 py-3 pl-10 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
-          />
-          <SafeIcon icon={FiSearch} className="absolute left-3 top-3.5 text-slate-500" />
-          <button
-            type="submit"
-            disabled={isSearching}
-            className="absolute right-2 top-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-md text-sm transition-colors disabled:opacity-50"
-          >
-            {isSearching ? <SafeIcon icon={FiLoader} className="animate-spin" /> : 'Search'}
-          </button>
+    <div className="space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass-effect rounded-xl p-6"
+      >
+        <div className="mb-6">
+          <h2 className="text-xl font-bold text-white flex items-center">
+            <SafeIcon icon={FiZap} className="mr-2 text-indigo-400" />
+            Vector Intelligence Hub
+          </h2>
+          <p className="text-sm text-slate-400">Semantic search through ecosystem Memory.</p>
         </div>
-      </form>
 
-      {error && (
-        <div className="p-4 mb-4 bg-red-900/50 border border-red-500 rounded text-red-200 text-sm">
-          {error}
-        </div>
-      )}
+        <form onSubmit={handleSearch} className="mb-6">
+          <div className="relative">
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search past interactions, documentation..."
+              className="w-full bg-onyx-950 border border-onyx-accent/20 rounded-lg px-4 py-3 pl-10 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+            />
+            <SafeIcon icon={FiSearch} className="absolute left-3 top-3.5 text-slate-500" />
+            <button
+              type="submit"
+              disabled={isSearching}
+              className="absolute right-2 top-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-md text-sm transition-colors disabled:opacity-50"
+            >
+              {isSearching ? <SafeIcon icon={FiLoader} className="animate-spin" /> : 'Search'}
+            </button>
+          </div>
+        </form>
 
-      <div className="space-y-4">
-        {results && results.length > 0 ? (
-          results.map((result, idx) => (
-            <div key={idx} className="p-4 bg-onyx-950/50 rounded-lg border border-onyx-accent/20">
-              <div className="flex justify-between items-start mb-2">
-                 <div className="text-xs text-slate-400 flex items-center">
-                    <SafeIcon icon={FiMessageSquare} size={12} className="mr-1" /> <span className={`font-bold ${result.similarity > 0.8 ? 'text-green-400' : result.similarity > 0.6 ? 'text-yellow-400' : 'text-red-400'}`}>Match Score: {(result.similarity * 100).toFixed(1)}%</span>
-                 </div>
-              </div>
-              <div className="mb-2">
-                <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">User Prompt:</span>
-                <p className="text-sm text-slate-300 mt-1">{result.command}</p>
-              </div>
-              <div>
-                <span className="text-xs font-semibold text-green-400 uppercase tracking-wider">AI Response:</span>
-                <p className="text-sm text-slate-300 mt-1 line-clamp-3">{result.response}</p>
-              </div>
-            </div>
-          ))
-        ) : (
-          !isSearching && query && (
-             <div className="text-center p-8 text-slate-500 border border-dashed border-onyx-accent/20 rounded-lg">
-                No matching intelligence logs found.
-             </div>
-          )
+        {error && (
+          <div className="p-4 mb-4 bg-red-900/50 border border-red-500 rounded text-red-200 text-sm">
+            {error}
+          </div>
         )}
-      </div>
-    </motion.div>
+
+        <div className="space-y-4">
+          {results && results.length > 0 ? (
+            results.map((result, idx) => (
+              <div key={idx} className="p-4 bg-onyx-950/50 rounded-lg border border-onyx-accent/20">
+                <div className="flex justify-between items-start mb-2">
+                   <div className="text-xs text-slate-400 flex items-center">
+                      <SafeIcon icon={FiMessageSquare} size={12} className="mr-1" /> <span className={`font-bold ${result.similarity > 0.8 ? 'text-green-400' : result.similarity > 0.6 ? 'text-yellow-400' : 'text-red-400'}`}>Match Score: {(result.similarity * 100).toFixed(1)}%</span>
+                   </div>
+                </div>
+                <div className="mb-2">
+                  <span className="text-xs font-semibold text-indigo-400 uppercase tracking-wider">User Prompt:</span>
+                  <p className="text-sm text-slate-300 mt-1">{result.command}</p>
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-green-400 uppercase tracking-wider">AI Response:</span>
+                  <p className="text-sm text-slate-300 mt-1 line-clamp-3">{result.response}</p>
+                </div>
+              </div>
+            ))
+          ) : (
+            !isSearching && query && (
+               <div className="text-center p-8 text-slate-500 border border-dashed border-onyx-accent/20 rounded-lg">
+                  No matching intelligence logs found.
+               </div>
+            )
+          )}
+        </div>
+      </motion.div>
+
+      {/* Live Ingestion Stream */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="glass-effect rounded-xl p-6"
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold text-white flex items-center">
+              <SafeIcon icon={FiActivity} className="mr-2 text-green-400" />
+              Live Ingestion Stream
+            </h2>
+            <p className="text-sm text-slate-400">Real-time Onyx knowledge ingestion feed.</p>
+          </div>
+          <div className="flex items-center space-x-2">
+             <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+            </span>
+            <span className="text-xs text-green-400 font-medium">Listening</span>
+          </div>
+        </div>
+
+        <div className="bg-onyx-950/50 rounded-lg border border-onyx-accent/20 p-4 h-64 overflow-y-auto">
+          {liveStream.length === 0 ? (
+            <div className="flex items-center justify-center h-full text-slate-500 text-sm italic">
+              Waiting for new intelligence to be ingested...
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <AnimatePresence>
+                {liveStream.map((item) => (
+                  <motion.div
+                    key={item.id}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className="text-sm text-slate-300 border-l-2 border-indigo-500 pl-3 py-1 bg-onyx-900/50 rounded-r"
+                  >
+                    <span className="text-slate-500 mr-2">[{new Date(item.created_at).toLocaleTimeString()}]</span>
+                    Onyx ingested: <span className="font-semibold text-indigo-300">{item.source_type}</span> regarding "{item.content.substring(0, 50)}..."
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    </div>
   );
 };
 
