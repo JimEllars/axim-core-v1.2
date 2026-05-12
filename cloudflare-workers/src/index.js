@@ -46,71 +46,62 @@ function handleOptions(request, env) {
   }
 }
 
-/**
- * Handle incoming requests
- */
-async function handleRequest(request, env, ctx) {
-  const url = new URL(request.url);
-
-  // --- 1. Health Check Endpoint ---
-  if (url.pathname === '/api/edge/healthz' && request.method === 'GET') {
-    return new Response(
-      JSON.stringify({ status: 'active', edge_location: request.cf?.colo || 'unknown' }),
-      {
-        headers: { ...getCorsHeaders(request, env), 'Content-Type': 'application/json' },
-      }
-    );
-  }
-
-  // --- 2. Proxy to GCP Backend (Foundation) ---
-  if (!url.pathname.startsWith('/api/edge/')) {
-    try {
-      // Modify URL to point to backend
-      const targetUrl = new URL(request.url);
-      const backendUrl = new URL(env.GCP_BACKEND_URL);
-      targetUrl.hostname = backendUrl.hostname;
-      if (backendUrl.port) {
-        targetUrl.port = backendUrl.port;
-      }
-      targetUrl.protocol = backendUrl.protocol;
-
-      // Prepare request to origin
-      const modifiedRequest = new Request(targetUrl, request);
-
-      // Optionally modify headers before sending to origin
-      modifiedRequest.headers.set('x-forwarded-host', request.headers.get('host') || '');
-
-      const response = await fetch(modifiedRequest);
-
-      // Create new response to add CORS headers
-      const proxyResponse = new Response(response.body, response);
-
-      // Append CORS headers
-      Object.entries(getCorsHeaders(request, env)).forEach(([key, value]) => {
-        proxyResponse.headers.set(key, value);
-      });
-
-      return proxyResponse;
-    } catch {
-      return new Response(JSON.stringify({ error: 'Edge Proxy Error: Unable to reach origin' }), {
-        status: 502,
-        headers: { ...getCorsHeaders(request, env), 'Content-Type': 'application/json' }
-      });
-    }
-  }
-
-  // Default Response (Not Found)
-  return new Response('AXiM Core Edge Worker - Route Not Found', {
-    status: 404,
-    headers: getCorsHeaders(request, env)
-  });
-}
-
 export default {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') {
       return handleOptions(request, env);
     }
-    return handleRequest(request, env, ctx);
-  },
+
+    const url = new URL(request.url);
+
+    // 1. API Proxy Routing
+    if (url.pathname.startsWith('/api/')) {
+      // Add your existing GCP backend proxy logic here
+      try {
+        const targetUrl = new URL(request.url);
+        const backendUrl = new URL(env.GCP_BACKEND_URL);
+        targetUrl.hostname = backendUrl.hostname;
+        targetUrl.port = backendUrl.port || '';
+        targetUrl.protocol = backendUrl.protocol;
+
+        const modifiedRequest = new Request(targetUrl, request);
+        modifiedRequest.headers.set('x-forwarded-host', request.headers.get('host') || '');
+        const response = await fetch(modifiedRequest);
+
+        const proxyResponse = new Response(response.body, response);
+        Object.entries(getCorsHeaders(request, env)).forEach(([key, value]) => {
+          proxyResponse.headers.set(key, value);
+        });
+
+        return proxyResponse;
+      } catch (error) {
+        return new Response("API Proxy Error", { status: 502 });
+      }
+    }
+
+    // 2. Static Asset Serving & SPA Fallback
+    try {
+      // Attempt to fetch the static asset requested (e.g., /assets/index.js, /login)
+      let response = await env.ASSETS.fetch(request);
+
+      // SPA Fallback: If it's a 404 and NOT a direct static asset file request,
+      // serve index.html so React Router can take over.
+      if (response.status === 404 && !url.pathname.startsWith('/assets/')) {
+        const indexRequest = new Request(new URL('/index.html', request.url), request);
+        response = await env.ASSETS.fetch(indexRequest);
+      }
+
+      // 3. Cache Control (Fixes the White Screen issue)
+      response = new Response(response.body, response);
+      if (url.pathname === '/' || url.pathname.endsWith('.html') || response.status === 404) {
+        response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      } else if (url.pathname.startsWith('/assets/')) {
+        response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+
+      return response;
+    } catch (error) {
+      return new Response("Internal Server Error fetching assets", { status: 500 });
+    }
+  }
 };
