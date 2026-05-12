@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import request from 'supertest';
 import app from './index.js';
 import apiService from './apiService.js';
@@ -35,6 +35,13 @@ describe('Albato Integration API', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         apiService.initialize.mockResolvedValue();
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        vi.restoreAllMocks();
     });
 
     // Test Authentication Middleware

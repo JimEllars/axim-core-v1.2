@@ -69,7 +69,7 @@ Current Request: ${prompt}`;
            return workerResponse.content || workerResponse.response || workerResponse;
         }
       } catch(e) {
-        console.warn("Failed to contact Onyx Worker natively:", e);
+        // console.warn("Failed to contact Onyx Worker natively:", e);
       }
 
       return await llm.generateContent(enhancedPrompt, llmOptions);

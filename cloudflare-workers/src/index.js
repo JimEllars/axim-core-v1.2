@@ -63,7 +63,7 @@ async function handleRequest(request, env, ctx) {
   }
 
   // --- 2. Proxy to GCP Backend (Foundation) ---
-  if (!url.pathname.startsWith('/api/edge/')) {
+  if (url.pathname.startsWith('/api/')) {
     try {
       // Modify URL to point to backend
       const targetUrl = new URL(request.url);
@@ -97,13 +97,10 @@ async function handleRequest(request, env, ctx) {
         headers: { ...getCorsHeaders(request, env), 'Content-Type': 'application/json' }
       });
     }
+  } else {
+    // Ignore non-API requests so Cloudflare Pages can serve the static UI assets
+    return new Response('Not Found', { status: 404 });
   }
-
-  // Default Response (Not Found)
-  return new Response('AXiM Core Edge Worker - Route Not Found', {
-    status: 404,
-    headers: getCorsHeaders(request, env)
-  });
 }
 
 export default {

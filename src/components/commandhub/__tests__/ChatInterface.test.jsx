@@ -9,6 +9,13 @@ vi.mock('../../command/ChatMessage', () => ({
 }));
 
 describe('ChatInterface', () => {
+  beforeEach(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
   const mockMessages = [
     { type: 'user', content: 'Hello' },
     { type: 'assistant', content: 'Hi there!' },

@@ -168,7 +168,7 @@ if (commandType === 'llm') {
             llmModel = workerResponse.metadata.model || llmModel;
           }
         } catch (workerError) {
-          logger.warn("Failed to contact Onyx Edge Worker, falling back to local LLM execution", workerError);
+          // logger.warn("Failed to contact Onyx Edge Worker, falling back to local LLM execution", workerError);
           response = await this._executeLlmCommand(sanitizedCommand, options);
         }
       } else {

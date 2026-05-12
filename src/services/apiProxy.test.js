@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { callApiProxy } from './apiProxy';
 import { supabase } from './supabaseClient';
+import * as apiClient from './apiClient';
 
 vi.mock('./supabaseClient', () => {
   return {
@@ -12,9 +13,18 @@ vi.mock('./supabaseClient', () => {
   };
 });
 
+vi.mock('./apiClient', () => ({
+  callCloudApi: vi.fn(),
+}));
+
 describe('callApiProxy', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should call supabase.functions.invoke with correct parameters and return data on success', async () => {
@@ -44,8 +54,11 @@ describe('callApiProxy', () => {
   });
 
   it('should throw an error if supabase.functions.invoke returns an error object', async () => {
-    const mockResponse = { data: null, error: { message: 'Network error' } };
+    const mockResponse = { data: null, error: { status: 500, message: 'Network error' } };
     supabase.functions.invoke.mockResolvedValueOnce(mockResponse);
+
+    // Mock the failover correctly to also fail
+    apiClient.callCloudApi.mockRejectedValueOnce(new Error('GCP Fallback Error'));
 
     const params = {
       integrationId: 'int-123',
@@ -56,9 +69,10 @@ describe('callApiProxy', () => {
     await expect(callApiProxy(params)).rejects.toThrow('API Proxy Error');
   });
 
-  it('should throw an error if the returned data contains an error property', async () => {
+  it('should throw an error if the returned data contains an error property and mock fallback throws', async () => {
     const mockResponse = { data: { error: 'Invalid API Key' }, error: null };
     supabase.functions.invoke.mockResolvedValueOnce(mockResponse);
+    apiClient.callCloudApi.mockRejectedValueOnce(new Error('GCP Fallback Error'));
 
     const params = {
       integrationId: 'int-123',

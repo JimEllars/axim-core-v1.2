@@ -1,7 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Login from './Login';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -14,12 +14,17 @@ describe('Login Component', () => {
   let loginMock;
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    loginMock = vi.fn();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
     loginMock = vi.fn();
   });
 
   const renderWithRouter = (ui) => {
-    return render(<MemoryRouter>{ui}</MemoryRouter>);
+    return render(<MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>{ui}</MemoryRouter>);
   };
 
   it('renders login form correctly', () => {

@@ -19,9 +19,12 @@ vi.mock('../../services/supabaseClient', () => ({
 }));
 
 describe('JobQueueMonitor', () => {
-  it('renders loading state initially', () => {
+  it('renders loading state initially', async () => {
     render(<JobQueueMonitor />);
     expect(screen.getByText('Loading Job Queue...')).toBeInTheDocument();
+    await waitFor(() => {
+        expect(screen.getByText('Mission Control: Job Queue')).toBeInTheDocument();
+    });
   });
 
   it('renders the header after loading', async () => {

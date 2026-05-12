@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import EcosystemRegistry from './EcosystemRegistry';
 import api from '../../services/onyxAI/api';
@@ -42,9 +42,12 @@ describe('EcosystemRegistry Component', () => {
     vi.clearAllMocks();
   });
 
-  it('renders loading state initially', () => {
+  it('renders loading state initially', async () => {
     render(<EcosystemRegistry />);
     expect(screen.getByText('Loading registry...')).toBeInTheDocument();
+    await waitFor(() => {
+        expect(screen.queryByText('Loading registry...')).not.toBeInTheDocument();
+    });
   });
 
   it('renders ecosystem apps after loading', async () => {
