@@ -46,7 +46,7 @@ function handleOptions(request, env) {
   }
 }
 
-export default {
+module.exports = {
   async fetch(request, env, ctx) {
     if (request.method === 'OPTIONS') {
       return handleOptions(request, env);
