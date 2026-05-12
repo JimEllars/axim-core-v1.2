@@ -80,6 +80,11 @@ describe('LLM Service', () => {
 
   describe('when mock is disabled', () => {
     beforeEach(() => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      vi.spyOn(console, 'info').mockImplementation(() => {});
+    });
+    beforeEach(() => {
       config.isMockLlmEnabled = false;
       vi.mocked(api.getAvailableProviderNames).mockResolvedValue(['openai', 'gemini']);
     });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import apiService from './apiService.js';
 
 // Mock pg
@@ -45,6 +45,11 @@ describe('ApiService', () => {
     // However, vitest hoists mocks.
     // Let's ensure this.db is our mock.
     apiService.db = mPool;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   describe('Satellite Protocol', () => {

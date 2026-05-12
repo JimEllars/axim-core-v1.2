@@ -17,13 +17,25 @@ vi.mock('../../services/supabaseClient', () => ({
 
 describe('AffiliateManager', () => {
   it('renders title and button', async () => {
+    supabaseClient.from.mockReturnValue({
+      select: vi.fn(() => ({
+        order: vi.fn().mockResolvedValue({
+          data: [],
+          error: null
+        })
+      }))
+    });
+
     render(<AffiliateManager />);
     expect(screen.getByText('Affiliate Partner Management')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'New Partner' })).toBeInTheDocument();
+    await waitFor(() => {
+        expect(screen.queryByText('Loading partners...')).not.toBeInTheDocument();
+    });
   });
 
   it('fetches and displays partners', async () => {
-    supabaseClient.from.mockReturnValueOnce({
+    supabaseClient.from.mockReturnValue({
       select: vi.fn(() => ({
         order: vi.fn().mockResolvedValue({
           data: [

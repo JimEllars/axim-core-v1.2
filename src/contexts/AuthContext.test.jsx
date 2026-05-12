@@ -44,8 +44,15 @@ const createMockSupabase = (session, role = 'user') => {
 };
 
 describe('AuthContext', () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
   beforeEach(() => {
-    vi.resetAllMocks();
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: vi.fn().mockResolvedValue({ axim_session_token: 'test' }) });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.clearAllMocks();
     // Reset config mock before each test
     config.isMockLlmEnabled = true;
   });
