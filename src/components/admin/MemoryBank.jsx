@@ -14,14 +14,30 @@ const MemoryBank = () => {
   const [loadingFeed, setLoadingFeed] = useState(true);
   const [editingId, setEditingId] = useState(null);
   const [editContent, setEditContent] = useState('');
-  const [activeTab, setActiveTab] = useState('memory_banks'); // 'memory_banks' or 'executive_knowledge_base'
+  const [activeTab, setActiveTab] = useState('memory_banks');
+  const [sourceFilter, setSourceFilter] = useState('');
+  const [partnerFilter, setPartnerFilter] = useState('');
+   // 'memory_banks' or 'executive_knowledge_base'
 
   useEffect(() => {
     const fetchRecentMemories = async () => {
       if (!supabase) return;
       setLoadingFeed(true);
       try {
-        if (activeTab === 'memory_banks') {
+        if (activeTab === 'ai_memory_banks') {
+          let q = supabase
+            .from('ai_memory_banks')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(50);
+
+          if (sourceFilter) q = q.eq('source_type', sourceFilter);
+          if (partnerFilter) q = q.contains('metadata', { partner: partnerFilter });
+
+          const { data, error } = await q;
+          if (error) throw error;
+          setFeed(data || []);
+        } else if (activeTab === 'memory_banks') {
           const { data, error } = await supabase
             .from('memory_banks')
             .select('*')
@@ -47,7 +63,7 @@ const MemoryBank = () => {
     if (!query) {
       fetchRecentMemories();
     }
-  }, [supabase, query, activeTab]);
+  }, [supabase, query, activeTab, sourceFilter, partnerFilter]);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -91,6 +107,17 @@ const MemoryBank = () => {
   const handleEdit = (item) => {
     setEditingId(item.id);
     setEditContent(item.executive_summary || item.content || item.response);
+  };
+
+  const handlePrune = async (id, table) => {
+    try {
+      const { error } = await supabase.from(table).delete().eq('id', id);
+      if (error) throw error;
+      toast.success('Record pruned successfully.');
+      setFeed(feed.filter(item => item.id !== id));
+    } catch (e) {
+      toast.error('Failed to prune record: ' + e.message);
+    }
   };
 
   const handleSaveEdit = async (id, table, field) => {
@@ -194,6 +221,12 @@ const MemoryBank = () => {
               className={`px-4 py-2 rounded-md text-sm transition-colors ${activeTab === 'memory_banks' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
             >
               Strategic Memory
+            </button>
+            <button
+              onClick={() => setActiveTab('ai_memory_banks')}
+              className={`px-4 py-2 rounded-md text-sm transition-colors ${activeTab === 'ai_memory_banks' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              Cognitive Explorer
             </button>
             <button
               onClick={() => setActiveTab('executive_knowledge_base')}
@@ -339,8 +372,26 @@ const MemoryBank = () => {
           // Default Feed View
           <div>
             <h3 className="text-lg font-semibold text-slate-300 mb-4">
-              {activeTab === 'memory_banks' ? 'Recent Strategic Summaries' : 'Knowledge Base Entries'}
+              {activeTab === 'ai_memory_banks' ? 'Cognitive Explorer' : activeTab === 'memory_banks' ? 'Recent Strategic Summaries' : 'Knowledge Base Entries'}
             </h3>
+            {activeTab === 'ai_memory_banks' && (
+              <div className="flex space-x-4 mb-4">
+                <input
+                  type="text"
+                  placeholder="Filter by source (e.g. Affiliate Partner, OSINT)"
+                  value={sourceFilter}
+                  onChange={(e) => setSourceFilter(e.target.value)}
+                  className="bg-onyx-900 border border-onyx-accent/20 rounded-md px-3 py-1.5 text-sm text-white"
+                />
+                <input
+                  type="text"
+                  placeholder="Filter by partner (e.g. Powur Solar)"
+                  value={partnerFilter}
+                  onChange={(e) => setPartnerFilter(e.target.value)}
+                  className="bg-onyx-900 border border-onyx-accent/20 rounded-md px-3 py-1.5 text-sm text-white"
+                />
+              </div>
+            )}
             {loadingFeed ? (
               <div className="flex justify-center p-8"><SafeIcon icon={FiLoader} className="animate-spin text-indigo-500 text-2xl" /></div>
             ) : feed.length > 0 ? (
@@ -352,8 +403,15 @@ const MemoryBank = () => {
                         <SafeIcon icon={FiCalendar} size={14} className="mr-2" />
                         {new Date(item.summary_date || item.created_at).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                       </div>
-                      {renderMemoryControls(item, activeTab, activeTab === 'memory_banks' ? 'executive_summary' : 'content')}
+                      {activeTab !== 'ai_memory_banks' && renderMemoryControls(item, activeTab, activeTab === 'memory_banks' ? 'executive_summary' : 'content')}
                     </div>
+                    {activeTab === 'ai_memory_banks' && (
+                      <div className="mb-2">
+                        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Source: {item.source_type}</span>
+                        {item.metadata?.partner && <span className="ml-4 text-xs font-semibold text-indigo-400 uppercase tracking-wider">Partner: {item.metadata.partner}</span>}
+                        <button onClick={() => handlePrune(item.id, 'ai_memory_banks')} className="ml-4 text-xs bg-red-600 hover:bg-red-500 text-white px-2 py-1 rounded">Prune</button>
+                      </div>
+                    )}
                     {activeTab === 'executive_knowledge_base' && (
                       <div className="mb-2">
                         <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Category: {item.category || 'General'}</span>
@@ -374,7 +432,7 @@ const MemoryBank = () => {
               </div>
             ) : (
                <div className="text-center p-8 text-slate-500 bg-onyx-900/20 rounded-lg border border-onyx-accent/10">
-                  {activeTab === 'memory_banks' ? 'No memory banks compiled yet. The cognitive compressor runs nightly.' : 'No knowledge base entries found.'}
+                  {activeTab === 'ai_memory_banks' ? 'No records found.' : activeTab === 'memory_banks' ? 'No memory banks compiled yet. The cognitive compressor runs nightly.' : 'No knowledge base entries found.'}
                </div>
             )}
           </div>

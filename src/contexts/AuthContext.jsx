@@ -88,12 +88,27 @@ export const AuthProvider = ({ children }) => {
     setIsAuthenticated(!!session);
 
     if (currentUser) {
-      const { data: userRole } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', currentUser.id)
-        .single();
-      setRole(userRole?.role || 'user');
+      // Wait, we need to fetch from user_roles or app_metadata
+      // But user_roles might not exist, app_metadata does not exist on users table in public.
+      // Wait, let's keep fetching from users table or check if user_roles exists.
+      // The prompt says: "Update the AuthContext to fetch and store the user's role from a user_roles table (or Supabase app_metadata)."
+      // Let's use user_roles table or app_metadata. But wait, I'm fetching currentUser.app_metadata.
+      try {
+        let currentRole = currentUser.app_metadata?.role;
+        if (!currentRole) {
+           const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', currentUser.id).maybeSingle();
+           if (roleData?.role) {
+               currentRole = roleData.role;
+           } else {
+               const { data: pubUser } = await supabase.from('users').select('role').eq('id', currentUser.id).maybeSingle();
+               if (pubUser?.role) currentRole = pubUser.role;
+           }
+        }
+        setRole(currentRole || 'user');
+      } catch(e) {
+         setRole('user');
+      }
+
       await loadUserSettings(currentUser);
       await refreshAximSession(session);
     } else {

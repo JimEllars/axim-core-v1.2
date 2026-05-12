@@ -47,11 +47,38 @@ const JobQueueMonitor = () => {
         .eq('id', jobId);
 
       if (updateError) throw updateError;
+
+      // Trigger the job processor immediately
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      try {
+          await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/job-processor`, {
+              method: 'POST',
+              headers: {
+                  'Authorization': `Bearer ${token}`
+              }
+          });
+      } catch (e) {
+          console.warn("Failed to invoke job-processor immediately", e);
+      }
+
       fetchJobs(); // Refresh the list
     } catch (err) {
       alert(`Failed to retry job: ${err.message}`);
     }
   };
+
+  const handleCancelJob = async (jobId) => {
+      try {
+          const { error } = await supabase.from('satellite_job_queue').update({ status: 'cancelled' }).eq('id', jobId);
+          if (error) throw error;
+          fetchJobs();
+      } catch(err) {
+          alert(`Failed to cancel job: ${err.message}`);
+      }
+  };
+
 
   const summary = {
     pending: jobs.filter(j => j.status === 'pending').length,
@@ -140,12 +167,20 @@ const JobQueueMonitor = () => {
                 </td>
                 <td className="px-6 py-4 text-right">
                   {job.status === 'failed' && (
-                    <button
-                      onClick={() => handleForceRetry(job.id)}
-                      className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
-                    >
-                      Force Retry
-                    </button>
+                    <div className="flex justify-end space-x-2">
+                        <button
+                          onClick={() => handleForceRetry(job.id)}
+                          className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                        >
+                          Retry Job
+                        </button>
+                        <button
+                          onClick={() => handleCancelJob(job.id)}
+                          className="bg-slate-600 hover:bg-slate-500 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                        >
+                          Cancel Job
+                        </button>
+                    </div>
                   )}
                 </td>
               </motion.tr>
