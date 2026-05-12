@@ -48,8 +48,14 @@ function handleOptions(request, env) {
 
 export default {
   async fetch(request, env, ctx) {
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Idempotency-Key",
+    };
+
     if (request.method === 'OPTIONS') {
-      return handleOptions(request, env);
+      return new Response(null, { status: 204, headers: corsHeaders });
     }
 
     const url = new URL(request.url);
@@ -69,8 +75,8 @@ export default {
         const response = await fetch(modifiedRequest);
 
         const proxyResponse = new Response(response.body, response);
-        Object.entries(getCorsHeaders(request, env)).forEach(([key, value]) => {
-          proxyResponse.headers.set(key, value);
+        Object.keys(corsHeaders).forEach(key => {
+          proxyResponse.headers.set(key, corsHeaders[key]);
         });
 
         return proxyResponse;

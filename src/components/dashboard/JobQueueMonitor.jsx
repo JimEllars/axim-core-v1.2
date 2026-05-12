@@ -41,12 +41,21 @@ const JobQueueMonitor = () => {
 
   const handleForceRetry = async (jobId) => {
     try {
+      // Optimistic UI update
+      setJobs(currentJobs => currentJobs.map(job =>
+        job.id === jobId ? { ...job, status: 'pending', attempts: 0, error_log: null } : job
+      ));
+
       const { error: updateError } = await supabase
         .from('satellite_job_queue')
         .update({ status: 'pending', attempts: 0, error_log: null })
         .eq('id', jobId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        // Revert on error
+        fetchJobs();
+        throw updateError;
+      }
 
       // Trigger the job processor immediately
       const { data: { session } } = await supabase.auth.getSession();
@@ -63,7 +72,7 @@ const JobQueueMonitor = () => {
           console.warn("Failed to invoke job-processor immediately", e);
       }
 
-      fetchJobs(); // Refresh the list
+      // fetchJobs(); // Not needed immediately because of optimistic update
     } catch (err) {
       alert(`Failed to retry job: ${err.message}`);
     }

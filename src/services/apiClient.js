@@ -24,6 +24,26 @@ apiClient.interceptors.request.use((config) => {
   return Promise.reject(error);
 });
 
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response) {
+      if (error.response.status === 401) {
+        localStorage.removeItem('supabase.auth.token');
+        localStorage.removeItem('axim_session_token');
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+      } else if (error.response.status >= 500) {
+        return Promise.reject({ error: true, message: "Gateway unavailable" });
+      }
+    } else if (error.request) {
+      // Network error or timeout
+      return Promise.reject({ error: true, message: "Gateway unavailable" });
+    }
+    return Promise.reject(error);
+  }
+);
+
 /**
  * A generic handler for making API calls to the cloud backend.
  * This function will be used by the ApiProvider in "cloud" mode.

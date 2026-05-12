@@ -154,6 +154,17 @@ export const AuthProvider = ({ children }) => {
     };
   }, [supabase, handleSession, loadUserSettings]);
 
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      logout();
+    };
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('auth:unauthorized', handleUnauthorized);
+    };
+  }, []);
+
   const login = async (email, password) => {
     console.log('[AuthContext] Attempting login for:', email);
 
