@@ -14,8 +14,9 @@ import SecurityAudit from './SecurityAudit';
 import ProductFeedback from './ProductFeedback';
 import EcosystemRegistry from './EcosystemRegistry';
 import BillingPortal from './BillingPortal';
+import IntegrationsManager from './IntegrationsManager';
 
-const { FiKey, FiUsers, FiCreditCard, FiGitMerge, FiBarChart2, FiLayers, FiDatabase, FiZap, FiShield, FiMessageSquare, FiBox } = FiIcons;
+const { FiLink, FiKey, FiUsers, FiCreditCard, FiGitMerge, FiBarChart2, FiLayers, FiDatabase, FiZap, FiShield, FiMessageSquare, FiBox } = FiIcons;
 
 const AdminDashboard = () => {
   const { user: currentUser } = useAuth();
@@ -31,6 +32,7 @@ const AdminDashboard = () => {
     { id: 'feedback', label: 'Product Feedback', icon: FiMessageSquare },
     { id: 'audit', label: 'Security Audit', icon: FiShield },
     { id: 'ecosystem', label: 'Ecosystem Registry', icon: FiBox },
+    { id: 'integrations', label: 'Integrations & Webhooks', icon: FiLink },
     { id: 'billing', label: 'Fulfillment', icon: FiBox },
   ];
 
@@ -46,12 +48,12 @@ const AdminDashboard = () => {
           <p className="text-slate-400">Manage internal systems, users, and infrastructure.</p>
         </div>
 
-        <div className="flex space-x-2 border-b border-onyx-accent/20">
+        <div className="flex space-x-2 border-b border-onyx-accent/20 overflow-x-auto">
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center px-4 py-3 text-sm font-medium transition-colors ${
+              className={`flex items-center px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'border-b-2 border-blue-500 text-white'
                   : 'text-slate-400 hover:text-white'
@@ -73,6 +75,7 @@ const AdminDashboard = () => {
           {activeTab === 'feedback' && <ProductFeedback />}
           {activeTab === 'audit' && <ProtectedRoute allowedRoles={['admin']}><SecurityAudit /></ProtectedRoute>}
           {activeTab === 'ecosystem' && <ProtectedRoute allowedRoles={['admin']}><EcosystemRegistry /></ProtectedRoute>}
+          {activeTab === 'integrations' && <ProtectedRoute allowedRoles={['admin']}><IntegrationsManager /></ProtectedRoute>}
           {activeTab === 'billing' && <ProtectedRoute allowedRoles={['admin']}><BillingPortal /></ProtectedRoute>}
         </div>
       </motion.div>

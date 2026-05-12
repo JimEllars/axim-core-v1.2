@@ -16,9 +16,9 @@ serve(async (req) => {
         const correlationId = req.headers.get('x-axim-correlation-id') || 'system-generated';
 
 
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const cutoffDate = thirtyDaysAgo.toISOString();
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const cutoffDate = ninetyDaysAgo.toISOString();
 
         // 1. Archive Telemetry Logs
         const { data: logsToArchive, error: fetchError } = await supabase
@@ -56,7 +56,7 @@ serve(async (req) => {
         }
 
         // Aggregate Data into daily metrics (simple implementation for historical_metrics or daily_metrics)
-        const aggregatedData = {};
+        const aggregatedData: Record<string, any> = {};
 
         if (apiLogsToArchive) {
             apiLogsToArchive.forEach(log => {
@@ -87,6 +87,40 @@ serve(async (req) => {
              if (insertError) {
                  console.error(`[CID: ${correlationId}] Error inserting aggregated metrics:`, insertError);
              }
+        }
+
+        // Summarize context via llm-proxy
+        const summaryPrompt = `Summarize the system health and usage based on the following archived metrics from the last 90 days. Focus on error rates, total requests, and significant anomalies.\n\nMetrics:\n${JSON.stringify(metricsToInsert)}`;
+
+        try {
+            const llmResponse = await supabase.functions.invoke('llm-proxy', {
+                body: {
+                    provider: 'openai',
+                    prompt: summaryPrompt,
+                    options: { model: 'gpt-4' }
+                },
+            });
+
+            if (llmResponse.error) {
+                console.error(`[CID: ${correlationId}] Error invoking llm-proxy for summary:`, llmResponse.error);
+            } else if (llmResponse.data?.response) {
+                const summaryContent = llmResponse.data.response;
+
+                // Store in ai_memory_banks
+                const { error: memoryBankError } = await supabase
+                    .from('ai_memory_banks')
+                    .insert({
+                        content: summaryContent,
+                        source_type: 'Telemetry Archiver',
+                        metadata: { period: '90_days', type: 'system_summary' }
+                    });
+
+                if (memoryBankError) {
+                    console.error(`[CID: ${correlationId}] Error storing summary in ai_memory_banks:`, memoryBankError);
+                }
+            }
+        } catch (llmErr) {
+            console.error(`[CID: ${correlationId}] Exception invoking llm-proxy:`, llmErr);
         }
 
         // Compress logs using GZIP
@@ -127,17 +161,17 @@ serve(async (req) => {
 
         // Delete the archived logs
         if (logsToArchive && logsToArchive.length > 0) {
-            const logIds = logsToArchive.map(log => log.id);
+            const logIds = logsToArchive.map((log: any) => log.id);
             await supabase.from("telemetry_logs").delete().in("id", logIds);
         }
 
         if (apiLogsToArchive && apiLogsToArchive.length > 0) {
-            const apiLogIds = apiLogsToArchive.map(log => log.id);
+            const apiLogIds = apiLogsToArchive.map((log: any) => log.id);
             await supabase.from("api_usage_logs").delete().in("id", apiLogIds);
         }
 
         if (satelliteLogsToArchive && satelliteLogsToArchive.length > 0) {
-            const satelliteLogIds = satelliteLogsToArchive.map(log => log.id);
+            const satelliteLogIds = satelliteLogsToArchive.map((log: any) => log.id);
             await supabase.from("satellite_pulses").delete().in("id", satelliteLogIds);
         }
 
@@ -146,7 +180,7 @@ serve(async (req) => {
             headers: { ...corsHeaders, "Content-Type": "application/json", "x-axim-correlation-id": correlationId },
         });
 
-    } catch (error) {
+    } catch (error: any) {
         const correlationId = req.headers.get('x-axim-correlation-id') || 'system-generated';
         console.error(`[CID: ${correlationId}] Telemetry archiver error:`, error);
         return new Response(JSON.stringify({ error: error.message, correlationId }), {
