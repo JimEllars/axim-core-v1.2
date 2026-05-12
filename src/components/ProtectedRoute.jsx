@@ -2,7 +2,9 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
-const ProtectedRoute = ({ children, adminOnly }) => {
+import toast from 'react-hot-toast';
+
+const ProtectedRoute = ({ children, requiredRole }) => {
   const { isAuthenticated, role, loading } = useAuth();
 
   if (loading) {
@@ -17,7 +19,8 @@ const ProtectedRoute = ({ children, adminOnly }) => {
     return <Navigate to="/login" />;
   }
 
-  if (adminOnly && role !== 'admin') {
+  if (requiredRole && role !== requiredRole) {
+    setTimeout(() => toast.error('Access Denied'), 0);
     return <Navigate to="/dashboard" />;
   }
 

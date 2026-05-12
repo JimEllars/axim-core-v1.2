@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
+import ProtectedRoute from '../ProtectedRoute';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import WorkflowExecutionLog from './WorkflowExecutionLog';
@@ -70,9 +71,9 @@ const AdminDashboard = () => {
           {activeTab === 'memory' && <MemoryBank />}
           {activeTab === 'intelligence' && <IntelligenceHub />}
           {activeTab === 'feedback' && <ProductFeedback />}
-          {activeTab === 'audit' && <SecurityAudit />}
-          {activeTab === 'ecosystem' && <EcosystemRegistry />}
-          {activeTab === 'billing' && <BillingPortal />}
+          {activeTab === 'audit' && <ProtectedRoute requiredRole="admin"><SecurityAudit /></ProtectedRoute>}
+          {activeTab === 'ecosystem' && <ProtectedRoute requiredRole="admin"><EcosystemRegistry /></ProtectedRoute>}
+          {activeTab === 'billing' && <ProtectedRoute requiredRole="admin"><BillingPortal /></ProtectedRoute>}
         </div>
       </motion.div>
     </div>

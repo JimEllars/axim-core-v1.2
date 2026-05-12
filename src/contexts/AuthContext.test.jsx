@@ -37,6 +37,7 @@ const createMockSupabase = (session, role = 'user') => {
     select: vi.fn(function() { return this; }),
     eq: vi.fn(function() { return this; }),
     single: vi.fn().mockResolvedValue({ data: { role } }),
+    maybeSingle: vi.fn().mockResolvedValue({ data: { role } }),
   };
   // Make `from` return the whole mock object to allow chaining
   mock.from.mockReturnValue(mock);
@@ -95,6 +96,6 @@ describe('AuthContext', () => {
     expect(result.current.isAuthenticated).toBe(true);
     expect(result.current.user.id).toBe('user-123');
     expect(result.current.role).toBe('editor');
-    expect(mockSupabase.from).toHaveBeenCalledWith('users');
+    expect(mockSupabase.from).toHaveBeenCalledWith('user_roles');
   });
 });

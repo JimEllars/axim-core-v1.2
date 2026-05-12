@@ -120,9 +120,9 @@ function AppContent() {
           <Route path="settings" element={<Settings />} />
           <Route path="profile" element={<UserProfile />} />
           <Route
-            path="admin"
+            path="admin/*"
             element={
-              <ProtectedRoute adminOnly={true}>
+              <ProtectedRoute requiredRole="admin">
                 <AdminDashboard />
               </ProtectedRoute>
             }
