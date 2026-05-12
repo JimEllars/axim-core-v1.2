@@ -6,6 +6,9 @@ vi.mock('axios', () => {
   const mockAxiosInstance = {
     post: vi.fn(),
     interceptors: {
+      response: {
+        use: vi.fn(),
+      },
       request: {
         use: vi.fn(),
       },
@@ -28,6 +31,7 @@ describe('apiClient', () => {
   let mockAxiosInstance;
 
   beforeEach(async () => {
+    vi.spyOn(window, 'dispatchEvent').mockImplementation(() => {});
     vi.resetModules();
     vi.clearAllMocks();
 

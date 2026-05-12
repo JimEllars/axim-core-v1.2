@@ -71,9 +71,9 @@ const AdminDashboard = () => {
           {activeTab === 'memory' && <MemoryBank />}
           {activeTab === 'intelligence' && <IntelligenceHub />}
           {activeTab === 'feedback' && <ProductFeedback />}
-          {activeTab === 'audit' && <ProtectedRoute requiredRole="admin"><SecurityAudit /></ProtectedRoute>}
-          {activeTab === 'ecosystem' && <ProtectedRoute requiredRole="admin"><EcosystemRegistry /></ProtectedRoute>}
-          {activeTab === 'billing' && <ProtectedRoute requiredRole="admin"><BillingPortal /></ProtectedRoute>}
+          {activeTab === 'audit' && <ProtectedRoute allowedRoles={['admin']}><SecurityAudit /></ProtectedRoute>}
+          {activeTab === 'ecosystem' && <ProtectedRoute allowedRoles={['admin']}><EcosystemRegistry /></ProtectedRoute>}
+          {activeTab === 'billing' && <ProtectedRoute allowedRoles={['admin']}><BillingPortal /></ProtectedRoute>}
         </div>
       </motion.div>
     </div>
