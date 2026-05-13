@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
@@ -9,6 +9,7 @@ import toast from 'react-hot-toast';
 const { FiX, FiCheckCircle, FiClock } = FiIcons;
 
 const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
+  const [editedPayloads, setEditedPayloads] = useState({});
   useEffect(() => {
     if (!supabase) return;
 
@@ -49,11 +50,12 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
   if (!isOpen) return null;
 
     const handleApprove = async (logId, actionPayload) => {
+      const finalPayload = editedPayloads[logId] !== undefined ? { ...actionPayload, html_content: editedPayloads[logId] } : actionPayload;
     try {
       // Optimistic update
       setPendingLogs((prev) => prev.filter((log) => log.id !== logId));
 
-      await api.resolveHitlAction(logId, 'Approved', actionPayload);
+      await api.resolveHitlAction(logId, 'Approved', finalPayload);
 
       toast.success('Action approved and dispatched.');
     } catch (err) {
@@ -140,7 +142,12 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
                     {parsedPayload && parsedPayload.html_content && (
                       <div className="mt-2 mb-4 max-h-32 overflow-y-auto text-xs text-slate-400 bg-onyx-950 p-2 rounded border border-onyx-accent/10">
                          <p><strong>Title:</strong> {parsedPayload.title}</p>
-                         <p className="mt-1 truncate">{parsedPayload.html_content.substring(0, 150)}...</p>
+                         <textarea
+                           className="mt-1 w-full bg-onyx-900 border border-onyx-accent/30 rounded p-2 text-slate-300 focus:outline-none focus:border-indigo-500"
+                           rows={4}
+                           value={editedPayloads[log.id] !== undefined ? editedPayloads[log.id] : parsedPayload.html_content}
+                           onChange={(e) => setEditedPayloads(prev => ({ ...prev, [log.id]: e.target.value }))}
+                         />
                       </div>
                     )}
                     <div className="flex justify-end space-x-2">

@@ -189,11 +189,11 @@ const WorkflowBuilder = () => {
   // This is a placeholder for a future interactive canvas (e.g., using React Flow)
   // For now, it displays a list representation of the workflow steps.
 
-  const addNode = (type) => {
+  const addNode = (type, label = null) => {
     const newNode = {
       id: `node-${Date.now()}`,
       type: type,
-      label: type === 'action' ? 'New Action' : 'New Condition'
+      label: label || (type === 'action' ? 'New Action' : 'New Condition')
     };
     setNodes([...nodes, newNode]);
   };
@@ -228,21 +228,70 @@ const WorkflowBuilder = () => {
 
   const renderBuilder = () => (
     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Left Sidebar: Components */}
+                {/* Left Sidebar: Components */}
         <div className="lg:col-span-1 bg-onyx-950/50 rounded-md p-4 border border-onyx-accent/20">
-          <h3 className="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Components</h3>
+          <h3 className="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Triggers</h3>
+          <div className="space-y-3 mb-6">
+            <button
+              onClick={() => addNode('trigger', 'LIVE_STREAM_STARTED')}
+              className="w-full text-left px-3 py-2 bg-onyx-950 hover:bg-onyx-accent/10 border border-onyx-accent/20 rounded-md text-sm text-slate-300 flex items-center transition-colors"
+            >
+              <div className="w-6 h-6 rounded bg-indigo-500/20 text-indigo-400 flex items-center justify-center mr-3">
+                <SafeIcon icon={FiPlay} size={14} />
+              </div>
+              Live Stream Started
+            </button>
+            <button
+              onClick={() => addNode('trigger', 'PODCAST_PUBLISHED')}
+              className="w-full text-left px-3 py-2 bg-onyx-950 hover:bg-onyx-accent/10 border border-onyx-accent/20 rounded-md text-sm text-slate-300 flex items-center transition-colors"
+            >
+              <div className="w-6 h-6 rounded bg-indigo-500/20 text-indigo-400 flex items-center justify-center mr-3">
+                <SafeIcon icon={FiPlay} size={14} />
+              </div>
+              Podcast Published
+            </button>
+            <button
+              onClick={() => addNode('trigger', 'NEW_LEAD')}
+              className="w-full text-left px-3 py-2 bg-onyx-950 hover:bg-onyx-accent/10 border border-onyx-accent/20 rounded-md text-sm text-slate-300 flex items-center transition-colors"
+            >
+              <div className="w-6 h-6 rounded bg-indigo-500/20 text-indigo-400 flex items-center justify-center mr-3">
+                <SafeIcon icon={FiPlay} size={14} />
+              </div>
+              New Lead
+            </button>
+          </div>
+
+          <h3 className="text-sm font-semibold text-slate-300 mb-4 uppercase tracking-wider">Actions</h3>
           <div className="space-y-3">
             <button
-              onClick={() => addNode('action')}
+              onClick={() => addNode('action', 'Draft Post')}
               className="w-full text-left px-3 py-2 bg-onyx-950 hover:bg-onyx-accent/10 border border-onyx-accent/20 rounded-md text-sm text-slate-300 flex items-center transition-colors"
             >
               <div className="w-6 h-6 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center mr-3">
                 <SafeIcon icon={FiSettings} size={14} />
               </div>
-              API Action
+              Draft Post
             </button>
             <button
-              onClick={() => addNode('condition')}
+              onClick={() => addNode('action', 'Send Email')}
+              className="w-full text-left px-3 py-2 bg-onyx-950 hover:bg-onyx-accent/10 border border-onyx-accent/20 rounded-md text-sm text-slate-300 flex items-center transition-colors"
+            >
+              <div className="w-6 h-6 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center mr-3">
+                <SafeIcon icon={FiSettings} size={14} />
+              </div>
+              Send Email
+            </button>
+            <button
+              onClick={() => addNode('action', 'Assign Task')}
+              className="w-full text-left px-3 py-2 bg-onyx-950 hover:bg-onyx-accent/10 border border-onyx-accent/20 rounded-md text-sm text-slate-300 flex items-center transition-colors"
+            >
+              <div className="w-6 h-6 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center mr-3">
+                <SafeIcon icon={FiSettings} size={14} />
+              </div>
+              Assign Task
+            </button>
+            <button
+              onClick={() => addNode('condition', 'Condition')}
               className="w-full text-left px-3 py-2 bg-onyx-950 hover:bg-onyx-accent/10 border border-onyx-accent/20 rounded-md text-sm text-slate-300 flex items-center transition-colors"
             >
               <div className="w-6 h-6 rounded bg-yellow-500/20 text-yellow-400 flex items-center justify-center mr-3">
@@ -253,7 +302,7 @@ const WorkflowBuilder = () => {
           </div>
         </div>
 
-        {/* Right Area: Linear Representation */}
+{/* Right Area: Linear Representation */}
         <div className="lg:col-span-3 bg-onyx-950 rounded-md border border-onyx-accent/20 p-6 min-h-[400px]">
           <div className="text-center mb-8">
             <p className="text-sm text-slate-500">Drag and drop to reorder nodes. Triggers must remain at the top.</p>

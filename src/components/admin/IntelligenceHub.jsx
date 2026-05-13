@@ -17,15 +17,15 @@ const IntelligenceHub = () => {
   useEffect(() => {
     if (!supabase) return;
 
-    const channel = supabase.channel('realtime:ai_memory_banks')
+    const channel = supabase.channel('realtime:ai_interactions_ax2024')
       .on(
         'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'ai_memory_banks' },
+        { event: 'INSERT', schema: 'public', table: 'ai_interactions_ax2024' },
         (payload) => {
           const newEntry = {
             id: payload.new.id,
-            content: payload.new.content,
-            source_type: payload.new.source_type,
+            content: payload.new.command || payload.new.response || 'Interaction logged',
+            source_type: payload.new.source || 'AXiM Core',
             created_at: payload.new.created_at
           };
           setLiveStream((prev) => [newEntry, ...prev].slice(0, 10)); // Keep only the latest 10 items
