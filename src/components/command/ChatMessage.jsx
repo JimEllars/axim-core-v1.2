@@ -65,6 +65,34 @@ const ChatMessage = ({ message, onCopyContent }) => {
     onCopyContent(contentToCopy);
   };
 
+  const [displayedContent, setDisplayedContent] = React.useState('');
+  const [isTypingEffect, setIsTypingEffect] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!isUser && !isError && typeof message.content === 'string' && !message.isTyping) {
+      if (displayedContent === '' && message.content !== '') {
+        setIsTypingEffect(true);
+        let i = 0;
+        const speed = 10;
+        const interval = setInterval(() => {
+          setDisplayedContent((prev) => {
+             const nextLen = prev.length + 1;
+             if (nextLen >= message.content.length) {
+                clearInterval(interval);
+                setIsTypingEffect(false);
+                return message.content;
+             }
+             return message.content.substring(0, nextLen);
+          });
+          i++;
+        }, speed);
+        return () => clearInterval(interval);
+      } else if (!isTypingEffect) {
+        setDisplayedContent(message.content);
+      }
+    }
+  }, [message.content, isUser, isError, message.isTyping]);
+
   const renderContent = () => {
     if (message.isTyping) {
       return (
@@ -90,9 +118,13 @@ const ChatMessage = ({ message, onCopyContent }) => {
       return <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-onyx-accent/90">{message.content}</div>;
     }
 
-    let parsedContent = message.content;
+    let parsedContent = (isTypingEffect || (!isUser && !isError && typeof message.content === 'string' && displayedContent)) ? displayedContent : message.content;
     let actionPayload = null;
 
+    let toolCalls = [];
+    if (message.tool_calls && Array.isArray(message.tool_calls)) {
+        toolCalls = message.tool_calls;
+    }
     if (typeof message.content === 'string') {
         try {
             const parsed = JSON.parse(message.content);
@@ -157,6 +189,21 @@ const ChatMessage = ({ message, onCopyContent }) => {
         <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-slate-200 drop-shadow-[0_0_2px_rgba(168,85,247,0.5)]">
           <FormattedContent content={parsedContent} />
         </div>
+        {toolCalls && toolCalls.length > 0 && (
+            <div className="mt-4 p-3 bg-onyx-950/50 border border-onyx-ai/30 rounded flex flex-col items-start gap-2">
+                {toolCalls.map((tc, idx) => (
+                    <details key={idx} className="w-full">
+                        <summary className="text-xs text-onyx-ai uppercase tracking-wider cursor-pointer list-none flex items-center gap-2">
+                           <FiIcons.FiSettings className="animate-spin-slow" />
+                           🔄 Onyx executed internal tool: {tc.function?.name || tc.type}
+                        </summary>
+                        <pre className="mt-2 text-[10px] text-slate-400 p-2 bg-black/30 rounded overflow-x-auto">
+                            {JSON.stringify(tc.function?.arguments || tc, null, 2)}
+                        </pre>
+                    </details>
+                ))}
+            </div>
+        )}
         {actionPayload && (
             <div className="mt-4 p-3 bg-onyx-950/50 border border-onyx-ai/30 rounded flex flex-col items-start gap-2">
                 <span className="text-xs text-onyx-ai uppercase tracking-wider">Suggested Action: {actionPayload.type}</span>
