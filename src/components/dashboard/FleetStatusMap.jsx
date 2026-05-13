@@ -101,6 +101,14 @@ const FleetStatusMap = () => {
            app.errorRate = errorRate;
            app.avgExecutionMs = app.executionEvents > 0 ? Math.round(app.totalExecutionMs / app.executionEvents) : 0;
 
+           // Extract latest heartbeat memory and task status
+           const latestHeartbeat = app.telemetry.find(t => t.type === 'heartbeat');
+           if (latestHeartbeat && latestHeartbeat.details) {
+               app.memory = latestHeartbeat.details.memory || 'Unknown';
+               app.activeTask = latestHeartbeat.details.active_task || 'Idle';
+           }
+
+
            let status = 'operational';
            let statusColor = 'bg-green-500/20 border-green-500 text-green-400';
 
@@ -174,6 +182,14 @@ const FleetStatusMap = () => {
                   app.errorRate = errorRate;
                   app.avgExecutionMs = app.executionEvents > 0 ? Math.round(app.totalExecutionMs / app.executionEvents) : 0;
 
+           // Extract latest heartbeat memory and task status
+           const latestHeartbeat = app.telemetry.find(t => t.type === 'heartbeat');
+           if (latestHeartbeat && latestHeartbeat.details) {
+               app.memory = latestHeartbeat.details.memory || 'Unknown';
+               app.activeTask = latestHeartbeat.details.active_task || 'Idle';
+           }
+
+
                   let status = 'operational';
                   let statusColor = 'bg-green-500/20 border-green-500 text-green-400';
 
@@ -192,10 +208,16 @@ const FleetStatusMap = () => {
                         id: newLog.timestamp,
                         type: newLog.event,
                         message: `${newLog.event}`,
+                        details: newLog.details,
                         status: (newLog.event === 'error' || newLog.event === 'integration_failure') ? 'error' : 'success'
                      },
                      ...app.telemetry.slice(0, 2)
                   ];
+
+                  if (app.id === 'onyx_local' && newLog.event === 'heartbeat' && newLog.details) {
+                     app.memory = newLog.details.memory || app.memory || 'Unknown';
+                     app.activeTask = newLog.details.active_task || app.activeTask || 'Idle';
+                  }
 
                   newFleet[deviceIndex] = app;
                   return newFleet;
@@ -285,6 +307,12 @@ const FleetStatusMap = () => {
                      <ul className="space-y-1 text-xs text-slate-300">
                         <li>Error Rate: {(device.errorRate * 100).toFixed(1)}%</li>
                         <li>Avg Latency: {device.avgExecutionMs}ms</li>
+                        {device.id === 'onyx_local' && device.memory && (
+                          <li>Memory: {device.memory}</li>
+                        )}
+                        {device.id === 'onyx_local' && device.activeTask && (
+                          <li>Active Task: {device.activeTask}</li>
+                        )}
                      </ul>
                   </div>
 

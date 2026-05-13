@@ -34,7 +34,7 @@ const EventLog = () => {
           .order('created_at', { ascending: false })
           .limit(20),
         supabase
-          .from('satellite_pulses')
+          .from('api_usage_logs')
           .select('*')
           .order('created_at', { ascending: false })
           .limit(10)
@@ -45,13 +45,13 @@ const EventLog = () => {
       const coreEvents = eventsResponse.data || [];
       const telemetryEvents = (telemetryResponse.data || []).map(pulse => ({
         id: pulse.id,
-        type: pulse.event_type === 'error' ? 'error' : 'warning',
-        source: pulse.satellite_app_id || 'Micro-App',
+        type: pulse.status_code >= 400 ? 'error' : 'api_call',
+        source: pulse.client_id || pulse.api_key || 'Micro-App',
         created_at: pulse.created_at,
         data: {
-          ...pulse.payload,
-          ...pulse.telemetry,
-          endpoint: pulse.satellite_app_id
+          ...pulse.request_metadata,
+          endpoint: pulse.endpoint,
+          origin: pulse.client_id || pulse.api_key // Assuming client_id maps to origin
         }
       }));
 
@@ -74,17 +74,17 @@ const EventLog = () => {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events_ax2024' }, (payload) => {
         setEvents(currentEvents => [payload.new, ...currentEvents].slice(0, 20));
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'satellite_pulses' }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'api_usage_logs' }, (payload) => {
         const pulse = payload.new;
         const newTelemetryEvent = {
           id: pulse.id,
-          type: pulse.event_type === 'error' ? 'error' : 'warning',
-          source: pulse.satellite_app_id || 'Micro-App',
+          type: pulse.status_code >= 400 ? 'error' : 'api_call',
+          source: pulse.client_id || pulse.api_key || 'Micro-App',
           created_at: pulse.created_at,
           data: {
-            ...pulse.payload,
-            ...pulse.telemetry,
-            endpoint: pulse.satellite_app_id
+            ...pulse.request_metadata,
+            endpoint: pulse.endpoint,
+            origin: pulse.client_id || pulse.api_key
           }
         };
         setEvents(currentEvents => [newTelemetryEvent, ...currentEvents].slice(0, 20));
@@ -156,8 +156,14 @@ const EventLog = () => {
                   
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <h4 className={`text-sm font-medium capitalize ${typeKey === 'error' ? 'text-red-400' : 'text-white'}`}>
-                        {event.type.replace('_', ' ')} - {event.source || event.data?.endpoint || 'System'}
+                      <h4 className={`text-sm font-medium capitalize flex items-center gap-2 ${typeKey === 'error' ? 'text-red-400' : 'text-white'}`}>
+                        {event.type.replace('_', ' ')}
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-onyx-950 border border-onyx-accent/20">
+                          {event.source === 'onyx_local' || event.data?.origin === 'onyx_local' ? '🟢 Onyx Local (Rust)' :
+                           event.source === 'axim_support' || event.data?.origin === 'axim_support' ? '🔵 AXiM Support (Web)' :
+                           event.source === 'core_cron' || event.data?.origin === 'core_cron' ? '🟣 Core Background (Cron)' :
+                           `⚪ ${event.source || event.data?.endpoint || 'System'}`}
+                        </span>
                       </h4>
                       <span className="text-xs text-slate-400">
                         {format(new Date(event.created_at), 'MMM dd, HH:mm')}

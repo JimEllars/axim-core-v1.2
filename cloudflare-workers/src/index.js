@@ -159,16 +159,18 @@ export default {
       // Attempt to fetch the static asset requested (e.g., /assets/index.js, /login)
       let response = await env.ASSETS.fetch(request);
 
-      // SPA Fallback: If it's a 404 and NOT a direct static asset file request,
-      // serve index.html so React Router can take over.
+      // 3. Cache Control (Fixes the White Screen issue)
+      response = new Response(response.body, response);
+      let isFallback = false;
       if (response.status === 404 && !url.pathname.startsWith('/assets/')) {
         const indexRequest = new Request(new URL('/index.html', request.url), request);
         response = await env.ASSETS.fetch(indexRequest);
+        isFallback = true;
       }
 
       // 3. Cache Control (Fixes the White Screen issue)
       response = new Response(response.body, response);
-      if (url.pathname === '/' || url.pathname.endsWith('.html') || response.status === 404) {
+      if (url.pathname === '/' || url.pathname.endsWith('.html') || response.status === 404 || isFallback) {
         response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       } else if (url.pathname.startsWith('/assets/')) {
         response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
