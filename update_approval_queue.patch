@@ -1,0 +1,50 @@
+--- src/components/layout/ApprovalQueue.jsx
++++ src/components/layout/ApprovalQueue.jsx
+@@ -1,4 +1,4 @@
+-import React, { useEffect } from 'react';
++import React, { useEffect, useState } from 'react';
+ import { motion } from 'framer-motion';
+ import SafeIcon from '../../common/SafeIcon';
+ import * as FiIcons from 'react-icons/fi';
+@@ -10,6 +10,8 @@
+ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
++  const [editedPayloads, setEditedPayloads] = useState({});
++
+   useEffect(() => {
+     if (!supabase) return;
+
+@@ -52,14 +54,16 @@
+
+     const handleApprove = async (logId, actionPayload) => {
+     try {
+       // Optimistic update
+       setPendingLogs((prev) => prev.filter((log) => log.id !== logId));
+
+-      await api.resolveHitlAction(logId, 'Approved', actionPayload);
++      const finalPayload = editedPayloads[logId] !== undefined
++        ? { ...actionPayload, html_content: editedPayloads[logId] }
++        : actionPayload;
++
++      await api.resolveHitlAction(logId, 'Approved', finalPayload);
+
+       toast.success('Action approved and dispatched.');
+     } catch (err) {
+       toast.error(`Failed to approve action: ${err.message}`);
+       // Fallback: restore on fail
+@@ -128,15 +132,23 @@
+                     {parsedPayload && parsedPayload.target && (
+                       <p className="text-xs text-slate-400 mb-4">Target: {parsedPayload.target}</p>
+                     )}
+                     {parsedPayload && parsedPayload.html_content && (
+                       <div className="mt-2 mb-4 max-h-32 overflow-y-auto text-xs text-slate-400 bg-onyx-950 p-2 rounded border border-onyx-accent/10">
+                          <p><strong>Title:</strong> {parsedPayload.title}</p>
+-                         <p className="mt-1 truncate">{parsedPayload.html_content.substring(0, 150)}...</p>
++                         <textarea
++                           className="mt-1 w-full bg-onyx-900 border border-onyx-accent/30 rounded p-2 text-slate-300 focus:outline-none focus:border-indigo-500"
++                           rows={4}
++                           value={editedPayloads[log.id] !== undefined ? editedPayloads[log.id] : parsedPayload.html_content}
++                           onChange={(e) => setEditedPayloads(prev => ({ ...prev, [log.id]: e.target.value }))}
++                         />
+                       </div>
+                     )}
+                     <div className="flex justify-end space-x-2">
