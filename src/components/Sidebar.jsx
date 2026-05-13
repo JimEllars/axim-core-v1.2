@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
+import AppLauncher from './layout/AppLauncher';
 import { Link, useLocation } from 'react-router-dom';
 
 const { 
@@ -90,6 +91,9 @@ const Sidebar = () => {
 
       {/* Header */}
       <div className="p-4 border-b border-onyx-accent/20 flex flex-col items-center">
+        <div className="w-full flex justify-end mb-2">
+            <AppLauncher />
+        </div>
         <motion.div
           className="flex items-center w-full justify-center mb-2"
           animate={{ justifyContent: isHovered ? 'flex-start' : 'center' }}
