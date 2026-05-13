@@ -330,6 +330,12 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
 
   const displayMessages = [...messages, ...localMessages];
 
+  useEffect(() => {
+    if (messagesEndRef && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [displayMessages]);
+
 
   return (
   <div className="glass-effect p-4 rounded-lg mb-4 h-[60vh] flex flex-col bg-onyx-950/80 backdrop-blur-md border border-onyx-accent/20 relative overflow-hidden">

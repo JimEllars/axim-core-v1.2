@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-/* global Response, Request, URL, fetch */
+/* global Response, Request, URL, fetch, setInterval, caches */
 /**
  * AXiM Core Cloudflare Worker
  *
@@ -46,6 +46,52 @@ function handleOptions(request, env) {
   }
 }
 
+
+const rateLimitMap = new Map();
+
+function checkRateLimit(ip) {
+  if (!ip) return true; // Can't limit if no IP
+
+  const now = Date.now();
+  cleanupRateLimitMap(now);
+  const windowMs = 60 * 1000; // 1 minute
+  const maxRequests = 100;
+
+  let record = rateLimitMap.get(ip);
+  if (!record) {
+    record = { count: 1, resetAt: now + windowMs };
+    rateLimitMap.set(ip, record);
+    return true;
+  }
+
+  if (now > record.resetAt) {
+    record.count = 1;
+    record.resetAt = now + windowMs;
+    return true;
+  }
+
+  record.count++;
+  if (record.count > maxRequests) {
+    return false;
+  }
+
+  return true;
+}
+
+
+let lastCleanup = Date.now();
+function cleanupRateLimitMap(now) {
+  if (now - lastCleanup > 60 * 1000) {
+    for (const [key, record] of rateLimitMap.entries()) {
+      if (now > record.resetAt) {
+        rateLimitMap.delete(key);
+      }
+    }
+    lastCleanup = now;
+  }
+}
+
+
 export default {
   async fetch(request, env, ctx) {
     const corsHeaders = {
@@ -60,8 +106,23 @@ export default {
 
     const url = new URL(request.url);
 
+    // Rate Limiting
+    const ip = request.headers.get('CF-Connecting-IP');
+    if (!checkRateLimit(ip)) {
+      return new Response("Too Many Requests", { status: 429, headers: corsHeaders });
+    }
+
     // 1. API Proxy Routing
     if (url.pathname.startsWith('/api/')) {
+      // Edge Caching
+      const cacheableEndpoints = ['/api/system/capabilities', '/api/providers/status'];
+      if (request.method === 'GET' && cacheableEndpoints.includes(url.pathname)) {
+        const cache = caches.default;
+        const cachedResponse = await cache.match(request);
+        if (cachedResponse) {
+           return cachedResponse;
+        }
+      }
       // Add your existing GCP backend proxy logic here
       try {
         const targetUrl = new URL(request.url);
@@ -78,6 +139,14 @@ export default {
         Object.keys(corsHeaders).forEach(key => {
           proxyResponse.headers.set(key, corsHeaders[key]);
         });
+
+        // Edge Caching Storage
+        if (request.method === 'GET' && cacheableEndpoints.includes(url.pathname)) {
+           // We clone it to put in cache
+           const responseToCache = new Response(proxyResponse.body, proxyResponse);
+           responseToCache.headers.set('Cache-Control', 'max-age=60');
+           ctx.waitUntil(caches.default.put(request, responseToCache.clone()));
+        }
 
         return proxyResponse;
       } catch (error) {
