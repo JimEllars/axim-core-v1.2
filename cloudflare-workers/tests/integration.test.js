@@ -1,4 +1,4 @@
-import { env, createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
+import { env, createExecutionContext } from "cloudflare:test";
 import { describe, it, expect, vi } from "vitest";
 import worker from "../src/index.js";
 

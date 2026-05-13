@@ -1,4 +1,5 @@
-import { defineConfig } from 'vitest/config'
+const fs = require('fs');
+let config = `import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
@@ -13,4 +14,6 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src')
     }
   }
-})
+})`;
+
+fs.writeFileSync('/app/vitest.config.js', config);
