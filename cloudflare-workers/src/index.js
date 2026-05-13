@@ -53,6 +53,7 @@ function checkRateLimit(ip) {
   if (!ip) return true; // Can't limit if no IP
 
   const now = Date.now();
+  cleanupRateLimitMap(now);
   const windowMs = 60 * 1000; // 1 minute
   const maxRequests = 100;
 
@@ -77,15 +78,19 @@ function checkRateLimit(ip) {
   return true;
 }
 
-// Memory cleanup for rate limiter map
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, record] of rateLimitMap.entries()) {
-    if (now > record.resetAt) {
-      rateLimitMap.delete(ip);
+
+let lastCleanup = Date.now();
+function cleanupRateLimitMap(now) {
+  if (now - lastCleanup > 60 * 1000) {
+    for (const [key, record] of rateLimitMap.entries()) {
+      if (now > record.resetAt) {
+        rateLimitMap.delete(key);
+      }
     }
+    lastCleanup = now;
   }
-}, 60 * 1000);
+}
+
 
 export default {
   async fetch(request, env, ctx) {
