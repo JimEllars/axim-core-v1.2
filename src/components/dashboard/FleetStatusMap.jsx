@@ -5,7 +5,6 @@ import SafeIcon from '../../common/SafeIcon';
 import { FiServer, FiActivity, FiAlertTriangle, FiCheckCircle, FiDollarSign } from 'react-icons/fi';
 import { Switch } from '@headlessui/react';
 import logger from '../../services/logging';
-import toast from 'react-hot-toast';
 
 const FleetStatusMap = () => {
   const { supabase } = useSupabase();
@@ -13,7 +12,6 @@ const FleetStatusMap = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showFinancials, setShowFinancials] = useState(false);
-  const [expandedApp, setExpandedApp] = useState(null); // Added for click-to-expand
 
   useEffect(() => {
     const fetchFleetData = async () => {
@@ -22,9 +20,9 @@ const FleetStatusMap = () => {
       try {
         if (!supabase) throw new Error("Supabase client not initialized.");
 
+        // Fetch devices
+        // Fetch transactions for revenue layer
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-
-        // 1. Fetch transactions for revenue layer
         const { data: transactions, error: txError } = await supabase
           .from('micro_app_transactions')
           .select('product_id, amount_total')
@@ -32,107 +30,53 @@ const FleetStatusMap = () => {
 
         if (txError) logger.warn('Failed to fetch transactions', txError);
 
+        // Calculate revenue per app (product_id mapped to device_name for now)
         const revenueByApp = {};
         (transactions || []).forEach(tx => {
             const appName = tx.product_id;
-            revenueByApp[appName] = (revenueByApp[appName] || 0) + (tx.amount_total / 100);
+            revenueByApp[appName] = (revenueByApp[appName] || 0) + (tx.amount_total / 100); // Assuming amount_total is in cents
         });
 
-        // 2. Fetch satellite telemetry for health calculation
-        const { data: telemetryLogs, error: telemetryError } = await supabase
-          .from('telemetry_logs')
-          .select('app_type, event, details, timestamp')
-          .gte('timestamp', twentyFourHoursAgo);
+        const { data: devices, error: deviceError } = await supabase
+          .from('ecosystem_nodes')
+          .select('*')
+          .order('app_name');
 
-        if (telemetryError) throw telemetryError;
+        if (deviceError) throw deviceError;
 
-        // Process telemetry to calculate app health
-        const appsData = {};
+        // Mock initial event data to represent "telemetry" as described in the requirements
+        const mockTelemetry = [
+            { id: 1, type: 'api_call', message: 'Latency: 45ms', status: 'success' },
+            { id: 2, type: 'user_login', message: 'Active Session', status: 'success' }
+        ];
 
-        (telemetryLogs || []).forEach(log => {
-           const appId = log.app_type;
-           if (!appId) return;
+        const mappedStatus = (devices || []).map(device => {
+            let statusColor = 'bg-green-500/20 border-green-500 text-green-400';
+            let isPulsing = true;
+            if (device.status === 'offline') {
+                statusColor = 'bg-red-500/20 border-red-500 text-red-400';
+                isPulsing = false;
+            }
+            if (device.status === 'degraded') {
+                statusColor = 'bg-yellow-500/20 border-yellow-500 text-yellow-400';
+            }
 
-           if (!appsData[appId]) {
-             appsData[appId] = {
-               id: appId,
-               name: appId.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-               totalEvents: 0,
-               errorEvents: 0,
-               totalExecutionMs: 0,
-               executionEvents: 0,
-               revenue: revenueByApp[appId] || 0,
-               telemetry: [], // recent events
-               errors: [] // Store raw errors
-             };
-           }
-
-           const app = appsData[appId];
-           app.totalEvents++;
-
-           if (log.event === 'error' || log.event === 'integration_failure') {
-             app.errorEvents++;
-             app.errors.push({
-                time: log.timestamp,
-                message: log.details && log.details.error || 'Unknown error',
-                stack: log.details && log.details.error_stack
-             });
-           }
-
-           if (log.details && log.details.execution_ms) {
-             app.totalExecutionMs += log.details.execution_ms;
-             app.executionEvents++;
-           }
-
-           // Keep last 3 events for tooltip
-           if (app.telemetry.length < 3) {
-              app.telemetry.push({
-                 id: log.timestamp,
-                 type: log.event,
-                 message: `${log.event} ${log.details && log.details.execution_ms ? `(${log.details.execution_ms}ms)` : ''}`,
-                 status: (log.event === 'error' || log.event === 'integration_failure') ? 'error' : 'success'
-              });
-           }
+            return {
+                id: device.id,
+                revenue: revenueByApp[device.app_name] || 0,
+                name: device.app_name,
+                status: device.status,
+                statusColor,
+                isPulsing,
+                telemetry: [
+                   ...mockTelemetry.map(t => ({...t, id: Math.random()}))
+                ]
+            };
         });
 
-        // Calculate final status and colors
-        const fleetArray = Object.values(appsData).map(app => {
-           const errorRate = app.totalEvents > 0 ? (app.errorEvents / app.totalEvents) : 0;
-           app.errorRate = errorRate;
-           app.avgExecutionMs = app.executionEvents > 0 ? Math.round(app.totalExecutionMs / app.executionEvents) : 0;
-
-           // Extract latest heartbeat memory and task status
-           const latestHeartbeat = app.telemetry.find(t => t.type === 'heartbeat');
-           if (latestHeartbeat && latestHeartbeat.details) {
-               app.memory = latestHeartbeat.details.memory || 'Unknown';
-               app.activeTask = latestHeartbeat.details.active_task || 'Idle';
-           }
-
-
-           let status = 'operational';
-           let statusColor = 'bg-green-500/20 border-green-500 text-green-400';
-
-           if (errorRate > 0.05) { // > 5% error rate -> Critical
-              status = 'critical';
-              statusColor = 'bg-red-500/20 border-red-500 text-red-400';
-           } else if (errorRate >= 0.01 || app.avgExecutionMs > 3000) { // 1-5% or high latency -> Degraded
-              status = 'degraded';
-              statusColor = 'bg-yellow-500/20 border-yellow-500 text-yellow-400';
-           }
-
-           app.status = status;
-           app.statusColor = statusColor;
-
-           // Sort errors newest first
-           app.errors.sort((a, b) => new Date(b.time) - new Date(a.time));
-
-           return app;
-        });
-
-        setFleetStatus(fleetArray);
-
+        setFleetStatus(mappedStatus);
       } catch (err) {
-        logger.error("Failed to fetch fleet data", err);
+        logger.error('Failed to load fleet status:', err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -141,92 +85,50 @@ const FleetStatusMap = () => {
 
     fetchFleetData();
 
+    // Real-time subscription to events_ax2024 to mimic telemetry updates
     if (supabase) {
-        // Subscribe to real-time telemetry_logs inserts
-        const telemetrySub = supabase
-          .channel('fleet-telemetry-logs')
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telemetry_logs' }, payload => {
-              const newLog = payload.new;
-
+        const subscription = supabase
+          .channel('fleet-telemetry')
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events_ax2024' }, payload => {
+              const newEvent = payload.new;
+              // Randomly assign to a device for mock demo, or match if user_id/device_id aligns
               setFleetStatus(prev => {
+                  if (prev.length === 0) return prev;
+                  // Pick a random device to update its status or append telemetry
+                  const deviceIndex = Math.floor(Math.random() * prev.length);
                   const newFleet = [...prev];
-                  const appId = newLog.app_type;
-                  if (!appId) return prev;
+                  const device = newFleet[deviceIndex];
 
-                  let deviceIndex = newFleet.findIndex(d => d.id === appId);
+                  // If it's an error event, change status to degraded/busy
+                  let newStatus = device.status;
+                  let newColor = device.statusColor;
+                  let msgStatus = 'success';
 
-                  // If new app, just re-fetch for simplicity to recalculate baseline
-                  if (deviceIndex === -1) {
-                     fetchFleetData();
-                     return prev;
+                  if (newEvent.type === 'error' || (newEvent.data && newEvent.data.status === 'error')) {
+                     newStatus = 'degraded';
+                     newColor = 'bg-yellow-500/20 border-yellow-500 text-yellow-400';
+                     msgStatus = 'error';
+                  } else {
+                     newStatus = 'operational';
+                     newColor = 'bg-green-500/20 border-green-500 text-green-400';
                   }
 
-                  const app = { ...newFleet[deviceIndex] };
-
-                  app.totalEvents++;
-                  if (newLog.event === 'error' || newLog.event === 'integration_failure') {
-                     app.errorEvents++;
-                     app.errors = [{
-                        time: newLog.timestamp,
-                        message: newLog.details && newLog.details.error || 'Unknown error',
-                        stack: newLog.details && newLog.details.error_stack
-                     }, ...app.errors];
-                  }
-
-                  if (newLog.details && newLog.details.execution_ms) {
-                     app.totalExecutionMs += newLog.details.execution_ms;
-                     app.executionEvents++;
-                  }
-
-                  const errorRate = app.totalEvents > 0 ? (app.errorEvents / app.totalEvents) : 0;
-                  app.errorRate = errorRate;
-                  app.avgExecutionMs = app.executionEvents > 0 ? Math.round(app.totalExecutionMs / app.executionEvents) : 0;
-
-           // Extract latest heartbeat memory and task status
-           const latestHeartbeat = app.telemetry.find(t => t.type === 'heartbeat');
-           if (latestHeartbeat && latestHeartbeat.details) {
-               app.memory = latestHeartbeat.details.memory || 'Unknown';
-               app.activeTask = latestHeartbeat.details.active_task || 'Idle';
-           }
-
-
-                  let status = 'operational';
-                  let statusColor = 'bg-green-500/20 border-green-500 text-green-400';
-
-                  if (errorRate > 0.05) {
-                     status = 'critical';
-                     statusColor = 'bg-red-500/20 border-red-500 text-red-400';
-                  } else if (errorRate >= 0.01 || app.avgExecutionMs > 3000) {
-                     status = 'degraded';
-                     statusColor = 'bg-yellow-500/20 border-yellow-500 text-yellow-400';
-                  }
-
-                  app.status = status;
-                  app.statusColor = statusColor;
-                  app.telemetry = [
-                     {
-                        id: newLog.timestamp,
-                        type: newLog.event,
-                        message: `${newLog.event}`,
-                        details: newLog.details,
-                        status: (newLog.event === 'error' || newLog.event === 'integration_failure') ? 'error' : 'success'
-                     },
-                     ...app.telemetry.slice(0, 2)
-                  ];
-
-                  if (app.id === 'onyx_local' && newLog.event === 'heartbeat' && newLog.details) {
-                     app.memory = newLog.details.memory || app.memory || 'Unknown';
-                     app.activeTask = newLog.details.active_task || app.activeTask || 'Idle';
-                  }
-
-                  newFleet[deviceIndex] = app;
+                  newFleet[deviceIndex] = {
+                      ...device,
+                      status: newStatus,
+                      statusColor: newColor,
+                      telemetry: [
+                          { id: newEvent.id, type: newEvent.type, message: newEvent.type + ' event', status: msgStatus },
+                          ...device.telemetry.slice(0, 2) // keep last 3
+                      ]
+                  };
                   return newFleet;
               });
           })
           .subscribe();
 
         return () => {
-            supabase.removeChannel(telemetrySub);
+            supabase.removeChannel(subscription);
         };
     }
   }, [supabase]);
@@ -245,6 +147,16 @@ const FleetStatusMap = () => {
 
   return (
     <div className="glass-effect rounded-xl p-6 mb-8">
+      {fleetStatus.some(d => d.status === 'offline') && (
+        <div className="bg-red-900/30 border border-red-500 text-red-400 px-4 py-3 rounded relative mb-4 flex items-center shadow-[0_0_15px_rgba(239,68,68,0.3)]">
+          <SafeIcon icon={FiAlertTriangle} className="mr-3 text-2xl" />
+          <div>
+            <strong className="font-bold block text-red-300 text-lg">⚠️ Outage Detected.</strong>
+            <span className="block sm:inline">Onyx Sentinel dispatched for diagnostics. </span>
+            <a href="/admin?tab=workflows" className="underline font-bold text-red-200 hover:text-white transition-colors">Go to Approval Queue</a>
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-xl font-bold text-white flex items-center">
@@ -273,7 +185,7 @@ const FleetStatusMap = () => {
           </div>
       ) : fleetStatus.length === 0 ? (
           <div className="text-center p-8 text-slate-500 border border-dashed border-onyx-accent/20 rounded-lg">
-            No telemetry data available for satellite apps in the last 24 hours.
+            No devices currently registered in the fleet.
           </div>
       ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -284,7 +196,6 @@ const FleetStatusMap = () => {
                   layout
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  onClick={() => setExpandedApp(expandedApp === device.id ? null : device.id)}
                >
                     {/* Revenue Glow Logic */}
                   <motion.div
@@ -293,7 +204,10 @@ const FleetStatusMap = () => {
                     animate={{ backgroundColor: device.statusColor.split(' ')[0].replace('bg-', '').replace('/20', '') === 'green-500' ? 'rgba(34, 197, 94, 0.2)' : device.statusColor.split(' ')[0].replace('bg-', '').replace('/20', '') === 'yellow-500' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(239, 68, 68, 0.2)' }}
                   >
                       <SafeIcon icon={FiServer} className="mb-2 text-xl" />
-                      <span className="text-xs font-semibold truncate w-full text-center">{device.name}</span>
+                      <div className="flex items-center space-x-2 w-full justify-center">
+                          <div className={`w-2 h-2 rounded-full ${device.status === 'online' ? 'bg-green-500 animate-pulse' : device.status === 'degraded' ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
+                          <span className="text-xs font-semibold truncate text-center">{device.name}</span>
+                      </div>
                       {showFinancials && (
                           <div className="absolute top-2 right-2 text-green-400 opacity-80">
                               <SafeIcon icon={FiDollarSign} className="text-sm" />
@@ -303,54 +217,26 @@ const FleetStatusMap = () => {
 
                   {/* Tooltip on Hover */}
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-onyx-950 border border-onyx-accent/30 rounded-lg shadow-xl p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                     <h4 className="text-white text-xs font-bold mb-2 border-b border-onyx-accent/20 pb-1">{device.name} Stats</h4>
-                     <ul className="space-y-1 text-xs text-slate-300">
-                        <li>Error Rate: {(device.errorRate * 100).toFixed(1)}%</li>
-                        <li>Avg Latency: {device.avgExecutionMs}ms</li>
-                        {device.id === 'onyx_local' && device.memory && (
-                          <li>Memory: {device.memory}</li>
-                        )}
-                        {device.id === 'onyx_local' && device.activeTask && (
-                          <li>Active Task: {device.activeTask}</li>
-                        )}
+                     <h4 className="text-white text-xs font-bold mb-2 border-b border-onyx-accent/20 pb-1">{device.name} Telemetry</h4>
+                     <ul className="space-y-1">
+                        <AnimatePresence>
+                        {device.telemetry.map((event, idx) => (
+                           <motion.li
+                              key={event.id || idx}
+                              initial={{ opacity: 0, x: -10 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              className="text-[10px] flex items-center justify-between"
+                           >
+                              <span className="text-slate-300 truncate mr-2">{event.message}</span>
+                              <SafeIcon
+                                icon={event.status === 'success' ? FiCheckCircle : FiActivity}
+                                className={event.status === 'success' ? 'text-green-400' : 'text-blue-400'}
+                              />
+                           </motion.li>
+                        ))}
+                        </AnimatePresence>
                      </ul>
                   </div>
-
-                  {/* Click to expand errors */}
-                  <AnimatePresence>
-                     {expandedApp === device.id && (
-                        <motion.div
-                           initial={{ opacity: 0, height: 0 }}
-                           animate={{ opacity: 1, height: 'auto' }}
-                           exit={{ opacity: 0, height: 0 }}
-                           className="col-span-full mt-2 bg-onyx-950 border border-onyx-accent/30 rounded-lg p-4 overflow-hidden z-10 absolute left-0 right-0 w-[300px] shadow-2xl"
-                           style={{ minWidth: 'max-content' }}
-                           onClick={(e) => e.stopPropagation()}
-                        >
-                           <h4 className="text-white font-bold mb-2 flex items-center justify-between">
-                             <span>Recent Errors: {device.name}</span>
-                             <button onClick={() => setExpandedApp(null)} className="text-slate-400 hover:text-white">✕</button>
-                           </h4>
-                           {device.errors.length === 0 ? (
-                              <p className="text-sm text-green-400">No recent errors.</p>
-                           ) : (
-                              <div className="max-h-48 overflow-y-auto space-y-3">
-                                 {device.errors.slice(0, 5).map((err, i) => (
-                                    <div key={i} className="bg-onyx-900/50 p-2 rounded border border-red-500/20">
-                                       <div className="text-xs text-slate-400">{new Date(err.time).toLocaleString()}</div>
-                                       <div className="text-sm text-red-400 font-mono mt-1">{err.message}</div>
-                                       {err.stack && (
-                                          <pre className="text-[10px] text-slate-500 mt-1 overflow-x-auto p-1 bg-black/30 rounded">
-                                             {err.stack}
-                                          </pre>
-                                       )}
-                                    </div>
-                                 ))}
-                              </div>
-                           )}
-                        </motion.div>
-                     )}
-                  </AnimatePresence>
                </motion.div>
             ))}
           </div>

@@ -20,8 +20,8 @@ vi.mock('../../services/supabaseClient', () => ({
       select: vi.fn(() => ({
         order: vi.fn().mockResolvedValue({
           data: [
-            { app_id: 'test-app-1', is_active: true, status: 'Active' },
-            { app_id: 'test-app-2', is_active: false, status: 'Quarantined' }
+            { id: 1, app_name: 'test-app-1', status: 'online', health_endpoint_url: 'http://test1.com' },
+            { id: 2, app_name: 'test-app-2', status: 'offline', health_endpoint_url: 'http://test2.com' }
           ],
           error: null
         })
