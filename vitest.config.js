@@ -1,16 +1,23 @@
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
-import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@': '/app/src',
+    },
+  },
   test: {
-    globals: true,
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.js'],
-    exclude: ['**/node_modules/**', '**/dist/**', 'cloudflare-workers/tests/**'],
-    alias: {
-      '@': path.resolve(__dirname, './src')
-    }
-  }
+    globals: true,
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/cypress/**',
+      '**/.{idea,git,cache,output,temp}/**',
+      '**/cloudflare-workers/**'
+    ],
+  },
 })
