@@ -1,174 +1,48 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
-const supabase = createClient(
-  Deno.env.get('SUPABASE_URL') as string,
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string
-);
-
-const internalKey = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY') || 'fallback_internal_key';
-const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY'); // Assuming OpenAI is available, adjust if Gemini/Claude is preferred
-
 serve(async (req) => {
   // Simple auth for cron/internal triggering
   const authHeader = req.headers.get('Authorization');
-  if (authHeader !== `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`) {
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
+  if (authHeader !== `Bearer ${serviceRoleKey}`) {
     return new Response('Unauthorized', { status: 401 });
   }
 
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') as string,
+    serviceRoleKey
+  );
+
   try {
+    const { record } = await req.json();
 
-    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    if (record && record.event === 'ECOSYSTEM_NODE_DOWN') {
+      const appName = record.details.app_name;
 
-    // Sentinel Logic: onyx-sentinel should monitor api_usage_logs and satellite_telemetry
-    // If a specific app_id crosses a 5% error rate threshold within a 15-minute window,
-    // the Sentinel must trigger the auto-healer.
-
-    const { data: apiLogs, error: apiLogsError } = await supabase
-      .from('api_usage_logs')
-      .select('app_id, status_code')
-      .gte('timestamp', fifteenMinutesAgo);
-
-    if (apiLogsError) throw new Error(`Failed to fetch api usage logs: ${apiLogsError.message}`);
-
-    // Assuming satellite_pulses is equivalent to satellite_telemetry for this task based on migrations
-    const { data: satelliteLogs, error: satelliteError } = await supabase
-      .from('satellite_pulses')
-      .select('app_id, status')
-      .gte('timestamp', fifteenMinutesAgo);
-
-    if (satelliteError) throw new Error(`Failed to fetch satellite telemetry logs: ${satelliteError.message}`);
-
-    const appStats = {};
-
-    if (apiLogs) {
-        apiLogs.forEach(log => {
-            const appId = log.app_id || 'unknown';
-            if (!appStats[appId]) appStats[appId] = { total: 0, errors: 0 };
-            appStats[appId].total++;
-            if (log.status_code >= 400) appStats[appId].errors++;
-        });
-    }
-
-    if (satelliteLogs) {
-        satelliteLogs.forEach(log => {
-            const appId = log.app_id || 'unknown';
-            if (!appStats[appId]) appStats[appId] = { total: 0, errors: 0 };
-            appStats[appId].total++;
-            if (log.status === 'error' || log.status === 'failed') appStats[appId].errors++;
-        });
-    }
-
-    const anomalousApps = [];
-    for (const [appId, stats] of Object.entries(appStats)) {
-        if (stats.total > 0) {
-            const errorRate = stats.errors / stats.total;
-            if (errorRate > 0.05 && appId !== 'unknown') {
-                anomalousApps.push({ appId, errorRate, ...stats });
-            }
-        }
-    }
-
-    // Trigger auto-healer for anomalous apps
-    if (anomalousApps.length > 0) {
-        console.log(`Detected anomalies in ${anomalousApps.length} apps. Triggering auto-healer...`);
-        const autoHealerUrl = `${supabaseUrl}/functions/v1/auto-healer`;
-
-        for (const anomaly of anomalousApps) {
-            await fetch(autoHealerUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-                },
-                body: JSON.stringify({ anomaly })
-            });
-        }
-    }
-
-    const hasAnomalies = anomalousApps.length > 0;
-    if (!hasAnomalies) { return new Response(JSON.stringify({ status: 'ok', message: 'No critical anomalies detected.' }), { headers: { 'Content-Type': 'application/json' } }); }
-
-    const criticalLogs = [];
-    const failedJobs = anomalousApps;
-
-    console.log(`Anomalies detected: ${failedJobs?.length || 0} failed jobs, ${criticalLogs?.length || 0} critical logs.`);
-
-    // 3. Compile Data for LLM
-    const anomalyReport = {
-      failed_jobs: failedJobs,
-      critical_logs: criticalLogs,
-      timestamp: new Date().toISOString()
-    };
-
-    // 4. Ask LLM to generate urgent SMS
-    let alertMessage = "Sentinel Alert: Critical failures detected in the AXiM Core. Please check Mission Control immediately."; // Fallback
-
-    if (OPENAI_API_KEY) {
-      try {
-        const llmRes = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${OPENAI_API_KEY}`
-          },
-          body: JSON.stringify({
-            model: "gpt-3.5-turbo",
-            messages: [
-              {
-                role: "system",
-                content: "You are Onyx Sentinel, the AI guardian for AXiM Core. You monitor internal systems. Write a very short, urgent SMS text message (max 160 characters) to the Executive Admin alerting them to the following system failures. Be specific about which app is failing if possible."
-              },
-              {
-                role: "user",
-                content: JSON.stringify(anomalyReport)
-              }
-            ],
-            max_tokens: 60,
-            temperature: 0.2
-          })
-        });
-
-        if (llmRes.ok) {
-          const llmData = await llmRes.json();
-          if (llmData.choices && llmData.choices[0]?.message?.content) {
-            alertMessage = llmData.choices[0].message.content.trim();
-          }
-        } else {
-            console.error("LLM request failed:", await llmRes.text());
-        }
-      } catch (llmError) {
-        console.error("Error calling LLM:", llmError);
-      }
-    } else {
-        console.warn("OPENAI_API_KEY not set. Using fallback alert message.");
-    }
-
-    // 5. Dispatch SMS via universal-dispatcher
-    const dispatcherUrl = `${supabaseUrl}/functions/v1/universal-dispatcher`;
-    const dispatchRes = await fetch(dispatcherUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Axim-Internal-Service-Key': internalKey,
-      },
-      body: JSON.stringify({
-        target_service: 'sms',
-        action_type: 'send_sms',
+      const payload = {
+        action: 'system_outage',
+        status: 'pending',
+        user_id: 'system', // Internal system user
         payload: {
-          to: Deno.env.get('ADMIN_MOBILE_NUMBER') || '+10000000000', // Hardcoded requirement
-          message: alertMessage
-        },
-      }),
-    });
+          app_name: appName,
+          health_endpoint_url: record.details.health_endpoint_url,
+          timestamp: record.details.timestamp,
+          diagnostic: `Onyx Sentinel detected outage for ${appName}. Suggested actions: Restart Worker, Clear Cache, Rollback Migration.`
+        }
+      };
 
-    if (!dispatchRes.ok) {
-      throw new Error(`Failed to dispatch SMS alert: ${await dispatchRes.text()}`);
+      const { error } = await supabase.from('hitl_audit_logs').insert(payload);
+
+      if (error) {
+         console.error('Failed to insert HITL log:', error);
+         return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+      }
+
+      return new Response(JSON.stringify({ status: 'ok', message: 'HITL log created' }), { headers: { 'Content-Type': 'application/json' } });
     }
 
-    console.log(`Sentinel successfully dispatched SMS alert: "${alertMessage}"`);
-    return new Response(JSON.stringify({ status: 'alert_dispatched', message: alertMessage }), { headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ status: 'ignored', message: 'Not an ECOSYSTEM_NODE_DOWN event' }), { headers: { 'Content-Type': 'application/json' } });
 
   } catch (err: any) {
     console.error('Onyx Sentinel critical error:', err);
