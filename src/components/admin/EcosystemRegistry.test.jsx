@@ -1,18 +1,8 @@
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import EcosystemRegistry from './EcosystemRegistry';
-import api from '../../services/onyxAI/api';
-
-vi.mock('../../services/onyxAI/api', () => ({
-  default: {
-    getAllEcosystemApps: vi.fn().mockResolvedValue([
-      { app_id: 'test-app-1', is_active: true, status: 'Active' },
-      { app_id: 'test-app-2', is_active: false, status: 'Quarantined' }
-    ]),
-    updateEcosystemAppStatus: vi.fn().mockResolvedValue({})
-  }
-}));
+import { supabase } from '../../services/supabaseClient';
 
 vi.mock('../../services/supabaseClient', () => ({
   supabase: {
@@ -20,8 +10,8 @@ vi.mock('../../services/supabaseClient', () => ({
       select: vi.fn(() => ({
         order: vi.fn().mockResolvedValue({
           data: [
-            { app_id: 'test-app-1', is_active: true, status: 'Active' },
-            { app_id: 'test-app-2', is_active: false, status: 'Quarantined' }
+            { id: 1, app_name: 'test-app-1', health_endpoint_url: 'http://test1.com', status: 'operational' },
+            { id: 2, app_name: 'test-app-2', health_endpoint_url: 'http://test2.com', status: 'offline' }
           ],
           error: null
         })
@@ -42,12 +32,17 @@ describe('EcosystemRegistry Component', () => {
     vi.clearAllMocks();
   });
 
-  it('renders loading state initially', () => {
+  it('renders loading state initially', async () => {
     render(<EcosystemRegistry />);
     expect(screen.getByText('Loading registry...')).toBeInTheDocument();
+
+    // Wait for the state update from the initial fetch to clear the warning
+    await waitFor(() => {
+        expect(screen.queryByText('Loading registry...')).not.toBeInTheDocument();
+    });
   });
 
-  it('renders ecosystem apps after loading', async () => {
+  it('renders ecosystem nodes after loading', async () => {
     render(<EcosystemRegistry />);
 
     expect(await screen.findByText('test-app-1')).toBeInTheDocument();
