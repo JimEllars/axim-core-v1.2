@@ -1,56 +1,80 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
-import api from '../../services/onyxAI/api';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
-const { FiCheckCircle, FiXCircle, FiShield, FiAlertTriangle } = FiIcons;
+const { FiCheckCircle, FiXCircle, FiShield, FiAlertTriangle, FiPlus } = FiIcons;
 
 const EcosystemRegistry = () => {
-  const [apps, setApps] = useState([]);
+  const [nodes, setNodes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newNode, setNewNode] = useState({ app_name: '', health_endpoint_url: '' });
 
   useEffect(() => {
-    fetchApps();
+    fetchNodes();
   }, []);
 
-  const fetchApps = async () => {
+  const fetchNodes = async () => {
     setIsLoading(true);
     try {
-      const data = await api.getAllEcosystemApps();
-      const error = null;
+      const { data, error } = await supabase
+        .from('ecosystem_nodes')
+        .select('*')
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setApps(data || []);
+      setNodes(data || []);
     } catch (error) {
-      console.error('Error fetching ecosystem apps:', error);
-      toast.error('Failed to load ecosystem apps');
+      console.error('Error fetching ecosystem nodes:', error);
+      toast.error('Failed to load ecosystem nodes');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleToggleStatus = async (appId, currentStatus) => {
+  const handleAddNode = async (e) => {
+    e.preventDefault();
     try {
-      const newStatus = !currentStatus;
+      const { error } = await supabase
+        .from('ecosystem_nodes')
+        .insert([{
+           app_name: newNode.app_name,
+           health_endpoint_url: newNode.health_endpoint_url,
+           status: 'operational'
+        }]);
+      if (error) throw error;
+      toast.success('Node added successfully');
+      setNewNode({ app_name: '', health_endpoint_url: '' });
+      setShowAddForm(false);
+      fetchNodes();
+    } catch(error) {
+      console.error('Error adding node:', error);
+      toast.error('Failed to add node');
+    }
+  };
 
-      // Optimistic update
-      setApps(apps.map(app =>
-        app.app_id === appId ? { ...app, is_active: newStatus } : app
+  const handleToggleStatus = async (id, currentStatus) => {
+    try {
+      const newStatus = currentStatus === 'operational' ? 'offline' : 'operational';
+
+      setNodes(nodes.map(n =>
+        n.id === id ? { ...n, status: newStatus } : n
       ));
 
-      await api.updateEcosystemAppStatus(appId, newStatus);
-      const error = null;
+      const { error } = await supabase
+        .from('ecosystem_nodes')
+        .update({ status: newStatus })
+        .eq('id', id);
 
       if (error) throw error;
 
-      toast.success(`${appId} is now ${newStatus ? 'Active' : 'Quarantined'}`);
+      toast.success(`Node is now ${newStatus}`);
     } catch (error) {
-      console.error('Error toggling app status:', error);
-      toast.error('Failed to update app status');
-      // Revert on error
-      fetchApps();
+      console.error('Error toggling node status:', error);
+      toast.error('Failed to update node status');
+      fetchNodes();
     }
   };
 
@@ -70,14 +94,39 @@ const EcosystemRegistry = () => {
             Manage circuit breakers and quarantine state for Swarm micro-apps.
           </p>
         </div>
+        <button
+           onClick={() => setShowAddForm(!showAddForm)}
+           className="bg-onyx-accent hover:bg-onyx-accent/80 text-white px-4 py-2 rounded flex items-center text-sm"
+        >
+          <SafeIcon icon={FiPlus} className="mr-2" /> Add Node
+        </button>
       </div>
+
+      {showAddForm && (
+         <div className="bg-onyx-900 border border-onyx-accent/20 rounded-lg p-4 mb-6">
+            <form onSubmit={handleAddNode} className="flex gap-4 items-end">
+               <div className="flex-1">
+                 <label className="block text-xs text-slate-400 mb-1">App Name</label>
+                 <input type="text" required value={newNode.app_name} onChange={e => setNewNode({...newNode, app_name: e.target.value})} className="w-full bg-onyx-950 border border-onyx-accent/30 rounded px-3 py-2 text-white text-sm" />
+               </div>
+               <div className="flex-1">
+                 <label className="block text-xs text-slate-400 mb-1">Health Endpoint URL</label>
+                 <input type="url" required value={newNode.health_endpoint_url} onChange={e => setNewNode({...newNode, health_endpoint_url: e.target.value})} className="w-full bg-onyx-950 border border-onyx-accent/30 rounded px-3 py-2 text-white text-sm" />
+               </div>
+               <button type="submit" className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm">Save</button>
+            </form>
+         </div>
+      )}
 
       <div className="bg-onyx-900 border border-onyx-accent/20 rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-onyx-accent/20">
           <thead className="bg-onyx-950">
             <tr>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                App ID
+                App Name
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
+                Endpoint URL
               </th>
               <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
                 Status
@@ -88,41 +137,44 @@ const EcosystemRegistry = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-onyx-accent/20">
-            {apps.length === 0 ? (
+            {nodes.length === 0 ? (
               <tr>
-                <td colSpan="3" className="px-6 py-4 text-center text-slate-400 text-sm">
-                  No apps found in the registry.
+                <td colSpan="4" className="px-6 py-4 text-center text-slate-400 text-sm">
+                  No nodes found in the registry.
                 </td>
               </tr>
             ) : (
-              apps.map((app) => (
-                <tr key={app.app_id} className={!app.is_active ? 'bg-red-900/10' : ''}>
+              nodes.map((node) => (
+                <tr key={node.id} className={node.status === 'offline' ? 'bg-red-900/10' : ''}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
-                    {app.app_id}
+                    {node.app_name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                    {node.health_endpoint_url}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {app.is_active ? (
+                    {node.status === 'operational' ? (
                       <span className="inline-flex items-center text-green-400 bg-green-400/10 px-2 py-1 rounded-full">
                         <SafeIcon icon={FiCheckCircle} className="mr-1 h-3 w-3" />
-                        Active
+                        Operational
                       </span>
                     ) : (
                       <span className="inline-flex items-center text-red-400 bg-red-400/10 px-2 py-1 rounded-full">
                         <SafeIcon icon={FiAlertTriangle} className="mr-1 h-3 w-3" />
-                        Quarantined
+                        Offline
                       </span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <button
-                      onClick={() => handleToggleStatus(app.app_id, app.is_active)}
+                      onClick={() => handleToggleStatus(node.id, node.status)}
                       className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        app.is_active ? 'bg-onyx-accent' : 'bg-slate-600'
+                        node.status === 'operational' ? 'bg-onyx-accent' : 'bg-slate-600'
                       }`}
                     >
                       <span
                         className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          app.is_active ? 'translate-x-5' : 'translate-x-0'
+                          node.status === 'operational' ? 'translate-x-5' : 'translate-x-0'
                         }`}
                       />
                     </button>

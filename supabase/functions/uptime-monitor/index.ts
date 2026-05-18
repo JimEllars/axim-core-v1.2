@@ -1,73 +1,67 @@
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const MICRO_APPS = [
-  "https://quickdemandletter.com",
-  "https://your-nda-domain.com"
-];
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
-serve(async () => {
-    try {
-        const supabaseUrl = Deno.env.get('SUPABASE_URL');
-        const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
 
-        if (!supabaseUrl || !serviceRoleKey) {
-            console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
-            return new Response(JSON.stringify({ error: "Configuration error" }), { status: 500 });
-        }
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-        const failures: string[] = [];
+    const { data: nodes, error: fetchError } = await supabase
+      .from('ecosystem_nodes')
+      .select('*');
 
-        for (const url of MICRO_APPS) {
-            try {
-                const response = await fetch(url, { method: 'GET' });
-                if (!response.ok) {
-                    failures.push(url);
-                }
-            } catch (err) {
-                console.error(`Failed to reach ${url}:`, err);
-                failures.push(url);
-            }
-        }
+    if (fetchError) throw fetchError;
 
-        if (failures.length > 0) {
-            // Log to telemetry_logs
-            for (const url of failures) {
-                const logPayload = {
-                    event: 'uptime_failure',
-                    severity: 'CRITICAL',
-                    details: {
-                        url: url,
-                        timestamp: new Date().toISOString()
-                    }
-                };
+    const pingPromises = nodes.map(async (node) => {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-                const insertRes = await fetch(`${supabaseUrl}/rest/v1/telemetry_logs`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'apikey': serviceRoleKey,
-                        'Authorization': `Bearer ${serviceRoleKey}`
-                    },
-                    body: JSON.stringify(logPayload)
-                });
-
-                if (!insertRes.ok) {
-                    const errorText = await insertRes.text();
-                    console.error("Failed to insert telemetry log:", errorText);
-                }
-            }
-        }
-
-        return new Response(JSON.stringify({ message: "Uptime check completed", failures }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" }
+        const res = await fetch(node.health_endpoint_url, {
+            method: 'GET',
+            signal: controller.signal
         });
+        clearTimeout(timeoutId);
 
-    } catch (error) {
-        console.error("Uptime Monitor Error:", error);
-        return new Response(JSON.stringify({ error: "Internal server error" }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" }
-        });
-    }
+        if (res.ok) {
+           await supabase
+            .from('ecosystem_nodes')
+            .update({ status: 'operational', last_ping: new Date().toISOString() })
+            .eq('id', node.id);
+        } else {
+           await supabase
+            .from('ecosystem_nodes')
+            .update({ status: 'offline', last_ping: new Date().toISOString() })
+            .eq('id', node.id);
+        }
+      } catch (err) {
+        await supabase
+          .from('ecosystem_nodes')
+          .update({ status: 'offline', last_ping: new Date().toISOString() })
+          .eq('id', node.id);
+      }
+    });
+
+    await Promise.all(pingPromises);
+
+    return new Response(JSON.stringify({ success: true, message: 'Ping sweep completed' }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+    });
+  }
 });

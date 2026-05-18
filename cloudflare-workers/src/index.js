@@ -46,7 +46,6 @@ function handleOptions(request, env) {
   }
 }
 
-
 const rateLimitMap = new Map();
 
 function checkRateLimit(ip) {
@@ -78,7 +77,6 @@ function checkRateLimit(ip) {
   return true;
 }
 
-
 let lastCleanup = Date.now();
 function cleanupRateLimitMap(now) {
   if (now - lastCleanup > 60 * 1000) {
@@ -90,7 +88,6 @@ function cleanupRateLimitMap(now) {
     lastCleanup = now;
   }
 }
-
 
 export default {
   async fetch(request, env, ctx) {
@@ -123,7 +120,7 @@ export default {
            return cachedResponse;
         }
       }
-      // Add your existing GCP backend proxy logic here
+      // Proxy to GCP backend
       try {
         const targetUrl = new URL(request.url);
         const backendUrl = new URL(env.GCP_BACKEND_URL);
@@ -150,35 +147,10 @@ export default {
 
         return proxyResponse;
       } catch (error) {
-        return new Response("API Proxy Error", { status: 502 });
+        return new Response("API Proxy Error", { status: 502, headers: corsHeaders });
       }
     }
 
-    // 2. Static Asset Serving & SPA Fallback
-    try {
-      // Attempt to fetch the static asset requested (e.g., /assets/index.js, /login)
-      let response = await env.ASSETS.fetch(request);
-
-      // 3. Cache Control (Fixes the White Screen issue)
-      response = new Response(response.body, response);
-      let isFallback = false;
-      if (response.status === 404 && !url.pathname.startsWith('/assets/')) {
-        const indexRequest = new Request(new URL('/index.html', request.url), request);
-        response = await env.ASSETS.fetch(indexRequest);
-        isFallback = true;
-      }
-
-      // 3. Cache Control (Fixes the White Screen issue)
-      response = new Response(response.body, response);
-      if (url.pathname === '/' || url.pathname.endsWith('.html') || response.status === 404 || isFallback) {
-        response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-      } else if (url.pathname.startsWith('/assets/')) {
-        response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-      }
-
-      return response;
-    } catch (error) {
-      return new Response("Internal Server Error fetching assets", { status: 500 });
-    }
+    return new Response("Not Found", { status: 404, headers: corsHeaders });
   }
 };

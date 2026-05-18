@@ -70,32 +70,17 @@ describe("Edge Gateway Worker Integration Tests", () => {
     expect(await response.text()).toBe("Too Many Requests");
   });
 
-  it("A request to a non-existent frontend asset correctly returns the index.html fallback with Cache-Control: no-store", async () => {
+  it("A request to a non-API route correctly returns a 404 Not Found", async () => {
     const request = new Request("http://example.com/some/random/route", { method: "GET" });
     const ctx = createExecutionContext();
 
-    const mockAssetsFetch = vi.fn().mockImplementation(async (req) => {
-        if (req.url.endsWith("/index.html")) {
-            return new Response("index content", { status: 200 });
-        }
-        return new Response("Not found", { status: 404 });
-    });
-
     const testEnv = {
       ...env,
-      ASSETS: {
-          fetch: mockAssetsFetch
-      }
     };
 
     const response = await worker.fetch(request, testEnv, ctx);
 
-    expect(mockAssetsFetch).toHaveBeenCalledTimes(2);
-    expect(response.status).toBe(200);
-
-    const clonedResponse = new Response(response.body, response);
-    expect(await clonedResponse.text()).toBe("index content");
-
-    expect(response.headers.get("Cache-Control")).toBe("no-store, no-cache, must-revalidate, proxy-revalidate");
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("Not Found");
   });
 });

@@ -1,177 +1,55 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const supabase = createClient(
-  Deno.env.get('SUPABASE_URL') as string,
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string
-);
-
-const internalKey = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY') || 'fallback_internal_key';
-const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY'); // Assuming OpenAI is available, adjust if Gemini/Claude is preferred
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 serve(async (req) => {
-  // Simple auth for cron/internal triggering
-  const authHeader = req.headers.get('Authorization');
-  if (authHeader !== `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`) {
-    return new Response('Unauthorized', { status: 401 });
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const payload = await req.json();
 
-    // Sentinel Logic: onyx-sentinel should monitor api_usage_logs and satellite_telemetry
-    // If a specific app_id crosses a 5% error rate threshold within a 15-minute window,
-    // the Sentinel must trigger the auto-healer.
+    // Payload expected to come from database webhook on ecosystem_nodes update
+    // e.g. record = { id, app_name, status, ... }
+    if (payload && payload.record && payload.record.status === 'offline') {
+        const diagnosticPayload = {
+            message: `Node ${payload.record.app_name} (${payload.record.id}) is offline.`,
+            node_id: payload.record.id,
+            app_name: payload.record.app_name,
+            timestamp: new Date().toISOString()
+        };
 
-    const { data: apiLogs, error: apiLogsError } = await supabase
-      .from('api_usage_logs')
-      .select('app_id, status_code')
-      .gte('timestamp', fifteenMinutesAgo);
+        const { error: insertError } = await supabase
+            .from('hitl_audit_logs')
+            .insert([{
+                action_type: 'SYSTEM_ALERT',
+                status: 'pending',
+                details: diagnosticPayload,
+                user_id: null // System generated
+            }]);
 
-    if (apiLogsError) throw new Error(`Failed to fetch api usage logs: ${apiLogsError.message}`);
-
-    // Assuming satellite_pulses is equivalent to satellite_telemetry for this task based on migrations
-    const { data: satelliteLogs, error: satelliteError } = await supabase
-      .from('satellite_pulses')
-      .select('app_id, status')
-      .gte('timestamp', fifteenMinutesAgo);
-
-    if (satelliteError) throw new Error(`Failed to fetch satellite telemetry logs: ${satelliteError.message}`);
-
-    const appStats = {};
-
-    if (apiLogs) {
-        apiLogs.forEach(log => {
-            const appId = log.app_id || 'unknown';
-            if (!appStats[appId]) appStats[appId] = { total: 0, errors: 0 };
-            appStats[appId].total++;
-            if (log.status_code >= 400) appStats[appId].errors++;
-        });
-    }
-
-    if (satelliteLogs) {
-        satelliteLogs.forEach(log => {
-            const appId = log.app_id || 'unknown';
-            if (!appStats[appId]) appStats[appId] = { total: 0, errors: 0 };
-            appStats[appId].total++;
-            if (log.status === 'error' || log.status === 'failed') appStats[appId].errors++;
-        });
-    }
-
-    const anomalousApps = [];
-    for (const [appId, stats] of Object.entries(appStats)) {
-        if (stats.total > 0) {
-            const errorRate = stats.errors / stats.total;
-            if (errorRate > 0.05 && appId !== 'unknown') {
-                anomalousApps.push({ appId, errorRate, ...stats });
-            }
+        if (insertError) {
+             console.error("Failed to insert into hitl_audit_logs", insertError);
         }
     }
 
-    // Trigger auto-healer for anomalous apps
-    if (anomalousApps.length > 0) {
-        console.log(`Detected anomalies in ${anomalousApps.length} apps. Triggering auto-healer...`);
-        const autoHealerUrl = `${supabaseUrl}/functions/v1/auto-healer`;
-
-        for (const anomaly of anomalousApps) {
-            await fetch(autoHealerUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-                },
-                body: JSON.stringify({ anomaly })
-            });
-        }
-    }
-
-    const hasAnomalies = anomalousApps.length > 0;
-    if (!hasAnomalies) { return new Response(JSON.stringify({ status: 'ok', message: 'No critical anomalies detected.' }), { headers: { 'Content-Type': 'application/json' } }); }
-
-    const criticalLogs = [];
-    const failedJobs = anomalousApps;
-
-    console.log(`Anomalies detected: ${failedJobs?.length || 0} failed jobs, ${criticalLogs?.length || 0} critical logs.`);
-
-    // 3. Compile Data for LLM
-    const anomalyReport = {
-      failed_jobs: failedJobs,
-      critical_logs: criticalLogs,
-      timestamp: new Date().toISOString()
-    };
-
-    // 4. Ask LLM to generate urgent SMS
-    let alertMessage = "Sentinel Alert: Critical failures detected in the AXiM Core. Please check Mission Control immediately."; // Fallback
-
-    if (OPENAI_API_KEY) {
-      try {
-        const llmRes = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${OPENAI_API_KEY}`
-          },
-          body: JSON.stringify({
-            model: "gpt-3.5-turbo",
-            messages: [
-              {
-                role: "system",
-                content: "You are Onyx Sentinel, the AI guardian for AXiM Core. You monitor internal systems. Write a very short, urgent SMS text message (max 160 characters) to the Executive Admin alerting them to the following system failures. Be specific about which app is failing if possible."
-              },
-              {
-                role: "user",
-                content: JSON.stringify(anomalyReport)
-              }
-            ],
-            max_tokens: 60,
-            temperature: 0.2
-          })
-        });
-
-        if (llmRes.ok) {
-          const llmData = await llmRes.json();
-          if (llmData.choices && llmData.choices[0]?.message?.content) {
-            alertMessage = llmData.choices[0].message.content.trim();
-          }
-        } else {
-            console.error("LLM request failed:", await llmRes.text());
-        }
-      } catch (llmError) {
-        console.error("Error calling LLM:", llmError);
-      }
-    } else {
-        console.warn("OPENAI_API_KEY not set. Using fallback alert message.");
-    }
-
-    // 5. Dispatch SMS via universal-dispatcher
-    const dispatcherUrl = `${supabaseUrl}/functions/v1/universal-dispatcher`;
-    const dispatchRes = await fetch(dispatcherUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Axim-Internal-Service-Key': internalKey,
-      },
-      body: JSON.stringify({
-        target_service: 'sms',
-        action_type: 'send_sms',
-        payload: {
-          to: Deno.env.get('ADMIN_MOBILE_NUMBER') || '+10000000000', // Hardcoded requirement
-          message: alertMessage
-        },
-      }),
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
     });
-
-    if (!dispatchRes.ok) {
-      throw new Error(`Failed to dispatch SMS alert: ${await dispatchRes.text()}`);
-    }
-
-    console.log(`Sentinel successfully dispatched SMS alert: "${alertMessage}"`);
-    return new Response(JSON.stringify({ status: 'alert_dispatched', message: alertMessage }), { headers: { 'Content-Type': 'application/json' } });
-
-  } catch (err: any) {
-    console.error('Onyx Sentinel critical error:', err);
-    return new Response(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+    });
   }
 });
