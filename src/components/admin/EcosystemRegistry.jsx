@@ -4,7 +4,7 @@ import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
-const { FiCheckCircle, FiXCircle, FiShield, FiAlertTriangle, FiPlus } = FiIcons;
+const { FiCheckCircle, FiXCircle, FiShield, FiAlertTriangle, FiPlus, FiTrash2 } = FiIcons;
 
 const EcosystemRegistry = () => {
   const [nodes, setNodes] = useState([]);
@@ -74,6 +74,26 @@ const EcosystemRegistry = () => {
     } catch (error) {
       console.error('Error toggling node status:', error);
       toast.error('Failed to update node status');
+      fetchNodes();
+    }
+  };
+
+  const handleDeleteNode = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this node?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('ecosystem_nodes')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setNodes(nodes.filter(n => n.id !== id));
+      toast.success('Node deleted successfully');
+    } catch (error) {
+      console.error('Error deleting node:', error);
+      toast.error('Failed to delete node');
       fetchNodes();
     }
   };
@@ -177,6 +197,13 @@ const EcosystemRegistry = () => {
                           node.status === 'operational' ? 'translate-x-5' : 'translate-x-0'
                         }`}
                       />
+                    </button>
+
+                    <button
+                      onClick={() => handleDeleteNode(node.id)}
+                      className="ml-4 text-red-500 hover:text-red-700 focus:outline-none"
+                    >
+                      <SafeIcon icon={FiTrash2} className="h-5 w-5" />
                     </button>
                   </td>
                 </tr>
