@@ -25,27 +25,6 @@ function getCorsHeaders(request, env) {
   };
 }
 
-// Handle OPTIONS requests for CORS preflight
-function handleOptions(request, env) {
-  if (
-    request.headers.get('Origin') !== null &&
-    request.headers.get('Access-Control-Request-Method') !== null &&
-    request.headers.get('Access-Control-Request-Headers') !== null
-  ) {
-    // Handle CORS preflight requests
-    return new Response(null, {
-      headers: getCorsHeaders(request, env),
-    });
-  } else {
-    // Handle standard OPTIONS request
-    return new Response(null, {
-      headers: {
-        Allow: 'GET, HEAD, POST, OPTIONS',
-      },
-    });
-  }
-}
-
 const rateLimitMap = new Map();
 
 function checkRateLimit(ip) {
