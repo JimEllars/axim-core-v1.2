@@ -17,8 +17,8 @@ describe("Edge Gateway Worker Integration Tests", () => {
     const response = await worker.fetch(request, env, ctx);
 
     expect(response.status).toBe(204);
-    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("*");
-    expect(response.headers.get("Access-Control-Allow-Methods")).toBe("GET, POST, PUT, DELETE, OPTIONS");
+    expect(response.headers.get("Access-Control-Allow-Origin")).toBe("https://axim.us.com");
+    expect(response.headers.get("Access-Control-Allow-Methods")).toBe("GET, POST, PUT, PATCH, DELETE, OPTIONS");
   });
 
   it("A request to /api/mcp correctly proxies to the backend", async () => {

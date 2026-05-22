@@ -20,7 +20,7 @@ function getCorsHeaders(request, env) {
   return {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-axim-app-id',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Idempotency-Key, x-axim-app-id',
     'Access-Control-Max-Age': '86400',
   };
 }
@@ -70,11 +70,7 @@ function cleanupRateLimitMap(now) {
 
 export default {
   async fetch(request, env, ctx) {
-    const corsHeaders = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Idempotency-Key",
-    };
+    const corsHeaders = getCorsHeaders(request, env);
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders });
