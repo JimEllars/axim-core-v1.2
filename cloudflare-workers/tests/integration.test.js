@@ -21,6 +21,20 @@ describe("Edge Gateway Worker Integration Tests", () => {
     expect(response.headers.get("Access-Control-Allow-Methods")).toBe("GET, POST, PUT, PATCH, DELETE, OPTIONS");
   });
 
+  it("A request to /health returns a 200 JSON response", async () => {
+    const request = new Request("http://example.com/health", { method: "GET" });
+    const ctx = createExecutionContext();
+
+    const response = await worker.fetch(request, env, ctx);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("application/json");
+    const json = await response.json();
+    expect(json.status).toBe("ok");
+    expect(json.message).toBe("AXiM Core Cloudflare Worker is healthy");
+    expect(json.timestamp).toBeDefined();
+  });
+
   it("A request to /api/mcp correctly proxies to the backend", async () => {
     const mockFetch = vi.fn().mockResolvedValue(new Response("proxied response", { status: 200 }));
     globalThis.fetch = mockFetch;
@@ -70,7 +84,7 @@ describe("Edge Gateway Worker Integration Tests", () => {
     expect(await response.text()).toBe("Too Many Requests");
   });
 
-  it("A request to a non-API route correctly returns a 404 Not Found", async () => {
+  it("A request to a non-API route correctly returns a 404 JSON response with a helpful message", async () => {
     const request = new Request("http://example.com/some/random/route", { method: "GET" });
     const ctx = createExecutionContext();
 
@@ -81,6 +95,9 @@ describe("Edge Gateway Worker Integration Tests", () => {
     const response = await worker.fetch(request, testEnv, ctx);
 
     expect(response.status).toBe(404);
-    expect(await response.text()).toBe("Not Found");
+    expect(response.headers.get("Content-Type")).toBe("application/json");
+    const json = await response.json();
+    expect(json.error).toBe("Not Found");
+    expect(json.message).toBe("This Cloudflare Worker only handles /api/* routes. Frontend pages are served by Cloudflare Pages.");
   });
 });

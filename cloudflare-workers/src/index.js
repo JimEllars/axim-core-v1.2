@@ -84,6 +84,15 @@ export default {
       return new Response("Too Many Requests", { status: 429, headers: corsHeaders });
     }
 
+    // Health check endpoint
+    if (request.method === 'GET' && url.pathname === '/health') {
+      return new Response(JSON.stringify({
+        status: "ok",
+        message: "AXiM Core Cloudflare Worker is healthy",
+        timestamp: new Date().toISOString()
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     // 1. API Proxy Routing
     if (url.pathname.startsWith('/api/')) {
       // Edge Caching
@@ -98,7 +107,7 @@ export default {
       // Proxy to GCP backend
       try {
         const targetUrl = new URL(request.url);
-        const backendUrl = new URL(env.GCP_BACKEND_URL);
+        const backendUrl = new URL(env.GCP_BACKEND_URL || 'https://gcp.axim.us.com');
         targetUrl.hostname = backendUrl.hostname;
         targetUrl.port = backendUrl.port || '';
         targetUrl.protocol = backendUrl.protocol;
@@ -126,6 +135,9 @@ export default {
       }
     }
 
-    return new Response("Not Found", { status: 404, headers: corsHeaders });
+    return new Response(JSON.stringify({
+      error: "Not Found",
+      message: "This Cloudflare Worker only handles /api/* routes. Frontend pages are served by Cloudflare Pages."
+    }), { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 };
