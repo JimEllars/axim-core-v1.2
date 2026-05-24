@@ -123,5 +123,8 @@
     "publish": {
       "provider": "github"
     }
+  },
+  "comments": {
+    "vitest-version": "Locked to v2.1.8 due to esbuild externalize-deps incompatibility with @cloudflare/vitest-pool-workers 0.16.x when using vitest v3.x. Revisit when Cloudflare updates pool-workers compatibility."
   }
 }

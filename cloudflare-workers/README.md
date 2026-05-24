@@ -66,3 +66,15 @@ npm run tail
 - **Edge Caching:** Implement caching for frequently accessed, read-only data (like legal constants or jurisdiction details).
 - **Authentication Proxy:** Perform preliminary JWT/API key validation at the edge before hitting the origin server.
 - **Micro-App Routing:** Directly map external micro-app requests to their specific Supabase Edge Functions.
+
+
+## Testing
+
+Integration tests use Vitest v2.1.8 with @cloudflare/vitest-pool-workers@0.5.41
+for stability with the Cloudflare Workers runtime environment.
+
+## Health Check
+
+The worker exposes a `/health` endpoint for monitoring:
+- Returns worker status and sanitized configuration
+- Use for deployment verification
