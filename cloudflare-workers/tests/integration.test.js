@@ -3,31 +3,36 @@ import { spawn } from 'child_process';
 import { setTimeout } from 'timers/promises';
 
 let wranglerProcess;
-const WORKER_URL = 'http://127.0.0.1:8787'; // Wrangler dev default port
+const WORKER_URL = 'http://127.0.0.1:8788'; // Wrangler dev default port
 
 beforeAll(async () => {
   // Start wrangler dev in background
-  wranglerProcess = spawn('npx', ['wrangler', 'dev', '--port', '8787'], {
+  wranglerProcess = spawn('npx', ['wrangler', 'dev', '--port', '8788'], {
     cwd: process.cwd(),
     stdio: 'pipe'
   });
 
-  // Wait for worker to be ready (3 seconds)
-  await setTimeout(3000);
+  // Wait for worker to be ready
+  await setTimeout(5000);
 });
 
 afterAll(() => {
   if (wranglerProcess) {
-    wranglerProcess.kill();
+    wranglerProcess.kill('SIGINT');
   }
 });
 
 describe('Cloudflare Worker Integration', () => {
   it('should return 200 from /health endpoint', async () => {
-    const response = await fetch(`${WORKER_URL}/health`);
-    expect(response.status).toBe(200);
-    const data = await response.json();
-    expect(data.status).toBe('ok');
+    try {
+      const response = await fetch(`${WORKER_URL}/health`);
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data.status).toBe('ok');
+    } catch(error) {
+      console.error(error);
+      throw error;
+    }
   });
 
   it('should proxy /api/* routes to GCP backend', async () => {
