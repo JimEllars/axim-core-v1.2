@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > src/config.js
 // src/config.js
 
 const config = {
@@ -34,3 +35,4 @@ if (import.meta.env.MODE !== 'test') {
 }
 
 export default config;
+INNER_EOF

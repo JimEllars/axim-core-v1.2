@@ -128,7 +128,7 @@ describe('apiClient', () => {
       const endpoint = 'test/endpoint';
       const payload = { key: 'value' };
 
-      // Spy on console.error to prevent it from cluttering test output
+      // Spy on console.log to prevent it from cluttering test output
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       await expect(callCloudApi(endpoint, payload)).rejects.toEqual(expect.objectContaining({
@@ -148,7 +148,7 @@ describe('apiClient', () => {
       const endpoint = 'test/endpoint';
       const payload = { key: 'value' };
 
-      // Spy on console.error to prevent it from cluttering test output
+      // Spy on console.log to prevent it from cluttering test output
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       await expect(callCloudApi(endpoint, payload)).rejects.toEqual(expect.objectContaining({

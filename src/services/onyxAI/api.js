@@ -550,11 +550,15 @@ class ApiService {
       throw new Error('Onyx Edge Worker URL is not configured.');
     }
 
+    // Get the current user's session token to append
+    const { data: { session } } = await this.supabase.auth.getSession();
+    const token = secureKey;
+
     const response = await fetch(`${workerUrl}/api/v1/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + secureKey
+        'Authorization': 'Bearer ' + token
       },
       body: JSON.stringify(payload)
     });

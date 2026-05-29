@@ -152,6 +152,18 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     };
 
+    const handleOnlineWakeup = async () => {
+       console.log('Browser woke up or came online. Forcing silent token refresh.');
+       const { data: { session } } = await supabase.auth.getSession();
+       if (session) {
+           await supabase.auth.refreshSession();
+           const { data: refreshedSession } = await supabase.auth.getSession();
+           await handleSession(refreshedSession.session);
+       }
+    };
+    window.addEventListener('online', handleOnlineWakeup);
+
+
     getSession();
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
@@ -162,6 +174,7 @@ export const AuthProvider = ({ children }) => {
 
     return () => {
       authListener?.subscription.unsubscribe();
+      window.removeEventListener('online', handleOnlineWakeup);
     };
   }, [supabase, handleSession, loadUserSettings]);
 

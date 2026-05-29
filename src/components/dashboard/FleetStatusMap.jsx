@@ -101,7 +101,17 @@ const FleetStatusMap = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {fleetStatus.map(node => {
                const isOffline = node.status === 'offline';
-               const statusColor = isOffline ? 'bg-red-500/20 border-red-500 text-red-400' : 'bg-green-500/20 border-green-500 text-green-400';
+               const lastPingDelta = node.last_ping ? (Date.now() - new Date(node.last_ping).getTime()) / 1000 / 60 : 0;
+               const isDegraded = !isOffline && lastPingDelta > 3;
+
+               let statusColor = 'bg-green-500/20 border-green-500 text-green-400';
+               let displayStatus = node.status;
+               if (isOffline) {
+                   statusColor = 'bg-red-500/20 border-red-500 text-red-400';
+               } else if (isDegraded) {
+                   statusColor = 'bg-orange-500/20 border-orange-500 text-orange-400';
+                   displayStatus = 'Degraded/Unresponsive';
+               }
                return (
                <motion.div
                   key={node.id}
@@ -121,7 +131,7 @@ const FleetStatusMap = () => {
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-onyx-950 border border-onyx-accent/30 rounded-lg shadow-xl p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
                      <h4 className="text-white text-xs font-bold mb-2 border-b border-onyx-accent/20 pb-1">{node.app_name}</h4>
                      <ul className="space-y-1 text-xs text-slate-300">
-                        <li>Status: {node.status}</li>
+                        <li>Status: {displayStatus}</li>
                         <li>URL: {node.health_endpoint_url}</li>
                         {node.last_ping && <li>Last Ping: {new Date(node.last_ping).toLocaleTimeString()}</li>}
                      </ul>

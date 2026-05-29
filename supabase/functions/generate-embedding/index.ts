@@ -4,7 +4,7 @@ import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
@@ -71,12 +71,12 @@ serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ embedding, logged: !insertError }), {
-      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
-      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
