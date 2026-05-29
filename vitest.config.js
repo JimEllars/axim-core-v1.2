@@ -8,7 +8,7 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.js'],
-    exclude: ['**/node_modules/**', '**/dist/**', 'cloudflare-workers/tests/**'],
+    exclude: ['**/node_modules/**', '**/dist/**', ''],
     alias: {
       '@': path.resolve(__dirname, './src')
     }
