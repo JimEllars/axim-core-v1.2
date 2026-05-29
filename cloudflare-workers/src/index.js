@@ -153,7 +153,11 @@ export default {
 
     return new Response(JSON.stringify({ error: 'Frontend pages are served by Cloudflare Pages' }), {
         status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+        }
     });
   }
 };

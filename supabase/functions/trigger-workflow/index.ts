@@ -15,6 +15,16 @@ serve(async (req) => {
   try {
     const body = await req.json();
 
+    if (body.meta?.event_type === 'lead.created') {
+      const { error } = await supabaseAdmin.from('events_ax2024').insert({
+          type: 'workflow_executed',
+          data: { workflow: 'lead.created', trigger: 'webhook' }
+      });
+      return new Response(JSON.stringify({ success: true, message: 'lead.created workflow triggered.' }), {
+        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
 
     // Check for infrastructure monitor payload
     if (body.workflow === 'infrastructure-monitor') {

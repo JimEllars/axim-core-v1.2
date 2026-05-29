@@ -35,6 +35,46 @@ serve(async (req: Request) => {
     }
 
     const body = await req.json();
+
+    // Check if it's a webhook payload
+    if (body.meta?.event_type === 'lead.created') {
+       // Invoke trigger-workflow logic
+       const url = new URL(req.url);
+       const triggerWorkflowUrl = Deno.env.get('TRIGGER_WORKFLOW_URL') || `${url.protocol}//${url.host}/trigger-workflow`;
+
+       try {
+           const res = await fetch(triggerWorkflowUrl, {
+               method: 'POST',
+               headers: {
+                   'Content-Type': 'application/json',
+                   'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+                   'X-Axim-Internal-Service-Key': AXIM_SERVICE_KEY
+               },
+               body: JSON.stringify(body)
+           });
+
+           if (!res.ok) {
+              throw new Error(`trigger-workflow returned status ${res.status}`);
+           }
+
+           // Log the execution to api_usage_logs
+           const { sanitizePayload } = await import('./sanitization.ts');
+           await supabaseAdmin.from('api_usage_logs').insert({
+               event_id: body.meta?.event_id,
+               status: 'success',
+               workflow_triggered: true,
+               payload_scrubbed: sanitizePayload(body.data)
+           });
+
+           return new Response(JSON.stringify({ success: true, message: 'lead.created routed to trigger-workflow' }), {
+               status: 200,
+               headers: { ...corsHeaders, "Content-Type": "application/json" }
+           });
+       } catch(e) {
+           throw e;
+       }
+    }
+
     const { action_type, payload } = body;
 
     if (!action_type || !payload) {

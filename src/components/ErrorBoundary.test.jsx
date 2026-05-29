@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import ErrorBoundary from './ErrorBoundary';
 import { vi } from 'vitest';
 
@@ -41,12 +41,11 @@ describe('ErrorBoundary', () => {
     );
 
     // Check for correct fallback UI elements
-    expect(screen.getByText('Application Error')).toBeInTheDocument();
-    expect(screen.getByText(/A critical error occurred/)).toBeInTheDocument();
-    expect(screen.getByText(/Test Error/)).toBeInTheDocument(); // Check for the error message itself
+    expect(screen.getByText('We encountered an unexpected anomaly.')).toBeInTheDocument();
+    expect(screen.getByText(/Onyx has been notified/)).toBeInTheDocument();
   });
 
-  it('calls window.location.reload when "Refresh Page" is clicked', () => {
+  it('calls window.location.reload when "Safe Reload Dashboard" is clicked', () => {
     // Mock window.location.reload
     const reloadMock = vi.fn();
     Object.defineProperty(window, 'location', {
@@ -60,28 +59,8 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
 
-    fireEvent.click(screen.getByText('Refresh Page'));
+    fireEvent.click(screen.getByText('Safe Reload Dashboard'));
     expect(reloadMock).toHaveBeenCalledTimes(1);
   });
 
-  it('copies error details to clipboard when "Copy Details" is clicked', async () => {
-    // Mock navigator.clipboard.writeText
-    const writeTextMock = vi.fn().mockResolvedValue(undefined);
-    Object.defineProperty(navigator, 'clipboard', {
-      value: { writeText: writeTextMock },
-      writable: true,
-    });
-
-    render(
-      <ErrorBoundary>
-        <ProblematicComponent />
-      </ErrorBoundary>
-    );
-
-    fireEvent.click(screen.getByText('Copy Details'));
-
-    expect(writeTextMock).toHaveBeenCalledTimes(1);
-    // The component formats the error. We'll check that the core message is present.
-    expect(writeTextMock).toHaveBeenCalledWith(expect.stringContaining('Error: Test Error'));
-  });
 });

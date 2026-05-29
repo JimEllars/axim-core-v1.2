@@ -12,18 +12,42 @@ class ErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     console.error("Uncaught error:", error, errorInfo);
+
+    // Silently transmit the error to telemetry
+    setTimeout(async () => {
+      try {
+        const payload = {
+          event: "frontend_uncaught_error",
+          app_type: "axim-core-frontend",
+          details: {
+            error: error.toString(),
+            componentStack: errorInfo.componentStack,
+            userAgent: navigator.userAgent
+          }
+        };
+
+        const apiUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://api.axim.us.com';
+        await fetch(`${apiUrl}/functions/v1/telemetry-archiver`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (err) {
+        console.error("Failed to transmit error telemetry", err);
+      }
+    }, 100); // Brief timeout
   }
 
   render() {
     if (this.state.hasError) {
       return (
         <div className="min-h-screen bg-gradient-to-br from-red-900 via-slate-900 to-slate-900 flex items-center justify-center p-4 text-white">
-          <div className="glass-effect max-w-2xl w-full rounded-lg p-8 text-center">
-            <h1 className="text-3xl font-bold text-red-400 mb-4">Application Error</h1>
+          <div className="glass-effect max-w-2xl w-full rounded-lg p-8 text-center border border-red-500/30">
+            <h1 className="text-3xl font-bold text-red-400 mb-4">We encountered an unexpected anomaly.</h1>
             <p className="text-slate-300 mb-6">
-              A critical error occurred, and the application cannot continue. Please refresh the page or contact support if the problem persists.
+              Onyx has been notified. The system has paused to prevent further issues. Please reload the dashboard to continue.
             </p>
-            <div className="bg-onyx-950/50 border border-onyx-accent/20 rounded-md p-4 text-left mb-6">
+            <div className="bg-onyx-950/50 border border-onyx-accent/20 rounded-md p-4 text-left mb-6 hidden">
               <details>
                 <summary className="cursor-pointer text-slate-400 hover:text-white">
                   Error Details
@@ -36,18 +60,9 @@ class ErrorBoundary extends Component {
             <div className="flex justify-center space-x-4">
               <button
                 onClick={() => window.location.reload()}
-                className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors"
+                className="bg-red-600/80 hover:bg-red-500 text-white font-bold py-2 px-6 rounded transition-colors"
               >
-                Refresh Page
-              </button>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(this.state.error.toString());
-                  alert('Error details copied to clipboard!');
-                }}
-                className="bg-onyx-950 hover:bg-onyx-accent/10 text-white font-bold py-2 px-4 rounded transition-colors"
-              >
-                Copy Details
+                Safe Reload Dashboard
               </button>
             </div>
           </div>
