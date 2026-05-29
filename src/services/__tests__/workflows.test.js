@@ -10,12 +10,14 @@ const mockApi = {
 
 vi.doMock('../onyxAI/api', () => ({ default: mockApi }));
 
-// Import engine *after* mocking
-const { runWorkflow } = await import('../workflows/engine.js');
-
 describe('Workflow Engine', () => {
-    beforeEach(() => {
+    let runWorkflow;
+
+    beforeEach(async () => {
         vi.clearAllMocks();
+        // Import engine *after* mocking
+        const engine = await import('../workflows/engine.js');
+        runWorkflow = engine.runWorkflow;
     });
 
     it('should process a mocked webhook payload', async () => {
