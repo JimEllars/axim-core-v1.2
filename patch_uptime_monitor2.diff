@@ -1,9 +1,0 @@
---- supabase/functions/uptime-monitor/index.ts	2024-05-29 15:00:00.000000000 +0000
-+++ supabase/functions/uptime-monitor/index.ts	2024-05-29 15:01:00.000000000 +0000
-@@ -49,6 +49,8 @@
-           .update({ status: 'offline', last_ping: new Date().toISOString() })
-           .eq('id', node.id);
-+      } finally {
-+        clearTimeout(timeoutId);
-       }
-     });
