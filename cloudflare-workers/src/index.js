@@ -120,6 +120,11 @@ export default {
           proxyResponse.headers.set(key, corsHeaders[key]);
         });
 
+        // Bypass edge cache if no Cache-Control header is present from origin
+        if (!proxyResponse.headers.has('Cache-Control')) {
+          proxyResponse.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        }
+
         // Edge Caching Storage
         if (request.method === 'GET' && cacheableEndpoints.includes(url.pathname)) {
            // We clone it to put in cache
@@ -132,6 +137,18 @@ export default {
       } catch (error) {
         return new Response("API Proxy Error", { status: 502, headers: corsHeaders });
       }
+    }
+
+    // For standard fallback index files, enforce no-store header block
+    if (url.pathname === '/index.html' || url.pathname.endsWith('.html') || url.pathname === '/') {
+      return new Response(JSON.stringify({ error: 'Frontend pages are served by Cloudflare Pages' }), {
+        status: 404,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+        }
+      });
     }
 
     return new Response(JSON.stringify({ error: 'Frontend pages are served by Cloudflare Pages' }), {

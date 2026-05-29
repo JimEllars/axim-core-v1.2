@@ -121,17 +121,6 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const isMock = config.isMockLlmEnabled;
 
-    // Check for handoff_token
-    const params = new URLSearchParams(window.location.search);
-    const handoffToken = params.get('handoff_token');
-    if (handoffToken) {
-      setAximSessionToken(handoffToken);
-      localStorage.setItem('axim_session_token', handoffToken);
-      // Strip token from URL
-      params.delete('handoff_token');
-      window.history.replaceState({}, document.title, window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
-    }
-
     if (isMock) {
       setUser(MOCK_USER);
       setIsAuthenticated(true);

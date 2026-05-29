@@ -33,7 +33,7 @@ const AppLauncher = () => {
 
     // Pass session access_token securely
     if (session?.access_token) {
-        handoffUrl.searchParams.set('token', session.access_token);
+        handoffUrl.searchParams.set('handoff_token', session.access_token);
     }
 
     window.open(handoffUrl.toString(), '_blank');
