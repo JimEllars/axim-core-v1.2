@@ -18,5 +18,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
+      - name: Install Cloudflare Worker Dependencies
+        run: cd cloudflare-workers && npm install
+
+      - name: Run main project tests
         run: npm run test
