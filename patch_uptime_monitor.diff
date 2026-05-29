@@ -1,0 +1,26 @@
+--- supabase/functions/uptime-monitor/index.ts	2024-05-29 14:51:00.000000000 +0000
++++ supabase/functions/uptime-monitor/index.ts	2024-05-29 14:58:00.000000000 +0000
+@@ -23,13 +23,13 @@
+
+     const pingPromises = nodes.map(async (node) => {
++      let timeoutId;
+       try {
+         const controller = new AbortController();
+-        const timeoutId = setTimeout(() => controller.abort(), 5000);
++        timeoutId = setTimeout(() => controller.abort(), 5000);
+
+         const res = await fetch(node.health_endpoint_url, {
+             method: 'GET',
+             signal: controller.signal
+         });
+-        clearTimeout(timeoutId);
+
+         if (res.ok) {
+            await supabase
+@@ -48,6 +48,8 @@
+           .update({ status: 'offline', last_ping: new Date().toISOString() })
+           .eq('id', node.id);
++      } finally {
++        clearTimeout(timeoutId);
+       }
+     });

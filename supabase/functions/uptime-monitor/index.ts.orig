@@ -49,8 +49,6 @@ serve(async (req) => {
           .from('ecosystem_nodes')
           .update({ status: 'offline', last_ping: new Date().toISOString() })
           .eq('id', node.id);
-      } finally {
-        clearTimeout(timeoutId);
       }
     });
 
