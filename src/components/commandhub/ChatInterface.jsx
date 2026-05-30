@@ -166,12 +166,15 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
     };
 
 
+    let supabaseClient = null;
+    let channel = null;
+
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
     if (supabaseUrl && anonKey) {
-      const supabase = createClient(supabaseUrl, anonKey);
-      const channel = supabase.channel('onyx_ui_stream');
+      supabaseClient = createClient(supabaseUrl, anonKey);
+      channel = supabaseClient.channel('onyx_ui_stream');
 
       channel.on('broadcast', { event: 'message' }, (payload) => {
         const { worker_id, message, role, timestamp } = payload.payload;
@@ -322,8 +325,8 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      if (supabaseUrl && anonKey) {
-          // Just let the channel disconnect naturally or we would track the channel object to remove it here
+      if (channel && supabaseClient) {
+        supabaseClient.removeChannel(channel);
       }
     };
   }, []);

@@ -61,7 +61,7 @@ async function getApiKey(supabaseClient: any, userId: string, provider: string) 
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   const request_id = crypto.randomUUID();
@@ -78,14 +78,14 @@ serve(async (req) => {
     const userClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization')! } } }
+      { global: { headers: { Authorization: req.headers.get('Authorization') || '' } } }
     );
     const { data: { user }, error: userError } = await userClient.auth.getUser();
     if (userError || !user) {
       console.error(`[${request_id}] Unauthorized: User authentication failed.`, userError);
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -110,7 +110,7 @@ serve(async (req) => {
       console.error(`[${request_id}] Forbidden: API key for ${provider} not found for user ${user.id}.`);
        return new Response(JSON.stringify({ error: `API key for provider '${provider}' is not configured.` }), {
         status: 403,
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -119,13 +119,13 @@ serve(async (req) => {
       const content = await handler(apiKey, prompt, options);
       console.log(`[${request_id}] Successfully received response from ${provider}.`);
       return new Response(JSON.stringify({ content }), {
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     } catch (providerError) {
       console.error(`[${request_id}] Upstream provider error from ${provider}:`, providerError);
       return new Response(JSON.stringify({ error: `Error from upstream provider: ${providerError.message}` }), {
         status: 502, // Bad Gateway
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -133,7 +133,7 @@ serve(async (req) => {
     console.error(`[${request_id}] General llm-proxy error:`, error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400, // Bad Request for parsing errors or other client-side issues.
-      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

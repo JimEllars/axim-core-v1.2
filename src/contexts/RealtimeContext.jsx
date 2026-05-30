@@ -117,7 +117,21 @@ export const RealtimeProvider = ({ children }) => {
     setupTelemetryChannel();
     workflowListenerRef.current = listenForWorkflowEvents(supabase);
 
+    const handleOnline = () => {
+        console.log('RealtimeContext: Network online. Reconnecting WebSockets.');
+        if (hitlChannelRef.current) supabase.removeChannel(hitlChannelRef.current);
+        if (telemetryChannelRef.current) supabase.removeChannel(telemetryChannelRef.current);
+        if (workflowListenerRef.current) workflowListenerRef.current();
+
+        setupHitlChannel();
+        setupTelemetryChannel();
+        workflowListenerRef.current = listenForWorkflowEvents(supabase);
+    };
+
+    window.addEventListener('online', handleOnline);
+
     return () => {
+      window.removeEventListener('online', handleOnline);
       if (reconnectTimeouts.current.hitl) clearTimeout(reconnectTimeouts.current.hitl);
       if (reconnectTimeouts.current.telemetry) clearTimeout(reconnectTimeouts.current.telemetry);
       if (hitlChannelRef.current) supabase.removeChannel(hitlChannelRef.current);

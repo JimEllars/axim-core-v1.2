@@ -164,13 +164,18 @@ const JobQueueMonitor = () => {
                 <td className="px-6 py-4 text-gray-400 text-xs">
                   {new Date(job.created_at).toLocaleString()}
                 </td>
-                <td className="px-6 py-4">
+                                <td className="px-6 py-4">
                   <div className="text-xs text-gray-400 mb-1">
                     Email: {job.payload?.customer_email || 'N/A'}
                   </div>
                   {job.error_log && (
-                    <div className="text-xs text-red-400 bg-red-900/20 p-2 rounded max-h-16 overflow-y-auto w-64">
-                      {job.error_log}
+                    <div className="text-xs text-red-400 bg-red-900/20 p-2 rounded max-h-32 overflow-y-auto w-80">
+                      <pre className="whitespace-pre-wrap break-words">{typeof job.error_log === 'object' ? JSON.stringify(job.error_log, null, 2) : job.error_log}</pre>
+                    </div>
+                  )}
+                  {job.status === 'failed' && job.payload && (
+                    <div className="mt-2 text-xs text-blue-300 bg-blue-900/20 p-2 rounded max-h-32 overflow-y-auto w-80">
+                      <pre className="whitespace-pre-wrap break-words">{JSON.stringify(job.payload, null, 2)}</pre>
                     </div>
                   )}
                 </td>

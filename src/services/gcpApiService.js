@@ -11,7 +11,7 @@ class GcpApiService {
 
   async initialize() {
     try {
-      this.client = axios.create({
+      if (!config.apiBaseUrl) { this.client = null; return; } this.client = axios.create({
         baseURL: config.apiBaseUrl,
         headers: {
           'Content-Type': 'application/json',
@@ -39,7 +39,7 @@ class GcpApiService {
   // --- Contacts ---
 
   async addContact(name, email, source = 'command_hub', userId, id = null) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const payload = { name, email, source, userId };
       if (id) payload.id = id;
@@ -52,7 +52,7 @@ class GcpApiService {
   }
 
   async searchMemory(queryEmbedding, limit = 5, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post('/interactions/memory', {
         embedding: queryEmbedding, limit, userId
@@ -65,7 +65,7 @@ class GcpApiService {
   }
 
   async listAllContacts(options = {}, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
         const { filter = {}, ...otherOptions } = options;
         const params = {
@@ -82,7 +82,7 @@ class GcpApiService {
   }
 
   async deleteContact(email, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       // Backend expects userId in body
       if (!userId) throw new Error('User ID required for deleteContact');
@@ -95,7 +95,7 @@ class GcpApiService {
   }
 
   async getDevices() {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/devices');
       return response.data;
@@ -106,7 +106,7 @@ class GcpApiService {
   }
 
   async getContacts(searchTerm, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/contacts/search', { params: { q: searchTerm, userId } });
       return response.data;
@@ -117,7 +117,7 @@ class GcpApiService {
   }
 
   async getContactByEmail(email) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
         const response = await this.client.get(`/contacts/email/${email}`);
         return response.data;
@@ -128,7 +128,7 @@ class GcpApiService {
   }
 
   async deleteContactById(id, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       // Assuming backend supports ID based deletion or we need to look it up.
       // For now, let's try the standard REST pattern.
@@ -142,7 +142,7 @@ class GcpApiService {
   }
 
   async updateContact(email, updates, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       if (!userId) throw new Error('User ID required for updateContact');
       const response = await this.client.patch(`/contacts/${email}`, { ...updates, userId });
@@ -154,7 +154,7 @@ class GcpApiService {
   }
 
   async updateContactById(id, updates, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       if (!userId) throw new Error('User ID required for updateContactById');
       const response = await this.client.patch(`/contacts/${id}`, { ...updates, userId });
@@ -168,7 +168,7 @@ class GcpApiService {
   // --- Notes ---
 
   async createNote(contactId, content, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post(`/contacts/${contactId}/notes`, { content, userId });
       return response.data;
@@ -179,7 +179,7 @@ class GcpApiService {
   }
 
   async getNotesForContact(contactId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get(`/contacts/${contactId}/notes`);
       return response.data;
@@ -190,7 +190,7 @@ class GcpApiService {
   }
 
   async deleteNote(noteId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.delete(`/notes/${noteId}`);
       return response.data;
@@ -203,7 +203,7 @@ class GcpApiService {
   // --- Integrations ---
 
   async listAPIIntegrations() {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/integrations');
       return response.data;
@@ -214,7 +214,7 @@ class GcpApiService {
   }
 
   async getIntegrationsWithStats() {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/integrations?stats=true');
       return response.data;
@@ -225,7 +225,7 @@ class GcpApiService {
   }
 
   async deleteIntegration(id) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.delete(`/integrations/${id}`);
       return response.data;
@@ -238,7 +238,7 @@ class GcpApiService {
   // --- Workflows ---
 
   async getWorkflows() {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/workflows');
       return response.data;
@@ -258,7 +258,7 @@ class GcpApiService {
   // --- Users ---
 
   async getUsers() {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/users');
       return response.data;
@@ -269,7 +269,7 @@ class GcpApiService {
   }
 
   async updateUserRole(userId, role) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.patch(`/users/${userId}/role`, { role });
       return response.data;
@@ -280,7 +280,7 @@ class GcpApiService {
   }
 
   async deleteUser(userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.delete(`/users/${userId}`);
       return response.data;
@@ -291,7 +291,7 @@ class GcpApiService {
   }
 
   async getUserProfile(userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get(`/users/${userId}/profile`);
       return response.data;
@@ -305,7 +305,7 @@ class GcpApiService {
   // --- AI Interactions ---
 
   async logAIInteraction(command, response, executionTime, status, userId, conversationId, commandType, llmProvider, llmModel, embedding = null) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       await this.client.post('/interactions', {
         command, response, executionTime, status, userId, conversationId, commandType, llmProvider, llmModel, embedding
@@ -317,7 +317,7 @@ class GcpApiService {
   }
 
   async logEvent(type, eventData, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       await this.client.post('/events', { type, data: eventData, userId });
     } catch (error) {
@@ -327,7 +327,7 @@ class GcpApiService {
   }
 
   async logWorkflowExecution(workflowName, data) {
-     this._ensureInitialized();
+     if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
      try {
        const response = await this.client.post('/workflows/log', { workflowName, data });
        return response.data;
@@ -338,7 +338,7 @@ class GcpApiService {
   }
 
   async getChatHistoryForUser(userId, conversationId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/interactions/history', {
         params: { userId, conversationId }
@@ -351,7 +351,7 @@ class GcpApiService {
   }
 
   async searchChatHistory(query, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/interactions/search', {
         params: { q: query, userId }
@@ -365,7 +365,7 @@ class GcpApiService {
 
 
   async verifyApiKey(apiKey) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post('/api-keys/verify', { apiKey });
       return response.data;
@@ -376,7 +376,7 @@ class GcpApiService {
   }
 
   async getDiscoveryCapabilities() {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/discovery/capabilities');
       return response.data;
@@ -395,7 +395,7 @@ class GcpApiService {
   }
 
   async resolveHitlAction(logId, status, actionPayload = null) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post('/hitl/resolve', { logId, status, actionPayload });
       return response.data;
@@ -406,7 +406,7 @@ class GcpApiService {
   }
 
   async getHitlAuditLog(logId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get(`/hitl/${logId}`);
       return response.data;
@@ -418,7 +418,7 @@ class GcpApiService {
 
 
   async updateEcosystemAppStatus(appId, newStatus) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.patch(`/ecosystem/apps/${appId}`, { is_active: newStatus });
       return response.data;
@@ -429,7 +429,7 @@ class GcpApiService {
   }
 
   async getAllEcosystemApps() {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/ecosystem/apps');
       return response.data;
@@ -441,7 +441,7 @@ class GcpApiService {
 
 
   async getApiKeys(userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/api-keys', { params: { userId } });
       return response.data;
@@ -452,7 +452,7 @@ class GcpApiService {
   }
 
   async getPartnerCredit(userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/partner-credits', { params: { userId } });
       return response.data;
@@ -463,7 +463,7 @@ class GcpApiService {
   }
 
   async generateB2BApiKey(serviceName, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post('/api-keys/b2b', { serviceName, userId });
       return response.data;
@@ -474,7 +474,7 @@ class GcpApiService {
   }
 
   async addApiKey(keyData, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post('/api-keys', { ...keyData, userId });
       return response.data;
@@ -485,7 +485,7 @@ class GcpApiService {
   }
 
   async updateApiKey(apiKey) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.patch(`/api-keys/${apiKey.id}`, apiKey);
       return response.data;
@@ -496,7 +496,7 @@ class GcpApiService {
   }
 
   async deleteApiKey(id) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.delete(`/api-keys/${id}`);
       return response.data;
@@ -508,7 +508,7 @@ class GcpApiService {
 
 
   async submitProductFeedback(feedback) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post('/feedback', feedback);
       return response.data;
@@ -519,7 +519,7 @@ class GcpApiService {
   }
 
   async getProductFeedback() {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/feedback');
       return response.data;
@@ -532,7 +532,7 @@ class GcpApiService {
 // --- External Service Proxies ---
 
   async initiateTranscription(source, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post('/integrations/transcribe', { source, userId });
       return response.data;
@@ -543,7 +543,7 @@ class GcpApiService {
   }
 
   async assignCanvasserToTurf(contactEmail, turfName, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post('/integrations/ground-game', { contactEmail, turfName, userId });
       return response.data;
@@ -554,7 +554,7 @@ class GcpApiService {
   }
 
   async invokeAximService(serviceName, endpoint, payload, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post('/integrations/invoke', { serviceName, endpoint, payload, userId });
       return response.data;
@@ -568,7 +568,7 @@ class GcpApiService {
   // --- Devices ---
 
   async listDevices(userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/devices', { params: { userId } });
       return response.data;
@@ -579,7 +579,7 @@ class GcpApiService {
   }
 
   async registerDevice(deviceId, deviceName, systemInfo, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post('/devices', { id: deviceId, device_name: deviceName, system_info: systemInfo, userId });
       return response.data;
@@ -590,7 +590,7 @@ class GcpApiService {
   }
 
   async updateDevice(deviceId, updates, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       if (!userId) throw new Error('User ID required for updateDevice');
       const response = await this.client.patch(`/devices/${deviceId}`, { updates, userId });
@@ -602,7 +602,7 @@ class GcpApiService {
   }
 
   async deleteDevice(deviceId, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       if (!userId) throw new Error('User ID required for deleteDevice');
       const response = await this.client.delete(`/devices/${deviceId}`, { data: { userId } });
@@ -614,7 +614,7 @@ class GcpApiService {
   }
 
   async sendDeviceHeartbeat(deviceId, systemInfo) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post(`/devices/${deviceId}/heartbeat`, { system_info: systemInfo });
       return response.data;
@@ -628,7 +628,7 @@ class GcpApiService {
   // --- Dashboard Metrics ---
 
   async getDashboardMetrics() {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/metrics/dashboard');
       return response.data;
@@ -641,7 +641,7 @@ class GcpApiService {
   // --- Project Management ---
 
   async createProject(name, description, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post('/projects', { name, description, userId });
       return response.data;
@@ -652,7 +652,7 @@ class GcpApiService {
   }
 
   async listProjects(userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get('/projects', { params: { userId } });
       return response.data;
@@ -663,7 +663,7 @@ class GcpApiService {
   }
 
   async listTasksForProject(projectId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.get(`/projects/${projectId}/tasks`);
       return response.data;
@@ -674,7 +674,7 @@ class GcpApiService {
   }
 
   async updateTaskStatus(taskId, status) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.patch(`/tasks/${taskId}`, { updates: { status } });
       return response.data;
@@ -687,7 +687,7 @@ class GcpApiService {
   // --- Email ---
 
   async sendEmail(to, subject, body, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post('/email/send', { to, subject, body, userId });
       return response.data;
@@ -700,7 +700,7 @@ class GcpApiService {
   // --- Automations ---
 
   async createAutomation(command, schedule, userId) {
-    this._ensureInitialized();
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
     try {
       const response = await this.client.post('/automations', { command, schedule, userId });
       return response.data;
