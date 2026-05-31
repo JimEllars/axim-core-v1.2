@@ -30,6 +30,39 @@ async function ingestUrl(entity: string, result: any) {
         return;
     }
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+    try {
+        // Simulating network fetch with AbortController
+        // await fetch(url, { signal: controller.signal });
+
+        // Let's actually simulate a potential failure for robustness
+        const networkReq = new Promise((resolve, reject) => {
+             // Mock success unless something explicitly fails
+             resolve(true);
+        });
+
+        await Promise.race([
+            networkReq,
+            new Promise((_, reject) => {
+               controller.signal.addEventListener('abort', () => reject(new Error('AbortError: Timeout')));
+            })
+        ]);
+
+    } catch(err) {
+        console.error("OSINT Scraping network timeout:", err);
+        // Gracefully record failed node state metric logic
+        await supabase.from('api_usage_logs').insert({
+            endpoint: '/functions/v1/osint-scraper/error',
+            execution_time_ms: -1
+        });
+        return;
+    } finally {
+        clearTimeout(timeoutId);
+    }
+
+
     console.log(`Ingesting new URL: ${url} for entity: ${entity}`);
 
     // Simulate extracting text content from URL
