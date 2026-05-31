@@ -26,6 +26,43 @@ export const workflowDefinitions = {
             },
             context.userId
           );
+          return { message: "Pushed lead to CRM", data: res };
+        }
+      },
+      {
+        name: "Create Tracking Task",
+        type: "api_call",
+        action: async (context) => {
+          const title = `Follow up with Solar Lead: ${context.eventData?.name || 'Unknown'}`;
+          const res = await api.createTaskForProject(title, 'Powur Affiliate Tracking', context.userId, `Intent: ${context.eventData?.intent || 'None'}`);
+          return { message: "Created tracking task in PM", data: res };
+        }
+      },
+      {
+        name: "Dispatch Welcome Email",
+        type: "email",
+        action: async (context) => {
+          const email = context.eventData?.email;
+          if (!email) {
+            throw new Error("No email provided in event data");
+          }
+          const link = context.eventData?.affiliate_program === 'seller' ? 'https://powur.com/axim/solar-careers' : 'https://powur.com/axim/solar';
+          const body = `Welcome to Powur! Here is your affiliate link: ${link}`;
+          await api.sendEmail(email, 'Welcome to Powur Solar!', body, context.userId);
+          return { message: "Dispatched welcome email" };
+        }
+      },
+      {
+        name: "Wait for Event",
+        type: "wait_for_event",
+        config: {
+          event_type: "email_opened_or_clicked",
+          timeout_hours: 48
+        }
+      }
+    ]
+  },
+
 
   UNIFIRST_PROSPECT_RESEARCH: {
     name: "UniFirst Prospect Research",
@@ -68,7 +105,6 @@ export const workflowDefinitions = {
         type: "api_call",
         action: async (context) => {
           const profile = context["Generate Analytical Profile"]?.data?.response || "";
-          // The CRM service handles masking for telemetry internally.
           const res = await api.invokeAximService(
             "albato-connector",
             "/sync",
@@ -83,43 +119,6 @@ export const workflowDefinitions = {
             context.userId
           );
           return { message: "Synced to CRM", data: res };
-        }
-      }
-    ]
-  },
-
-          return { message: "Pushed lead to CRM", data: res };
-        }
-      },
-      {
-        name: "Create Tracking Task",
-        type: "api_call",
-        action: async (context) => {
-          const title = `Follow up with Solar Lead: ${context.eventData?.name || 'Unknown'}`;
-          const res = await api.createTaskForProject(title, 'Powur Affiliate Tracking', context.userId, `Intent: ${context.eventData?.intent || 'None'}`);
-          return { message: "Created tracking task in PM", data: res };
-        }
-      },
-      {
-        name: "Dispatch Welcome Email",
-        type: "email",
-        action: async (context) => {
-          const email = context.eventData?.email;
-          if (!email) {
-            throw new Error("No email provided in event data");
-          }
-          const link = context.eventData?.affiliate_program === 'seller' ? 'https://powur.com/axim/solar-careers' : 'https://powur.com/axim/solar';
-          const body = `Welcome to Powur! Here is your affiliate link: ${link}`;
-          await api.sendEmail(email, 'Welcome to Powur Solar!', body, context.userId);
-          return { message: "Dispatched welcome email" };
-        }
-      },
-      {
-        name: "Wait for Event",
-        type: "wait_for_event",
-        config: {
-          event_type: "email_opened_or_clicked",
-          timeout_hours: 48
         }
       }
     ]
