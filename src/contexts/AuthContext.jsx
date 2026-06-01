@@ -30,7 +30,7 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  const { supabase } = useSupabase();
+  const { supabase, connectionError } = useSupabase();
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -51,7 +51,11 @@ export const AuthProvider = ({ children }) => {
       const userSettings = await api.getUserSettings(currentUser.id);
       setSettings(userSettings);
     } catch (error) {
-      toast.error("Failed to load user settings.");
+      if (error?.code?.startsWith('PGRST') || error?.message?.includes('relation') || error?.message?.includes('does not exist')) {
+        toast.error('Ecosystem Data Schema Cache Mismatch. Please execute schema reload sequence.', { duration: Infinity, id: 'schema-mismatch' });
+      } else {
+        toast.error("Failed to load user settings.");
+      }
       setSettings({}); // Default to empty object on error
     }
   }, []);
@@ -96,11 +100,17 @@ export const AuthProvider = ({ children }) => {
       try {
         let currentRole = currentUser.app_metadata?.role;
         if (!currentRole) {
-           const { data: roleData } = await supabase.from('user_roles').select('role').eq('user_id', currentUser.id).maybeSingle();
+           const { data: roleData, error: roleError } = await supabase.from('user_roles').select('role').eq('user_id', currentUser.id).maybeSingle();
+           if (roleError && (roleError?.code?.startsWith('PGRST') || roleError?.message?.includes('does not exist'))) {
+             toast.error('Ecosystem Data Schema Cache Mismatch. Please execute schema reload sequence.', { duration: Infinity, id: 'schema-mismatch' });
+           }
            if (roleData?.role) {
                currentRole = roleData.role;
            } else {
-               const { data: pubUser } = await supabase.from('users').select('role').eq('id', currentUser.id).maybeSingle();
+               const { data: pubUser, error: pubUserError } = await supabase.from('users').select('role').eq('id', currentUser.id).maybeSingle();
+               if (pubUserError && (pubUserError?.code?.startsWith('PGRST') || pubUserError?.message?.includes('does not exist'))) {
+                 toast.error('Ecosystem Data Schema Cache Mismatch. Please execute schema reload sequence.', { duration: Infinity, id: 'schema-mismatch' });
+               }
                if (pubUser?.role) currentRole = pubUser.role;
            }
         }
@@ -147,7 +157,10 @@ export const AuthProvider = ({ children }) => {
     };
 
     const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error && (error?.code?.startsWith('PGRST') || error?.message?.includes('does not exist'))) {
+        toast.error('Ecosystem Data Schema Cache Mismatch. Please execute schema reload sequence.', { duration: Infinity, id: 'schema-mismatch' });
+      }
       await handleSession(session);
       setLoading(false);
     };
@@ -210,6 +223,9 @@ export const AuthProvider = ({ children }) => {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       console.log('[AuthContext] Supabase response data:', data, 'error:', error);
       if (error) {
+        if (error?.code?.startsWith('PGRST') || error?.message?.includes('does not exist')) {
+          toast.error('Ecosystem Data Schema Cache Mismatch. Please execute schema reload sequence.', { duration: Infinity, id: 'schema-mismatch' });
+        }
         console.error('[AuthContext] Login error from Supabase:', error);
         throw error;
       }

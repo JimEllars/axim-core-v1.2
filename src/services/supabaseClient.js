@@ -44,4 +44,8 @@ try {
   }
 }
 
+// Add an interceptor to global fetch in case we want to catch PGREST errors early,
+// but since supabase-js does its own fetch, we wrap select/update methods instead if needed.
+// For now, AuthContext and SupabaseContext are handling the UI banner.
+
 export const supabase = client;

@@ -1,4 +1,5 @@
 import api from '../onyxAI/api';
+import { sanitizePayload } from '../../utils/sanitization.js';
 
 class SuitedashCrm {
   constructor(integration) {
@@ -22,6 +23,14 @@ class SuitedashCrm {
       ...options,
       headers: this.headers,
     };
+
+    if (options.body) {
+        const sanitizedBody = sanitizePayload(JSON.parse(options.body));
+        await api.supabaseApiService.supabase.from('api_usage_logs').insert({
+            endpoint: `/crm/suitedash${endpoint}`,
+            payload_scrubbed: sanitizedBody
+        });
+    }
 
     const response = await api.invokeAximService('api-proxy', '', {
       integrationId: this.integration.id,
@@ -104,6 +113,12 @@ class SuitedashCrm {
         }));
 
       if (contactsToImport.length > 0) {
+        const sanitizedContacts = sanitizePayload(contactsToImport);
+        await api.supabaseApiService.supabase.from('api_usage_logs').insert({
+            endpoint: '/crm/suitedash/sync',
+            payload_scrubbed: sanitizedContacts
+        });
+
         const result = await api.bulkAddContacts(contactsToImport, undefined);
         addedCount = result ? result.length : contactsToImport.length;
       }

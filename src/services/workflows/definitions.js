@@ -89,7 +89,17 @@ export const workflowDefinitions = {
         type: "api_call",
         action: async (context) => {
           const rawData = context["OSINT Scrape"]?.data || {};
-          const prompt = `Analyze this OSINT data for a UniFirst prospect in Longview, TX region. Highlight garment needs, decision-makers, competitors, and target initiatives: ${JSON.stringify(rawData)}`;
+          const targetDomain = context.eventData?.target_domain || "prospect";
+
+          const prompt = `Analyze this OSINT data for a UniFirst prospect in Longview, TX region.
+Data: ${JSON.stringify(rawData)}
+
+Apply the UniFirst Lens Schema:
+1. Territory Boundaries: Map the business location against the Longview, TX territory parameters (covering the Longview region to the LA/TX border across zips: 75654, 75667, 75633, 75643, 75681, 75639, 75669, 75652, 75631, 75691, 75684, 75662, 75603, 75672, 75602, 75692, 75661, 75657, 75630, 75683, 75640, 75651, 75670, 75672, 75604, 75695).
+2. Program Assessment: Audit the prospect's operations for uniform rental potential (weekly laundering/washing needs) or uniform lease potential (standard look without weekly cleaning) to steer them away from costly, non-recurring direct purchase configurations.
+3. Facility Items: Identify opportunities for ancillary facility items (mats, mops, direct hygiene inventory checks) to prime the sales representative for an initial Customer Needs Analysis (CNA) appointment format.
+
+Format the aggregated data object, output all discovered search tags in a strict comma-separated format.`;
 
           const res = await api.invokeAximService(
             "onyx-bridge",
@@ -98,6 +108,36 @@ export const workflowDefinitions = {
             context.userId
           );
           return { message: "Profile generated", data: res };
+        }
+      },
+      {
+        name: "Generate PDF Profile Artifact",
+        type: "api_call",
+        action: async (context) => {
+          const profileData = context["Generate Analytical Profile"]?.data?.response || "";
+
+          const res = await api.invokeAximService(
+            "universal-dispatcher",
+            "",
+            {
+              action_type: "generate_pdf_artifact",
+              payload: {
+                content: profileData,
+                bucket: "secure_artifacts",
+                filename: `unifirst_prospect_${Date.now()}.pdf`
+              }
+            },
+            context.userId
+          );
+
+          // Flash status to UI (if running in a context with access to a toast/notification system)
+          if (typeof window !== 'undefined' && window.dispatchEvent) {
+            window.dispatchEvent(new CustomEvent('axim:flash-status', {
+               detail: { message: "UniFirst Profile PDF Generated & Saved to Secure Artifacts Bucket" }
+            }));
+          }
+
+          return { message: "PDF Generated", data: res };
         }
       },
       {
