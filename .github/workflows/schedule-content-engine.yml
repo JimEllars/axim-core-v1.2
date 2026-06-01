@@ -41,5 +41,6 @@ jobs:
             -H "Content-Type: application/json" \
             -d "$PAYLOAD"
         env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
