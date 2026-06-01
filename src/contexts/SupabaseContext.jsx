@@ -23,11 +23,22 @@ export const SupabaseProvider = ({ children, client = null }) => {
       try {
         const { error } = await supabaseClient.from('events_ax2024').select('*', { count: 'exact', head: true });
         if (error && !error.message.includes('relation "events_ax2024" does not exist')) {
+          if (error?.code?.startsWith('PGRST') || error?.message?.includes('does not exist')) {
+             toast.error('Ecosystem Data Schema Cache Mismatch. Please execute schema reload sequence.', { duration: Infinity, id: 'schema-mismatch' });
+          }
           throw error;
+        }
+        if (error && error.message.includes('relation "events_ax2024" does not exist')) {
+           toast.error('Ecosystem Data Schema Cache Mismatch. Please execute schema reload sequence.', { duration: Infinity, id: 'schema-mismatch' });
+           // we don't throw so it doesn't hard block, just shows banner
         }
         setConnectionError(null);
       } catch (error) {
-        toast.error("Supabase connection error.");
+        if (error?.code?.startsWith('PGRST') || error?.message?.includes('does not exist')) {
+          toast.error('Ecosystem Data Schema Cache Mismatch. Please execute schema reload sequence.', { duration: Infinity, id: 'schema-mismatch' });
+        } else {
+          toast.error("Supabase connection error.");
+        }
         setConnectionError(error);
       } finally {
         setIsConnectionChecked(true);

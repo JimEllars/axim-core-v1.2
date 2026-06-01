@@ -1,4 +1,5 @@
 import api from '../onyxAI/api';
+import { sanitizePayload } from '../../utils/sanitization.js';
 
 class GenericCrm {
   constructor(integration) {
@@ -28,6 +29,13 @@ class GenericCrm {
         email: contact.email,
         source: this.integration.name
       }));
+
+      const sanitizedContacts = sanitizePayload(contactsToImport);
+      await api.supabaseApiService.supabase.from('api_usage_logs').insert({
+          endpoint: '/crm/genericCrm/sync',
+          payload_scrubbed: sanitizedContacts
+      });
+
       // Note: We use undefined for userId to let the API handle the current user
       const result = await api.bulkAddContacts(contactsToImport, undefined);
       // Assuming result is an array of added contacts

@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > src/services/supabaseClient.js
 import { createClient } from '@supabase/supabase-js';
 import config from '../config';
 
@@ -49,3 +50,4 @@ try {
 // For now, AuthContext and SupabaseContext are handling the UI banner.
 
 export const supabase = client;
+INNER_EOF

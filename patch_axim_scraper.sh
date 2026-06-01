@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > supabase/functions/axim-scraper/index.ts
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
@@ -186,3 +187,4 @@ serve(async (req) => {
         });
     }
 });
+INNER_EOF
