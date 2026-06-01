@@ -1,1 +1,0 @@
-sed -i 's/const cacheableEndpoints = \['\''\/api\/system\/capabilities'\'', '\''\/api\/providers\/status'\''\];/const cacheableEndpoints = \['\''\/api\/system\/capabilities'\'', '\''\/api\/providers\/status'\''\];/g' cloudflare-workers/src/index.js

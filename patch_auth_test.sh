@@ -1,1 +1,0 @@
-sed -i 's/const response = await fetch(\`\${import.meta.env.VITE_SUPABASE_URL}\/functions\/v1\/passport-verify\`, {/const response = await fetch("https:\/\/example.com\/functions\/v1\/passport-verify", {/' src/contexts/AuthContext.jsx
