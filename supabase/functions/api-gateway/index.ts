@@ -1,90 +1,84 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { generatePdf } from '../_shared/pdf-generators/index.ts';
+import { notifyOnyx } from '../_shared/telemetry.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
-const INTERNAL_SERVICE_KEY = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY') as string || 'fallback_internal_key'; // Default if not set
+const INTERNAL_SERVICE_KEY = Deno.env.get('X_AXIM_INTERNAL_SERVICE_KEY');
+const corsOrigin = Deno.env.get('CORS_ORIGIN');
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-// Rate Limiter
-const rateLimitMap = new Map<string, { count: number, resetTime: number }>();
-const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT_WINDOW = 60 * 1000;
 const MAX_REQUESTS = 100;
+const ipRequestCounts = new Map<string, { count: number; resetTime: number }>();
 
 function checkRateLimit(ip: string): boolean {
   const now = Date.now();
-  const record = rateLimitMap.get(ip);
-
-  if (!record) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
+  const record = ipRequestCounts.get(ip);
+  if (!record || now > record.resetTime) {
+    ipRequestCounts.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
     return true;
   }
-
-  if (now > record.resetTime) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
-    return true;
-  }
-
   if (record.count >= MAX_REQUESTS) {
     return false;
   }
-
   record.count++;
   return true;
 }
 
-// Payload depth checker
+async function logSecurityAnomaly(reason: string, metadata: any = {}) {
+    console.warn(`[Security Anomaly] ${reason}`, metadata);
+    if (typeof EdgeRuntime !== 'undefined') {
+         EdgeRuntime.waitUntil(
+            supabaseAdmin.from('telemetry_logs').insert({
+                event: 'security_anomaly',
+                app_type: 'api-gateway',
+                timestamp: new Date().toISOString(),
+                details: { reason, ...metadata }
+            })
+        );
+    }
+}
+
 function getDepth(obj: any): number {
-  if (obj && typeof obj === 'object') {
+    if (typeof obj !== 'object' || obj === null) return 0;
     let depth = 0;
     for (const key in obj) {
-      depth = Math.max(depth, getDepth(obj[key]));
+        depth = Math.max(depth, getDepth(obj[key]));
     }
     return depth + 1;
+}
+
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
   }
-  return 0;
+  return btoa(binary);
 }
 
-async function notifyOnyx(endpoint: string, status: number, details: any) {
-    // Dummy notify function
-    console.error(`Onyx Alert: ${status} on ${endpoint}`, details);
+// Convert base64 back to Uint8Array
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const len = binaryString.length;
+  const bytes = new Uint8Array(len);
+  for (let i = 0; i < len; i++) {
+      bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
 }
 
-const ALLOWED_ORIGINS = [
-  'https://quickdemandletter.com',
-  'https://your-nda-domain.com'
-];
 
 serve(async (req) => {
+  const url = new URL(req.url);
+  const endpoint = url.pathname;
+  let securityHeaders: Record<string, string>;
 
-  async function logSecurityAnomaly(reason: string, details: any = {}) {
-    const ip = req.headers.get('CF-Connecting-IP') || req.headers.get('x-forwarded-for') || 'unknown';
-    console.warn(`Security Anomaly: ${reason} from IP: ${ip}`);
-    if (typeof EdgeRuntime !== 'undefined') {
-      EdgeRuntime.waitUntil(
-        supabaseAdmin.from('telemetry_logs').insert({
-          event: 'security_anomaly',
-          app_type: 'api-gateway',
-          severity: 'HIGH',
-          timestamp: new Date().toISOString(),
-          ip_address: ip,
-          endpoint: endpoint,
-          details: { reason, ...details }
-        })
-      );
-    }
-  }
-
-  const startTime = Date.now();
-  const endpoint = new URL(req.url).pathname;
-
-  const origin = req.headers.get('origin');
-  let corsOrigin = ALLOWED_ORIGINS.includes(origin || '') ? origin : ALLOWED_ORIGINS[0];
-
-  const securityHeaders = {
-    'Access-Control-Allow-Origin': corsOrigin || '',
+  securityHeaders = {
+    'Access-Control-Allow-Origin': corsOrigin || '*',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, X-Axim-Internal-Service-Key',
     'Strict-Transport-Security': 'max-age=31536000; includeSubDomains'
@@ -251,6 +245,96 @@ serve(async (req) => {
         headers: { ...securityHeaders, 'Content-Type': 'application/json' }
       });
     }
+
+    // New telemetry endpoint for micro-apps
+    if (req.method === 'POST' && endpoint === '/api/v1/telemetry/micro-app') {
+      EdgeRuntime.waitUntil(
+        supabaseAdmin.from('telemetry_logs').insert({
+          event: 'micro_app_telemetry',
+          app_type: body.app_id || 'unknown_micro_app',
+          timestamp: new Date().toISOString(),
+          details: {
+             status: body.status,
+             execution_time_ms: body.execution_time_ms,
+             error: body.error,
+             partner_id: partnerId
+          }
+        })
+      );
+
+      // Also log to api_usage_logs for RCA trigger compatibility
+      if (body.error || body.status === 'failed') {
+          EdgeRuntime.waitUntil(
+            supabaseAdmin.from('api_usage_logs').insert({
+                api_key_id: apiKeyId,
+                partner_id: partnerId,
+                endpoint: endpoint,
+                status_code: 500,
+                compute_ms: -1, // trigger quarantine
+                created_at: new Date().toISOString()
+            })
+          );
+      }
+
+      return new Response(JSON.stringify({ success: true, message: 'Micro-app telemetry logged' }), {
+        status: 202,
+        headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    // New artifacts sync endpoint for micro-apps
+    if (req.method === 'POST' && endpoint === '/api/v1/artifacts/sync') {
+       if (!body.artifact_base64 || !body.file_name) {
+           return new Response(JSON.stringify({ error: 'Missing artifact_base64 or file_name' }), {
+              status: 400,
+              headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+           });
+       }
+
+       const pdfBytes = base64ToUint8Array(body.artifact_base64);
+       const fileName = `synced_${Date.now()}_${body.file_name}`;
+
+       const { error: uploadError } = await supabaseAdmin.storage
+          .from('secure_artifacts')
+          .upload(fileName, pdfBytes, {
+             contentType: body.content_type || 'application/pdf',
+             upsert: false
+          });
+
+       if (uploadError) {
+          throw new Error(`Failed to store synced artifact: ${uploadError.message}`);
+       }
+
+       // Log to api_usage_logs explicitly as required
+       if (typeof EdgeRuntime !== 'undefined') {
+         EdgeRuntime.waitUntil(
+           supabaseAdmin.from('api_usage_logs').insert({
+             api_key_id: apiKeyId,
+             partner_id: partnerId,
+             endpoint: endpoint,
+             status_code: 200,
+             created_at: new Date().toISOString()
+           })
+         );
+       }
+
+       const { data: signedUrlData, error: urlError } = await supabaseAdmin.storage
+          .from('secure_artifacts')
+          .createSignedUrl(fileName, 900);
+
+       if (urlError || !signedUrlData) {
+          throw new Error('Failed to generate signed URL for synced artifact');
+       }
+
+       return new Response(JSON.stringify({
+          success: true,
+          download_url: signedUrlData.signedUrl
+       }), {
+          status: 200,
+          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+       });
+    }
+
 
     if (req.method === 'POST' && endpoint === '/api/v1/external-webhook') {
       const eventSource = body.event_source;

@@ -9,10 +9,10 @@ const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') as string, {
 
 const cryptoProvider = Stripe.createSubtleCryptoProvider();
 
-const supabase = createClient(
-  Deno.env.get('SUPABASE_URL') as string,
-  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string
-);
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 serve(async (req) => {
   const signature = req.headers.get('Stripe-Signature');
@@ -42,8 +42,8 @@ serve(async (req) => {
         const userId = session.client_reference_id; // Ensure this is passed during checkout creation
 
         if (userId) {
-             const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-             await upsertSubscription(userId, customerId, subscription);
+             const subscription = await stripe.subscriptions.retrieve(subscriptionId as string);
+             await upsertSubscription(userId, customerId as string, subscription);
         } else {
              console.warn(`Checkout session ${session.id} completed without client_reference_id (userId).`);
         }
@@ -54,10 +54,49 @@ serve(async (req) => {
         const amountTotal = session.amount_total;
         const customerEmail = session.customer_details?.email;
         const appId = session.metadata?.app_id;
+        const digitalProductTag = session.metadata?.digital_product_tag; // e.g. 'Audio-to-Text transcriptions'
 
         if (userId && productId) {
           const partnerId = session.metadata?.partner_id;
-          await recordOneTimePurchase(userId, productId, amountTotal, session.id, partnerId, appId);
+          await recordOneTimePurchase(userId, productId, amountTotal || 0, session.id, partnerId, appId);
+
+          if (digitalProductTag && customerEmail) {
+            // Autonomously invoke send-email for digital delivery
+             try {
+                console.log(`[Stripe Webhook] Digital product detected (${digitalProductTag}). Invoking send-email...`);
+                const downloadLink = `https://axim.us.com/portal/downloads?session=${session.id}`; // Example dynamic link
+                const emailHtml = `
+                  <h2>Thank you for your purchase!</h2>
+                  <p>Your digital product (<strong>${digitalProductTag}</strong>) is ready.</p>
+                  <p><a href="${downloadLink}" style="padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px;">Access Your Product</a></p>
+                  <p>If you have any issues, please contact support.</p>
+                `;
+
+                const sendEmailUrl = `${SUPABASE_URL}/functions/v1/send-email`;
+                const emailRes = await fetch(sendEmailUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+                    },
+                    body: JSON.stringify({
+                        to: customerEmail,
+                        subject: `Your AXiM Digital Product Receipt: ${digitalProductTag}`,
+                        body: emailHtml,
+                        app_source: digitalProductTag
+                    })
+                });
+
+                if (!emailRes.ok) {
+                    console.error(`[Stripe Webhook] Failed to send digital product email: ${await emailRes.text()}`);
+                } else {
+                    console.log(`[Stripe Webhook] Digital product email sent successfully to ${customerEmail}.`);
+                }
+
+             } catch(e) {
+                 console.error('Error invoking send-email for digital product', e);
+             }
+          }
 
           if (customerEmail) {
             try {
@@ -143,7 +182,7 @@ async function updateSubscription(subscription: any) {
 
     if (error) {
         console.error('Error updating subscription:', error);
-    } else if (data.length === 0) {
+    } else if (data && data.length === 0) {
         console.warn(`Subscription ${subscription.id} not found for update. This might be a race condition or the initial subscription record was not created.`);
     } else {
         console.log(`Subscription updated successfully: ${subscription.id}`);
