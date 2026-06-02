@@ -4,7 +4,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 import reactRefresh from 'eslint-plugin-react-refresh';
 
 export default [
-  { ignores: ['dist', 'public/wink-model/**', 'cloudflare-workers/.wrangler/**', 'cloudflare-workers/dist/**'] },
+  { ignores: ['dist', 'public/wink-model/**', 'cloudflare-workers/.wrangler/**'] },
   js.configs.recommended,
 
   // Configuration for React source files
