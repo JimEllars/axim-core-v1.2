@@ -152,7 +152,7 @@ const SpreadsheetImport = () => {
       setColumnMap(initialMap);
     }
 
-    const reader = new FileReader();
+    const reader = new window.FileReader();
 
     reader.onload = async (evt) => {
       const fileContent = evt.target.result;
