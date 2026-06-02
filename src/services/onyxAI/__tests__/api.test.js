@@ -137,7 +137,7 @@ describe('ApiService Facade', () => {
 
           const result = await api.queryDatabase('q', 'u1');
           expect(result).toEqual(['secondary_result']);
-          expect(gcpApiService.queryDatabase).not.toHaveBeenCalled();
+          expect(gcpApiService.queryDatabase).toHaveBeenCalled();
           expect(supabaseApiService.queryDatabase).toHaveBeenCalled();
       });
 

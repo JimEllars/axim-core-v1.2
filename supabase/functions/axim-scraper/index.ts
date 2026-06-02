@@ -26,22 +26,21 @@ async function ingestPost(post: any) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
+    let postText = post.text;
+
     try {
-        // Simulating network fetch with AbortController
-        // await fetch(post.url, { signal: controller.signal });
+        const networkReq = fetch(post.url, { signal: controller.signal });
 
-        // Let's actually simulate a potential failure for robustness
-        const networkReq = new Promise((resolve, reject) => {
-             // Mock success unless something explicitly fails
-             resolve(true);
-        });
-
-        await Promise.race([
+        const response = await Promise.race([
             networkReq,
             new Promise((_, reject) => {
                controller.signal.addEventListener('abort', () => reject(new Error('AbortError: Timeout')));
             })
-        ]);
+        ]) as Response;
+
+        if (response.ok) {
+            postText = await response.text();
+        }
 
     } catch(err) {
         console.error("Social Scraping network timeout:", err);
@@ -55,13 +54,12 @@ async function ingestPost(post: any) {
         clearTimeout(timeoutId);
     }
 
-
     console.log(`Ingesting new post: ${postId}`);
 
     // 2. Dynamic AI Classification
     let domain = 'axim_systems';
     try {
-        const prompt = `Analyze the following social media post text and classify its domain. If it is about politics, the working class, automation dividends, or American Tax Credit, return {"domain": "ellars_political"}. Otherwise, if it is about business, technology, automation, or AXiM Systems, return {"domain": "axim_systems"}. Return ONLY valid JSON.\n\nPost Text: ${post.text}`;
+        const prompt = `Analyze the following social media post text and classify its domain. If it is about politics, the working class, automation dividends, or American Tax Credit, return {"domain": "ellars_political"}. Otherwise, if it is about business, technology, automation, or AXiM Systems, return {"domain": "axim_systems"}. Return ONLY valid JSON.\n\nPost Text: ${postText.substring(0, 5000)}`;
 
         const llmRes = await fetch(llmProxyUrl, {
             method: 'POST',
@@ -101,7 +99,7 @@ async function ingestPost(post: any) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${supabaseKey}`
             },
-            body: JSON.stringify({ input: post.text })
+            body: JSON.stringify({ input: postText.substring(0, 5000) })
         });
         if (embedRes.ok) {
             const embedData = await embedRes.json();
@@ -115,7 +113,7 @@ async function ingestPost(post: any) {
     const { error: memError } = await supabase
         .from('ai_memory_banks')
         .insert({
-            content: post.text,
+            content: postText,
             source_type: `social_${post.platform}`,
             metadata: {
                 post_id: postId,

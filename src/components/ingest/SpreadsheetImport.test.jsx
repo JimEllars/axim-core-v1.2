@@ -74,7 +74,7 @@ describe('SpreadsheetImport', () => {
             onerror: null,
             fileContent: ''
         };
-        vi.stubGlobal('FileReader', vi.fn(() => mockFileReader));
+        vi.stubGlobal("FileReader", class { readAsText() { setTimeout(() => { if (this.onload) this.onload({ target: { result: mockFileReader.fileContent } }); }, 0); } });
     });
 
     const renderComponent = () => {

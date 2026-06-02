@@ -33,22 +33,21 @@ async function ingestUrl(entity: string, result: any) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
+    let extractedText = `${title}\n\n${snippet}\n\n[Full article content simulated...]`;
+
     try {
-        // Simulating network fetch with AbortController
-        // await fetch(url, { signal: controller.signal });
+        const networkReq = fetch(url, { signal: controller.signal });
 
-        // Let's actually simulate a potential failure for robustness
-        const networkReq = new Promise((resolve, reject) => {
-             // Mock success unless something explicitly fails
-             resolve(true);
-        });
-
-        await Promise.race([
+        const response = await Promise.race([
             networkReq,
             new Promise((_, reject) => {
                controller.signal.addEventListener('abort', () => reject(new Error('AbortError: Timeout')));
             })
-        ]);
+        ]) as Response;
+
+        if (response.ok) {
+            extractedText = await response.text();
+        }
 
     } catch(err) {
         console.error("OSINT Scraping network timeout:", err);
@@ -65,13 +64,10 @@ async function ingestUrl(entity: string, result: any) {
 
     console.log(`Ingesting new URL: ${url} for entity: ${entity}`);
 
-    // Simulate extracting text content from URL
-    const extractedText = `${title}\n\n${snippet}\n\n[Full article content simulated...]`;
-
     // Summarize context via llm-proxy
     let summarizedText = extractedText;
     try {
-        const prompt = `Summarize the following text related to ${entity}:\n\n${extractedText}`;
+        const prompt = `Summarize the following text related to ${entity}:\n\n${extractedText.substring(0, 5000)}`;
         const llmRes = await fetch(llmProxyUrl, {
             method: 'POST',
             headers: {
