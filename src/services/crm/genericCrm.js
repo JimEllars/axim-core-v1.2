@@ -20,6 +20,7 @@ class GenericCrm {
     const crmContacts = crmData.map(user => ({
       name: user.name,
       email: user.email,
+      axim_lead_score: user.axim_lead_score || null // Ensure the score is mapped and synced
     }));
 
     let addedCount = 0;
@@ -27,7 +28,8 @@ class GenericCrm {
       const contactsToImport = crmContacts.map(contact => ({
         name: contact.name,
         email: contact.email,
-        source: this.integration.name
+        source: this.integration.name,
+        axim_lead_score: contact.axim_lead_score // Explicit mapping for Deskera custom fields via Albato
       }));
 
       const sanitizedContacts = sanitizePayload(contactsToImport);
