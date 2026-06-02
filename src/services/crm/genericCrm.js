@@ -1,3 +1,4 @@
+
 import api from '../onyxAI/api';
 import { sanitizePayload } from '../../utils/sanitization.js';
 
@@ -56,6 +57,50 @@ class GenericCrm {
       added: addedCount,
       message: `Synced ${crmContacts.length} contacts from ${this.integration.name}. Added ${addedCount} new contacts.`,
     };
+  }
+
+  async syncUnstructuredLead(leadPayload) {
+    if (!leadPayload || !leadPayload.lead_data) {
+        throw new Error("Invalid lead payload structure");
+    }
+
+    // Check if the lead was flagged as out of bounds by the ingestion scraper
+    if (leadPayload.status === 'Out_of_Bounds_Assignment') {
+        console.warn(`Lead ${leadPayload.lead_data.email} is outside of valid territory bounds. Skipping CRM sync to prevent pipeline clutter.`);
+        return {
+            synced: 0,
+            added: 0,
+            message: "Lead skipped due to out-of-bounds assignment."
+        };
+    }
+
+    // Map to generic CRM structure
+    const contactToImport = {
+        name: leadPayload.lead_data.contact_name || leadPayload.lead_data.company_name || 'Unknown Contact',
+        email: leadPayload.lead_data.email,
+        phone: leadPayload.lead_data.phone,
+        source: 'Google Spark Failover',
+        estimated_monthly_utility_spend: leadPayload.lead_data.estimated_monthly_utility_spend,
+        facility_zip: leadPayload.lead_data.facility_zip
+    };
+
+    try {
+        const sanitizedContact = sanitizePayload(contactToImport);
+        await api.supabaseApiService.supabase.from('api_usage_logs').insert({
+            endpoint: '/crm/genericCrm/syncUnstructuredLead',
+            payload_scrubbed: sanitizedContact
+        });
+
+        await api.bulkAddContacts([contactToImport], undefined);
+        return {
+            synced: 1,
+            added: 1,
+            message: `Successfully synced unstructured lead ${contactToImport.email}`
+        };
+    } catch (error) {
+        console.error("Failed to sync unstructured lead:", error);
+        throw error;
+    }
   }
 }
 

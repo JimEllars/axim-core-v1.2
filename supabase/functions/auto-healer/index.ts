@@ -14,10 +14,60 @@ serve(async (req) => {
   try {
     const payload = await req.json();
 
-    // Check if triggered by Sentinel with anomaly payload
+    // Onyx anomaly evaluation payload
     if (payload.anomaly) {
-        const { appId, errorRate, total, errors } = payload.anomaly;
+        const { appId, errorRate, total, errors, confidenceScore, incidentDetails } = payload.anomaly;
         console.log(`[Auto-Healer] Evaluating anomaly for ${appId}: ${(errorRate * 100).toFixed(2)}% error rate (${errors}/${total})`);
+
+        // Check for confidence score and escalate to Claude Cowork if < 0.85
+        if (confidenceScore !== undefined && confidenceScore < 0.85) {
+            console.log(`[Auto-Healer] Confidence score ${confidenceScore} below 0.85. Escalating to Tier 4 Action Agent.`);
+
+            // Build the handoff envelope
+            const handoffEnvelope = {
+                incident_id: incidentDetails?.incident_id || `err_${crypto.randomUUID().substring(0, 8)}`,
+                target_application: {
+                    app_id: appId || 'unknown-app',
+                    runtime_environment: 'cloudflare_workers',
+                    active_branch: 'main',
+                    repository_source: incidentDetails?.repository_source || 'unknown-repo'
+                },
+                telemetry_context: {
+                    endpoint: incidentDetails?.endpoint || '/unknown',
+                    http_status: incidentDetails?.http_status || 500,
+                    error_signature: incidentDetails?.error_signature || 'Unknown Error',
+                    stack_trace: incidentDetails?.stack_trace || 'No stack trace available',
+                    last_10_transaction_logs: incidentDetails?.last_10_transaction_logs || []
+                },
+                sandboxed_workspace_rules: {
+                    allowed_file_paths: [
+                        'worker.js',
+                        'wrangler.jsonc',
+                        'src/utils/paymentService.js'
+                    ],
+                    verification_command: 'npm run test && npm run build',
+                    max_execution_time_seconds: 180,
+                    quota_token_allocation: 45000
+                },
+                security_mask: {
+                    stripped_variables: ["STRIPE_SECRET_KEY", "SUPABASE_SERVICE_ROLE_KEY"],
+                    mock_variable_stubs: {
+                        STRIPE_SECRET_KEY: "sk_test_mock_axim_cowork_string",
+                        SUPABASE_SERVICE_ROLE_KEY: "sb_mock_service_role"
+                    }
+                }
+            };
+
+            // Dispatch alert to hitl_audit_logs for the handoff
+            await supabase.from('hitl_audit_logs').insert({
+                admin_id: "00000000-0000-0000-0000-000000000000",
+                action: "tier4_escalation",
+                tool_called: JSON.stringify(handoffEnvelope),
+                status: "pending"
+            });
+
+            return new Response(JSON.stringify({ success: true, message: `Escalated to Tier 4 Action Agent for ${appId}.`, envelope: handoffEnvelope }), { status: 200 });
+        }
 
         // Traffic spike or crash loop?
         // Assuming high total with somewhat low error count is a traffic spike

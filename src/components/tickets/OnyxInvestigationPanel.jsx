@@ -1,7 +1,8 @@
+
 import React from 'react';
 import { motion } from 'framer-motion';
 
-const OnyxInvestigationPanel = ({ traceHistory, semanticAnalysis }) => {
+const OnyxInvestigationPanel = ({ traceHistory, semanticAnalysis, patchData }) => {
   return (
     <div className="bg-gray-900 border border-indigo-900/50 rounded-xl overflow-hidden shadow-2xl">
       <div className="bg-indigo-950/40 border-b border-indigo-900/50 px-4 py-3 flex items-center justify-between">
@@ -20,6 +21,23 @@ const OnyxInvestigationPanel = ({ traceHistory, semanticAnalysis }) => {
             {semanticAnalysis || "Analyzing incident telemetry against known historical vectors..."}
           </p>
         </div>
+
+        {/* Patch Data Block */}
+        {patchData && (
+          <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+            <h4 className="text-gray-400 text-xs uppercase tracking-wider mb-2">Proposed Code Patch</h4>
+            <div className="bg-black/80 rounded-lg p-4 border border-gray-800 max-h-64 overflow-y-auto">
+              <pre className="text-gray-300 font-mono text-xs whitespace-pre-wrap break-words">
+                {patchData.split('\n').map((line, idx) => {
+                  let colorClass = 'text-gray-300';
+                  if (line.startsWith('+')) colorClass = 'text-green-400 bg-green-900/20 block';
+                  if (line.startsWith('-')) colorClass = 'text-red-400 bg-red-900/20 block';
+                  return <span key={idx} className={colorClass}>{line}\n</span>;
+                })}
+              </pre>
+            </div>
+          </div>
+        )}
 
         {/* Trace History Block */}
         <div>

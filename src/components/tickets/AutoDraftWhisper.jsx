@@ -1,11 +1,13 @@
+
 import React, { useState } from 'react';
 import { supabase } from '../../services/supabaseClient';
 
-const AutoDraftWhisper = ({ logId, patchRecommendation, verificationScript }) => {
+const AutoDraftWhisper = ({ logId, patchRecommendation, verificationScript, faultSummary }) => {
   const [isApproving, setIsApproving] = useState(false);
   const [checkedItems, setCheckedItems] = useState({
     codeReview: false,
     keyVerification: false,
+    faultAcknowledged: false,
   });
 
   const handleApprove = async () => {
@@ -25,13 +27,35 @@ const AutoDraftWhisper = ({ logId, patchRecommendation, verificationScript }) =>
     }
   };
 
-  const allChecked = checkedItems.codeReview && checkedItems.keyVerification;
+  const allChecked = checkedItems.codeReview && checkedItems.keyVerification && checkedItems.faultAcknowledged;
 
   return (
     <div className="bg-gray-800 border border-gray-700 rounded-lg p-5">
       <h3 className="text-gray-200 font-semibold mb-4 text-sm tracking-wide">Auto-Drafted Resolution Plan</h3>
 
+      {faultSummary && (
+        <div className="mb-6 bg-red-900/20 border border-red-800/50 rounded-lg p-4">
+          <h4 className="text-red-400 text-xs font-semibold uppercase tracking-wider mb-2">Fault Summary</h4>
+          <p className="text-red-200 text-sm leading-relaxed">{faultSummary}</p>
+        </div>
+      )}
+
       <div className="space-y-4 mb-6">
+        <label className="flex items-start space-x-3 cursor-pointer group">
+          <div className="flex-shrink-0 mt-1">
+            <input
+              type="checkbox"
+              className="w-4 h-4 rounded border-gray-600 text-indigo-500 focus:ring-indigo-500/50 bg-gray-700"
+              checked={checkedItems.faultAcknowledged}
+              onChange={(e) => setCheckedItems({ ...checkedItems, faultAcknowledged: e.target.checked })}
+            />
+          </div>
+          <div>
+            <span className="block text-sm text-gray-300 font-medium group-hover:text-white transition-colors">Acknowledge Fault Cause</span>
+            <p className="text-xs text-gray-500 mt-1">Confirm understanding of why the runtime fault occurred based on the summary.</p>
+          </div>
+        </label>
+
         <label className="flex items-start space-x-3 cursor-pointer group">
           <div className="flex-shrink-0 mt-1">
             <input

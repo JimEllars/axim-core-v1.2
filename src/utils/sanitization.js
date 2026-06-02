@@ -24,3 +24,20 @@ export function sanitizePayload(payload) {
 
     return payload;
 }
+
+
+export function applyCredentialMasking(envConfig) {
+    if (!envConfig || typeof envConfig !== 'object') return envConfig;
+
+    const maskedConfig = { ...envConfig };
+
+    if (maskedConfig.STRIPE_SECRET_KEY) {
+        maskedConfig.STRIPE_SECRET_KEY = "sk_test_mock_axim_cowork_string";
+    }
+
+    if (maskedConfig.SUPABASE_SERVICE_ROLE_KEY) {
+        maskedConfig.SUPABASE_SERVICE_ROLE_KEY = "sb_mock_service_role";
+    }
+
+    return maskedConfig;
+}

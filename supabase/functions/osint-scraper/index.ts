@@ -1,3 +1,4 @@
+
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 import { getCorsHeaders } from '../_shared/cors.ts';
@@ -133,6 +134,47 @@ serve(async (req) => {
     }
 
     try {
+        const payload = await req.json();
+
+        // Google Spark unstructured lead ingestion path
+        if (payload.action === 'ingest_unstructured_lead' && payload.raw_text) {
+            const rawText = payload.raw_text;
+
+            // Very simple NLP tokenization mock
+            const company_match = rawText.match(/Company:\s*(.+)/i);
+            const contact_match = rawText.match(/Contact:\s*(.+)/i);
+            const email_match = rawText.match(/Email:\s*([\w.-]+@[\w.-]+)/i);
+            const phone_match = rawText.match(/Phone:\s*([\d-]+)/i);
+            const spend_match = rawText.match(/Spend:\s*\$?([\d,.]+)/i);
+            const zip_match = rawText.match(/Zip(?: Code)?:\s*(\d{5})/i);
+
+            const zipCodeStr = zip_match ? zip_match[1] : null;
+            const zipCode = zipCodeStr ? parseInt(zipCodeStr, 10) : 0;
+
+            const isWithinTerritory = zipCode >= 75601 && zipCode <= 75695;
+
+            const extractedLead = {
+                company_name: company_match ? company_match[1].trim() : null,
+                contact_name: contact_match ? contact_match[1].trim() : null,
+                email: email_match ? email_match[1].trim() : null,
+                phone: phone_match ? phone_match[1].trim() : null,
+                estimated_monthly_utility_spend: spend_match ? parseFloat(spend_match[1].replace(/,/g, '')) : null,
+                facility_zip: zipCodeStr
+            };
+
+            const status = isWithinTerritory ? 'Pending_Review' : 'Out_of_Bounds_Assignment';
+
+            return new Response(JSON.stringify({
+                success: true,
+                message: `Lead ingested with status ${status}`,
+                lead_data: extractedLead,
+                status: status
+            }), {
+                headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+            });
+        }
+
+        // Default OSINT scraper logic
         console.log("Starting OSINT Scraper polling...");
 
         for (const entity of TARGET_ENTITIES) {
@@ -155,6 +197,31 @@ serve(async (req) => {
         });
 
     } catch (error: any) {
+        // If req.json() fails because there's no body, proceed with polling
+        if (error instanceof SyntaxError) {
+            // Default OSINT scraper logic
+            console.log("Starting OSINT Scraper polling...");
+
+            for (const entity of TARGET_ENTITIES) {
+                 // Simulate search results
+                 const mockResults = [
+                     {
+                         url: `https://news.example.com/article-${Date.now()}-${entity.replace(/\s+/g, '-').toLowerCase()}`,
+                         title: `Recent news about ${entity}`,
+                         snippet: `There has been a recent development concerning ${entity}.`
+                     }
+                 ];
+
+                 for (const result of mockResults) {
+                     await ingestUrl(entity, result);
+                 }
+            }
+
+            return new Response(JSON.stringify({ success: true, message: "OSINT Scrape complete" }), {
+                headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+            });
+        }
+
         console.error("Error in OSINT Scraper:", error);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
