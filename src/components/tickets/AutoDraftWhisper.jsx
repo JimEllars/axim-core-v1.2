@@ -1,12 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
 
-const AutoDraftWhisper = ({ logId, patchRecommendation, verificationScript }) => {
+const AutoDraftWhisper = ({ logId, patchRecommendation, verificationScript, diagnosticPayload }) => {
   const [isApproving, setIsApproving] = useState(false);
   const [checkedItems, setCheckedItems] = useState({
     codeReview: false,
     keyVerification: false,
   });
+
+
+
+
+  useEffect(() => {
+    if (diagnosticPayload && diagnosticPayload.encryption_error) {
+      // Dispatch an automated notification payload via SendFox to alert the engineering team of a blocked diagnostic session
+      const sendAlert = async () => {
+         try {
+             // We use a backend edge function for security to avoid exposing API keys on the frontend
+             await supabase.functions.invoke('alert-dispatcher', {
+                 body: {
+                     type: 'sendfox_alert',
+                     alert: 'Encryption parsing failure detected in Tier 4 diagnostic session.',
+                     logId: logId,
+                     errorDetails: diagnosticPayload.encryption_error
+                 }
+             });
+         } catch (err) {
+             console.error("Failed to dispatch alert:", err);
+         }
+      };
+      sendAlert();
+    }
+  }, [diagnosticPayload, logId]);
+
+
+
+
 
   const handleApprove = async () => {
     setIsApproving(true);

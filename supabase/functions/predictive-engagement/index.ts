@@ -27,9 +27,26 @@ serve(async (req) => {
     const isProspectPayload = body && body.prospect;
 
     if (isProspectPayload) {
-      // Evaluate prospect JSON payloads. Ensure the prompt logic strictly weighs the prospect's need for ongoing uniform rental (weekly laundering) or standard lease programs over direct purchases.
       const prospect = body.prospect;
 
+
+      // Implement a strict geographic bounding check on the parsed facility_zip variable.
+      if (prospect.facility_zip) {
+        const zip = parseInt(prospect.facility_zip, 10);
+        const isWithinRange = zip >= 75601 && zip <= 75695;
+
+        if (!isWithinRange) {
+           prospect.lead_status = 'Out_of_Bounds_Assignment';
+           console.log(`[Predictive Engagement] Lead with zip ${zip} is out of bounds. Aborting CRM sync.`);
+           return new Response(
+              JSON.stringify({ success: false, message: 'Lead is out of geographic bounds.', payload: prospect }),
+              { headers: { "Content-Type": "application/json" }, status: 200 }
+           );
+        }
+      }
+
+
+      // Evaluate prospect JSON payloads. Ensure the prompt logic strictly weighs the prospect's need for ongoing uniform rental (weekly laundering) or standard lease programs over direct purchases.
       const llmSystemPrompt = `Evaluate the following prospect JSON payload and assign a predictive engagement score from 1 to 100 (where 100 is highest).
 Strictly weigh the prospect's need for ongoing uniform rental (weekly laundering) or standard lease programs over direct purchases. Higher scores for rentals/leases, lower for direct purchases.
 Respond ONLY with a JSON object in this format: {"axim_lead_score": 85}`;
