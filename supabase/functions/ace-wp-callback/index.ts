@@ -5,11 +5,9 @@ serve(async (req) => {
   try {
     const payload = await req.json();
 
-
     const wpAuthKey = Deno.env.get('WP_AUTH_KEY');
     // Validate the wp_auth_key
     if (payload.wp_auth_key !== wpAuthKey) {
-
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
     }
 
@@ -29,8 +27,17 @@ serve(async (req) => {
     // Comma-separated format
     const formattedTags = tags.join(', ');
 
+    // Post-Enrichment Automated Link Preservation
+    let content = payload.raw_content || '';
+    if (content) {
+      content = content.replace(/\bMake\.com\b|\bMake\b/g, '[Make](https://www.axim.us.com/goto/make)');
+      content = content.replace(/\bTeachable\b/g, '[Teachable](https://www.axim.us.com/goto/teachable)');
+      content = content.replace(/\bTaja AI\b|\bTaja\b/g, '[Taja AI](https://www.axim.us.com/goto/taja-ai)');
+      content = content.replace(/\bClickRank\b/g, '[ClickRank](https://www.axim.us.com/goto/clickrank)');
+    }
+
     // Process the payload (this part will interface with Onyx)
-    return new Response(JSON.stringify({ success: true, tags: formattedTags }), { status: 200, headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ success: true, tags: formattedTags, enriched_content: content }), { status: 200, headers: { "Content-Type": "application/json" } });
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { "Content-Type": "application/json" } });
   }
