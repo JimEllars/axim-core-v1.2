@@ -17,11 +17,28 @@ class GenericCrm {
     const crmData = await response.json();
 
     // Map the data to our contact format
-    const crmContacts = crmData.map(user => ({
-      name: user.name,
-      email: user.email,
-      axim_lead_score: user.axim_lead_score || null // Ensure the score is mapped and synced
-    }));
+
+    const crmContacts = crmData.map(user => {
+
+      // Implement a strict geographic bounding check on the parsed facility_zip variable.
+      if (user.facility_zip) {
+        const zip = parseInt(user.facility_zip, 10);
+        const isWithinRange = zip >= 75601 && zip <= 75695;
+
+        if (!isWithinRange) {
+           user.lead_status = 'Out_of_Bounds_Assignment';
+        }
+      }
+
+      return {
+        name: user.name,
+        email: user.email,
+        facility_zip: user.facility_zip,
+        lead_status: user.lead_status,
+        axim_lead_score: user.axim_lead_score || null
+      };
+    }).filter(user => user.lead_status !== 'Out_of_Bounds_Assignment'); // filter out blocked leads
+
 
     let addedCount = 0;
     try {
