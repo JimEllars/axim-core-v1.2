@@ -35,7 +35,16 @@ export const RealtimeProvider = ({ children }) => {
           (payload) => {
             toast.error('System Degradation Detected: Node isolated. Onyx RCA initiated.', { duration: 5000, id: payload.new.id });
           }
-        ).subscribe();
+        ).subscribe((status, err) => {
+            if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+                console.warn('RealtimeContext: WebSocket connection closed/error (support_tickets)', err || status);
+            }
+        });
+
+        ticketsChannel.onError((err) => {
+            console.warn('RealtimeContext: WebSocket error (support_tickets)', err);
+        });
+
       ticketsChannelRef.current = ticketsChannel;
     };
 
@@ -50,18 +59,24 @@ export const RealtimeProvider = ({ children }) => {
 
             }
           }
-        ).subscribe((status) => {
+        ).subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
             hitlRetries = 0;
           } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+            console.warn('RealtimeContext: WebSocket connection closed/error (hitl_audit_logs)', err || status);
             if (hitlRetries < MAX_RETRIES) {
               hitlRetries++;
               const backoffTime = Math.pow(2, hitlRetries) * 1000;
+              console.log(`RealtimeContext: Reconnecting HITL channel in ${backoffTime}ms...`);
               reconnectTimeouts.current.hitl = setTimeout(setupHitlChannel, backoffTime);
             } else {
               toast.error('Disconnected from HITL live updates.', { id: 'offline-hitl' });
             }
           }
+        });
+
+        hitlChannel.onError((err) => {
+            console.warn('RealtimeContext: WebSocket error (hitl_audit_logs)', err);
         });
 
       hitlChannelRef.current = hitlChannel;
@@ -80,18 +95,25 @@ export const RealtimeProvider = ({ children }) => {
                   });
               }
           }
-        ).subscribe((status) => {
+        )
+        .subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
             telemetryRetries = 0;
           } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+            console.warn('RealtimeContext: WebSocket connection closed/error (telemetry_logs)', err || status);
             if (telemetryRetries < MAX_RETRIES) {
               telemetryRetries++;
               const backoffTime = Math.pow(2, telemetryRetries) * 1000;
+              console.log(`RealtimeContext: Reconnecting telemetry channel in ${backoffTime}ms...`);
               reconnectTimeouts.current.telemetry = setTimeout(setupTelemetryChannel, backoffTime);
             } else {
               toast.error('Disconnected from telemetry live updates.', { id: 'offline-telemetry' });
             }
           }
+        });
+
+        telemetryChannel.onError((err) => {
+            console.warn('RealtimeContext: WebSocket error (telemetry_logs)', err);
         });
 
       telemetryChannelRef.current = telemetryChannel;
