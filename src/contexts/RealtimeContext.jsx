@@ -16,6 +16,7 @@ export const RealtimeProvider = ({ children }) => {
   const { refreshDashboard } = useDashboard();
   const hitlChannelRef = useRef(null);
   const telemetryChannelRef = useRef(null);
+  const ticketsChannelRef = useRef(null);
   const workflowListenerRef = useRef(null);
   const reconnectTimeouts = useRef({ hitl: null, telemetry: null });
 
@@ -26,44 +27,27 @@ export const RealtimeProvider = ({ children }) => {
     let telemetryRetries = 0;
     const MAX_RETRIES = 3;
 
+    const setupSupportTicketsChannel = () => {
+      const ticketsChannel = supabase.channel('realtime:support_tickets')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'support_tickets' },
+          (payload) => {
+            toast.error('System Degradation Detected: Node isolated. Onyx RCA initiated.', { duration: 5000, id: payload.new.id });
+          }
+        ).subscribe();
+      ticketsChannelRef.current = ticketsChannel;
+    };
+
     const setupHitlChannel = () => {
       const hitlChannel = supabase.channel('realtime:hitl_audit_logs')
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'hitl_audit_logs' },
           (payload) => {
-            if (payload.new.status === 'pending') {
-              toast.custom((t) => (
-                <div
-                  className={`${
-                    t.visible ? 'animate-enter' : 'animate-leave'
-                  } max-w-md w-full bg-onyx-900 border border-yellow-500/50 shadow-lg rounded-lg pointer-events-auto flex ring-1 ring-black ring-opacity-5`}
-                >
-                  <div className="flex-1 w-0 p-4">
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0 pt-0.5">
-                        <SafeIcon icon={FiIcons.FiClock} className="h-10 w-10 text-yellow-400" />
-                      </div>
-                      <div className="ml-3 flex-1">
-                        <p className="text-sm font-medium text-white">
-                          Onyx AI paused workflow
-                        </p>
-                        <p className="mt-1 text-sm text-slate-400">
-                          Human approval requested for action: {payload.new.action}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex border-l border-onyx-accent/20">
-                    <button
-                      onClick={() => toast.dismiss(t.id)}
-                      className="w-full border border-transparent rounded-none rounded-r-lg p-4 flex items-center justify-center text-sm font-medium text-slate-300 hover:text-white hover:bg-white/5"
-                    >
-                      Close
-                    </button>
-                  </div>
-                </div>
-              ), { duration: 5000 });
+            if (payload.new.status.toLowerCase() === 'pending') {
+              toast.error('Action Required: Tier 4 Agent proposes deployment. Human authorization needed.', { duration: 5000, id: payload.new.id });
+
             }
           }
         ).subscribe((status) => {
@@ -113,6 +97,7 @@ export const RealtimeProvider = ({ children }) => {
       telemetryChannelRef.current = telemetryChannel;
     };
 
+    setupSupportTicketsChannel();
     setupHitlChannel();
     setupTelemetryChannel();
     workflowListenerRef.current = listenForWorkflowEvents(supabase);
@@ -121,8 +106,10 @@ export const RealtimeProvider = ({ children }) => {
         console.log('RealtimeContext: Network online. Reconnecting WebSockets.');
         if (hitlChannelRef.current) supabase.removeChannel(hitlChannelRef.current);
         if (telemetryChannelRef.current) supabase.removeChannel(telemetryChannelRef.current);
+        if (ticketsChannelRef.current) supabase.removeChannel(ticketsChannelRef.current);
         if (workflowListenerRef.current) workflowListenerRef.current();
 
+        setupSupportTicketsChannel();
         setupHitlChannel();
         setupTelemetryChannel();
         workflowListenerRef.current = listenForWorkflowEvents(supabase);
@@ -136,6 +123,7 @@ export const RealtimeProvider = ({ children }) => {
       if (reconnectTimeouts.current.telemetry) clearTimeout(reconnectTimeouts.current.telemetry);
       if (hitlChannelRef.current) supabase.removeChannel(hitlChannelRef.current);
       if (telemetryChannelRef.current) supabase.removeChannel(telemetryChannelRef.current);
+      if (ticketsChannelRef.current) supabase.removeChannel(ticketsChannelRef.current);
       if (workflowListenerRef.current) workflowListenerRef.current();
     };
   }, [user]);
