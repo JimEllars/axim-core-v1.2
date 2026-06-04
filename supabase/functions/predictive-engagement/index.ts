@@ -33,7 +33,7 @@ serve(async (req) => {
       // Implement a strict geographic bounding check on the parsed facility_zip variable.
       if (prospect.facility_zip) {
         const zip = parseInt(prospect.facility_zip, 10);
-        const isWithinRange = zip >= 75601 && zip <= 75695;
+        const isWithinRange = (zip >= 75601 && zip <= 75695) || [75654, 75667, 75633].includes(zip);
 
         if (!isWithinRange) {
            prospect.lead_status = 'Out_of_Bounds_Assignment';
