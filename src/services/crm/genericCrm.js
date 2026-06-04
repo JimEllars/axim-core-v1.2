@@ -35,9 +35,15 @@ class GenericCrm {
         email: user.email,
         facility_zip: user.facility_zip,
         lead_status: user.lead_status,
-        axim_lead_score: user.axim_lead_score || null
+        axim_lead_score: user.axim_lead_score != null ? Number(user.axim_lead_score) : null
       };
-    }).filter(user => user.lead_status !== 'Out_of_Bounds_Assignment'); // filter out blocked leads
+    }).filter(user => {
+      if (user.lead_status === 'Out_of_Bounds_Assignment') {
+        console.warn(`Lead ${user.email} marked as Out_of_Bounds_Assignment and will be dropped.`);
+        return false;
+      }
+      return true;
+    });
 
 
     let addedCount = 0;
