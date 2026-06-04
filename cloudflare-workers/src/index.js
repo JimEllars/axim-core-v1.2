@@ -86,7 +86,7 @@ export default {
 
     // Health Check Endpoint
     if (url.pathname === '/health' || url.pathname === '/api/edge/healthz') {
-      return new Response(JSON.stringify({ status: 'ok' }), {
+      return new Response(JSON.stringify({ "status": "online", "service": "axim-core-worker" }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
