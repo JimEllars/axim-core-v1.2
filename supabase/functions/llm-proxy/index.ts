@@ -19,6 +19,34 @@ const providerHandlers = {
 const apiKeyPromiseCache = new Map<string, { promise: Promise<string>; expiresAt: number }>();
 const CACHE_TTL_MS = 1000 * 60 * 5; // 5 minute TTL
 
+// Rate limiting configuration
+const RATE_LIMIT_WINDOW_MS = 1000 * 60; // 1 minute
+const MAX_REQUESTS_PER_WINDOW = 20;
+const rateLimiter = new Map<string, { count: number; windowStart: number }>();
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const userRecord = rateLimiter.get(userId);
+
+  if (!userRecord) {
+    rateLimiter.set(userId, { count: 1, windowStart: now });
+    return true;
+  }
+
+  if (now - userRecord.windowStart > RATE_LIMIT_WINDOW_MS) {
+    // Reset window
+    rateLimiter.set(userId, { count: 1, windowStart: now });
+    return true;
+  }
+
+  if (userRecord.count >= MAX_REQUESTS_PER_WINDOW) {
+    return false; // Rate limit exceeded
+  }
+
+  userRecord.count += 1;
+  return true;
+}
+
 async function getApiKey(supabaseClient: any, userId: string, provider: string) {
   const cacheKey = `${userId}:${provider}`;
   const cached = apiKeyPromiseCache.get(cacheKey);
@@ -91,6 +119,15 @@ serve(async (req) => {
 
     console.log(`[${request_id}] Authenticated user: ${user.id}`);
 
+    // Rate Limiting Check
+    if (!checkRateLimit(user.id)) {
+        console.warn(`[${request_id}] Rate limit exceeded for user: ${user.id}`);
+        return new Response(JSON.stringify({ error: "Too Many Requests" }), {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "60" },
+        });
+    }
+
     // 3. Parse the request body.
     const { provider, prompt, options = {} } = await req.json();
     if (!provider || !prompt) {
@@ -114,7 +151,7 @@ serve(async (req) => {
       });
     }
 
-    // 5. Call the provider's handler.
+    // 5. Call the provider's handler with fallback logic
     try {
       const content = await handler(apiKey, prompt, options);
       console.log(`[${request_id}] Successfully received response from ${provider}.`);
@@ -123,10 +160,35 @@ serve(async (req) => {
       });
     } catch (providerError) {
       console.error(`[${request_id}] Upstream provider error from ${provider}:`, providerError);
-      return new Response(JSON.stringify({ error: `Error from upstream provider: ${providerError.message}` }), {
-        status: 502, // Bad Gateway
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+
+      // Fallback Logic
+      let fallbackProvider = 'claude';
+      if (provider === 'claude') {
+          fallbackProvider = 'openai';
+      }
+
+      console.log(`[${request_id}] Attempting fallback to ${fallbackProvider}`);
+
+      try {
+          const fallbackApiKey = await getApiKey(serviceClient, user.id, fallbackProvider);
+          if (!fallbackApiKey) {
+             throw new Error(`Fallback API key for ${fallbackProvider} not found.`);
+          }
+
+          const fallbackHandler = providerHandlers[fallbackProvider as keyof typeof providerHandlers];
+          const fallbackContent = await fallbackHandler(fallbackApiKey, prompt, options);
+
+          console.log(`[${request_id}] Successfully received response from fallback provider ${fallbackProvider}.`);
+          return new Response(JSON.stringify({ content: fallbackContent, fallbackUsed: fallbackProvider }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+      } catch (fallbackError) {
+          console.error(`[${request_id}] Upstream fallback provider error from ${fallbackProvider}:`, fallbackError);
+          return new Response(JSON.stringify({ error: `Error from primary and fallback upstream providers.` }), {
+            status: 502, // Bad Gateway
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+      }
     }
 
   } catch (error) {

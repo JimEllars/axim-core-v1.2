@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense } from 'react';
 import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
@@ -102,6 +102,7 @@ function AppContent() {
   return (
     <ErrorBoundary>
       <AnimatePresence mode="wait">
+        <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-onyx-950 via-purple-900 to-onyx-950 flex items-center justify-center"><div className="text-white text-xl flex items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mr-4"></div>Loading View...</div></div>}>
         <Routes location={location} key={location.pathname}>
           <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} />
 
@@ -131,6 +132,7 @@ function AppContent() {
 
         <Route path="*" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
         </Routes>
+        </Suspense>
       </AnimatePresence>
     </ErrorBoundary>
   );

@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
+import api from '../../services/onyxAI/api';
+import toast from 'react-hot-toast';
 
 const AutoDraftWhisper = ({ logId, patchRecommendation, verificationScript, diagnosticPayload }) => {
   const [isApproving, setIsApproving] = useState(false);
+  const [isResolved, setIsResolved] = useState(false);
   const [checkedItems, setCheckedItems] = useState({
     codeReview: false,
     keyVerification: false,
   });
-
-
-
 
   useEffect(() => {
     if (diagnosticPayload && diagnosticPayload.encryption_error) {
@@ -33,22 +33,14 @@ const AutoDraftWhisper = ({ logId, patchRecommendation, verificationScript, diag
     }
   }, [diagnosticPayload, logId]);
 
-
-
-
-
   const handleApprove = async () => {
     setIsApproving(true);
     try {
-      const { data, error } = await supabase.rpc('resolve_hitl_action', {
-        p_log_id: logId,
-        p_status: 'Approved',
-        p_action_payload: { action: 'deploy_patch_and_reauthorize' }
-      });
-      if (error) throw error;
-      alert('Patch deployed and node re-authorized successfully.');
+      await api.resolveHitlAction(logId, 'Approved', { action: 'deploy_patch_and_reauthorize' });
+      setIsResolved(true);
+      toast.success('Action approved. Node has been un-suspended and patch deployed.');
     } catch (err) {
-      alert('Failed to resolve HITL action: ' + err.message);
+      toast.error('Failed to resolve HITL action: ' + err.message);
     } finally {
       setIsApproving(false);
     }
@@ -99,14 +91,14 @@ const AutoDraftWhisper = ({ logId, patchRecommendation, verificationScript, diag
       <div className="pt-4 border-t border-gray-700 flex justify-end">
         <button
           onClick={handleApprove}
-          disabled={!allChecked || isApproving}
+          disabled={!allChecked || isApproving || isResolved}
           className={`px-6 py-2 rounded-md text-sm font-semibold transition-all shadow-md ${
-            allChecked && !isApproving
+            allChecked && !isApproving && !isResolved
               ? 'bg-indigo-600 hover:bg-indigo-500 text-white hover:shadow-indigo-500/25'
               : 'bg-gray-700 text-gray-500 cursor-not-allowed'
           }`}
         >
-          {isApproving ? 'Authorizing...' : 'Approve & Deploy Patch'}
+          {isResolved ? 'Patch Approved' : isApproving ? 'Authorizing...' : 'Approve & Deploy Patch'}
         </button>
       </div>
     </div>
