@@ -1,6 +1,7 @@
 // supabase/functions/predictive-engagement/index.ts
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { decryptPayload } from '../_shared/crypto.ts';
 
 console.log('Predictive Engagement Service function loaded');
 
@@ -24,7 +25,25 @@ serve(async (req) => {
       body = {};
     }
 
-    const isProspectPayload = body && body.prospect;
+
+    let parsedBody = body;
+    if (body && body.encrypted_payload) {
+      try {
+        const secret = Deno.env.get('CORE_CRYPTO_KEY');
+        if (!secret) {
+          throw new Error('CORE_CRYPTO_KEY missing');
+        }
+        const { iv, tag, ciphertext } = body.encrypted_payload;
+        const decryptedStr = await decryptPayload(iv, tag, ciphertext, secret);
+        parsedBody = JSON.parse(decryptedStr);
+      } catch (err) {
+        console.error('Decryption failed', err);
+        return new Response(JSON.stringify({ error: 'Decryption failed' }), { status: 400 });
+      }
+    }
+
+    const isProspectPayload = parsedBody && parsedBody.prospect;
+    if (parsedBody && parsedBody.prospect) { body.prospect = parsedBody.prospect; }
 
     if (isProspectPayload) {
       const prospect = body.prospect;
