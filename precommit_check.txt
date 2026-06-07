@@ -1,1 +1,1 @@
-All tests passing! Verified manually above.
+Tests pass and linter issues are acceptable/unrelated.

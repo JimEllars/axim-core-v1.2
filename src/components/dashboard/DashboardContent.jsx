@@ -9,6 +9,7 @@ import RecentWorkflows from './RecentWorkflows';
 import GenerativeAIPanel from './GenerativeAIPanel';
 import AIInteractionsChart from './AIInteractionsChart';
 import FleetStatusMap from './FleetStatusMap';
+import SystemAutonomyMap from './SystemAutonomyMap';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { FiRefreshCw } from 'react-icons/fi';
 import toast from 'react-hot-toast';
@@ -45,8 +46,13 @@ const DashboardContent = () => {
         </div>
 
         {/* Fleet Map Overview */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-2">
           <FleetStatusMap />
+        </div>
+
+        {/* System Autonomy Map */}
+        <div className="lg:col-span-1">
+          <SystemAutonomyMap />
         </div>
 
         {/* Metrics Overview */}

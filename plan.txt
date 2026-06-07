@@ -1,10 +1,10 @@
-1. **Objective 1: Automated Podcast Ingestion (RSS Poller)**
-   - Created `supabase/migrations/20261220000000_podcast_poller_cron.sql` containing `system_status` table creation and `pg_cron` setup to poll the edge function every 6 hours.
-   - Created `supabase/functions/podcast-poller/index.ts` to parse the specified feeds (Rants / AXiM Reports), fetch context via `llm-proxy`, generate embeddings via `generate-embedding`, store into `ai_memory_banks`, and emit `NEW_PODCAST_EPISODE`.
-2. **Objective 2: Live Stream Interception Webhook**
-   - Created `supabase/functions/stream-webhook/index.ts` to parse Talk Studio / Cloudflare Stream webhooks, update `system_status` (is_live flag), and emit `LIVE_STREAM_STARTED` and `LIVE_STREAM_ENDED` events.
-3. **Objective 3: Media Workflow Triggers**
-   - Updated `src/services/workflows/definitions.js` with `LIVE_STREAM_STARTED` to draft a post via `onyx-bridge` and push it to the `hitl_approval_queue`.
-   - The Workflow Engine in `engine.js` will automatically pick up `LIVE_STREAM_STARTED` from the local `workflowDefinitions` fallback if not in DB.
-4. **Pre-commit Checks**
-   - Call `pre_commit_instructions` tool and follow the steps.
+1. **Task 1: Autonomous Fleet Visualization Dashboard**
+   - Implemented `SystemAutonomyMap.jsx` and added it to `DashboardContent.jsx`. It listens to both `api_usage_logs` and `blockchain_transactions` to track autonomous events.
+2. **Task 2: RCA Patch Diff Viewer (HITL)**
+   - Modified `OnyxInvestigationPanel.jsx` to parse and visualize `proposedPatch`. Included an "I have reviewed this patch" checkbox to enable an "Approve Patch" button.
+3. **Task 3: CRM Reconciliation Webhook**
+   - Created the edge function `crm-reconciliation` which handles incoming webhook payloads (`lead_id` and `deskera_contact_id`) to update the lead's status to "Synced" in `customer_leads`.
+4. **Task 4: Edge Rate-Limiting & Abuse Prevention**
+   - Implemented the edge function `telemetry-ingress` with rate-limiting using `api_usage_logs`. It rejects requests that exceed 10 per minute per IP.
+5. **Pre-commit Steps**
+   - Call `pre_commit_instructions` and follow instructions to ensure testing and verification requirements are met.
