@@ -1,56 +1,77 @@
-// supabase/functions/axim-transcribe/index.ts
-import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { corsHeaders, getCorsHeaders } from "../_shared/cors.ts";
 
-console.log('AXiM Transcribe Service function loaded');
+console.log("AXiM Transcribe Service function loaded - ASYNC UPDATE");
 
 serve(async (req) => {
-  // Handle preflight requests for CORS
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: getCorsHeaders(req.headers.get("origin")) });
   }
 
   try {
-    const { source, userId } = await req.json();
+    // 1. Generate unique job ID
+    const jobId = crypto.randomUUID();
 
-    // Input validation
-    if (!source || !userId) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required parameters: source and userId are required.' }),
-        {
-          headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
-          status: 400,
+    // Use setTimeout to process asynchronously without blocking the response
+    setTimeout(async () => {
+        try {
+            console.log(`[AXiM Transcribe] Background processing for job ${jobId}`);
+
+            // In a real scenario, we would send the payload to Noota here
+            // with a callback URL pointing to /transcription-webhook
+            const nootaUrl = Deno.env.get("NOOTA_API_URL") || "https://httpbin.org/post";
+            const callbackUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/transcription-webhook`;
+
+            // Mock call
+            await fetch(nootaUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    job_id: jobId,
+                    callback_url: callbackUrl,
+                    audio: "mock_audio_blob"
+                })
+            });
+
+            // For testing, since we might not have a real webhook setup,
+            // we will simulate Noota calling back to our webhook
+            setTimeout(async () => {
+                await fetch(callbackUrl, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        job_id: jobId,
+                        text: "This is a transcribed voice command completed asynchronously.",
+                        status: "completed"
+                    })
+                }).catch(e => console.error("Simulated webhook failed", e));
+            }, 2000);
+
+        } catch (e) {
+            console.error(`[AXiM Transcribe] Background task failed for ${jobId}:`, e);
         }
-      );
-    }
+    }, 0);
 
-    console.log(`[AXiM Transcribe] Received request from user ${userId} to transcribe: ${source}`);
+    console.log(`[AXiM Transcribe] Accepted request, returning jobId ${jobId}`);
 
-    // In a real scenario, this function would download the audio and call Whisper API.
-    // For this implementation we mock the transcription text as if Whisper successfully processed the audio.
-    const transcriptionId = `transcript_${new Date().getTime()}`;
-    const mockTranscribedText = "This is a transcribed voice command from the user.";
-
-    console.log(`[AXiM Transcribe] Transcription complete. ID: ${transcriptionId}`);
-
+    // Return 202 Accepted immediately
     return new Response(
       JSON.stringify({
-        message: `Transcription initiated successfully.`,
-        transcriptionId: transcriptionId,
-        text: mockTranscribedText,
-        status: 'completed',
+        message: "Transcription job accepted and processing in background",
+        job_id: jobId,
+        status: "processing"
       }),
       {
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
-        status: 200,
+        headers: { ...getCorsHeaders(req.headers.get("origin")), "Content-Type": "application/json" },
+        status: 202,
       }
     );
   } catch (error) {
-    console.error('[AXiM Transcribe] Error processing request:', error);
+    console.error("[AXiM Transcribe] Error handling request:", error);
     return new Response(
-      JSON.stringify({ error: 'Failed to process transcription request.', details: error.message }),
+      JSON.stringify({ error: "Failed to accept transcription request", details: error.message }),
       {
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+        headers: { ...getCorsHeaders(req.headers.get("origin")), "Content-Type": "application/json" },
         status: 500,
       }
     );
