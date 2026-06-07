@@ -13,9 +13,14 @@ const apiClient = axios.create({
 
 // Interceptor to add the auth token to requests
 // This assumes a token is stored in localStorage or obtained from an auth context
-apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('supabase.auth.token'); // Example of getting a token
+apiClient.interceptors.request.use(async (config) => {
+  let token = localStorage.getItem('supabase.auth.token');
+  // Try to parse the token object from Supabase if it exists
   if (token) {
+    try {
+      const parsedToken = JSON.parse(token);
+      token = parsedToken?.access_token || token;
+    } catch(e) {}
     config.headers.Authorization = `Bearer ${token}`;
   }
   config.headers['x-axim-correlation-id'] = logger.getCorrelationId();
@@ -29,10 +34,11 @@ apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response) {
-      if (error.response.status === 401) {
+      if (error.response.status === 401 || error.response.status === 403) {
         localStorage.removeItem('supabase.auth.token');
         localStorage.removeItem('axim_session_token');
         window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+        window.location.href = '/#/login'; // redirect cleanly
       } else if (error.response.status >= 500) {
         return Promise.reject({ error: true, message: "Gateway unavailable" });
       }

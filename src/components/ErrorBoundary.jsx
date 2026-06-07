@@ -13,6 +13,13 @@ class ErrorBoundary extends Component {
   componentDidCatch(error, errorInfo) {
     console.error("Uncaught error:", error, errorInfo);
 
+    // Handle dynamic import chunking error explicitly
+    if (error && error.name === 'TypeError' && error.message && error.message.includes('Failed to fetch dynamically imported module')) {
+        console.error('Dynamically imported module failed to load in ErrorBoundary. Reloading the page...');
+        window.location.reload();
+        return;
+    }
+
     // Silently transmit the error to telemetry
     setTimeout(async () => {
       try {
