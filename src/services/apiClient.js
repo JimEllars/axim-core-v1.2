@@ -23,7 +23,7 @@ apiClient.interceptors.request.use(async (config) => {
     } catch (e) {
       // ignore parse error if token is just a string
     }
-    config.headers.Authorization = `Bearer ${token}`;
+    config.headers = config.headers || {}; config.headers.Authorization = `Bearer ${token}`;
   }
   config.headers['x-axim-correlation-id'] = logger.getCorrelationId();
   return config;
