@@ -42,7 +42,7 @@ export default [
 
   // Configuration for root-level config files and electron main process
   {
-    files: ['*.js', '*.cjs', 'electron/**/*.js', 'electron/**/*.cjs', 'cloud/**/*.js'],
+    files: ['*.js', '*.cjs', 'electron/**/*.js', 'electron/**/*.cjs', 'cloud/**/*.js', 'scripts/**/*.cjs', 'scripts/**/*.js'],
     languageOptions: {
       globals: {
         ...globals.node,

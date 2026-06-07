@@ -10,15 +10,8 @@
 function getCorsHeaders(request, env) {
   const origin = request.headers.get('Origin');
 
-  // Get allowed origins from environment, or use a default secure fallback
-  const allowedOriginsStr = env?.ALLOWED_ORIGINS || 'https://axim.us.com';
-  const allowedOrigins = allowedOriginsStr.split(',').map(url => url.trim());
-
-  // Only reflect the origin if it's explicitly allowed
-  const allowOrigin = (origin && allowedOrigins.includes(origin)) ? origin : allowedOrigins[0];
-
   return {
-    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Idempotency-Key, x-axim-app-id',
     'Access-Control-Max-Age': '86400',

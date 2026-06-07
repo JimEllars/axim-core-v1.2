@@ -20,6 +20,17 @@ export const RealtimeProvider = ({ children }) => {
   const workflowListenerRef = useRef(null);
   const reconnectTimeouts = useRef({ hitl: null, telemetry: null });
 
+  // Move refs outside of useEffect so they persist across re-renders
+  const lastToastTimes = useRef({
+      support_tickets: 0,
+      hitl_audit_logs: 0
+  });
+
+  const pendingToasts = useRef({
+      support_tickets: 0,
+      hitl_audit_logs: 0
+  });
+
   useEffect(() => {
     if (!user || !supabase) return;
 
@@ -27,13 +38,43 @@ export const RealtimeProvider = ({ children }) => {
     let telemetryRetries = 0;
     const MAX_RETRIES = 3;
 
+    const triggerThrottledToast = (type, defaultMessage, multipleMessage, duration, id) => {
+        const now = Date.now();
+        const lastTime = lastToastTimes.current[type] || 0;
+
+        if (now - lastTime < 10000) {
+            // Within throttle window, queue it
+            pendingToasts.current[type] += 1;
+        } else {
+            // Outside throttle window, show it immediately
+            const count = pendingToasts.current[type] + 1;
+            const message = count > 1 ? multipleMessage.replace('{count}', count) : defaultMessage;
+            toast.error(message, { duration, id });
+
+            lastToastTimes.current[type] = now;
+            pendingToasts.current[type] = 0;
+
+            // Set timeout to show any remaining queued toasts after window
+            setTimeout(() => {
+                if (pendingToasts.current[type] > 0) {
+                    const finalCount = pendingToasts.current[type];
+                    const finalMessage = finalCount > 1 ? multipleMessage.replace('{count}', finalCount) : defaultMessage;
+                    toast.error(finalMessage, { duration, id: id + '-delayed' });
+                    lastToastTimes.current[type] = Date.now();
+                    pendingToasts.current[type] = 0;
+                }
+            }, 10000);
+        }
+    };
+
+
     const setupSupportTicketsChannel = () => {
       const ticketsChannel = supabase.channel('realtime:support_tickets')
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'support_tickets' },
           (payload) => {
-            toast.error('System Degradation Detected: Node isolated. Onyx RCA initiated.', { duration: 5000, id: payload.new.id });
+            triggerThrottledToast('support_tickets', 'System Degradation Detected: Node isolated. Onyx RCA initiated.', 'Multiple System Degradations Detected', 5000, 'support_tickets_toast');
           }
         ).subscribe((status, err) => {
             if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
@@ -55,7 +96,7 @@ export const RealtimeProvider = ({ children }) => {
           { event: 'INSERT', schema: 'public', table: 'hitl_audit_logs' },
           (payload) => {
             if (payload.new.status.toLowerCase() === 'pending') {
-              toast.error('Action Required: Tier 4 Agent proposes deployment. Human authorization needed.', { duration: 5000, id: payload.new.id });
+              triggerThrottledToast('hitl_audit_logs', 'Action Required: Tier 4 Agent proposes deployment. Human authorization needed.', 'Multiple Actions Required: Tier 4 Agent proposes deployment. Human authorization needed.', 5000, 'hitl_audit_logs_toast');
 
             }
           }
