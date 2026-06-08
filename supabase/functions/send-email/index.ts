@@ -5,7 +5,7 @@ import {
   getCorsHeaders,
 } from "../_shared/cors.ts";
 import { notifyOnyx } from "../_shared/telemetry.ts";
-import * as jose from "https://deno.land/x/jose@v4.14.4/index.ts";
+import { validateMicroAppSession } from "../_shared/auth.ts";
 import { generatePdf } from "../_shared/pdf-generators/index.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") as string;
@@ -33,43 +33,23 @@ serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      throw new Error("Missing or invalid Authorization header");
+    let payload;
+    try {
+      payload = await validateMicroAppSession(req);
+    } catch (err: any) {
+      throw new Error("Unauthorized");
     }
 
-    const token = authHeader.split(" ")[1];
-
-    // We allow either the Service Role Key (for internal jobs) or a valid JWT
-    let isInternalService = false;
-    let payload: any = {};
-
-    if (token === SUPABASE_SERVICE_ROLE_KEY) {
-      isInternalService = true;
-    } else {
-      const jwtSecret = Deno.env.get("MICRO_APP_JWT_SECRET");
-
-      if (!jwtSecret) {
-        throw new Error(
-          "Server configuration error: MICRO_APP_JWT_SECRET not set",
-        );
-      }
-
-      const secret = new TextEncoder().encode(jwtSecret);
-
-      try {
-        const { payload: jwtPayload } = await jose.jwtVerify(token, secret);
-        payload = jwtPayload;
-      } catch (err) {
-        throw new Error("Unauthorized");
-      }
+    if (!payload || !payload.user) {
+      throw new Error("Unauthorized");
     }
 
     // 2. Parse body fields
-    // Using Supabase client JS which sends `{ to, subject, body, userId }` or internal requests `{ email, ... }`
+    // Accept incoming parameters matching a standard schema: to_email, subject, html_content, and text_content.
     const reqBody = await req.json();
 
-    const toEmail = reqBody.email || reqBody.to || reqBody.recipient;
+    const toEmail =
+      reqBody.to_email || reqBody.email || reqBody.to || reqBody.recipient;
     const formData = reqBody.formData || {};
     // Extract appSource from payload productId or body app_source
     const appSource =
@@ -77,14 +57,20 @@ serve(async (req) => {
     const emailSubject =
       reqBody.subject || `Your AXiM Secure Document: ${appSource}`;
     // Support body.body or body.text
-    const emailText =
+    const emailHtmlContent =
+      reqBody.html_content ||
       reqBody.body ||
-      reqBody.text ||
       "<p>Thank you for your purchase. Your document is securely attached.</p>";
+    const emailTextContent =
+      reqBody.text_content ||
+      reqBody.text ||
+      (typeof emailHtmlContent === "string"
+        ? emailHtmlContent.replace(/<[^>]*>?/gm, "")
+        : "Please view this email in an HTML-compatible client.");
     const existingArtifactUrl = reqBody.artifactUrl;
 
     if (!toEmail) {
-      throw new Error("Missing required field: email or to.");
+      throw new Error("Missing required field: to_email.");
     }
 
     console.log(
@@ -108,67 +94,74 @@ serve(async (req) => {
     }
 
     // 4. Send Email via EmailIt
-    // Fetch EmailIt credentials from ecosystem_connections
-    const { data: connection, error: connectionError } = await supabaseAdmin
-      .from("ecosystem_connections")
-      .select("webhook_url, api_key, status")
-      .eq("service_name", "emailit")
-      .single();
+    // Pull EMAILIT_API_KEY and EMAILIT_SENDER_DOMAIN from the secure vault configuration
+    const emailItApiKey = Deno.env.get("EMAILIT_API_KEY");
+    const emailItSenderDomain = Deno.env.get("EMAILIT_SENDER_DOMAIN");
 
-    if (connectionError || !connection) {
-      throw new Error("EmailIt integration not found");
-    }
-
-    if (connection.status !== "active") {
-      throw new Error("EmailIt integration is currently disabled");
-    }
-
-    const emailItApiKey = connection.api_key;
-    const emailItUrl = connection.webhook_url;
-
-    if (!emailItApiKey) {
+    if (!emailItApiKey || !emailItSenderDomain) {
       throw new Error(
-        "Server configuration error: EmailIt API Key not set in vault",
+        "Server configuration error: EMAILIT_API_KEY or EMAILIT_SENDER_DOMAIN not set in vault",
       );
     }
 
+    // Dispatch structured JSON message payloads mapped to the official EmailIt endpoint
+    const emailItUrl = "https://api.emailit.com/v1/emails";
+    const senderEmail = `missioncontrol@${emailItSenderDomain}`;
+
     const emailItPayload: any = {
-      from: "missioncontrol@AXiM.us.com", // Strictly map sender address
+      from: senderEmail,
       to: [toEmail],
       subject: emailSubject,
-      html_body: emailText,
-      // Fallback text body if needed by API
-      text_body:
-        typeof emailText === "string"
-          ? emailText.replace(/<[^>]*>?/gm, "")
-          : "Please view this email in an HTML-compatible client.",
+      html: emailHtmlContent,
+      text: emailTextContent,
     };
 
     if (attachments.length > 0) {
       emailItPayload.attachments = attachments;
     }
 
-    const resendResponse = await fetch(emailItUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${emailItApiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(emailItPayload),
-    });
-
-    if (!resendResponse.ok) {
-      const errorText = await resendResponse.text();
-      // Log HIGH severity event to telemetry_logs
-      await supabaseAdmin.from("telemetry_logs").insert({
-        event: "integration_failure",
-        app_type: "send-email",
-        status_code: resendResponse.status,
-        timestamp: new Date().toISOString(),
-        details: {
-          target_service: "emailit",
-          error: errorText,
+    let emailItResponse;
+    try {
+      emailItResponse = await fetch(emailItUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${emailItApiKey}`,
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify(emailItPayload),
+      });
+    } catch (networkError: any) {
+      // Wrap the operational email execution inside a robust try/catch diagnostic block.
+      // Simulate logging to public.api_usage_logs containing the response code.
+      await supabaseAdmin.from("api_usage_logs").insert({
+        endpoint: "/send-email",
+        app_id: appSource,
+        execution_time_ms: -1,
+        status_code: 502,
+        request_payload: { error: networkError.message },
+      });
+
+      return new Response(
+        JSON.stringify({ error: `EmailIt API Error: Network drop or timeout` }),
+        {
+          status: 502,
+          headers: {
+            ...getCorsHeaders(req.headers.get("origin")),
+            "Content-Type": "application/json",
+          },
+        },
+      );
+    }
+
+    if (!emailItResponse.ok) {
+      const errorText = await emailItResponse.text();
+      // If EmailIt responds with an edge error or timeout flag, write a failure trace row directly into public.api_usage_logs containing the response code.
+      await supabaseAdmin.from("api_usage_logs").insert({
+        endpoint: "/send-email",
+        app_id: appSource,
+        execution_time_ms: -1,
+        status_code: emailItResponse.status,
+        request_payload: { error: errorText },
       });
       // return 502 Bad Gateway to the caller
       return new Response(
@@ -183,13 +176,13 @@ serve(async (req) => {
       );
     }
 
-    const resendData = await resendResponse.json();
+    const emailItData = await emailItResponse.json();
 
     return new Response(
       JSON.stringify({
         success: true,
         message: `Email successfully sent to ${toEmail}`,
-        id: resendData.id,
+        id: emailItData.id,
       }),
       {
         headers: {
