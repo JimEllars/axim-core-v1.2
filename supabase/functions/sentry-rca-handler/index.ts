@@ -89,6 +89,23 @@ serve(async (req) => {
         if (error) {
             console.error("Failed to insert into hitl_audit_logs", error);
             // Ignore error for testing to proceed
+        } else if (data) {
+            // Task 2: Automated HITL & Anomaly Mail Dispatches
+            // Trigger send-email edge function
+            const emailPayload = {
+                to_email: "jrellars@gmail.com",
+                subject: `[CRITICAL] Action Required: Review Automated RCA Patch for ${errorSignature}`,
+                html_content: `<h3>Action Required: HITL Review</h3><p><strong>Ticket ID:</strong> ${data.id}</p><p><strong>Error Signature:</strong> ${errorSignature}</p><h4>Proposed Fix:</h4><pre>${proposedFix}</pre><p><a href="https://axim.us.com/admin/audit/${data.id}">Review the Patch Here</a></p>`
+            };
+            fetch(`${supabaseUrl}/functions/v1/send-email`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${supabaseKey}`
+                },
+                body: JSON.stringify(emailPayload)
+            }).catch(e => console.error("Failed to dispatch alert email:", e));
+
         }
     } else {
         console.log("Mock inserted to hitl_audit_logs");

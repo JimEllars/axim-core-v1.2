@@ -83,6 +83,21 @@ serve(async (req) => {
             }
         }
 
+        // Alert operator about resolution
+        const emailPayload = {
+            to_email: "jrellars@gmail.com",
+            subject: `[INFO] HITL Action Resolved: ${log_id}`,
+            html_content: `<p>A HITL action has been marked as <strong>${status}</strong>.</p><p>Ticket ID: ${log_id}</p>`
+        };
+        fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+            },
+            body: JSON.stringify(emailPayload)
+        }).catch(e => console.error("Failed to dispatch alert email:", e));
+
         return new Response(JSON.stringify({ success: true, ...data }), {
             headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
         });
