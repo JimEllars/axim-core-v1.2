@@ -16,6 +16,7 @@ const ProductFeedback = () => {
 
   const [newFeedback, setNewFeedback] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [satisfactionScore, setSatisfactionScore] = useState(5);
 
   const handleSubmitFeedback = async () => {
     if (!newFeedback.trim()) return;
@@ -28,7 +29,8 @@ const ProductFeedback = () => {
 
       await api.submitProductFeedback({
           app_source: 'desktop-client',
-          sentiment: 'neutral',
+          sentiment: satisfactionScore > 3 ? 'positive' : satisfactionScore < 3 ? 'negative' : 'neutral',
+          score: satisfactionScore,
           comments: newFeedback,
           diagnostics: diagnostics
         });
@@ -133,6 +135,18 @@ const ProductFeedback = () => {
           <SafeIcon icon={FiMessageSquare} className="mr-2 text-indigo-400" />
           Submit Feedback
         </h3>
+        <div className="flex items-center space-x-4 mb-2">
+          <label className="text-slate-300 text-sm">Satisfaction Score:</label>
+          <input
+            type="range"
+            min="1"
+            max="5"
+            value={satisfactionScore}
+            onChange={(e) => setSatisfactionScore(parseInt(e.target.value))}
+            className="w-48"
+          />
+          <span className="text-white font-bold">{satisfactionScore} / 5</span>
+        </div>
         <textarea
           className="w-full bg-onyx-950/50 border border-onyx-accent/20 rounded-lg p-3 text-white focus:outline-none focus:border-indigo-500"
           rows="3"
@@ -157,7 +171,9 @@ const ProductFeedback = () => {
               <tr>
                 <th className="px-6 py-4 rounded-tl-lg">Date</th>
                 <th className="px-6 py-4">App Source</th>
+                <th className="px-6 py-4">Score</th>
                 <th className="px-6 py-4">Sentiment</th>
+                <th className="px-6 py-4">Diagnostics</th>
                 <th className="px-6 py-4 rounded-tr-lg">Comments</th>
               </tr>
             </thead>
@@ -180,12 +196,15 @@ const ProductFeedback = () => {
                 </tr>
               ) : (
                 feedback.map((item) => (
-                  <tr key={item.id} className="border-b border-onyx-accent/10 hover:bg-onyx-950/30">
+                  <tr key={item.id} className={`border-b border-onyx-accent/10 hover:bg-onyx-950/30 ${item.score && item.score < 3 ? 'bg-red-900/10' : ''}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {new Date(item.created_at).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4">
                       {item.app_source}
+                    </td>
+                    <td className="px-6 py-4 font-bold">
+                      {item.score || '-'} / 5
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded text-xs font-bold ${
@@ -195,6 +214,9 @@ const ProductFeedback = () => {
                       }`}>
                         {item.sentiment}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 max-w-xs truncate text-xs text-slate-400" title={item.diagnostics ? JSON.stringify(item.diagnostics) : 'None'}>
+                      {item.diagnostics ? 'Has Diagnostics' : 'None'}
                     </td>
                     <td className="px-6 py-4 max-w-md truncate">
                       {item.comments}

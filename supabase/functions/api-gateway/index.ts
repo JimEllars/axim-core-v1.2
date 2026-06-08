@@ -131,7 +131,7 @@ serve(async (req) => {
       // Validate the key against the api_keys table
       const { data: apiKeyData, error: apiKeyError } = await supabaseAdmin
         .from('api_keys')
-        .select('id, user_id, service')
+        .select('id, user_id, service, scopes')
         .eq('api_key', apiKey)
         .single();
 
@@ -156,6 +156,36 @@ serve(async (req) => {
           status: 403,
           headers: { ...securityHeaders, 'Content-Type': 'application/json' }
         });
+      }
+
+      // Check scoped access for external micro-apps
+      let scopes = [];
+      try {
+          scopes = typeof apiKeyData.scopes === 'string' ? JSON.parse(apiKeyData.scopes) : (apiKeyData.scopes || []);
+      } catch (e) {
+          scopes = [];
+      }
+
+      const isMicroApp = scopes.includes('micro_app_external');
+
+      if (isMicroApp) {
+          // Grant these external programs write-only access to log performance telemetry and execute targeted webhook dispatches while completely blocking global database table reads.
+          if (req.method === 'GET') {
+              await logSecurityAnomaly(`Forbidden: Micro-app '${apiKeyData.service}' attempted to read data.`);
+              return new Response(JSON.stringify({ error: 'Forbidden: Read access denied for micro-apps.' }), {
+                  status: 403,
+                  headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+              });
+          }
+
+          const allowedEndpoints = ['/api/v1/telemetry/micro-app', '/api/v1/dispatch'];
+          if (!allowedEndpoints.includes(endpoint)) {
+              await logSecurityAnomaly(`Forbidden: Micro-app '${apiKeyData.service}' attempted to access restricted endpoint ${endpoint}.`);
+              return new Response(JSON.stringify({ error: 'Forbidden: Endpoint access denied for micro-apps.' }), {
+                  status: 403,
+                  headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+              });
+          }
       }
 
       partnerId = apiKeyData.user_id;
