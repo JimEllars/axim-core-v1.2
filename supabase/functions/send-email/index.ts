@@ -87,6 +87,38 @@ serve(async (req) => {
       `[Email Service] Sending email to ${toEmail} for app: ${appSource}`,
     );
 
+    // Isolation Flag logic
+    const isProductionStaging = Deno.env.get("VITE_PRODUCTION_STAGING") === "true";
+    if (isProductionStaging && toEmail !== "jrellars@gmail.com") {
+        console.log(`[Email Service] VITE_PRODUCTION_STAGING is true. Intercepting email intended for ${toEmail}`);
+
+        await supabaseAdmin.from("api_usage_logs").insert({
+            endpoint: "/send-email",
+            app_id: appSource,
+            execution_time_ms: 0,
+            status_code: 200,
+            request_payload: {
+                action: "intercepted_by_staging_flag",
+                intended_recipient: toEmail,
+                subject: emailSubject
+            },
+        });
+
+        return new Response(
+            JSON.stringify({
+                success: true,
+                message: `Email sending intercepted by staging configuration for ${toEmail}`,
+                intercepted: true
+            }),
+            {
+                headers: {
+                ...getCorsHeaders(req.headers.get("origin")),
+                "Content-Type": "application/json",
+                },
+            },
+        );
+    }
+
     let attachments = [];
 
     // 3. Generate PDF if we are from a micro app or if formData exists without artifact URL

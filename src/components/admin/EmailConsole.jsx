@@ -72,7 +72,7 @@ const EmailConsole = () => {
     }
   };
 
-  const handleRetryDlq = async (item) => {
+  const handleReplayTransaction = async (item) => {
     // Send email again
     try {
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
@@ -85,7 +85,7 @@ const EmailConsole = () => {
             to_email: item.to_email,
             subject: item.subject,
             html_content: item.html_content,
-            app_source: 'AXiM DLQ Retry'
+            app_source: 'AXiM DLQ Replay Transaction'
             })
         });
 
@@ -94,10 +94,10 @@ const EmailConsole = () => {
             await supabase.from('email_dead_letter_queue').delete().eq('id', item.id);
             fetchDlqItems();
         } else {
-            alert("Retry failed again. Please check logs.");
+            alert("Replay Transaction failed again. Please check logs.");
         }
     } catch (e) {
-        alert("Retry error: " + e.message);
+        alert("Replay Transaction error: " + e.message);
     }
   };
 
@@ -184,11 +184,11 @@ const EmailConsole = () => {
                   <div className="text-xs text-slate-500 mt-1">{new Date(item.created_at).toLocaleString()}</div>
                 </div>
                 <button
-                  onClick={() => handleRetryDlq(item)}
+                  onClick={() => handleReplayTransaction(item)}
                   className="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-sm transition-colors flex items-center"
                 >
                   <FiRefreshCw className="mr-1.5" />
-                  Retry
+                  Replay Transaction
                 </button>
               </div>
             ))}
