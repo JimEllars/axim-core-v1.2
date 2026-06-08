@@ -15,8 +15,9 @@ import ProductFeedback from './ProductFeedback';
 import EcosystemRegistry from './EcosystemRegistry';
 import BillingPortal from './BillingPortal';
 import IntegrationsManager from './IntegrationsManager';
+import EmailConsole from './EmailConsole';
 
-const { FiLink, FiKey, FiUsers, FiCreditCard, FiGitMerge, FiBarChart2, FiLayers, FiDatabase, FiZap, FiShield, FiMessageSquare, FiBox } = FiIcons;
+const { FiLink, FiKey, FiUsers, FiCreditCard, FiGitMerge, FiBarChart2, FiLayers, FiDatabase, FiZap, FiShield, FiMessageSquare, FiBox, FiMail } = FiIcons;
 
 const AdminDashboard = () => {
   const { user: currentUser } = useAuth();
@@ -34,6 +35,7 @@ const AdminDashboard = () => {
     { id: 'ecosystem', label: 'Ecosystem Registry', icon: FiBox },
     { id: 'integrations', label: 'Integrations & Webhooks', icon: FiLink },
     { id: 'billing', label: 'Fulfillment', icon: FiBox },
+    { id: 'email', label: 'Email Console', icon: FiMail },
   ];
 
   return (
@@ -77,6 +79,7 @@ const AdminDashboard = () => {
           {activeTab === 'ecosystem' && <ProtectedRoute allowedRoles={['admin']}><EcosystemRegistry /></ProtectedRoute>}
           {activeTab === 'integrations' && <ProtectedRoute allowedRoles={['admin']}><IntegrationsManager /></ProtectedRoute>}
           {activeTab === 'billing' && <ProtectedRoute allowedRoles={['admin']}><BillingPortal /></ProtectedRoute>}
+          {activeTab === 'email' && <ProtectedRoute allowedRoles={['admin']}><EmailConsole /></ProtectedRoute>}
         </div>
       </motion.div>
     </div>

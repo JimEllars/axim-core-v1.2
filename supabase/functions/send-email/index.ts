@@ -16,6 +16,14 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get(
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 // Helper to convert Uint8Array to base64
+function sanitizeHtmlContent(html: string): string {
+  if (!html) return "";
+  let sanitized = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+  sanitized = sanitized.replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "");
+  sanitized = sanitized.replace(/ on\w+="[^"]*"/g, "").replace(/ on\w+=\x27[^']*\x27/g, "").replace(/ on\w+=\w+/g, "");
+  return sanitized;
+}
+
 function uint8ArrayToBase64(bytes: Uint8Array): string {
   let binary = "";
   const len = bytes.byteLength;
@@ -61,11 +69,13 @@ serve(async (req) => {
       reqBody.html_content ||
       reqBody.body ||
       "<p>Thank you for your purchase. Your document is securely attached.</p>";
+
+    const sanitizedHtmlContent = sanitizeHtmlContent(emailHtmlContent);
     const emailTextContent =
       reqBody.text_content ||
       reqBody.text ||
-      (typeof emailHtmlContent === "string"
-        ? emailHtmlContent.replace(/<[^>]*>?/gm, "")
+      (typeof sanitizedHtmlContent === "string"
+        ? sanitizedHtmlContent.replace(/<[^>]*>?/gm, "")
         : "Please view this email in an HTML-compatible client.");
     const existingArtifactUrl = reqBody.artifactUrl;
 
@@ -112,7 +122,7 @@ serve(async (req) => {
       from: senderEmail,
       to: [toEmail],
       subject: emailSubject,
-      html: emailHtmlContent,
+      html: sanitizedHtmlContent,
       text: emailTextContent,
     };
 
@@ -141,6 +151,14 @@ serve(async (req) => {
         request_payload: { error: networkError.message },
       });
 
+      // Task 3: Transactional Mail Dead-Letter Queue (DLQ)
+      await supabaseAdmin.from("email_dead_letter_queue").insert({
+          to_email: toEmail,
+          subject: emailSubject,
+          html_content: sanitizedHtmlContent,
+          error_diagnostic: networkError.message
+      });
+
       return new Response(
         JSON.stringify({ error: `EmailIt API Error: Network drop or timeout` }),
         {
@@ -162,6 +180,14 @@ serve(async (req) => {
         execution_time_ms: -1,
         status_code: emailItResponse.status,
         request_payload: { error: errorText },
+      });
+
+      // Task 3: Transactional Mail Dead-Letter Queue (DLQ)
+      await supabaseAdmin.from("email_dead_letter_queue").insert({
+          to_email: toEmail,
+          subject: emailSubject,
+          html_content: sanitizedHtmlContent,
+          error_diagnostic: errorText
       });
       // return 502 Bad Gateway to the caller
       return new Response(
