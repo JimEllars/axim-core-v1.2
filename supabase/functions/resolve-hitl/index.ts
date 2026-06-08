@@ -83,6 +83,47 @@ serve(async (req) => {
             }
         }
 
+        // When an administrator confirms an action patch, compile the related support conversation log thread.
+        if (status === 'Approved') {
+            try {
+                // Fetch the ticket_id from hitl_audit_logs
+                const { data: logData, error: logError } = await supabaseAdmin
+                    .from('hitl_audit_logs')
+                    .select('ticket_id')
+                    .eq('id', log_id)
+                    .single();
+
+                if (logData && logData.ticket_id) {
+                    const ticketId = logData.ticket_id;
+
+                    // Fetch the ticket and messages
+                    const { data: ticketData } = await supabaseAdmin
+                        .from('support_tickets')
+                        .select('subject, description')
+                        .eq('id', ticketId)
+                        .single();
+
+                    // Send to llm-proxy for closed-loop RAG memory enrichment
+                    const threadLog = `Ticket Subject: ${ticketData?.subject}\nTicket Description: ${ticketData?.description}\nResolution Action Payload: ${JSON.stringify(action_payload)}`;
+
+                    await supabaseAdmin.functions.invoke('llm-proxy', {
+                        body: {
+                            command: "Generate a markdown-formatted procedural text block detailing this issue and its resolution. Then generate a vector embedding to insert into ai_memory_banks.",
+                            threadLog: threadLog,
+                            ticketId: ticketId,
+                            action: "rag_memory_enrichment"
+                        },
+                        headers: {
+                            'X-Axim-Internal-Service-Key': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+                        }
+                    });
+                    console.log(`Successfully dispatched llm-proxy for memory enrichment for ticket ${ticketId}`);
+                }
+            } catch (err) {
+                console.error(`Failed to process closed-loop memory enrichment for log ${log_id}`, err);
+            }
+        }
+
         // Alert operator about resolution
         const emailPayload = {
             to_email: "jrellars@gmail.com",

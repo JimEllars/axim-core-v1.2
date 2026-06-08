@@ -46,3 +46,6 @@ BEGIN
     LIMIT match_count;
 END;
 $$;
+
+-- Ensure the vector extension is available for the embedding column
+CREATE EXTENSION IF NOT EXISTS vector;
