@@ -39,7 +39,7 @@ serve(async (req) => {
           meta: {
             first_name: "James",
             last_name: "Ellars",
-            email: "jamesellars@jkrenewables.com"
+            email: "james.ellars@axim.us.com"
           }
         }
       });

@@ -52,7 +52,7 @@ serve(async (req) => {
       // Implement a strict geographic bounding check on the parsed facility_zip variable.
       if (prospect.facility_zip) {
         const zip = parseInt(prospect.facility_zip, 10);
-        const isWithinRange = (zip >= 75601 && zip <= 75695) || [75654, 75667, 75633].includes(zip);
+        const isWithinRange = (zip >= 75601 && zip <= 75695);
 
         if (!isWithinRange) {
            prospect.lead_status = 'Out_of_Bounds_Assignment';
@@ -66,9 +66,9 @@ serve(async (req) => {
 
 
       // Evaluate prospect JSON payloads. Ensure the prompt logic strictly weighs the prospect's need for ongoing uniform rental (weekly laundering) or standard lease programs over direct purchases.
-      const llmSystemPrompt = `Evaluate the following prospect JSON payload and assign a predictive engagement score from 1 to 100 (where 100 is highest).
+      const llmSystemPrompt = `Evaluate the following prospect JSON payload. Extract the following fields from any unstructured text context: company_name, contact_name, email, phone, and estimated_monthly_utility_spend. Assign a predictive engagement score from 1 to 100 (where 100 is highest).
 Strictly weigh the prospect's need for ongoing uniform rental (weekly laundering) or standard lease programs over direct purchases. Higher scores for rentals/leases, lower for direct purchases.
-Respond ONLY with a JSON object in this format: {"axim_lead_score": 85}`;
+Respond ONLY with a JSON object in this format: {"company_name": "...", "contact_name": "...", "email": "...", "phone": "...", "estimated_monthly_utility_spend": "...", "axim_lead_score": 85}`;
 
       const payloadString = JSON.stringify(prospect);
 
@@ -96,17 +96,26 @@ Respond ONLY with a JSON object in this format: {"axim_lead_score": 85}`;
       }
 
       let leadScore = 50; // Default
+      let parsedFields = {};
       try {
         const parsedDraft = JSON.parse(llmDraft);
         if (parsedDraft.axim_lead_score) {
           leadScore = parsedDraft.axim_lead_score;
         }
+        parsedFields = {
+           company_name: parsedDraft.company_name || prospect.company_name,
+           contact_name: parsedDraft.contact_name || prospect.contact_name,
+           email: parsedDraft.email || prospect.email,
+           phone: parsedDraft.phone || prospect.phone,
+           estimated_monthly_utility_spend: parsedDraft.estimated_monthly_utility_spend || prospect.estimated_monthly_utility_spend
+        };
       } catch (e) {
         console.error('Failed to parse LLM response for lead score', e);
       }
 
       const enrichedPayload = {
         ...prospect,
+        ...parsedFields,
         axim_lead_score: leadScore
       };
 

@@ -16,6 +16,8 @@ serve(async (req) => {
 
     // Extract post metadata
     let tags = [];
+
+    // Formatting Constraints Enforcements: isolate and output all structural categorical definitions, keywords, and search engine parameters into a strict comma-separated format array.
     if (payload.category_indexes && typeof payload.category_indexes === 'string') {
         tags = tags.concat(payload.category_indexes.split(',').map(tag => tag.trim()).filter(t => t.length > 0));
     } else if (Array.isArray(payload.category_indexes)) {
@@ -28,7 +30,13 @@ serve(async (req) => {
         tags = tags.concat(payload.meta_keywords);
     }
 
-    // Comma-separated format
+    if (payload.search_engine_parameters && typeof payload.search_engine_parameters === 'string') {
+        tags = tags.concat(payload.search_engine_parameters.split(',').map(tag => tag.trim()).filter(t => t.length > 0));
+    } else if (Array.isArray(payload.search_engine_parameters)) {
+        tags = tags.concat(payload.search_engine_parameters);
+    }
+
+    // Strict comma-separated format array
     const formattedTags = tags.join(', ');
 
     // Async route to Onyx bridge
