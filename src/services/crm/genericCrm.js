@@ -23,7 +23,7 @@ class GenericCrm {
       // Implement a strict geographic bounding check on the parsed facility_zip variable.
       if (user.facility_zip) {
         const zip = parseInt(user.facility_zip, 10);
-        const isWithinRange = (zip >= 75601 && zip <= 75695) || [75654, 75667, 75633].includes(zip);
+        const isWithinRange = (zip >= 75601 && zip <= 75695);
 
         if (!isWithinRange) {
            user.lead_status = 'Out_of_Bounds_Assignment';
