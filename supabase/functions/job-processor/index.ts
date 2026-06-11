@@ -202,18 +202,26 @@ serve(async (req) => {
       } catch (err: any) {
         console.error(`Error processing job ${job.id}:`, err);
         const newAttempts = job.attempts + 1;
-        const newStatus = newAttempts >= job.max_attempts ? "failed" : "failed"; // We set to failed, the fetch query picks up failed if attempts < max
+        const newStatus = newAttempts >= job.max_attempts ? "failed" : "failed";
 
-        await supabase
-          .from("satellite_job_queue")
-          .update({
-            status: newStatus,
-            attempts: newAttempts,
-            error_log: err instanceof Error ? err.message : String(err),
-          })
-          .eq("id", job.id);
+        const backoffMinutes = Math.pow(5, job.attempts); // attempt 1 -> 5^0 = 1 min, 5^1 = 5 min, 5^2 = 25 min...
+        const nextRunAt = new Date(Date.now() + backoffMinutes * 60000).toISOString();
 
         if (newAttempts >= job.max_attempts) {
+          // Remove from satellite_job_queue
+          await supabase.from("satellite_job_queue").delete().eq("id", job.id);
+
+          // Insert into dead_letter_jobs
+          await supabase.from("dead_letter_jobs").insert({
+            original_job_id: job.id,
+            app_id: job.app_id,
+            task_type: job.task_type || jobType || 'unknown',
+            payload: job.payload,
+            target_destination: endpoint,
+            error_log: err instanceof Error ? err.message : String(err),
+            status: 'Pending'
+          });
+
           await supabase.from("telemetry_logs").insert({
             event: "critical_job_failure",
             app_type: "job-processor",
@@ -222,8 +230,20 @@ serve(async (req) => {
               error: err instanceof Error ? err.message : String(err),
               job_id: job.id,
               payload: job.payload,
+              dlq: true
             },
           });
+        } else {
+          // Update satellite_job_queue
+          await supabase
+            .from("satellite_job_queue")
+            .update({
+              status: newStatus,
+              attempts: newAttempts,
+              next_run_at: nextRunAt,
+              error_log: err instanceof Error ? err.message : String(err),
+            })
+            .eq("id", job.id);
         }
       }
     }
