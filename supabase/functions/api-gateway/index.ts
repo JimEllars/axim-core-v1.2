@@ -508,7 +508,34 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('API Gateway Error:', error);
-    await notifyOnyx(endpoint, 500, { error: error.message });
+
+    // Clone raw error exception for Shadow Telemetry
+    const shadowErrorTrace = error instanceof Error ? error.stack || error.message : String(error);
+
+    // Insert directly into api_usage_logs with severity: "critical" and masked_to_client: true
+    if (typeof EdgeRuntime !== 'undefined' || true) {
+      // Use supabaseAdmin to bypass RLS and insert the shadow telemetry
+      const shadowInsert = supabaseAdmin.from('api_usage_logs').insert({
+        endpoint: endpoint,
+        status_code: 500,
+        execution_time_ms: -1,
+        partner_id: 'internal',
+        payload: {
+          shadow_telemetry: true,
+          severity: 'critical',
+          masked_to_client: true,
+          error_stack: shadowErrorTrace
+        }
+      });
+      if (typeof EdgeRuntime !== 'undefined') {
+        EdgeRuntime.waitUntil(shadowInsert);
+      } else {
+        await shadowInsert;
+      }
+    }
+
+    await notifyOnyx(endpoint, 500, { error: error.message, shadow_telemetry: true });
+
     return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
       status: 500,
       headers: { ...securityHeaders, 'Content-Type': 'application/json' }

@@ -36,7 +36,14 @@ async function ingestUrl(entity: string, result: any) {
     let extractedText = `${title}\n\n${snippet}\n\n[Full article content simulated...]`;
 
     try {
-        const networkReq = fetch(url, { signal: controller.signal });
+
+        const gcpServiceKey = Deno.env.get("AXIM_GCP_SERVICE_KEY");
+        const headers = new Headers();
+        if (gcpServiceKey) {
+            headers.set("Authorization", `Bearer ${gcpServiceKey}`);
+        }
+        const networkReq = fetch(url, { signal: controller.signal, headers });
+
 
         const response = await Promise.race([
             networkReq,
