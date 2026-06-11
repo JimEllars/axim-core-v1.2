@@ -98,7 +98,7 @@ export const AuthProvider = ({ children }) => {
       // The prompt says: "Update the AuthContext to fetch and store the user's role from a user_roles table (or Supabase app_metadata)."
       // Let's use user_roles table or app_metadata. But wait, I'm fetching currentUser.app_metadata.
       try {
-        let currentRole = currentUser.app_metadata?.role;
+        let currentRole = currentUser.app_metadata?.role || session.user?.app_metadata?.role;
         if (!currentRole) {
            const { data: roleData, error: roleError } = await supabase.from('user_roles').select('role').eq('user_id', currentUser.id).maybeSingle();
            if (roleError && (roleError?.code?.startsWith('PGRST') || roleError?.message?.includes('does not exist'))) {

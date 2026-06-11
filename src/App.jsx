@@ -15,6 +15,8 @@ import AdminDashboard from './components/admin/AdminDashboard';
 import Ingest from './components/ingest/Ingest';
 import Settings from './components/settings/Settings';
 import UserProfile from './components/UserProfile';
+import Support from './pages/Support';
+
 import MainLayout from './components/MainLayout';
 import { useAuth } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -125,6 +127,15 @@ function AppContent() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="support/*"
+            element={
+              <ProtectedRoute allowedRoles={['admin', 'support']}>
+                <Support />
               </ProtectedRoute>
             }
           />
