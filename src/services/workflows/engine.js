@@ -22,19 +22,38 @@ const stepHandlerRegistry = {
     return { message: `Email sent to ${step.config.to}.` };
   },
 
+
   wait_for_event: async (step, context, userId) => {
-    // Return a special status to pause the workflow execution
+    if (context.eventData && context.eventData.event_type === step.config.event_type) {
+       return { message: `Resumed after event: ${step.config.event_type}`, data: context.eventData };
+    }
     return { status: "paused", message: `Workflow paused, waiting for event: ${step.config.event_type}` };
   },
+
+
   query_database: async (step, context, userId) => {
-    return { message: `Query database step executed.` };
-  }
+    const { table, select = '*', match = {} } = step.config;
+    if (!table) throw new Error("query_database step requires a 'table' in config.");
+
+    const { supabase } = await import('../../services/supabaseClient');
+    let query = supabase.from(table).select(select);
+    Object.keys(match).forEach(k => {
+       query = query.eq(k, match[k]);
+    });
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+
+    return { message: `Query database step executed.`, data };
+  },
+
 };
 
 export const runWorkflow = async (
   workflowSlug,
   userId,
   initialContext = {},
+  startFromStep = null
 ) => {
   let workflow = null;
 
@@ -70,7 +89,17 @@ export const runWorkflow = async (
   let context = { workflowRunId, userId, ...initialContext };
   const results = [];
 
+
+  let skipSteps = startFromStep !== null;
   for (const step of workflow.steps) {
+    if (skipSteps) {
+      if (step.name === startFromStep) {
+        skipSteps = false;
+      } else {
+        continue;
+      }
+    }
+
     try {
       console.log(`Executing step: ${step.name}`);
 
@@ -154,6 +183,20 @@ export const runWorkflow = async (
   };
 };
 
+
+export const resumeWorkflow = async (workflowName, runId, userId, eventData) => {
+  console.log(`Resuming workflow: ${workflowName} (Run ID: ${runId})`);
+  const executions = await api.getWorkflowExecutions();
+  const runData = executions.find(e => e.workflow_run_id === runId);
+
+  if (!runData || runData.status !== 'paused') {
+    throw new Error(`Workflow run ${runId} not found or not paused.`);
+  }
+
+  const initialContext = { ...runData.context, eventData };
+  return runWorkflow(workflowName, userId, initialContext, runData.paused_at_step);
+};
+
 export const listenForWorkflowEvents = (supabaseClient) => {
   if (!supabaseClient) return null;
 
@@ -186,9 +229,21 @@ export const listenForWorkflowEvents = (supabaseClient) => {
             console.error("Failed to run NEW_AFFILIATE_LEAD workflow:", error);
           }
         }
+
+        const executions = await api.getWorkflowExecutions();
+        const pausedRuns = executions.filter(e => e.status === 'paused');
+
+        for (const run of pausedRuns) {
+           try {
+              await resumeWorkflow(run.workflow_name, run.workflow_run_id, 'system', { event_type: event.type, ...event.data });
+           } catch(e) {
+              console.error('Failed to resume workflow:', e);
+           }
+        }
       }
     )
     .subscribe((status) => {
+
       console.log(`Workflow event listener status: ${status}`);
     });
 

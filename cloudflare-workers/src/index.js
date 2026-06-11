@@ -88,7 +88,7 @@ export default {
     // 1. API Proxy Routing
     if (url.pathname.startsWith('/api/')) {
       // Edge Caching
-      const cacheableEndpoints = ['/api/system/capabilities', '/api/providers/status'];
+      const cacheableEndpoints = ['/api/system/capabilities', '/api/providers/status', '/api/system-status'];
       if (request.method === 'GET' && cacheableEndpoints.includes(url.pathname)) {
         const cache = caches.default;
         const cachedResponse = await cache.match(request);
@@ -122,7 +122,11 @@ export default {
         if (request.method === 'GET' && cacheableEndpoints.includes(url.pathname)) {
            // We clone it to put in cache
            const responseToCache = new Response(proxyResponse.body, proxyResponse);
-           responseToCache.headers.set('Cache-Control', 'max-age=60');
+           if (url.pathname === '/api/system-status') {
+             responseToCache.headers.set('Cache-Control', 'max-age=15');
+           } else {
+             responseToCache.headers.set('Cache-Control', 'max-age=60');
+           }
            ctx.waitUntil(caches.default.put(request, responseToCache.clone()));
         }
 

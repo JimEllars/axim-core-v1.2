@@ -5,3 +5,7 @@ coverage
 .env
 .env.*
 !.env.example
+*.log
+*.pid
+precommit_check.txt
+test_migration.sql

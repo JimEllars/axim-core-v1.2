@@ -52,12 +52,41 @@ export const generateEmbedding = async (input) => {
   }
 };
 
+
 export const generateContent = async (prompt, options = {}) => {
   if (config.isMockLlmEnabled) {
     return getMockLlmResponse(prompt);
   }
 
+  // Workstream D: Activate auto-RAG in OnyxAI
+  let finalPrompt = prompt;
+  if (!options.skipRAG && supabase && prompt.length < 500) {
+    try {
+      // 1. Generate an embedding for the user's prompt
+      const queryEmbedding = await generateEmbedding(prompt);
+
+      // 2. Query the vector memory using the existing RPC or generic match
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id || null;
+
+      const { data: similarMemories, error: matchError } = await supabase.rpc('match_memory_banks', {
+        query_embedding: queryEmbedding,
+        match_threshold: 0.78,
+        match_count: 3,
+        p_user_id: userId // assuming the RPC might accept a user_id parameter for tenant scoping, else it uses auth context natively
+      });
+
+      if (!matchError && similarMemories && similarMemories.length > 0) {
+        const memoryContext = similarMemories.map(m => m.content).join("\n");
+        finalPrompt = `Context from system memory:\n${memoryContext}\n\nUser Request: ${prompt}`;
+      }
+    } catch (ragError) {
+       logger.warn("RAG Memory retrieval failed, proceeding with standard prompt:", ragError);
+    }
+  }
+
   const availableProviders = providerManager.getAvailableProviders();
+
   let activeProviderName = providerManager.getActiveProviderName();
 
   if (!activeProviderName || !availableProviders.length) {
