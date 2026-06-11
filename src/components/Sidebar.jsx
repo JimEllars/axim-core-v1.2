@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../contexts/AuthContext';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import AppLauncher from './layout/AppLauncher';
 import { Link, useLocation } from 'react-router-dom';
+import { supabase } from '../services/supabaseClient';
 
 const { 
   FiHome, FiTerminal, FiLogOut, FiShield, FiActivity, 
@@ -55,11 +56,45 @@ const Sidebar = () => {
     }] : [])
   ];
 
-  const systemStats = [
-    { label: 'System Status', value: 'ONLINE', color: 'text-green-400' },
-    { label: 'Active Processes', value: '7', color: 'text-blue-400' },
-    { label: 'AI Response', value: '0.3s', color: 'text-purple-400' }
-  ];
+
+  const [systemStats, setSystemStats] = useState([
+    { label: 'System Status', value: 'LOADING', color: 'text-slate-400' },
+    { label: 'Active Processes', value: '-', color: 'text-slate-400' },
+    { label: 'Online Nodes', value: '-', color: 'text-slate-400' }
+  ]);
+
+  useEffect(() => {
+    let interval;
+    if (isHovered) {
+      const fetchStatus = async () => {
+        try {
+          const { data, error } = await supabase.functions.invoke('system-status');
+          if (error) throw error;
+
+          const activeNodes = data.nodes.filter(n => n.status === 'operational').length;
+          const totalNodes = data.nodes.length;
+          const activeApps = data.apps.filter(a => a.status === 'active' || a.is_active).length;
+
+          setSystemStats([
+             { label: 'System Status', value: activeNodes > 0 || activeApps > 0 ? 'ONLINE' : 'DEGRADED', color: activeNodes > 0 || activeApps > 0 ? 'text-green-400' : 'text-amber-400' },
+             { label: 'Active Processes', value: activeApps.toString(), color: 'text-blue-400' },
+             { label: 'Online Nodes', value: `${activeNodes}/${totalNodes}`, color: 'text-purple-400' }
+          ]);
+        } catch (e) {
+          // Fail soft: never block the UI, just show status unknown
+          setSystemStats([
+             { label: 'System Status', value: 'STATUS UNKNOWN', color: 'text-slate-400' },
+             { label: 'Active Processes', value: '-', color: 'text-slate-400' },
+             { label: 'Online Nodes', value: '-', color: 'text-slate-400' }
+          ]);
+        }
+      };
+      fetchStatus();
+      interval = setInterval(fetchStatus, 30000);
+    }
+    return () => clearInterval(interval);
+  }, [isHovered]);
+
 
   const dockVariants = {
     collapsed: { width: '80px', transition: { duration: 0.3 } },

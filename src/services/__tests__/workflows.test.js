@@ -5,7 +5,8 @@ const mockApi = {
     createTaskForProject: vi.fn().mockResolvedValue({ success: true }),
     sendEmail: vi.fn().mockResolvedValue({ success: true }),
     logWorkflowExecution: vi.fn().mockResolvedValue({ success: true }),
-    getWorkflows: vi.fn().mockResolvedValue([])
+    getWorkflows: vi.fn().mockResolvedValue([]),
+    getWorkflowExecutions: vi.fn().mockResolvedValue([])
 };
 
 vi.doMock('../onyxAI/api', () => ({ default: mockApi }));
@@ -37,4 +38,35 @@ describe('Workflow Engine', () => {
         expect(mockApi.invokeAximService).toHaveBeenCalled();
         expect(mockApi.logWorkflowExecution).toHaveBeenCalled();
     });
+
+    it('should resume a paused workflow upon receiving the awaited event', async () => {
+        // Mock a previously paused workflow execution
+        const runId = 'wf_run_mocked_id';
+        const workflowName = 'NEW_AFFILIATE_LEAD';
+        const pausedStepName = 'Wait for Event';
+        const context = {
+           workflowRunId: runId,
+           userId: 'system'
+        };
+
+        mockApi.getWorkflowExecutions.mockResolvedValue([
+            {
+               workflow_run_id: runId,
+               workflow_name: workflowName,
+               status: 'paused',
+               paused_at_step: pausedStepName,
+               context: context
+            }
+        ]);
+
+        const eventData = { event_type: 'email_opened_or_clicked', contract_id: '123' };
+
+        // We export resumeWorkflow so we can test it directly or test listenForWorkflowEvents
+        const engine = await import('../workflows/engine.js');
+        const result = await engine.resumeWorkflow(workflowName, runId, 'system', eventData);
+
+        expect(result.status).not.toBe('paused');
+        expect(mockApi.logWorkflowExecution).toHaveBeenCalled();
+    });
+
 });
