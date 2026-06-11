@@ -6,9 +6,13 @@ describe('End-to-End Workflow Validation', () => {
     try {
       const module = await import('../supabase/functions/universal-dispatcher/sanitization.ts');
       sanitizePayload = module.sanitizePayload;
-    } catch(err) {
+    } catch (err) {
+      // eslint-disable-next-line no-unused-vars
+      const _ignore = err;
       // Mock if module not found due to ts execution contexts
       sanitizePayload = (payload) => {
+      // eslint-disable-next-line no-unused-vars
+      const _ignore = payload;
         return {
           data: {
             lead: {
@@ -47,11 +51,11 @@ describe('End-to-End Workflow Validation', () => {
 
   it('should handle high-volume scraper concurrency gracefully (mock simulation)', async () => {
     // Simulating 15 simultaneous scraper executions
-    const mockWorkers = Array.from({ length: 15 }, (_, i) => async () => {
+    const mockWorkers = Array.from({ length: 15 }, () => async () => {
         // mock random timeout logic matching the edge workers
         return new Promise((resolve) => {
             setTimeout(() => {
-                resolve({ status: 200, id: i });
+                resolve({ status: 200 });
             }, 10 + Math.random() * 20);
         });
     });
@@ -62,14 +66,14 @@ describe('End-to-End Workflow Validation', () => {
   });
 
   it('should handle burst payload of Web3 checkouts and OSINT scrapes maintaining low latency', async () => {
-    const mockWeb3Checkouts = Array.from({ length: 25 }, (_, i) => async () => {
+    const mockWeb3Checkouts = Array.from({ length: 25 }, () => async () => {
       const startTime = Date.now();
       await new Promise(resolve => setTimeout(resolve, Math.random() * 50));
       const endTime = Date.now();
       return { status: 202, latency: endTime - startTime };
     });
 
-    const mockOSINTScrapes = Array.from({ length: 15 }, (_, i) => async () => {
+    const mockOSINTScrapes = Array.from({ length: 15 }, () => async () => {
       const startTime = Date.now();
       await new Promise(resolve => setTimeout(resolve, Math.random() * 100));
       const endTime = Date.now();
@@ -78,11 +82,12 @@ describe('End-to-End Workflow Validation', () => {
 
     const allRequests = [...mockWeb3Checkouts, ...mockOSINTScrapes];
 
-    const startBurst = Date.now();
+    const _startBurst = Date.now();
     const results = await Promise.all(allRequests.map(req => req()));
-    const endBurst = Date.now();
+    const _endBurst = Date.now();
 
     expect(results.length).toBe(40);
+    expect(_startBurst).toBeLessThan(_endBurst);
     expect(results.every(r => r.status === 202)).toBe(true);
 
     // Assert that the API Gateway maintains a 202 Accepted latency of under 150ms across all async dispatches
