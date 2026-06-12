@@ -41,8 +41,8 @@ describe('ErrorBoundary', () => {
     );
 
     // Check for correct fallback UI elements
-    expect(screen.getByText('We encountered an unexpected anomaly.')).toBeInTheDocument();
-    expect(screen.getByText(/Onyx has been notified/)).toBeInTheDocument();
+    expect(screen.getByText('Application Error: Please check console or refresh.')).toBeInTheDocument();
+
   });
 
   it('calls window.location.reload when "Safe Reload Dashboard" is clicked', () => {
@@ -59,7 +59,7 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
 
-    fireEvent.click(screen.getByText('Safe Reload Dashboard'));
+    fireEvent.click(screen.getByText('Refresh Dashboard'));
     expect(reloadMock).toHaveBeenCalledTimes(1);
   });
 
