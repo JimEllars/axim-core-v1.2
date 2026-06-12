@@ -26,6 +26,7 @@ apiClient.interceptors.request.use(async (config) => {
       const parsedToken = JSON.parse(token);
       token = parsedToken?.access_token || token;
     } catch (e) {
+      // ignore parse error if token is just a string
     }
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;

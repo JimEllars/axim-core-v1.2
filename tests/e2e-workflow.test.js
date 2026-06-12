@@ -103,7 +103,7 @@ describe('End-to-End Workflow Validation', () => {
 
     // Simulate the DLQ table state and a mocked albato-connector
     let attemptCount = 0;
-    const mockAlbatoConnector = async (payload) => {
+    const mockAlbatoConnector = async (/* payload */) => {
         attemptCount++;
         // Force 503 Service Unavailable
         return { status: 503 };
