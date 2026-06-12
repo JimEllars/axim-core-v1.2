@@ -17,6 +17,7 @@ export const RealtimeProvider = ({ children }) => {
   const hitlChannelRef = useRef(null);
   const telemetryChannelRef = useRef(null);
   const ticketsChannelRef = useRef(null);
+  const workflowChannelRef = useRef(null);
   const workflowListenerRef = useRef(null);
   const reconnectTimeouts = useRef({ hitl: null, telemetry: null });
 
@@ -160,7 +161,32 @@ export const RealtimeProvider = ({ children }) => {
       telemetryChannelRef.current = telemetryChannel;
     };
 
-    setupSupportTicketsChannel();
+
+    const setupWorkflowChannel = () => {
+      const workflowChannel = supabase.channel('realtime:workflow_events_log')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'events_ax2024', filter: 'type=eq.workflow_executed' },
+          (payload) => {
+             // dispatch a custom event that WorkflowExecutionLog can listen to
+             window.dispatchEvent(new CustomEvent('workflow:new_execution', { detail: payload.new }));
+          }
+        )
+        .subscribe((status, err) => {
+           if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+              console.warn('RealtimeContext: WebSocket connection closed/error (workflow_events_log)', err || status);
+           }
+        });
+
+      workflowChannel.onError((err) => {
+          console.warn('RealtimeContext: WebSocket error (workflow_events_log)', err);
+      });
+      workflowChannelRef.current = workflowChannel;
+    };
+
+    setupWorkflowChannel();
+    setupWorkflowChannel();
+        setupSupportTicketsChannel();
     setupHitlChannel();
     setupTelemetryChannel();
     workflowListenerRef.current = listenForWorkflowEvents(supabase);
@@ -170,6 +196,7 @@ export const RealtimeProvider = ({ children }) => {
         if (hitlChannelRef.current) supabase.removeChannel(hitlChannelRef.current);
         if (telemetryChannelRef.current) supabase.removeChannel(telemetryChannelRef.current);
         if (ticketsChannelRef.current) supabase.removeChannel(ticketsChannelRef.current);
+      if (workflowChannelRef.current) supabase.removeChannel(workflowChannelRef.current);
         if (workflowListenerRef.current) workflowListenerRef.current();
 
         setupSupportTicketsChannel();

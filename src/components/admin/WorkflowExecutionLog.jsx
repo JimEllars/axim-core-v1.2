@@ -12,6 +12,15 @@ const WorkflowExecutionLog = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const handleNewExecution = (e) => {
+      setExecutions(prev => [e.detail, ...prev].slice(0, 100));
+    };
+    window.addEventListener('workflow:new_execution', handleNewExecution);
+
+    return () => window.removeEventListener('workflow:new_execution', handleNewExecution);
+  }, []);
+
+  useEffect(() => {
     const fetchExecutions = async () => {
       setLoading(true);
       try {
