@@ -34,11 +34,15 @@ export const SupabaseProvider = ({ children, client = null }) => {
         }
         setConnectionError(null);
       } catch (error) {
+        console.error("API initialization error or network issue caught in SupabaseContext:", error);
         if (error?.code?.startsWith('PGRST') || error?.message?.includes('does not exist')) {
           toast.error('Ecosystem Data Schema Cache Mismatch. Please execute schema reload sequence.', { duration: Infinity, id: 'schema-mismatch' });
+        } else if (error?.message && error.message.includes('No API service available')) {
+          toast.error("No API service available. Operating in degraded mode.", { duration: Infinity, id: 'no-api-service' });
         } else {
-          toast.error("Supabase connection error.");
+          toast.error("Supabase connection error.", { id: 'supabase-error' });
         }
+        // Do not throw the error here to prevent a hard crash
         setConnectionError(error);
       } finally {
         setIsConnectionChecked(true);
