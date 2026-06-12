@@ -1,8 +1,8 @@
 import axios from 'axios';
 import logger from './logging';
 import toast from 'react-hot-toast';
+import { supabase } from './supabaseClient'; // Ensure supabase client is available
 
-// In a real-world scenario, the VITE_API_BASE_URL would come from the .env file
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 
 const apiClient = axios.create({
@@ -12,11 +12,15 @@ const apiClient = axios.create({
   },
 });
 
-// Interceptor to add the auth token to requests
-// This assumes a token is stored in localStorage or obtained from an auth context
+export class PermissionError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'PermissionError';
+  }
+}
+
 apiClient.interceptors.request.use(async (config) => {
   let token = localStorage.getItem('supabase.auth.token');
-  // Try to parse the token object from Supabase if it exists
   if (token) {
     try {
       const parsedToken = JSON.parse(token);
@@ -24,7 +28,8 @@ apiClient.interceptors.request.use(async (config) => {
     } catch (e) {
       // ignore parse error if token is just a string
     }
-    config.headers = config.headers || {}; config.headers.Authorization = `Bearer ${token}`;
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
   }
   config.headers['x-axim-correlation-id'] = logger.getCorrelationId();
   return config;
@@ -32,50 +37,62 @@ apiClient.interceptors.request.use(async (config) => {
   return Promise.reject(error);
 });
 
-
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config;
+
     if (error.response) {
-      if (error.response.status === 401 || error.response.status === 403) {
-        localStorage.removeItem('supabase.auth.token');
-        localStorage.removeItem('axim_session_token');
-        logger.captureException(new Error(`API Authorization Failure (${error.response.status})`), {
-            url: error.response.config?.url,
-            status: error.response.status
-        });
-        toast.error(`Authorization error (${error.response.status}). Please log in again.`, { id: 'auth-error' });
-        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
-        window.location.href = '/#/login'; // redirect cleanly
+      if (error.response.status === 401 && !originalRequest._retry) {
+        originalRequest._retry = true;
+        try {
+          const { data, error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshError || !data.session) {
+             throw new Error('Session refresh failed');
+          }
+          const newToken = data.session.access_token;
+          localStorage.setItem('supabase.auth.token', JSON.stringify(data.session));
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return apiClient(originalRequest);
+        } catch (refreshErr) {
+          localStorage.removeItem('supabase.auth.token');
+          localStorage.removeItem('axim_session_token');
+          window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+          window.location.href = '/#/login';
+          return Promise.reject(error);
+        }
+      } else if (error.response.status === 403) {
+         // Dispatch to telemetry ingress
+         logger.captureException(new PermissionError(`RLS Block / 403 Forbidden on ${error.response.config?.url}`), {
+             url: error.response.config?.url,
+             status: 403
+         });
+         throw new PermissionError(`Permission Denied: Access to cross-tenant data or unauthorized resource.`);
       } else if (error.response.status >= 500) {
         return Promise.reject({ error: true, message: "Gateway unavailable" });
+      } else if (error.response.status === 401) {
+          localStorage.removeItem('supabase.auth.token');
+          localStorage.removeItem('axim_session_token');
+          window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+          window.location.href = '/#/login';
       }
     } else if (error.request) {
-      // Network error or timeout
       return Promise.reject({ error: true, message: "Gateway unavailable" });
     }
     return Promise.reject(error);
   }
 );
 
-/**
- * A generic handler for making API calls to the cloud backend.
- * This function will be used by the ApiProvider in "cloud" mode.
- * @param {string} endpoint The API endpoint to call (e.g., 'device/list').
- * @param {object} payload The data to send with the request.
- * @returns {Promise<any>} The data from the API response.
- */
 export const callCloudApi = async (endpoint, payload) => {
   try {
-    // We'll use POST requests to mirror the IPC invoke/handle pattern
     const response = await apiClient.post(`/${endpoint}`, payload);
     return response.data;
   } catch (error) {
     logger.error(`Cloud API call to '${endpoint}' failed:`, error);
-    // Re-throw a structured error similar to the IPC handler's format
+    if (error instanceof PermissionError) throw error;
     throw {
       success: false,
-      error: error.response?.data?.error || 'A network error occurred.',
+      error: error.response?.data?.error || error.message || 'A network error occurred.',
       source: `apiClient:${endpoint}`,
       correlationId: logger.getCorrelationId()
     };
