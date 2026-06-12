@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import toast from 'react-hot-toast';
+import logger from '../services/logging';
 import { supabase } from '../services/supabaseClient';
 import { useDashboard } from '../contexts/DashboardContext';
 /**
@@ -21,6 +22,17 @@ export const useSupabaseQuery = (rpcName, { autoFetch = true } = {}) => {
     try {
       const { data, error } = await supabase.rpc(rpcName);
       if (error) throw error;
+
+      // RLS Check: If 0 rows are returned but we expect data, it could be an RLS block
+      // We will log a warning and dispatch a telemetry event
+      if (Array.isArray(data) && data.length === 0) {
+        logger.captureException(new Error(`Zero rows returned from ${rpcName} - Potential RLS/Token issue`), {
+            rpcName,
+            status: '0 rows returned'
+        });
+        toast.error(`No data returned from ${rpcName}. Check permissions.`, { id: 'rls-warning' });
+      }
+
       setData(data);
     } catch (error) {
       toast.error(`Error fetching data from ${rpcName}`);

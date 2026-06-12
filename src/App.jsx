@@ -10,12 +10,12 @@ import { RealtimeProvider } from './contexts/RealtimeContext.jsx';
 import { DashboardProvider } from './contexts/DashboardContext.jsx';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
-import CommandHub from './components/CommandHub';
-import AdminDashboard from './components/admin/AdminDashboard';
-import Ingest from './components/ingest/Ingest';
-import Settings from './components/settings/Settings';
-import UserProfile from './components/UserProfile';
-import Support from './pages/Support';
+const CommandHub = React.lazy(() => import('./components/CommandHub'));
+const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard'));
+const Ingest = React.lazy(() => import('./components/ingest/Ingest'));
+const Settings = React.lazy(() => import('./components/settings/Settings'));
+const UserProfile = React.lazy(() => import('./components/UserProfile'));
+const Support = React.lazy(() => import('./pages/Support'));
 
 import MainLayout from './components/MainLayout';
 import { useAuth } from './contexts/AuthContext';

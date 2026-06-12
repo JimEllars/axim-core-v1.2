@@ -1,3 +1,4 @@
+import { sanitizePayload } from '../../utils/sanitization';
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../../common/SafeIcon';
@@ -393,19 +394,45 @@ const WorkflowBuilder = () => {
                   return;
                 }
                 try {
-                  const definition = { nodes, edges };
+                  const definition = sanitizePayload({ nodes, edges });
                   const workflowName = "Custom Workflow " + Date.now();
                   const workflowSlug = "custom_wf_" + Date.now();
 
-                  await api.createWorkflow(
-                      workflowName,
-                      "Generated workflow",
-                      workflowSlug,
-                      definition,
-                      user.id
-                  );
-                  toast.success("Workflow saved to database!");
-                  loadWorkflows();
+                  const loadingToast = toast.loading("Deploying...");
+                  try {
+                    // First save to database
+                    await api.createWorkflow(
+                        workflowName,
+                        "Generated workflow",
+                        workflowSlug,
+                        definition,
+                        user.id
+                    );
+
+                    // Wire the WorkflowBuilder to the active backend dispatch engine
+                    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://api.axim.us.com'}/functions/v1/trigger-workflow`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('axim_session_token') || 'system'}`
+                        },
+                        body: JSON.stringify({
+                            workflowSlug,
+                            definition,
+                            userId: user.id
+                        })
+                    });
+
+                    if (response.ok) {
+                        toast.success("Active", { id: loadingToast });
+                        loadWorkflows();
+                    } else {
+                        throw new Error('Failed to trigger dispatch engine');
+                    }
+                  } catch (dispatchErr) {
+                    toast.error("Failed to deploy workflow to dispatch engine.", { id: loadingToast });
+                    console.error("Workflow deployment error:", dispatchErr);
+                  }
                 } catch (err) {
                   toast.error("Failed to save workflow.");
                 }

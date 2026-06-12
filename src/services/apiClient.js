@@ -1,5 +1,6 @@
 import axios from 'axios';
 import logger from './logging';
+import toast from 'react-hot-toast';
 
 // In a real-world scenario, the VITE_API_BASE_URL would come from the .env file
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
@@ -39,6 +40,11 @@ apiClient.interceptors.response.use(
       if (error.response.status === 401 || error.response.status === 403) {
         localStorage.removeItem('supabase.auth.token');
         localStorage.removeItem('axim_session_token');
+        logger.captureException(new Error(`API Authorization Failure (${error.response.status})`), {
+            url: error.response.config?.url,
+            status: error.response.status
+        });
+        toast.error(`Authorization error (${error.response.status}). Please log in again.`, { id: 'auth-error' });
         window.dispatchEvent(new CustomEvent('auth:unauthorized'));
         window.location.href = '/#/login'; // redirect cleanly
       } else if (error.response.status >= 500) {
