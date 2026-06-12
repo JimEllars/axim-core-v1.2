@@ -68,6 +68,33 @@ class Logger {
   error(message, ...args) {
     this.log(LogLevel.ERROR, message, ...args);
   }
+
+  captureException(error, context) {
+    this.error("Captured exception:", error, context);
+
+    setTimeout(async () => {
+      try {
+        const payload = {
+          event: "frontend_uncaught_error",
+          app_type: "axim-core-frontend",
+          details: {
+            error: error ? error.toString() : 'Unknown error',
+            componentStack: context ? context.componentStack : undefined,
+            userAgent: navigator.userAgent
+          }
+        };
+
+        const apiUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://api.axim.us.com';
+        await fetch(`${apiUrl}/functions/v1/telemetry-ingress`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (err) {
+        console.error("Failed to transmit error telemetry", err);
+      }
+    }, 100);
+  }
 }
 
 export default new Logger();
