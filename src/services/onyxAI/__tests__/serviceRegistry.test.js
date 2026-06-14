@@ -46,17 +46,17 @@ describe('ServiceRegistry', () => {
 
   it('should fetch and register dynamic integrations from API', async () => {
     const dynamicIntegrations = [
-      { name: 'My Custom API', type: 'webhook', base_url: 'http://example.com' }
+      { name: 'My Custom Endpoint', type: 'webhook', base_url: 'http://example.com' }
     ];
     api.listAPIIntegrations.mockResolvedValue(dynamicIntegrations);
 
     await serviceRegistry.initialize();
 
     // Check if dynamic service is registered (key should be normalized: lowercase and spaces to dashes)
-    const key = 'my-custom-api';
-    const service = serviceRegistry.getService(key);
+    const serviceKey = 'my-custom-endpoint';
+    const service = serviceRegistry.getService(serviceKey);
     expect(service).toBeDefined();
-    expect(service.name).toBe('My Custom API');
+    expect(service.name).toBe('My Custom Endpoint');
     expect(service.endpoint).toBe('http://example.com');
   });
 
