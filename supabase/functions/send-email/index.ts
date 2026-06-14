@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import {
   corsHeaders as CORS_HEADERS,
-  getCorsHeaders,
+
 } from "../_shared/cors.ts";
 import { notifyOnyx } from "../_shared/telemetry.ts";
 import { validateMicroAppSession } from "../_shared/auth.ts";
@@ -36,7 +36,7 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", {
-      headers: getCorsHeaders(req.headers.get("origin")),
+      headers: corsHeaders,
     });
   }
 
@@ -112,7 +112,7 @@ serve(async (req) => {
             }),
             {
                 headers: {
-                ...getCorsHeaders(req.headers.get("origin")),
+                ...corsHeaders,
                 "Content-Type": "application/json",
                 },
             },
@@ -196,7 +196,7 @@ serve(async (req) => {
         {
           status: 502,
           headers: {
-            ...getCorsHeaders(req.headers.get("origin")),
+            ...corsHeaders,
             "Content-Type": "application/json",
           },
         },
@@ -227,7 +227,7 @@ serve(async (req) => {
         {
           status: 502,
           headers: {
-            ...getCorsHeaders(req.headers.get("origin")),
+            ...corsHeaders,
             "Content-Type": "application/json",
           },
         },
@@ -244,7 +244,7 @@ serve(async (req) => {
       }),
       {
         headers: {
-          ...getCorsHeaders(req.headers.get("origin")),
+          ...corsHeaders,
           "Content-Type": "application/json",
         },
       },
@@ -264,7 +264,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: error.message }), {
       status,
       headers: {
-        ...getCorsHeaders(req.headers.get("origin")),
+        ...corsHeaders,
         "Content-Type": "application/json",
       },
     });

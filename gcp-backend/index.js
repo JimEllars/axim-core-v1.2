@@ -639,10 +639,19 @@ app.get('/workflows', authenticateApiKey, async (req, res) => {
 
 app.post('/workflows/log', authenticateApiKey, async (req, res) => {
     try {
-        const { workflowName, data } = req.body;
-        const result = await apiService.logWorkflowExecution(workflowName, data);
+        const { workflowName, data, userId } = req.body;
+        // Security Fix: IDOR Protection
+        // Ensure the userId in the body (if provided) matches the authenticated user, or just use the authenticated user.
+        const effectiveUserId = req.user?.id || req.user;
+
+        if (userId && userId !== effectiveUserId) {
+            return res.status(403).json({ error: 'Unauthorized to log workflows for another user' });
+        }
+
+        const result = await apiService.logWorkflowExecution(workflowName, data, effectiveUserId);
         res.status(201).json(result);
     } catch (error) {
+        console.error('Error logging workflow:', error);
         res.status(500).json({ error: error.message });
     }
 });

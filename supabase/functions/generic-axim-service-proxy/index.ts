@@ -1,7 +1,7 @@
 // supabase/functions/generic-axim-service-proxy/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders as CORS_HEADERS, getCorsHeaders } from '../_shared/cors.ts';
+import { corsHeaders as CORS_HEADERS } from '../_shared/cors.ts';
 
 // A simple in-memory mapping of service names to their base URLs.
 // In a real-world scenario, this could be stored in a Supabase table or environment variables.
@@ -13,7 +13,7 @@ const SERVICE_REGISTRY = {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
@@ -74,13 +74,13 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify(responseData),
-      { headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
     console.error('[Service Proxy] Error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

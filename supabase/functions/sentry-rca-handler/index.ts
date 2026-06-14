@@ -1,12 +1,12 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.0.0";
-import { corsHeaders, getCorsHeaders } from "../_shared/cors.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 
 console.log("Sentry RCA Handler Service function loaded");
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: getCorsHeaders(req.headers.get("origin")) });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
@@ -115,13 +115,13 @@ serve(async (req) => {
         success: true,
         message: "RCA analysis completed and patch staged in HITL queue."
     }), {
-      headers: { ...getCorsHeaders(req.headers.get("origin")), "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
   } catch (error) {
     console.error("Error in sentry-rca-handler:", error);
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...getCorsHeaders(req.headers.get("origin")), "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,
     });
   }

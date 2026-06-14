@@ -1,11 +1,11 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { corsHeaders, getCorsHeaders } from "../_shared/cors.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 
 console.log("AXiM Transcribe Service function loaded - ASYNC UPDATE");
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: getCorsHeaders(req.headers.get("origin")) });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
@@ -62,7 +62,7 @@ serve(async (req) => {
         status: "processing"
       }),
       {
-        headers: { ...getCorsHeaders(req.headers.get("origin")), "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 202,
       }
     );
@@ -71,7 +71,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ error: "Failed to accept transcription request", details: error.message }),
       {
-        headers: { ...getCorsHeaders(req.headers.get("origin")), "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 500,
       }
     );

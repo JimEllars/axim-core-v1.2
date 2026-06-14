@@ -1,10 +1,10 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.0.0';
-import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
+import { corsHeaders } from '../_shared/cors.ts';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
@@ -26,7 +26,7 @@ serve(async (req) => {
       if (userError || !user) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
-          headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
     }
@@ -38,7 +38,7 @@ serve(async (req) => {
     if (!onyxEdgeUrl || !onyxEdgeSecret) {
       return new Response(JSON.stringify({ error: 'Onyx Edge configuration is missing on the server.' }), {
         status: 500,
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
@@ -285,7 +285,7 @@ Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve
                 agent_id: 'onyx-coordinator'
             }), {
                 status: 200,
-                headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             });
 
         } catch (e) {
@@ -330,7 +330,7 @@ Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve
     const onyxResponse = await fetch(onyxRequest);
 
     const responseHeaders = new Headers(onyxResponse.headers);
-    const corsH = getCorsHeaders(req.headers.get('origin'));
+    const corsH = corsHeaders;
     for (const [key, value] of Object.entries(corsH)) {
         responseHeaders.set(key, value);
     }
@@ -370,7 +370,7 @@ Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve
   } catch (error) {
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
-      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

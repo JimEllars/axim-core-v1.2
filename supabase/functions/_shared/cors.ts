@@ -1,37 +1,15 @@
-/**
- * Shared CORS headers for Supabase Edge Functions.
- *
- * Security Note:
- * This configuration prevents overly permissive CORS by reading from the
- * `ALLOWED_ORIGINS` environment variable. If multiple origins are provided
- * (comma-separated), it restricts access to the first one. If the variable
- * is missing, it falls back to a secure default (`https://axim.us.com`).
- *
- * The wildcard ('*') is intentionally NOT used here to prevent unauthorized
- * cross-origin requests.
- */
-
-const APPROVED_ECOSYSTEM_ORIGINS = [
-  'https://axim.us.com',
-  'https://quickdemandletter.com',
-  'https://nda-generator.com',
-  'https://axim-core-dashboard.pages.dev'
-];
-
-export function getCorsHeaders(reqOrigin: string | null) {
-  const isApprovedOrigin = reqOrigin && APPROVED_ECOSYSTEM_ORIGINS.includes(reqOrigin);
-  const allowOrigin = isApprovedOrigin
-    ? reqOrigin
-    : (Deno.env.get('ALLOWED_ORIGINS')?.split(',')[0] || 'https://axim.us.com');
+export const getCorsHeaders = (origin?: string | null) => {
+  const allowedOriginsStr = Deno.env.get('ALLOWED_ORIGINS') || 'http://localhost:5173,https://axim.us.com';
+  const allowedOrigins = allowedOriginsStr.split(',').map(url => url.trim());
+  const allowOrigin = (origin && allowedOrigins.includes(origin)) ? origin : allowedOrigins[0];
 
   return {
     'Access-Control-Allow-Origin': allowOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    ...(isApprovedOrigin ? { 'Access-Control-Allow-Credentials': 'true' } : {})
   };
-}
+};
 
 export const corsHeaders = {
-  'Access-Control-Allow-Origin': Deno.env.get('ALLOWED_ORIGINS')?.split(',')[0] || 'https://axim.us.com',
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };

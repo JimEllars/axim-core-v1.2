@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
-import { getCorsHeaders } from '../_shared/cors.ts';
+import { corsHeaders } from '../_shared/cors.ts';
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -136,7 +136,7 @@ async function ingestUrl(entity: string, result: any) {
 
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
-        return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
+        return new Response('ok', { headers: corsHeaders });
     }
 
     try {
@@ -158,14 +158,14 @@ serve(async (req) => {
         }
 
         return new Response(JSON.stringify({ success: true, message: "OSINT Scrape complete" }), {
-            headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
 
     } catch (error: any) {
         console.error("Error in OSINT Scraper:", error);
         return new Response(JSON.stringify({ error: error.message }), {
             status: 500,
-            headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
     }
 });
