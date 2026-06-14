@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.0.0";
-import { corsHeaders, getCorsHeaders } from "../_shared/cors.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") as string;
@@ -10,7 +10,7 @@ const ELLARS_MOBILE_NUMBER = Deno.env.get("ELLARS_MOBILE_NUMBER") as string || "
 serve(async (req) => {
   const origin = req.headers.get("origin");
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: getCorsHeaders(origin) });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
@@ -26,7 +26,7 @@ serve(async (req) => {
     if (!sender || !messageText) {
       return new Response(
         JSON.stringify({ error: "Missing sender or message" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...getCorsHeaders(origin) } }
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
@@ -42,7 +42,7 @@ serve(async (req) => {
     if (!isAuthorized) {
       return new Response(JSON.stringify({ error: "Unauthorized sender" }), {
         status: 403,
-        headers: { "Content-Type": "application/json", ...getCorsHeaders(origin) },
+        headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
@@ -80,13 +80,13 @@ serve(async (req) => {
         forwarded: true,
         onyx_response: bridgeData,
       }),
-      { status: 200, headers: { ...getCorsHeaders(origin), "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
     console.error("Communication Gateway Error:", error);
     return new Response(
       JSON.stringify({ error: "Internal Server Error", message: error.message }),
-      { status: 500, headers: { ...getCorsHeaders(origin), "Content-Type": "application/json" } }
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

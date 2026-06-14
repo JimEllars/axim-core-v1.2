@@ -19,7 +19,7 @@ export const RealtimeProvider = ({ children }) => {
   const ticketsChannelRef = useRef(null);
   const workflowChannelRef = useRef(null);
   const workflowListenerRef = useRef(null);
-  const reconnectTimeouts = useRef({ hitl: null, telemetry: null });
+  const reconnectTimeouts = useRef({ hitl: null, telemetry: null, workflow: null });
 
   // Move refs outside of useEffect so they persist across re-renders
   const lastToastTimes = useRef({
@@ -37,6 +37,7 @@ export const RealtimeProvider = ({ children }) => {
 
     let hitlRetries = 0;
     let telemetryRetries = 0;
+    let workflowRetries = 0;
     const MAX_RETRIES = 3;
 
     const triggerThrottledToast = (type, defaultMessage, multipleMessage, duration, id) => {
@@ -173,8 +174,18 @@ export const RealtimeProvider = ({ children }) => {
           }
         )
         .subscribe((status, err) => {
-           if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+           if (status === 'SUBSCRIBED') {
+             workflowRetries = 0;
+           } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
               console.warn('RealtimeContext: WebSocket connection closed/error (workflow_events_log)', err || status);
+              if (workflowRetries < MAX_RETRIES) {
+                workflowRetries++;
+                const backoffTime = Math.pow(2, workflowRetries) * 1000;
+                console.log(`RealtimeContext: Reconnecting workflow channel in ${backoffTime}ms...`);
+                reconnectTimeouts.current.workflow = setTimeout(setupWorkflowChannel, backoffTime);
+              } else {
+                toast.error('Disconnected from workflow live updates.', { id: 'offline-workflow' });
+              }
            }
         });
 
@@ -184,7 +195,6 @@ export const RealtimeProvider = ({ children }) => {
       workflowChannelRef.current = workflowChannel;
     };
 
-    setupWorkflowChannel();
     setupWorkflowChannel();
         setupSupportTicketsChannel();
     setupHitlChannel();
@@ -202,6 +212,7 @@ export const RealtimeProvider = ({ children }) => {
         setupSupportTicketsChannel();
         setupHitlChannel();
         setupTelemetryChannel();
+        setupWorkflowChannel();
         workflowListenerRef.current = listenForWorkflowEvents(supabase);
     };
 
@@ -211,9 +222,11 @@ export const RealtimeProvider = ({ children }) => {
       window.removeEventListener('online', handleOnline);
       if (reconnectTimeouts.current.hitl) clearTimeout(reconnectTimeouts.current.hitl);
       if (reconnectTimeouts.current.telemetry) clearTimeout(reconnectTimeouts.current.telemetry);
+      if (reconnectTimeouts.current.workflow) clearTimeout(reconnectTimeouts.current.workflow);
       if (hitlChannelRef.current) supabase.removeChannel(hitlChannelRef.current);
       if (telemetryChannelRef.current) supabase.removeChannel(telemetryChannelRef.current);
       if (ticketsChannelRef.current) supabase.removeChannel(ticketsChannelRef.current);
+      if (workflowChannelRef.current) supabase.removeChannel(workflowChannelRef.current);
       if (workflowListenerRef.current) workflowListenerRef.current();
     };
   }, [user]);

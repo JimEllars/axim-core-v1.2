@@ -78,11 +78,13 @@ export default {
     }
 
     // Health Check Endpoint
-    if (url.pathname === '/health' || url.pathname === '/api/edge/healthz') {
-      return new Response(JSON.stringify({ "status": "online", "service": "axim-core-worker" }), {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
+    if (url.pathname === '/api/edge/healthz' && request.method === 'GET') {
+      return new Response(
+        JSON.stringify({ status: 'active', edge_location: request.cf?.colo || 'unknown' }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
     // 1. API Proxy Routing
@@ -148,13 +150,13 @@ export default {
       });
     }
 
-    return new Response(JSON.stringify({ error: 'Frontend pages are served by Cloudflare Pages' }), {
-        status: 404,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
-        }
+    // Default Response (Not Found)
+    return new Response('AXiM Core Edge Worker - Route Not Found', {
+      status: 404,
+      headers: {
+        ...corsHeaders,
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
     });
   }
 };

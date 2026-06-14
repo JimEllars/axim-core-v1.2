@@ -1,5 +1,5 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
+import { corsHeaders } from '../_shared/cors.ts';
 
 // Dynamic import or manual reading might be safer in Edge Functions, but let's stick to import assert since Deno supports it.
 import roundupsOpenApi from '../../src/api-specs/roundups_openapi.json' assert { type: "json" };
@@ -7,7 +7,7 @@ import suitedashOpenApi from '../../src/api-specs/suitedash_openapi.json' assert
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   const capabilities = [
@@ -58,7 +58,7 @@ serve(async (req: Request) => {
   ];
 
   return new Response(JSON.stringify([...capabilities, ...externalCapabilities]), {
-    headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     status: 200,
   });
 });

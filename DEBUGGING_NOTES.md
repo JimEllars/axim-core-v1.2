@@ -90,3 +90,8 @@ During `npm install`, several deprecation warnings are visible:
 - We ran `npm audit fix` to safely address critical CVEs (e.g., updating `react-router-dom` to `6.30.3` to resolve open redirect vulnerabilities).
 - We avoided forcing `overrides` for these deprecated packages (like swapping `inflight` for `lru-cache`) because their internal APIs differ significantly, which breaks the application at runtime.
 - We deferred major version bumps of `electron` (to v41) and `electron-builder` (to v26) to a future, dedicated upgrade cycle, as jumping 2-3 major versions introduces significant breaking changes to the main application.
+
+## Post-Completion Addendum: Security PR Closure Guidance
+*   The fixes intended to resolve PR #79 (CORS policy hardening), PR #80 (IDOR check on workflow logging), and PR #218 (Cloudflare edge proxy caching & health checks) have been fully merged into `main` via manual patch application.
+*   The original pull request branches possessed heavily diverged, unrelated git histories that caused significant merge conflicts and rebasing issues.
+*   **Action for Maintainers:** Because their exact technical contents have been verified and applied to `main` under commit `0a3a18e`, the physical PRs (#79, #80, and #218) can now be safely closed on GitHub without merging their source branches.

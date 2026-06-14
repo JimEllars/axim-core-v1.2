@@ -1,15 +1,15 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.0.0';
-import { getCorsHeaders } from '../_shared/cors.ts';
+import { corsHeaders } from '../_shared/cors.ts';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
     const origin = req.headers.get('origin');
-    const headers = { ...getCorsHeaders(origin), 'Content-Type': 'application/json' };
+    const headers = { ...corsHeaders, 'Content-Type': 'application/json' };
 
     const idempotencyKey = req.headers.get('Idempotency-Key');
     if (!idempotencyKey) {
@@ -84,6 +84,6 @@ serve(async (req) => {
     return new Response(JSON.stringify({ message: 'Lead ingested successfully', contact_id: contact.id }), { status: 200, headers });
   } catch (error: any) {
     console.error('Affiliate Lead Ingest Error:', error);
-    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json', ...getCorsHeaders(req.headers.get('origin')) } });
+    return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
   }
 });

@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders, getCorsHeaders } from '../_shared/cors.ts';
+import { corsHeaders } from '../_shared/cors.ts';
 import { notifyOnyx } from '../_shared/telemetry.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
@@ -13,7 +13,7 @@ serve(async (req) => {
   const endpoint = new URL(req.url).pathname;
 
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: getCorsHeaders(req.headers.get('origin')) });
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
@@ -23,7 +23,7 @@ serve(async (req) => {
       await notifyOnyx(endpoint, 403, { reason: 'Invalid internal service key attempt' });
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403,
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
@@ -35,7 +35,7 @@ serve(async (req) => {
     if (!file) {
       return new Response(JSON.stringify({ error: 'No file uploaded' }), {
         status: 400,
-        headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
@@ -71,7 +71,7 @@ serve(async (req) => {
 
     return new Response(JSON.stringify({ success: true, file_name: fileName }), {
       status: 200,
-      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
@@ -79,7 +79,7 @@ serve(async (req) => {
     await notifyOnyx(endpoint, 500, { error: error.message });
     return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
       status: 500,
-      headers: { ...getCorsHeaders(req.headers.get('origin')), 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
   }
 });
