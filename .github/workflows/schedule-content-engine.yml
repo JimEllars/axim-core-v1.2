@@ -1,46 +1,44 @@
-name: Schedule AXiM Content Engine
+name: Content Engine Automation
 
 on:
   schedule:
-    # Runs at 08:00 UTC every day
-    - cron: '0 8 * * *'
-  workflow_dispatch: # Allows manual triggering
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
 
 jobs:
-  run-content-engine:
+  trigger-content-engine:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      - name: Set up Supabase CLI
-        uses: supabase/cli@v1
-        with:
-          version: 1.50.0
-
-      - name: Invoke AXiM Content Engine (Tech News)
+      - name: Trigger Content Engine
         run: |
-          # Define target URLs or Topics here
-          # For now, we use a mix of topics and potentially a news site if we had one that allows scraping easily.
-          # We'll stick to topics for stability, but the capability is there.
-          PAYLOAD='{"topics": ["AI in Construction", "Renewable Energy Software Trends", "The Future of Solar Sales"]}'
-
-          # We need to escape quotes for the command line
-          # But supabase functions invoke reads from stdin if no body arg? No, documentation says --data or similar?
-          # Actually, `supabase functions invoke` is for local dev mostly. For production scheduling, usually we use pg_cron or similar.
-          # But here we are using GitHub Actions.
-
-          # The correct way to invoke a deployed function via curl is often better for CI/CD.
-          # But `supabase functions invoke` works if linked.
-
-          # Let's use curl to be safe and standard, using the project URL and Anon key (or Service key).
-          # We need SUPABASE_URL and SUPABASE_ANON_KEY secrets.
-
-          curl -X POST "${{ secrets.SUPABASE_URL }}/functions/v1/axim-content-engine" \
+          response=$(curl -s -w "\n%{http_code}" -X POST \
+            https://${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/axim-content-engine \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
             -H "Content-Type: application/json" \
-            -d "$PAYLOAD"
-        env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+            -d '{
+              "action": "generate_news_batch",
+              "source": "github_actions_automation",
+              "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"
+            }')
+
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+
+          echo "Response: $body"
+          echo "HTTP Status: $http_code"
+
+          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+            echo "✅ Content Engine triggered successfully"
+          else
+            echo "❌ Content Engine failed with status $http_code"
+            echo "$body"
+            exit 1
+          fi
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "❌ Content Engine automation failed"
+          echo "Check Edge Function logs: https://app.supabase.com/project/${{ secrets.SUPABASE_PROJECT_ID }}/logs/edge-functions"

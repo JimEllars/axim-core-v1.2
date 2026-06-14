@@ -95,7 +95,38 @@ serve(async (req) => {
   }
 
   try {
+
+    let action, source, trends;
+    try {
+      // Create a clone of the request to read body multiple times if needed, or read text first
+      const reqClone = req.clone();
+      const bodyText = await reqClone.text();
+      if (bodyText) {
+          const body = JSON.parse(bodyText);
+          action = body.action;
+          source = body.source;
+          trends = body.trends;
+      }
+    } catch (e) {
+      // Body might be empty
+    }
+    console.log(`📥 Content Engine triggered: ${action || "default"} from ${source || "unknown"}`);
+
+    const requiredEnvVars = ['GEMINI_API_KEY', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY'];
+    const missingVars = requiredEnvVars.filter(v => !Deno.env.get(v));
+
+    if (missingVars.length > 0) {
+      console.error(`❌ Missing environment variables: ${missingVars.join(', ')}`);
+      return new Response(
+        JSON.stringify({
+          error: 'Configuration error',
+          details: `Missing: ${missingVars.join(', ')}`
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     const supabase = createClient(
+
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
@@ -110,15 +141,17 @@ serve(async (req) => {
     let urls = [];
     let targetDomain = "axim.us.com"; // Default
     try {
-        const body = await req.json();
-        if (body.topics && Array.isArray(body.topics)) {
-            topics = body.topics;
-        }
-        if (body.urls && Array.isArray(body.urls)) {
-            urls = body.urls;
-        }
-        if (body.target_domain) {
-            targetDomain = body.target_domain;
+        if (action !== "test" && action !== "generate_news_batch") {
+             const body = await req.json();
+             if (body.topics && Array.isArray(body.topics)) {
+                 topics = body.topics;
+             }
+             if (body.urls && Array.isArray(body.urls)) {
+                 urls = body.urls;
+             }
+             if (body.target_domain) {
+                 targetDomain = body.target_domain;
+             }
         }
     } catch (e) {
         // Body parsing failed or empty, ignore
@@ -261,11 +294,19 @@ Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve
     });
 
   } catch (error) {
-    console.error("Content Engine Fatal Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.error("❌ Content Engine error:", error);
+
+    return new Response(
+      JSON.stringify({
+        error: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString()
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
   }
 });
 

@@ -1,5 +1,10 @@
 # Axim Core Command Hub
 
+![CI/CD Status](https://github.com/JimEllars/axim-core-v1.2/actions/workflows/reusable-deploy-supabase.yml/badge.svg)
+![Chatlog Export](https://github.com/JimEllars/axim-core-v1.2/actions/workflows/schedule-chatlog-export.yml/badge.svg)
+![Content Engine](https://github.com/JimEllars/axim-core-v1.2/actions/workflows/schedule-content-engine.yml/badge.svg)
+
+
 A powerful, intelligent operations dashboard with an integrated Onyx AI cognitive layer for natural language system control and data management.
 
 ## 🚀 Installation
