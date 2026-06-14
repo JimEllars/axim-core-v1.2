@@ -199,16 +199,16 @@ if (commandType === 'llm') {
 
       switch (error.name) {
         case 'CommandNotFoundError':
-          errorMessage = { title: 'Command Not Found', details: `The command "${sanitizedCommand}" is not recognized. Try "help" to see a list of available commands.` };
+          errorMessage = { title: 'Command Not Found', details: `The command "${sanitizedCommand}" is not recognized. Check your spelling or try "help" to see a list of available commands.` };
           break;
         case 'ValidationError':
-          errorMessage = { title: 'Invalid Command Format', details: error.message };
+          errorMessage = { title: 'Invalid Command Format', details: `${error.message}. Please check the required parameters and try again.` };
           break;
         case 'IntentParsingError':
-           errorMessage = { title: 'AI Intent Parsing Error', details: "The AI failed to understand the command. Please try rephrasing it." };
+           errorMessage = { title: 'AI Intent Parsing Error', details: "The AI failed to map your request to a known action. Try rephrasing it with simpler terms, or use an exact command alias." };
           break;
         default:
-          errorMessage = { title: 'An Unexpected Error Occurred', details: error.message };
+          errorMessage = { title: 'Command Execution Error', details: `Failed to execute '${sanitizedCommand}'. This usually happens when the network or database is unreachable. Check your connection or contact support if the issue persists. Reason: ${error.message}` };
       }
 
       toast.error(`${errorMessage.title}: ${errorMessage.details}`);
