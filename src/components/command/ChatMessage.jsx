@@ -156,8 +156,8 @@ const ChatMessage = ({ message, onCopyContent }) => {
             const taskId = actionPayload.taskId || actionPayload.task_id || message.id;
             const payload = { task_id: taskId };
             const payloadStr = JSON.stringify(payload);
-            const secret = import.meta.env.VITE_ONYX_SECURE_KEY || 'default-secret';
-            const signature = CryptoJS.HmacSHA256(payloadStr, secret).toString(CryptoJS.enc.Hex);
+            const tokenAuth = import.meta.env.VITE_ONYX_SECURE_KEY || 'default-auth-token';
+            const signature = CryptoJS.HmacSHA256(payloadStr, tokenAuth).toString(CryptoJS.enc.Hex);
 
             const onyxEdgeUrl = import.meta.env.VITE_ONYX_EDGE_URL || 'https://onyx-edge-bridge.axim.us.com';
             const response = await fetch(`${onyxEdgeUrl}/api/approve`, {

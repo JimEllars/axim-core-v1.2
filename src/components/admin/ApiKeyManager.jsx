@@ -42,7 +42,7 @@ const ApiKeyManager = () => {
   const handleGenerateKey = async () => {
     setGenerating(true);
     try {
-      const newKey = `mock_token_${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
+      const newKey = `mock_token_demo_12345`;
       const { data, error } = await supabaseApiService.supabase
         .from('api_keys')
         .insert({

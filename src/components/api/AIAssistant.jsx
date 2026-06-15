@@ -153,7 +153,7 @@ Headers: Content-Type: application/json
 **HubSpot API:**
 \`\`\`
 URL: https://api.hubapi.com
-Auth: Bearer YOUR_ACCESS_TOKEN
+Auth: Bearer MOCK_ACCESS_TOKEN
 Endpoints: /crm/v3/objects/contacts
 \`\`\`
 
@@ -196,7 +196,7 @@ Let's troubleshoot your API issues systematically:
 **Quick Test Commands:**
 \`\`\`bash
 # Test connection
-curl -H "Authorization: Bearer YOUR_TOKEN" https://api.service.com/test
+curl -H "Authorization: Bearer MOCK_TOKEN" https://api.service.com/test
 
 # Check headers
 curl -I https://api.service.com/endpoint
@@ -309,7 +309,7 @@ const APIIntegration = () => {
       const response = await fetch(\`https://api.service.com/\${endpoint}\`, {
         method: 'POST',
         headers: {
-          'Authorization': 'Bearer YOUR_TOKEN',
+          'Authorization': 'Bearer MOCK_TOKEN',
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(payload)
@@ -357,7 +357,7 @@ Here's a comprehensive documentation template:
 **Authentication:**
 \`\`\`
 Headers:
-  Authorization: Bearer YOUR_ACCESS_TOKEN
+  Authorization: Bearer MOCK_ACCESS_TOKEN
   Content-Type: application/json
 \`\`\`
 
@@ -587,7 +587,7 @@ headers: {
 }
 
 // Query parameter (less secure)
-const url = 'https://api.service.com/data?api_key=YOUR_KEY';
+const url = 'https://api.service.com/data?api_key=MOCK_KEY';
 \`\`\`
 
 **2. Bearer Token (JWT):**
@@ -602,8 +602,8 @@ headers: {
 \`\`\`javascript
 // Step 1: Authorization URL
 const authUrl = 'https://api.service.com/oauth/authorize?' +
-  'client_id=YOUR_CLIENT_ID&' +
-  'redirect_uri=YOUR_REDIRECT_URI&' +
+  'client_id=MOCK_CLIENT_ID&' +
+  'redirect_uri=MOCK_REDIRECT_URI&' +
   'response_type=code&' +
   'scope=read write';
 
@@ -613,10 +613,10 @@ const tokenResponse = await fetch('https://api.service.com/oauth/token', {
   headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
   body: new URLSearchParams({
     grant_type: 'authorization_code',
-    client_id: 'YOUR_CLIENT_ID',
-    client_secret: 'YOUR_CLIENT_SECRET',
+    client_id: 'MOCK_CLIENT_ID',
+    client_secret: 'MOCK_CLIENT_SECRET',
     code: 'AUTHORIZATION_CODE',
-    redirect_uri: 'YOUR_REDIRECT_URI'
+    redirect_uri: 'MOCK_REDIRECT_URI'
   })
 });
 \`\`\`
@@ -634,9 +634,9 @@ headers: {
 **Environment Variables:**
 \`\`\`bash
 # .env file
-API_KEY=your-secret-key
-CLIENT_SECRET=your-oauth-secret
-WEBHOOK_SECRET=your-webhook-secret
+API_KEY=your-mock-auth-token
+CLIENT_SECRET=your-mock-oauth-token
+WEBHOOK_SECRET=your-mock-webhook-token
 \`\`\`
 
 **Secure Storage:**
