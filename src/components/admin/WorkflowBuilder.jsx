@@ -18,6 +18,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import WorkflowExecutionLog from './WorkflowExecutionLog';
 import api from '../../services/onyxAI/api';
+import supabaseApiService from '../../services/supabaseApiService';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -94,6 +95,10 @@ const initialEdges = [{ id: 'e1-2', source: '1', target: '2' }];
 const WorkflowBuilder = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('builder'); // builder, templates, history, schedule
+  const [activeWorkflowId, setActiveWorkflowId] = useState(null);
+  const [workflowName, setWorkflowName] = useState("New Workflow");
+  const [workflowDescription, setWorkflowDescription] = useState("");
+
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -106,6 +111,10 @@ const WorkflowBuilder = () => {
   const [newScheduleCron, setNewScheduleCron] = useState('');
   const [scheduledTasks, setScheduledTasks] = useState([]);
   const [savedWorkflows, setSavedWorkflows] = useState([]);
+
+  useEffect(() => {
+    loadWorkflows();
+  }, [user]);
 
   useEffect(() => {
     if (activeTab === 'schedule') {
@@ -132,14 +141,13 @@ const WorkflowBuilder = () => {
   };
 
   const loadWorkflows = async () => {
+    if (!user?.id) return;
     try {
-      // Mocked for now. In real app, call api to get workflows
-      setSavedWorkflows([
-         { id: 'w1', name: 'Lead Process', description: 'Process new leads from Webhook' },
-         { id: 'w2', name: 'Weekly Report', description: 'Generate weekly fleet status' }
-      ]);
+      const workflows = await supabaseApiService.getWorkflows(user.id);
+      setSavedWorkflows(workflows || []);
     } catch(err) {
       console.error(err);
+      toast.error('Failed to load workflows.');
     }
   };
 
@@ -395,45 +403,19 @@ const WorkflowBuilder = () => {
                 }
                 try {
                   const definition = sanitizePayload({ nodes, edges });
-                  const workflowName = "Custom Workflow " + Date.now();
-                  const workflowSlug = "custom_wf_" + Date.now();
 
-                  const loadingToast = toast.loading("Deploying...");
-                  try {
-                    // First save to database
-                    await api.createWorkflow(
-                        workflowName,
-                        "Generated workflow",
-                        workflowSlug,
-                        definition,
-                        user.id
-                    );
+                  const savedWf = await supabaseApiService.saveWorkflow({
+                    id: activeWorkflowId,
+                    name: workflowName,
+                    description: workflowDescription || "Generated workflow",
+                    definition: definition
+                  }, user.id);
 
-                    // Wire the WorkflowBuilder to the active backend dispatch engine
-                    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL || 'https://api.axim.us.com'}/functions/v1/trigger-workflow`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${localStorage.getItem('axim_session_token') || 'system'}`
-                        },
-                        body: JSON.stringify({
-                            workflowSlug,
-                            definition,
-                            userId: user.id
-                        })
-                    });
-
-                    if (response.ok) {
-                        toast.success("Active", { id: loadingToast });
-                        loadWorkflows();
-                    } else {
-                        throw new Error('Failed to trigger dispatch engine');
-                    }
-                  } catch (dispatchErr) {
-                    toast.error("Failed to deploy workflow to dispatch engine.", { id: loadingToast });
-                    console.error("Workflow deployment error:", dispatchErr);
-                  }
-                } catch (err) {
+                  setActiveWorkflowId(savedWf.id);
+                  toast.success("Workflow saved successfully");
+                  loadWorkflows();
+                } catch(err) {
+                  console.error("Save error:", err);
                   toast.error("Failed to save workflow.");
                 }
               }}

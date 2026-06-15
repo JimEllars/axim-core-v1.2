@@ -575,8 +575,17 @@ class SupabaseApiService {
         llm_model: llmModel,
       };
 
-
-      const { error } = await this.supabase.from('ai_interactions_ax2024').insert(insertData);
+      const { data: insertResult, error } = await this.supabase.from('ai_interactions_ax2024').insert(insertData).select('id').single();
+      if (!error && insertResult) {
+        // Fire and forget embedding generation
+        this.supabase.functions.invoke('generate-embedding', {
+          body: { input: command + " " + response }
+        }).then(async ({ data: embedData, error: embedError }) => {
+          if (!embedError && embedData && embedData.embedding) {
+            await this.supabase.from('ai_interactions_ax2024').update({ embedding: embedData.embedding }).eq('id', insertResult.id);
+          }
+        }).catch(err => logger.warn('Background embedding generation failed', err));
+      }
       if (error) throw new DatabaseError(error.message);
     } catch (error) {
       toast.error('Could not save chat to memory: connection issue.', { id: 'log-ai-interaction-error' });
