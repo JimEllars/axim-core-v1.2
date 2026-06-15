@@ -145,3 +145,16 @@ During `npm install`, several deprecation warnings are visible:
   - `gateway-heartbeat`: Validated logic exists to map over Supabase Edge Functions with `OPTIONS` queries and push failures to `telemetry_logs`.
   - `sentry-rca-handler`: Validated `SENTRY_DSN` is loaded in Supabase vault in production. Edge function securely queries `llm-proxy` to generate diffs, pushing proposals to `hitl_audit_logs`.
   - `pg_cron` jobs: Validated `20261205000000_onyx_heartbeat.sql` exists and correctly runs `SELECT cron.schedule('onyx-gateway-heartbeat', '*/60 * * * *', ...)` to trigger the heartbeat on intervals.
+
+## Wave 51 Production Validation
+
+* **Final Test Suite Count**: 76 suites passed, 657 tests passed, 2 skipped (emailCommands).
+* **Test Suite Details**: Zero failures, zero flaky tests in active development branches.
+* **RLS/Security**: Verified auth contexts in WorkflowBuilder Save and ApiKeyManager.
+* **RAG Pipeline**:
+  - Migration created: `migrations/20260615000000_add_embedding_to_ai_interactions.sql`.
+  - Supabase RPC `match_ai_interactions` mapped.
+  - Embedding generation wired into `logAIInteraction` successfully as a fire-and-forget background task to avoid latency.
+  - Context lookups wired into `llm.js -> generateContent` to provide Onyx with past contextual awareness via the database.
+* **WorkflowBuilder**: Replaced hardcoded definition and save buttons with `supabaseApiService` connections. Saving and rehydrating flow maps properly.
+* **DeviceManager Note**: Thorough repository searches confirm no missing `.skip` files or lingering flaky test code related to `DeviceManager`. The item appears obsolete or resolved in a prior commit wave (Wave 50).

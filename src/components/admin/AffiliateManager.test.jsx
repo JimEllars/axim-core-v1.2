@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import AffiliateManager from './AffiliateManager';
 import { supabaseClient } from '../../services/supabaseClient';
@@ -17,7 +17,7 @@ vi.mock('../../services/supabaseClient', () => ({
 
 describe('AffiliateManager', () => {
   it('renders title and button', async () => {
-    render(<AffiliateManager />);
+    await act(async () => { render(<AffiliateManager />); });
     expect(screen.getByText('Affiliate Partner Management')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'New Partner' })).toBeInTheDocument();
   });
@@ -34,7 +34,7 @@ describe('AffiliateManager', () => {
       }))
     });
 
-    render(<AffiliateManager />);
+    await act(async () => { render(<AffiliateManager />); });
 
     await waitFor(() => {
       expect(screen.getByText('testpartner')).toBeInTheDocument();

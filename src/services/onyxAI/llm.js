@@ -1,3 +1,4 @@
+import { supabaseApiService } from '../supabaseApiService';
 import { supabase } from '../supabaseClient';
 import config from '../../config';
 import providerManager from './providerManager';
@@ -69,14 +70,9 @@ export const generateContent = async (prompt, options = {}) => {
       const { data: { session } } = await supabase.auth.getSession();
       const userId = session?.user?.id || null;
 
-      const { data: similarMemories, error: matchError } = await supabase.rpc('match_memory_banks', {
-        query_embedding: queryEmbedding,
-        match_threshold: 0.78,
-        match_count: 3,
-        p_user_id: userId // assuming the RPC might accept a user_id parameter for tenant scoping, else it uses auth context natively
-      });
+      const similarMemories = await supabaseApiService.searchMemory(queryEmbedding, 3, userId);
 
-      if (!matchError && similarMemories && similarMemories.length > 0) {
+      if (similarMemories && similarMemories.length > 0) {
         const memoryContext = similarMemories.map(m => m.content).join("\n");
         finalPrompt = `Context from system memory:\n${memoryContext}\n\nUser Request: ${prompt}`;
       }
