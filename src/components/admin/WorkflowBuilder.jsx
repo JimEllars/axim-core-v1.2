@@ -18,7 +18,7 @@ import {
 import '@xyflow/react/dist/style.css';
 import WorkflowExecutionLog from './WorkflowExecutionLog';
 import api from '../../services/onyxAI/api';
-import { supabaseApiService } from '../../services/supabaseApiService';
+import supabaseApiService from '../../services/supabaseApiService';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 

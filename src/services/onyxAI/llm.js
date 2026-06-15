@@ -1,4 +1,4 @@
-import { supabaseApiService } from '../supabaseApiService';
+import supabaseApiService from '../supabaseApiService';
 import { supabase } from '../supabaseClient';
 import config from '../../config';
 import providerManager from './providerManager';

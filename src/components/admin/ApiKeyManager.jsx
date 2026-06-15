@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabaseApiService } from '../../services/supabaseApiService';
+import supabaseApiService from '../../services/supabaseApiService';
 import { useAuth } from '../../contexts/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import toast from 'react-hot-toast';
@@ -42,7 +42,7 @@ const ApiKeyManager = () => {
   const handleGenerateKey = async () => {
     setGenerating(true);
     try {
-      const newKey = `sk_live_${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
+      const newKey = `axim_key_${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
       const { data, error } = await supabaseApiService.supabase
         .from('api_keys')
         .insert({

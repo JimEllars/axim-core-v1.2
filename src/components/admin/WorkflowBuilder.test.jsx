@@ -6,7 +6,7 @@ import React from 'react';
 import { render, screen, act, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import WorkflowBuilder from './WorkflowBuilder';
-import { supabaseApiService } from '../../services/supabaseApiService';
+import supabaseApiService from '../../services/supabaseApiService';
 import * as AuthContext from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -24,8 +24,14 @@ vi.mock('@xyflow/react', () => ({
 }));
 
 vi.mock('../../services/supabaseApiService', () => ({
+  default: {
+    supabase: { from: vi.fn() },
+    getWorkflows: vi.fn(),
+    saveWorkflow: vi.fn()
+  },
   supabaseApiService: {
-    getWorkflows: vi.fn().mockResolvedValue([]),
+    supabase: { from: vi.fn() },
+    getWorkflows: vi.fn(),
     saveWorkflow: vi.fn()
   }
 }));

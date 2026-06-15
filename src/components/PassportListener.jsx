@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
-import SafeIcon from './common/SafeIcon';
+import SafeIcon from '../common/SafeIcon';
 
 const { FiShield, FiCheckCircle, FiXCircle, FiClock } = FiIcons;
 
