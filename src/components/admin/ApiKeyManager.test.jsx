@@ -58,8 +58,8 @@ describe('ApiKeyManager', () => {
 
   it('should list API keys', async () => {
     const mockKeys = [
-      { id: '1', api_key: 'axim_key_1234567890abcdef', created_at: '2026-01-01T00:00:00Z' },
-      { id: '2', api_key: 'axim_key_abcdef1234567890', created_at: '2026-01-02T00:00:00Z' },
+      { id: '1', api_key: 'mock_token_1234567890abcdef', created_at: '2026-01-01T00:00:00Z' },
+      { id: '2', api_key: 'mock_token_abcdef1234567890', created_at: '2026-01-02T00:00:00Z' },
     ];
     mockSupabaseQuery('select', { data: mockKeys, error: null });
 
@@ -89,7 +89,7 @@ describe('ApiKeyManager', () => {
       expect(screen.getByText('No API keys found. Generate one to get started.')).toBeInTheDocument();
     });
 
-    const newKey = { id: '3', api_key: 'axim_key_newkey1234', created_at: '2026-01-03T00:00:00Z' };
+    const newKey = { id: '3', api_key: 'mock_token_newkey1234', created_at: '2026-01-03T00:00:00Z' };
     const insertChain = mockSupabaseQuery('insert', { data: newKey, error: null });
 
     await act(async () => {
@@ -104,7 +104,7 @@ describe('ApiKeyManager', () => {
 
   it('should revoke an existing API key', async () => {
     const mockKeys = [
-      { id: '1', api_key: 'axim_key_1234567890abcdef', created_at: '2026-01-01T00:00:00Z' }
+      { id: '1', api_key: 'mock_token_1234567890abcdef', created_at: '2026-01-01T00:00:00Z' }
     ];
     const selectChain = mockSupabaseQuery('select', { data: mockKeys, error: null });
 
