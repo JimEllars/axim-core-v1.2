@@ -28,12 +28,16 @@ describe('EventLog', () => {
     vi.clearAllMocks();
   });
 
-  const renderComponent = () => {
-    return render(
-      <DashboardProvider>
-        <EventLog />
-      </DashboardProvider>
-    );
+  const renderComponent = async () => {
+    let result;
+    await act(async () => {
+        result = render(
+        <DashboardProvider>
+            <EventLog />
+        </DashboardProvider>
+        );
+    });
+    return result;
   };
 
   it('renders loading state initially', async () => {
@@ -42,7 +46,11 @@ describe('EventLog', () => {
     supabase.limit.mockImplementationOnce(() => new Promise(r => { resolveEvents = r; }));
     supabase.limit.mockImplementationOnce(() => new Promise(r => { resolveTelemetry = r; }));
 
-    renderComponent();
+    const rendered = render(
+      <DashboardProvider>
+        <EventLog />
+      </DashboardProvider>
+    );
 
     expect(screen.getByText('Live Event Log')).toBeInTheDocument();
     expect(screen.getAllByRole('generic').some(el => el.classList.contains('animate-pulse'))).toBeTruthy();
@@ -65,9 +73,7 @@ describe('EventLog', () => {
     supabase.limit.mockResolvedValueOnce({ data: mockCoreEvents, error: null });
     supabase.limit.mockResolvedValueOnce({ data: mockTelemetryEvents, error: null });
 
-    await act(async () => {
-      renderComponent();
-    });
+    await renderComponent();
 
     await waitFor(() => {
       expect(screen.getByText('new lead')).toBeInTheDocument();
@@ -80,17 +86,16 @@ describe('EventLog', () => {
   it('subscribes to realtime channels on mount and cleans up on unmount', async () => {
     supabase.limit.mockResolvedValue({ data: [], error: null });
 
-    let rendered;
-    await act(async () => {
-      rendered = renderComponent();
-    });
+    const rendered = await renderComponent();
 
     expect(supabase.channel).toHaveBeenCalledWith('events');
     const mockChannel = supabase.channel();
     expect(mockChannel.on).toHaveBeenCalledTimes(2); // One for core, one for telemetry
     expect(mockChannel.subscribe).toHaveBeenCalled();
 
-    rendered.unmount();
+    await act(async () => {
+        rendered.unmount();
+    });
 
     expect(supabase.removeChannel).toHaveBeenCalledWith(mockChannel);
   });

@@ -37,7 +37,7 @@ describe('GcpApiService', () => {
     // Mock config dynamically to ensure it persists across resets
 vi.mock('../../config', () => ({
       default: {
-        apiBaseUrl: 'http://localhost:8080',
+        apiBaseUrl: (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'),
         dataSource: 'gcp'
       },
     }));
@@ -63,7 +63,7 @@ vi.mock('../../config', () => ({
   describe('Initialization', () => {
     it('should initialize successfully when backend is reachable', async () => {
       expect(mockCreate).toHaveBeenCalledWith(expect.objectContaining({
-        baseURL: 'http://localhost:8080',
+        baseURL: (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'),
       }));
       expect(mockAxiosInstance.get).toHaveBeenCalledWith('/healthz');
       expect(logger.info).toHaveBeenCalledWith('GcpApiService initialized and connected to backend.');

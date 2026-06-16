@@ -14,13 +14,21 @@ const config = {
   // GCP Backend URL
   apiBaseUrl: import.meta.env.PROD
     ? (import.meta.env.VITE_API_BASE_URL || '')
-    : (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'),
+    : (import.meta.env.VITE_API_BASE_URL || (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080')),
 
   // Stripe Configuration
   stripePriceId: import.meta.env.VITE_STRIPE_PRICE_ID_PRO,
 };
 
 const validateConfig = () => {
+  const missingVars = [];
+  if (!config.supabaseUrl) missingVars.push('VITE_SUPABASE_URL');
+  if (!config.supabaseAnonKey) missingVars.push('VITE_SUPABASE_ANON_KEY');
+
+  if (missingVars.length > 0) {
+    console.warn(`[AXiM Core Config] Missing essential environment variables: ${missingVars.join(', ')}. Please update your .env file.`);
+  }
+
   if (config.isMockLlmEnabled) return;
   if (!config.supabaseUrl || !config.supabaseAnonKey) {
     throw new Error(

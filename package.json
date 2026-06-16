@@ -34,7 +34,6 @@
     "@google-cloud/secret-manager": "^6.1.1",
     "@headlessui/react": "^2.2.10",
     "@questlabs/react-sdk": "^2.2.898",
-    "@supabase/supabase-js": "^2.78.0",
     "@tailwindcss/postcss": "^4.1.14",
     "@tanstack/react-query": "^5.99.0",
     "@xyflow/react": "^12.10.2",
@@ -65,6 +64,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.33.2",
     "@eslint/js": "^9.39.4",
+    "@supabase/supabase-js": "^2.108.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
@@ -85,6 +85,7 @@
     "express": "^5.2.1",
     "globals": "^16.5.0",
     "google-trends-api": "^4.9.2",
+    "googleapis": "^173.0.0",
     "jsdom": "^27.4.0",
     "jsonwebtoken": "^9.0.3",
     "node-cron": "^4.2.1",
