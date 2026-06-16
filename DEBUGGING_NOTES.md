@@ -158,3 +158,8 @@ During `npm install`, several deprecation warnings are visible:
   - Context lookups wired into `llm.js -> generateContent` to provide Onyx with past contextual awareness via the database.
 * **WorkflowBuilder**: Replaced hardcoded definition and save buttons with `supabaseApiService` connections. Saving and rehydrating flow maps properly.
 * **DeviceManager Note**: Thorough repository searches confirm no missing `.skip` files or lingering flaky test code related to `DeviceManager`. The item appears obsolete or resolved in a prior commit wave (Wave 50).
+
+### Update (Post-Wave 51 Hardening)
+- **WorkflowBuilder Hardening:** Implemented explicit insert/update `saveWorkflow` database pathways inside `supabaseApiService`, loading states, empty workflow rejection, and explicit "Mocked" flags for scheduling components. Fixed tests.
+- **ApiKeyManager Hardening:** Replaced hardcoded demo tokens with cryptographically secure (`crypto.getRandomValues`) client-side generation. This acts as an interim production-safe fallback. The final production architecture should move issuance to a trusted backend/Edge Function with optional hashing, one-time reveal, and audit logging.
+- **RAG Pipeline Tests:** Hardened `llm.js` to guarantee the generated `finalPrompt` wraps embedded search results properly. Added robust test coverage ensuring graceful fallbacks (e.g. continuing with normal execution) if embeddings fail or return empty arrays.
