@@ -107,7 +107,7 @@ export const generateContent = async (prompt, options = {}) => {
     const provider = providerQueue[0];
     try {
       const { data, error } = await supabase.functions.invoke('llm-proxy', {
-        body: { provider, prompt, options },
+        body: { provider, prompt: finalPrompt, options },
       });
 
       if (error) {
@@ -142,7 +142,7 @@ export const generateContent = async (prompt, options = {}) => {
   const promises = providerQueue.map(async (provider) => {
     try {
       const { data, error } = await supabase.functions.invoke('llm-proxy', {
-        body: { provider, prompt, options },
+        body: { provider, prompt: finalPrompt, options },
       });
 
       if (error) {
