@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-/* global Response, Request, URL, fetch, setInterval, caches */
+/* global Response, Request, URL, fetch, setInterval, caches, process */
 /**
  * AXiM Core Cloudflare Worker
  *
@@ -101,7 +101,8 @@ export default {
       // Proxy to GCP backend
       try {
         const targetUrl = new URL(request.url);
-        const backendUrl = new URL(env.GCP_BACKEND_URL || 'https://gcp.axim.us.com');
+        const backendUrlStr = env.GCP_BACKEND_URL || (typeof process !== 'undefined' && process.env.GCP_BACKEND_URL ? process.env.GCP_BACKEND_URL : null) || 'https://gcp.axim.us.com';
+        const backendUrl = new URL(backendUrlStr);
         targetUrl.hostname = backendUrl.hostname;
         targetUrl.port = backendUrl.port || '';
         targetUrl.protocol = backendUrl.protocol;
@@ -138,20 +139,8 @@ export default {
       }
     }
 
-    // For standard fallback index files, enforce no-store header block
-    if (url.pathname === '/index.html' || url.pathname.endsWith('.html') || url.pathname === '/') {
-      return new Response(JSON.stringify({ error: 'Frontend pages are served by Cloudflare Pages' }), {
-        status: 404,
-        headers: {
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
-        }
-      });
-    }
-
-    // Default Response (Not Found)
-    return new Response('AXiM Core Edge Worker - Route Not Found', {
+    // Default Response for Non-API requests (Not Found)
+    return new Response('404 Not Found', {
       status: 404,
       headers: {
         ...corsHeaders,

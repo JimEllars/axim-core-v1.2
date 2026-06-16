@@ -20,7 +20,7 @@ export const verifyPaymentIntent = async (paymentIntentId) => {
     throw new Error('paymentIntentId is required for verification.');
   }
 
-  const endpoint = `${config.apiBaseUrl || 'http://localhost:8080'}/payments/verify`;
+  const endpoint = `${config.apiBaseUrl || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/payments/verify`;
 
   const headers = {
     'Content-Type': 'application/json',
@@ -56,7 +56,7 @@ export const verifyPaymentIntent = async (paymentIntentId) => {
  * with their own Stripe integration, queuing a fallback job if necessary.
  */
 export const executeFallbackBillingVerification = async (sessionId, app_id) => {
-  const endpoint = `${config.apiBaseUrl || 'http://localhost:8080'}/payments/fallback`;
+  const endpoint = `${config.apiBaseUrl || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/payments/fallback`;
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -75,7 +75,7 @@ export const executeFallbackBillingVerification = async (sessionId, app_id) => {
 };
 
 export const createPaymentIntent = async (details) => {
-  const endpoint = `${config.apiBaseUrl || 'http://localhost:8080'}/payments/intent`;
+  const endpoint = `${config.apiBaseUrl || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/payments/intent`;
 
   const headers = {
     'Content-Type': 'application/json',

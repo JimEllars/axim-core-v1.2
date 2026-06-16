@@ -3,19 +3,38 @@ import { createClient } from "@supabase/supabase-js";
 import fs from "fs/promises";
 import path from "path";
 
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 2000;
+const MAX_RETRIES = 5;
+const INITIAL_RETRY_DELAY = 1000;
 
 async function retryWithBackoff(fn, retries = MAX_RETRIES) {
+  let delay = INITIAL_RETRY_DELAY;
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
     } catch (error) {
       if (i === retries - 1) throw error;
-      console.warn(`Attempt ${i + 1} failed, retrying in ${RETRY_DELAY * (i + 1)}ms...`);
-      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (i + 1)));
+      // Exponential backoff
+      console.warn(`Attempt ${i + 1} failed, retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 2; // Double the delay
     }
   }
+}
+
+// Ensure fatal failures are caught and handled
+process.on("unhandledRejection", (reason) => {
+  logFatalError(reason);
+  process.exit(1);
+});
+
+process.on("uncaughtException", (error) => {
+  logFatalError(error);
+  process.exit(1);
+});
+
+function logFatalError(error) {
+  const sanitizedMessage = error && error.message ? error.message.replace(/([a-zA-Z0-9_-]+@[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+)/g, '[REDACTED_EMAIL]').replace(/(sk-[a-zA-Z0-9]{20,})/g, '[REDACTED_KEY]') : "Unknown Error";
+  console.error(`[ADMIN ALERT] Pipeline Execution Fatal Error: ${sanitizedMessage}`);
 }
 
 async function exportChatlogs() {
@@ -27,7 +46,29 @@ async function exportChatlogs() {
     );
 
     // Initialize Google Drive
-    const credentials = JSON.parse(process.env.GOOGLE_DRIVE_CREDENTIALS);
+    // Safely parse credentials whether it's a compact string or encoded multi-line string
+    let credentialsStr = process.env.GOOGLE_DRIVE_CREDENTIALS;
+    if (!credentialsStr) {
+      throw new Error("GOOGLE_DRIVE_CREDENTIALS environment variable is not set.");
+    }
+
+    // Try to decode if it might be base64 or have extra escaping
+    try {
+        // Just in case it's stringified twice or has extra quotes
+        if (credentialsStr.startsWith('"') && credentialsStr.endsWith('"')) {
+            credentialsStr = JSON.parse(credentialsStr);
+        }
+    } catch {
+      // Ignore parse error
+    }
+
+    let credentials;
+    try {
+        credentials = JSON.parse(credentialsStr);
+    } catch (parseError) {
+        throw new Error(`Failed to parse GOOGLE_DRIVE_CREDENTIALS as JSON: ${parseError.message}`);
+    }
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ["https://www.googleapis.com/auth/drive.file"]
@@ -91,8 +132,7 @@ async function exportChatlogs() {
     await fs.unlink(filePath);
 
   } catch (error) {
-    console.error("❌ Export failed:", error.message);
-    console.error(error.stack);
+    logFatalError(error);
     process.exit(1);
   }
 }

@@ -43,3 +43,27 @@ vi.mock('framer-motion', async (importOriginal) => {
     AnimatePresence: ({ children }) => <>{children}</>,
   };
 });
+
+// Suppress console.error in tests to avoid noisy output for expected failures
+const originalConsoleError = console.error;
+console.error = (...args) => {
+  if (
+    typeof args[0] === 'string' &&
+    (args[0].includes('IntentParsingError') || args[0].includes('invalid command') || args[0].includes('Warning: React does not recognize') || args[0].includes('act('))
+  ) {
+    return;
+  }
+  originalConsoleError(...args);
+};
+
+// Also suppress console.warn for known warnings during tests
+const originalConsoleWarn = console.warn;
+console.warn = (...args) => {
+  if (
+    typeof args[0] === 'string' &&
+    (args[0].includes('[AXiM Core Config] Missing essential environment variables'))
+  ) {
+    return;
+  }
+  originalConsoleWarn(...args);
+};

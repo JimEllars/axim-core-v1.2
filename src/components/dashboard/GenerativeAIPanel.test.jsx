@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import GenerativeAIPanel from './GenerativeAIPanel';
 import onyxAI from '../../services/onyxAI';
@@ -37,13 +37,22 @@ describe('GenerativeAIPanel', () => {
   it('routes command through OnyxAI and surfaces success', async () => {
     onyxAI.routeCommand.mockResolvedValueOnce({ content: 'Here is your AI generated content' });
 
-    render(<GenerativeAIPanel />);
+    let container;
+    await act(async () => {
+      container = render(<GenerativeAIPanel />);
+    });
 
     const textarea = screen.getByPlaceholderText(/Enter your prompt here/i);
-    fireEvent.change(textarea, { target: { value: 'test command' } });
+    await act(async () => {
+      fireEvent.change(textarea, { target: { value: 'test command' } });
+    });
 
     const generateBtn = screen.getByRole('button', { name: /Generate/i });
-    fireEvent.click(generateBtn);
+
+    // We don't await the whole act yet to check for 'Generating...'
+    act(() => {
+      fireEvent.click(generateBtn);
+    });
 
     expect(screen.getByText('Generating...')).toBeInTheDocument();
 
@@ -58,13 +67,20 @@ describe('GenerativeAIPanel', () => {
   it('surfaces errors from command routing', async () => {
     onyxAI.routeCommand.mockRejectedValueOnce(new Error('IntentParsingError: Unrecognized command'));
 
-    render(<GenerativeAIPanel />);
+    let container;
+    await act(async () => {
+      container = render(<GenerativeAIPanel />);
+    });
 
     const textarea = screen.getByPlaceholderText(/Enter your prompt here/i);
-    fireEvent.change(textarea, { target: { value: 'invalid command' } });
+    await act(async () => {
+      fireEvent.change(textarea, { target: { value: 'invalid command' } });
+    });
 
     const generateBtn = screen.getByRole('button', { name: /Generate/i });
-    fireEvent.click(generateBtn);
+    await act(async () => {
+      fireEvent.click(generateBtn);
+    });
 
     await waitFor(() => {
       expect(onyxAI.routeCommand).toHaveBeenCalledWith('invalid command');
