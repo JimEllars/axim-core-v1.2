@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-/* global Response, Request, URL, fetch, setInterval, caches, process */
+/* global Response, Request, URL, fetch, setInterval, caches */
 /**
  * AXiM Core Cloudflare Worker
  *
@@ -101,7 +101,7 @@ export default {
       // Proxy to GCP backend
       try {
         const targetUrl = new URL(request.url);
-        const backendUrlStr = env.GCP_BACKEND_URL || (typeof process !== 'undefined' && process.env.GCP_BACKEND_URL ? process.env.GCP_BACKEND_URL : null) || 'https://gcp.axim.us.com';
+        const backendUrlStr = env.GCP_BACKEND_URL || 'https://gcp.axim.us.com';
         const backendUrl = new URL(backendUrlStr);
         targetUrl.hostname = backendUrl.hostname;
         targetUrl.port = backendUrl.port || '';
