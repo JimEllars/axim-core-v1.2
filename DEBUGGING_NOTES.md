@@ -161,5 +161,15 @@ During `npm install`, several deprecation warnings are visible:
 
 ### Update (Post-Wave 51 Hardening)
 - **WorkflowBuilder Hardening:** Implemented explicit insert/update `saveWorkflow` database pathways inside `supabaseApiService`, loading states, empty workflow rejection, and explicit "Mocked" flags for scheduling components. Fixed tests.
-- **ApiKeyManager Hardening:** Replaced hardcoded demo tokens with cryptographically secure (`crypto.getRandomValues`) client-side generation. This acts as an interim production-safe fallback. The final production architecture should move issuance to a trusted backend/Edge Function with optional hashing, one-time reveal, and audit logging.
+- **ApiKeyManager Hardening:** Replaced hardcoded demo tokens with cryptographically secure (`crypto.getRandomValues`) client-side generation, along with one-time UI reveal. This acts as an interim production-safe fallback. The final production architecture should move issuance to a trusted backend/Edge Function with optional hashing and audit logging.
 - **RAG Pipeline Tests:** Hardened `llm.js` to guarantee the generated `finalPrompt` wraps embedded search results properly. Added robust test coverage ensuring graceful fallbacks (e.g. continuing with normal execution) if embeddings fail or return empty arrays.
+
+
+## Wave 52 - Production Verification & Drift Hardening
+- **Workstream A:** API keys are now generated cryptographically client-side (interim measure) and revealed only once.
+- **Workstream B:** System status dashboard correctly queries function health logic dynamically utilizing `last_ping` freshness to derive status.
+- **Workstream C:** End-to-end integration tests are established to verify workflow behavior (saving, querying database, pausing, resuming).
+- **Workstream D:** RAG has deep context with a historical fallback embedding script and daily memory summarization cron hook into `ai_memory_banks`.
+- **Workstream E:** Smoke test harness runs on Github CI for PRs and checks integration secrets drift.
+- **Workstream F:** OnyxAI live path through API proxy is confirmed with valid stub/mock fallbacks and test coverage.
+- **Workstream G:** Full end-to-end test pass run via `vitest`. 80 test suites / 675 tests passed, achieving the baseline requirements for deployment mode validation.

@@ -97,8 +97,8 @@ describe('ApiKeyManager', () => {
     });
 
     await waitFor(() => {
-      expect(insertChain.insert).toHaveBeenCalled();
-      expect(toast.success).toHaveBeenCalledWith('API Key generated successfully');
+      expect(insertChain.insert).toHaveBeenCalledWith(expect.objectContaining({ api_key: expect.stringMatching(/^axim_pk_/), user_id: 'user-123' }));
+      expect(toast.success).toHaveBeenCalledWith(expect.stringContaining('API Key generated successfully.'), expect.any(Object));
     });
   });
 
