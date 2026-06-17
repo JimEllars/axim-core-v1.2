@@ -44,7 +44,7 @@ const stepHandlerRegistry = {
     const { data, error } = await query;
     if (error) throw new Error(error.message);
 
-    return { message: `Query database step executed.`, data };
+    return { message: `Query database step executed (${data ? data.length : 0} rows found).`, data };
   },
 
 };

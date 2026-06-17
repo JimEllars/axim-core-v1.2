@@ -157,7 +157,23 @@ const WorkflowBuilder = () => {
        toast.error("Please fill in both fields");
        return;
     }
-    toast.success("Schedule added (mocked)");
+    // Since full pg_cron scheduling isn't fully supported without a direct postgres function,
+    // we will save this to the DB as a task and document it explicitly as a scheduled task pending actual cron execution.
+    try {
+      const { error } = await supabaseApiService.supabase
+        .from('tasks')
+        .insert({
+          title: `Scheduled: ${newScheduleCommand}`,
+          description: `CRON: ${newScheduleCron}`,
+          status: 'pending',
+          created_by: user.id
+        });
+      if(error) throw error;
+      toast.success("Schedule saved to tasks.");
+    } catch(e) {
+      console.error(e);
+      toast.error("Failed to save schedule");
+    }
     setScheduledTasks([...scheduledTasks, { id: Date.now(), command: newScheduleCommand, schedule: newScheduleCron }]);
     setShowScheduleForm(false);
     setNewScheduleCommand('');
@@ -165,7 +181,8 @@ const WorkflowBuilder = () => {
   };
 
   const handleRemoveSchedule = async (id) => {
-    toast.success("Schedule removed (mocked)");
+    // Real backend delete logic would go here if tasks tracked IDs correctly in state
+    toast.success("Schedule removed from view");
     setScheduledTasks(scheduledTasks.filter(t => t.id !== id));
   };
 

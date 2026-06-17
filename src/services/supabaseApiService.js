@@ -617,6 +617,17 @@ class SupabaseApiService {
     try {
       // Calls the RPC 'match_ai_interactions' to perform vector search
       // Requires pgvector and the RPC function to be created in Supabase.
+      // Check memory banks first
+      const { data: bankData, error: bankError } = await this.supabase.rpc('match_memory_banks', {
+        query_embedding: queryEmbedding,
+        match_threshold: 0.70,
+        match_count: Math.max(1, Math.floor(limit / 2)),
+        p_user_id: userId
+      });
+
+      let results = bankData || [];
+
+      // Calls the RPC 'match_ai_interactions' to perform vector search
       const { data, error } = await this.supabase.rpc('match_ai_interactions', {
         query_embedding: queryEmbedding,
         match_threshold: 0.70, // Slightly lower threshold for better recall
@@ -628,7 +639,7 @@ class SupabaseApiService {
         logger.warn('searchMemory RPC failed:', error.message);
         return []; // Return empty array gracefully during development
       }
-      return data || [];
+      return [...results, ...(data || [])].slice(0, limit);
     } catch (error) {
       logger.error('Failed to execute searchMemory:', error);
       return [];

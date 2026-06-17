@@ -89,7 +89,7 @@ describe('ApiKeyManager', () => {
       expect(screen.getByText('No API keys found. Generate one to get started.')).toBeInTheDocument();
     });
 
-    const newKey = { id: '3', api_key: 'mock_token_demo_3', created_at: '2026-01-03T00:00:00Z' };
+    const newKey = { id: '3', api_key: 'axim_pk_mocktoken', created_at: '2026-01-03T00:00:00Z' };
     const insertChain = mockSupabaseQuery('insert', { data: newKey, error: null });
 
     await act(async () => {

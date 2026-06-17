@@ -8,13 +8,13 @@ This document tracks all active Edge Functions, their required secrets, and asso
 |---|---|---|---|
 | `ace-wp-callback` | Handles WordPress publishing events | `WP_AUTH_KEY` | None |
 | `affiliate-lead-ingest` | Ingests affiliate leads | None | None |
-| `albato-connector` | Dispatches webhooks to Albato | `ALBATO_WEBHOOK_URL` (Missing from vault seed!) | None |
+| `albato-connector` | Dispatches webhooks to Albato | `ALBATO_WEBHOOK_URL` | None |
 | `api-capabilities` | Exposes available micro-apps | None | None |
 | `api-gateway` | Main API proxy & router | `SUPABASE_SERVICE_ROLE_KEY` | None |
 | `api-proxy` | Generic proxy | None | None |
 | `audit-export` | Exports audit logs to secure bucket | `SUPABASE_SERVICE_ROLE_KEY` | None |
 | `auto-healer` | Quarantines failed nodes | None | Triggered by RCA |
-| `autonomous-billing` | Mid-cycle invoicing | `STRIPE_SECRET_KEY` (Missing from vault seed!) | None |
+| `autonomous-billing` | Mid-cycle invoicing | `STRIPE_SECRET_KEY` | None |
 | `autonomous-lead-scraper` | Lead scraper | None | None |
 | `axim-content-engine` | Automated content engine | None | `pg_cron` (daily) |
 | `axim-scraper` | General scraper | None | None |
@@ -22,8 +22,8 @@ This document tracks all active Edge Functions, their required secrets, and asso
 | `chatbase-sync` | Syncs Chatbase data | None | None |
 | `cognitive-compression` | Summarizes older data | `SUPABASE_SERVICE_ROLE_KEY` | `pg_cron` |
 | `communication-gateway` | Inbound email webhook | None | None |
-| `create-checkout-session` | Stripe checkout | `STRIPE_SECRET_KEY` (Missing from vault seed!) | None |
-| `create-portal-session` | Stripe portal | `STRIPE_SECRET_KEY` (Missing from vault seed!) | None |
+| `create-checkout-session` | Stripe checkout | `STRIPE_SECRET_KEY` | None |
+| `create-portal-session` | Stripe portal | `STRIPE_SECRET_KEY` | None |
 | `crm-reconciliation` | Syncs CRM data | None | None |
 | `device-communication` | Connects devices | None | None |
 | `device-status` | Device health check | None | None |
@@ -36,7 +36,7 @@ This document tracks all active Edge Functions, their required secrets, and asso
 | `gateway-heartbeat` | Gateway health check | None | `pg_cron` |
 | `generate-embedding` | Vectorizes text | None | Database Trigger |
 | `generic-axim-service-proxy`| Generic service proxy | `SUPABASE_SERVICE_ROLE_KEY` | None |
-| `google-drive-export` | Exports data to Drive | `GOOGLE_SERVICE_ACCOUNT` (Missing from vault seed!) | None |
+| `google-drive-export` | Exports data to Drive | `GOOGLE_SERVICE_ACCOUNT` | None |
 | `ground-game-assign` | Field operator routing | None | None |
 | `job-processor` | Background tasks | None | None |
 | `knowledge-ingest` | Ingests KB data | None | None |
@@ -44,7 +44,7 @@ This document tracks all active Edge Functions, their required secrets, and asso
 | `memory-retrieval` | RAG retrieval | None | None |
 | `omnichannel-publisher` | Publishes to socials | None | None |
 | `onyx-bridge` | Proxy to Onyx Mk3 | `SUPABASE_SERVICE_ROLE_KEY` | None |
-| `onyx-edge-worker` | Onyx edge processing | `AXIM_ONYX_SECRET`, `ANTHROPIC_API_KEY` (Missing from vault seed!) | None |
+| `onyx-edge-worker` | Onyx edge processing | `AXIM_ONYX_SECRET`, `ANTHROPIC_API_KEY` | None |
 | `onyx-sentinel` | Notifies Onyx of node failure | None | Database Trigger |
 | `onyx-ui-stream` | Streams UI updates | None | None |
 | `osint-scraper` | OSINT gathering | None | None |
@@ -59,7 +59,7 @@ This document tracks all active Edge Functions, their required secrets, and asso
 | `smart-contract-dispatcher` | Dispatches Web3 contracts | None | None |
 | `strategy-snapshot` | Analyzes strategies | None | None |
 | `stream-webhook` | Live stream events | None | None |
-| `stripe-webhooks` | Stripe webhooks | `STRIPE_WEBHOOK_SECRET` (Missing from vault seed!) | None |
+| `stripe-webhooks` | Stripe webhooks | `STRIPE_WEBHOOK_SECRET` | None |
 | `system-status` | Aggregates health | `SUPABASE_ANON_KEY` | None |
 | `telemetry-archiver` | Archives old telemetry | None | `pg_cron` |
 | `telemetry-ingress` | General telemetry | None | None |
