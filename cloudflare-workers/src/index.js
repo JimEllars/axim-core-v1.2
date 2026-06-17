@@ -1,4 +1,4 @@
-
+/* eslint-disable no-unused-vars */
 /* global Response, Request, URL, fetch, setInterval, caches */
 /**
  * AXiM Core Cloudflare Worker
