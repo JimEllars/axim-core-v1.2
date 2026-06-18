@@ -72,19 +72,27 @@ class Logger {
   captureException(error, context) {
     this.error("Captured exception:", error, context);
 
-    setTimeout(async () => {
+    // Immediate execution, not setTimeout
+    (async () => {
       try {
         const payload = {
+          session_id: this.correlationId,
           event: "frontend_uncaught_error",
           app_type: "axim-core-frontend",
+          timestamp: new Date().toISOString(),
           details: {
             error: error ? error.toString() : 'Unknown error',
             componentStack: context ? context.componentStack : undefined,
-            userAgent: navigator.userAgent
+            userAgent: navigator.userAgent,
+            route: window.location.pathname
           }
         };
 
-        const apiUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://api.axim.us.com';
+        const apiUrl = import.meta.env?.VITE_SUPABASE_URL;
+        if (!apiUrl) {
+          console.warn("VITE_SUPABASE_URL missing, cannot transmit telemetry.");
+          return;
+        }
         await fetch(`${apiUrl}/functions/v1/telemetry-ingress`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -93,7 +101,7 @@ class Logger {
       } catch (err) {
         console.error("Failed to transmit error telemetry", err);
       }
-    }, 100);
+    })();
   }
 }
 

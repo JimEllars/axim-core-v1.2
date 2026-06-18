@@ -54,9 +54,9 @@ const MetricsGrid = () => {
         {Array.from({ length: 6 }).map((_, index) => (
           <div key={index} className="glass-effect rounded-xl p-6">
             <div data-testid="loading-skeleton" className="animate-pulse flex flex-col">
-              <div className="h-12 w-12 bg-onyx-950 rounded-lg mb-4"></div>
-              <div className="h-4 bg-onyx-950 rounded w-3/4 mb-2"></div>
-              <div className="h-8 bg-onyx-950 rounded w-1/2"></div>
+              <div className="h-12 w-12 glass-effect rounded-lg mb-4"></div>
+              <div className="h-4 glass-effect rounded w-3/4 mb-2"></div>
+              <div className="h-8 glass-effect rounded w-1/2"></div>
             </div>
           </div>
         ))}
@@ -162,16 +162,16 @@ const MetricsGrid = () => {
           className="glass-effect rounded-xl p-6 hover:bg-white/10 transition-all duration-300 relative group"
         >
           {/* Tooltip */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full mb-2 hidden group-hover:block z-10 w-48 p-2 bg-onyx-950 border border-onyx-accent/20 text-slate-300 text-xs rounded shadow-xl text-center">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full mb-2 hidden group-hover:block z-10 w-48 p-2 glass-effect border border-onyx-accent/20 text-slate-300 text-xs rounded shadow-xl text-center">
             {metric.tooltip}
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-2 h-2 bg-onyx-950 border-r border-b border-onyx-accent/20 transform rotate-45"></div>
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-2 h-2 glass-effect border-r border-b border-onyx-accent/20 transform rotate-45"></div>
           </div>
 
           <div className="flex items-center justify-between mb-4">
             <div className={`w-12 h-12 bg-gradient-to-r ${metric.color} rounded-lg flex items-center justify-center shadow-lg`}>
               <SafeIcon icon={metric.icon} className="text-white text-xl" />
             </div>
-            <span className={`text-xs ${metric.changeColor} font-medium bg-onyx-950/50 px-2 py-1 rounded-full`}>
+            <span className={`text-xs ${metric.changeColor} font-medium glass-effect/50 px-2 py-1 rounded-full`}>
               {metric.change}
             </span>
           </div>
@@ -182,7 +182,7 @@ const MetricsGrid = () => {
             </h3>
             <div className="text-2xl font-bold text-white tracking-tight">
               {loading ? (
-                <div data-testid="loading-skeleton" className="animate-pulse bg-onyx-950 h-8 w-16 rounded"></div>
+                <div data-testid="loading-skeleton" className="animate-pulse glass-effect h-8 w-16 rounded"></div>
               ) : (
                 metric.value
               )}

@@ -167,7 +167,7 @@ export const RealtimeProvider = ({ children }) => {
       const workflowChannel = supabase.channel('realtime:workflow_events_log')
         .on(
           'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'events_ax2024', filter: 'type=eq.workflow_executed' },
+          { event: 'INSERT', schema: 'public', table: 'api_usage_logs' },
           (payload) => {
              // dispatch a custom event that WorkflowExecutionLog can listen to
              window.dispatchEvent(new CustomEvent('workflow:new_execution', { detail: payload.new }));

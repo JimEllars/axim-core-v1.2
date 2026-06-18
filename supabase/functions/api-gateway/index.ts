@@ -178,7 +178,7 @@ serve(async (req) => {
               });
           }
 
-          const allowedEndpoints = ['/api/v1/telemetry/micro-app', '/api/v1/dispatch'];
+          const allowedEndpoints = ['/api/v1/telemetry/micro-app', '/api/v1/dispatch', '/api/v1/micro-app/ingress'];
           if (!allowedEndpoints.includes(endpoint)) {
               await logSecurityAnomaly(`Forbidden: Micro-app '${apiKeyData.service}' attempted to access restricted endpoint ${endpoint}.`);
               return new Response(JSON.stringify({ error: 'Forbidden: Endpoint access denied for micro-apps.' }), {
@@ -256,6 +256,25 @@ serve(async (req) => {
         headers: { ...securityHeaders, 'Content-Type': 'application/json' }
       });
     }
+
+    if (req.method === 'POST' && endpoint === '/api/v1/micro-app/ingress') {
+      const dispatcherUrl = `${SUPABASE_URL}/functions/v1/universal-dispatcher`;
+      const dispatchRes = await fetch(dispatcherUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
+        },
+        body: JSON.stringify({ ...body, partner_id: partnerId, api_key_id: apiKeyId, source: 'micro-app-ingress' })
+      });
+
+      const dispatchData = await dispatchRes.text();
+      return new Response(dispatchData, {
+        status: dispatchRes.status,
+        headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
 
     if (req.method === 'POST' && endpoint === '/api/v1/telemetry/ingest') {
       EdgeRuntime.waitUntil(

@@ -25,4 +25,22 @@ functions.forEach(func => {
   }
 });
 
+const criticalEndpoints = ['uptime-monitor', 'sentry-rca-handler'];
+let passed = true;
+
+console.log('\nChecking critical endpoints...');
+criticalEndpoints.forEach(endpoint => {
+  if (functions.includes(endpoint)) {
+     console.log(`- [OK] Critical endpoint found: ${endpoint}`);
+  } else {
+     console.log(`- [FAILED] Critical endpoint missing: ${endpoint}`);
+     passed = false;
+  }
+});
+
+if (!passed) {
+   console.error('\nSmoke tests failed: Critical endpoints are missing or misconfigured.');
+   process.exit(1);
+}
+
 console.log('\nSmoke test harness ready.');
