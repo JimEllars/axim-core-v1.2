@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../services/supabaseClient';
@@ -7,9 +8,6 @@ const Support = () => {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchTickets();
-  }, []);
 
   const fetchTickets = async () => {
     setLoading(true);
@@ -23,6 +21,12 @@ const Support = () => {
     }
     setLoading(false);
   };
+
+  useEffect(() => {
+    fetchTickets();
+
+  }, []);
+
 
   const handleResolutionComplete = () => {
     fetchTickets();

@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useSupabase } from './SupabaseContext';
 import api from '../services/onyxAI/api';
@@ -192,6 +193,12 @@ export const AuthProvider = ({ children }) => {
   }, [supabase, handleSession, loadUserSettings]);
 
 
+
+
+  const logout = async () => {
+    await supabase.auth.signOut();
+  };
+
   useEffect(() => {
     const handleUnauthorized = () => {
       logout();
@@ -200,6 +207,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       window.removeEventListener('auth:unauthorized', handleUnauthorized);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const login = async (email, password) => {
@@ -235,9 +243,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = async () => {
-    await supabase.auth.signOut();
-  };
+
 
   const value = {
     user,

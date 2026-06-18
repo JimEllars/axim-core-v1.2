@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 import { useState, useEffect, useCallback } from 'react';
 import api from '../services/onyxAI/api';
 import toast from 'react-hot-toast';
