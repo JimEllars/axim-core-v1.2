@@ -198,7 +198,7 @@ const WorkflowBuilder = () => {
 
   const renderBuilder = () => (
     <div className="h-[600px] border border-cyan-500/30 rounded-lg overflow-hidden glass-effect relative">
-      <ReactFlow fitView defaultEdgeOptions={{ style: { stroke: '#06b6d4', strokeWidth: 2 }, animated: true }}
+      <ReactFlow defaultEdgeOptions={{ style: { stroke: '#06b6d4', strokeWidth: 2 }, animated: true }}
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
