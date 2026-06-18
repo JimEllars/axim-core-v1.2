@@ -1,91 +1,63 @@
-import js from '@eslint/js';
-import globals from 'globals';
-import reactHooks from 'eslint-plugin-react-hooks';
-import reactRefresh from 'eslint-plugin-react-refresh';
+import js from "@eslint/js";
+import globals from "globals";
+import react from "eslint-plugin-react";
+import reactHooks from "eslint-plugin-react-hooks";
+import reactRefresh from "eslint-plugin-react-refresh";
 
 export default [
-  { ignores: ['dist', 'public/wink-model/**', 'cloudflare-workers/.wrangler/**', 'cloudflare-workers/dist/**'] },
-  js.configs.recommended,
-
-  // Configuration for React source files
+  { ignores: ["dist", "cloudflare-workers"] },
   {
-    files: ['src/**/*.{js,jsx}'],
+    files: ["**/*.{js,jsx}"],
     languageOptions: {
       ecmaVersion: 2020,
       globals: {
         ...globals.browser,
-        React: true,
-        JSX: true,
-        webkitSpeechRecognition: 'readonly',
-        SpeechRecognition: 'readonly',
+        ...globals.node,
+        process: 'readonly',
+        globalThis: 'readonly',
       },
       parserOptions: {
-        ecmaFeatures: {
-          jsx: true,
-        },
-        sourceType: 'module',
+        ecmaVersion: "latest",
+        ecmaFeatures: { jsx: true },
+        sourceType: "module",
       },
     },
+    settings: { react: { version: "18.3" } },
     plugins: {
-      'react-hooks': reactHooks,
-      'react-refresh': reactRefresh,
+      react,
+      "react-hooks": reactHooks,
+      "react-refresh": reactRefresh,
     },
     rules: {
-      'no-undef': 'error',
-      'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'off',
-      'react-refresh/only-export-components': 'off',
-      'no-unused-vars': 'off',
-      'no-case-declarations': 'off',
+      ...js.configs.recommended.rules,
+      ...react.configs.recommended.rules,
+      ...react.configs["jsx-runtime"].rules,
+      ...reactHooks.configs.recommended.rules,
+      "react/jsx-no-target-blank": "off",
+      "react-refresh/only-export-components": [
+        "warn",
+        { allowConstantExport: true },
+      ],
+      "react/prop-types": "off",
     },
   },
-
-  // Configuration for root-level config files and electron main process
   {
-    files: ['*.js', '*.cjs', 'electron/**/*.js', 'electron/**/*.cjs', 'cloud/**/*.js', 'scripts/**/*.cjs', 'scripts/**/*.js'],
+    files: ["src/**/*.{js,jsx}"],
+    rules: {
+      "no-unused-vars": "off"
+    }
+  },
+  {
+    files: ["cloudflare-workers/src/**/*.{js,ts}"],
     languageOptions: {
       globals: {
-        ...globals.node,
-        __dirname: 'readonly',
-      },
-    },
-  },
-
-  // Configuration for GCP service file which requires Node.js globals
-  {
-    files: ['src/services/gcpApiService.js'],
-    languageOptions: {
-      globals: {
-        ...globals.node,
-      },
-    },
-  },
-
-  // Configuration for the standalone GCP backend service and Satellite SDK
-  {
-    files: ['gcp-backend/**/*.js', 'satellite/**/*.js'],
-    languageOptions: {
-      globals: {
-        ...globals.node,
-      },
-    },
-  },
-
-  // Configuration for test files
-  {
-    files: ['**/*.test.js', '**/*.test.jsx', 'src/vitest.setup.jsx'],
-    languageOptions: {
-      globals: {
-        ...globals.node,
-        ...globals.jest,
-        vi: 'readonly',
-        global: 'readonly',
-        describe: 'readonly',
-        it: 'readonly',
-        expect: 'readonly',
-        beforeEach: 'readonly',
-        afterEach: 'readonly',
-      },
-    },
-  },
+        ...globals.serviceworker,
+        Response: 'readonly',
+        Request: 'readonly',
+        URL: 'readonly',
+        fetch: 'readonly',
+        caches: 'readonly'
+      }
+    }
+  }
 ];

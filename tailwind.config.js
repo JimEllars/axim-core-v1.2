@@ -8,8 +8,8 @@ export default {
     extend: {
       colors: {
         onyx: {
-          950: '#020617',
-          accent: '#22d3ee',
+          950: '#09090b',
+          accent: '#06b6d4',
           ai: '#a855f7',
         }
       },

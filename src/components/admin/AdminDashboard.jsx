@@ -6,6 +6,7 @@ import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import WorkflowExecutionLog from './WorkflowExecutionLog';
 import UserManagement from './UserManagement';
+import SystemHealthPanel from "./SystemHealthPanel";
 import KPIOverview from './KPIOverview';
 import WorkflowBuilder from './WorkflowBuilder';
 import MemoryBank from './MemoryBank';
@@ -68,7 +69,12 @@ const AdminDashboard = () => {
         </div>
 
         <div>
-          {activeTab === 'overview' && <KPIOverview />}
+          {activeTab === 'overview' && <>
+              <SystemHealthPanel />
+              <div className="mt-8">
+                <KPIOverview />
+              </div>
+            </>}
           {activeTab === 'users' && <UserManagement currentUser={currentUser} />}
           {activeTab === 'workflows' && <WorkflowExecutionLog />}
           {activeTab === 'builder' && <WorkflowBuilder />}
