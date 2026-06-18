@@ -76,7 +76,7 @@ const Sidebar = () => {
           const activeApps = data.apps.filter(a => a.status === 'active' || a.is_active).length;
 
           setSystemStats([
-             { label: 'System Status', value: activeNodes > 0 || activeApps > 0 ? 'ONLINE' : 'DEGRADED', color: activeNodes > 0 || activeApps > 0 ? 'text-green-400' : 'text-amber-400' },
+             { label: 'System Status', value: data.aggregateStatus ? data.aggregateStatus.toUpperCase() : 'UNKNOWN', color: data.aggregateStatus === 'operational' ? 'text-green-400' : data.aggregateStatus === 'degraded' ? 'text-yellow-400' : 'text-red-400' },
              { label: 'Active Processes', value: activeApps.toString(), color: 'text-blue-400' },
              { label: 'Online Nodes', value: `${activeNodes}/${totalNodes}`, color: 'text-purple-400' }
           ]);

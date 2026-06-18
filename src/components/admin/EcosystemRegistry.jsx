@@ -14,6 +14,8 @@ const EcosystemRegistry = () => {
 
   useEffect(() => {
     fetchNodes();
+    const interval = setInterval(fetchNodes, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchNodes = async () => {
@@ -25,7 +27,27 @@ const EcosystemRegistry = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setNodes(data || []);
+
+      // Compute status based on heartbeat freshness
+      const now = new Date();
+      const computedNodes = (data || []).map(node => {
+        let computedStatus = node.status;
+        // If manually forced offline, keep it offline
+        if (node.status !== 'offline' && node.last_ping) {
+            const lastPing = new Date(node.last_ping);
+            const diffMinutes = (now - lastPing) / (1000 * 60);
+            if (diffMinutes > 15) {
+                computedStatus = 'offline';
+            } else if (diffMinutes > 5) {
+                computedStatus = 'degraded';
+            } else {
+                computedStatus = 'operational';
+            }
+        }
+        return { ...node, computedStatus };
+      });
+      setNodes(computedNodes);
+
     } catch (error) {
       console.error('Error fetching ecosystem nodes:', error);
       toast.error('Failed to load ecosystem nodes');
@@ -58,6 +80,7 @@ const EcosystemRegistry = () => {
   const handleToggleStatus = async (id, currentStatus) => {
     try {
       const newStatus = currentStatus === 'operational' ? 'offline' : 'operational';
+      if(newStatus === 'operational' && !window.confirm('Are you sure you want to manually force this node to Operational? Status should normally be heartbeat-driven.')) return;
 
       setNodes(nodes.map(n =>
         n.id === id ? { ...n, status: newStatus } : n
@@ -165,7 +188,7 @@ const EcosystemRegistry = () => {
               </tr>
             ) : (
               nodes.map((node) => (
-                <tr key={node.id} className={node.status === 'offline' ? 'bg-red-900/10' : ''}>
+                <tr key={node.id} className={(node.computedStatus || node.status) === 'offline' ? 'bg-red-900/10' : (node.computedStatus || node.status) === 'degraded' ? 'bg-yellow-900/10' : ''}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                     {node.app_name}
                   </td>
@@ -173,10 +196,15 @@ const EcosystemRegistry = () => {
                     {node.health_endpoint_url}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {node.status === 'operational' ? (
+                    {(node.computedStatus || node.status) === 'operational' ? (
                       <span className="inline-flex items-center text-green-400 bg-green-400/10 px-2 py-1 rounded-full">
                         <SafeIcon icon={FiCheckCircle} className="mr-1 h-3 w-3" />
                         Operational
+                      </span>
+                    ) : (node.computedStatus || node.status) === 'degraded' ? (
+                      <span className="inline-flex items-center text-yellow-400 bg-yellow-400/10 px-2 py-1 rounded-full">
+                        <SafeIcon icon={FiAlertTriangle} className="mr-1 h-3 w-3" />
+                        Degraded
                       </span>
                     ) : (
                       <span className="inline-flex items-center text-red-400 bg-red-400/10 px-2 py-1 rounded-full">

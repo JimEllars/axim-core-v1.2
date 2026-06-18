@@ -1,5 +1,5 @@
 /* eslint-disable no-unused-vars */
-/* global Response, Request, URL, fetch, setInterval, caches */
+/* global Response, Request, URL, fetch, caches */
 /**
  * AXiM Core Cloudflare Worker
  *
@@ -7,8 +7,7 @@
  * reducing latency and origin server load.
  */
 
-function getCorsHeaders(request, env) {
-  const origin = request.headers.get('Origin');
+function getCorsHeaders() {
 
   return {
     'Access-Control-Allow-Origin': '*',
@@ -63,7 +62,7 @@ function cleanupRateLimitMap(now) {
 
 export default {
   async fetch(request, env, ctx) {
-    const corsHeaders = getCorsHeaders(request, env);
+    const corsHeaders = getCorsHeaders();
 
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders });

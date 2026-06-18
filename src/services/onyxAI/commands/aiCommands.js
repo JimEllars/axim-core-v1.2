@@ -39,7 +39,7 @@ const aiCommands = [
 
       // 1. Vector Database Integration (RAG)
       let ragContextText = "";
-      if (!historyText && context && context.aximCore && context.aximCore.api) {
+      if (context && context.aximCore && context.aximCore.api) {
         try {
           const queryEmbedding = await llm.generateEmbedding(prompt);
           const relevantMemories = await context.aximCore.api.searchMemory(queryEmbedding, 5, context.userId); // fetching 5 deep contexts

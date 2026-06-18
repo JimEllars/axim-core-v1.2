@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import EcosystemRegistry from './EcosystemRegistry';
 import { supabase } from '../../services/supabaseClient';
@@ -47,5 +47,31 @@ describe('EcosystemRegistry Component', () => {
 
     expect(await screen.findByText('test-app-1')).toBeInTheDocument();
     expect(await screen.findByText('test-app-2')).toBeInTheDocument();
+  });
+
+  it('computes degraded on stale heartbeat', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-06-16T12:00:00Z'));
+
+    // 10 minutes ago
+    const staleTime = new Date('2026-06-16T11:50:00Z').toISOString();
+
+    supabase.from.mockReturnValue({
+      select: vi.fn().mockReturnThis(),
+      order: vi.fn().mockResolvedValue({
+        data: [{ id: 1, app_name: 'Stale App', status: 'operational', last_ping: staleTime }],
+        error: null
+      })
+    });
+
+    await act(async () => {
+      render(<EcosystemRegistry />);
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Degraded')).toBeInTheDocument();
+    });
+
+    vi.useRealTimers();
   });
 });

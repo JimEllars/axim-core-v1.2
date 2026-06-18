@@ -42,7 +42,9 @@ const ApiKeyManager = () => {
   const handleGenerateKey = async () => {
     setGenerating(true);
     try {
-      const newKey = `mock_token_demo_12345`;
+      const randomBytes = new Uint8Array(32);
+      window.crypto.getRandomValues(randomBytes);
+      const newKey = 'axim_pk_' + Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
       const { data, error } = await supabaseApiService.supabase
         .from('api_keys')
         .insert({
@@ -55,7 +57,7 @@ const ApiKeyManager = () => {
       if (error) throw error;
 
       setKeys([data, ...keys]);
-      toast.success('API Key generated successfully');
+      toast.success(`API Key generated successfully.\n\nPlease copy it now:\n\n${newKey}`, { duration: 10000 });
     } catch (err) {
       toast.error('Failed to generate API key');
       console.error(err);
@@ -89,7 +91,7 @@ const ApiKeyManager = () => {
   };
 
   const maskKey = (keyString) => {
-    if (!keyString) return '****************';
+    if (!keyString || typeof keyString !== 'string') return '****************';
     if (keyString.length <= 4) return keyString;
     return '****************' + keyString.slice(-4);
   };
