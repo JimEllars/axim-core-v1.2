@@ -36,9 +36,11 @@ const SecurityAudit = () => {
     fetchLogs();
 
 
+
     const fetchTelemetry = async () => {
       setLoadingTelemetry(true);
       try {
+        if (!supabase) throw new Error("Supabase client not initialized");
         // Fetch security anomalies
         const { data: anomalies, error: anomalyError } = await supabase
           .from('telemetry_logs')
@@ -51,6 +53,7 @@ const SecurityAudit = () => {
         setTelemetryLogs(anomalies || []);
       } catch (err) {
         logger.error("Failed to fetch telemetry logs:", err);
+        setError(err.message);
       } finally {
         setLoadingTelemetry(false);
       }

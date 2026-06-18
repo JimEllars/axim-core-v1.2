@@ -13,16 +13,35 @@ const mockLogs = [
 vi.mock('../../contexts/SupabaseContext', () => ({
   useSupabase: () => ({
     supabase: {
-      from: vi.fn(() => ({
-        select: vi.fn(() => ({
-          order: vi.fn(() => ({
+      functions: { invoke: vi.fn() },
+      from: vi.fn((table) => {
+        if (table === 'hitl_audit_logs') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            order: vi.fn().mockReturnThis(),
             limit: vi.fn().mockResolvedValue({
               data: mockLogs,
               error: null,
-            }),
-          })),
-        })),
-      })),
+            })
+          };
+        }
+        if (table === 'telemetry_logs') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            gte: vi.fn().mockReturnThis(),
+            order: vi.fn().mockResolvedValue({
+              data: [],
+              error: null
+            })
+          };
+        }
+        return {
+           select: vi.fn().mockReturnThis(),
+           order: vi.fn().mockReturnThis(),
+           limit: vi.fn().mockResolvedValue({ data: [], error: null })
+        };
+      })
     },
   }),
   SupabaseProvider: ({ children }) => <div>{children}</div>,
