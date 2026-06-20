@@ -14,6 +14,7 @@ const ApiKeyManager = () => {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [revoking, setRevoking] = useState(null);
+  const [newKeyValue, setNewKeyValue] = useState(null);
 
   useEffect(() => {
     if (user?.id) {
@@ -41,23 +42,16 @@ const ApiKeyManager = () => {
 
   const handleGenerateKey = async () => {
     setGenerating(true);
+    setNewKeyValue(null);
     try {
-      const randomBytes = new Uint8Array(32);
-      window.crypto.getRandomValues(randomBytes);
-      const newKey = 'axim_pk_' + Array.from(randomBytes).map(b => b.toString(16).padStart(2, '0')).join('');
-      const { data, error } = await supabaseApiService.supabase
-        .from('api_keys')
-        .insert({
-          api_key: newKey,
-          user_id: user.id,
-        })
-        .select()
-        .single();
+      const { data, error } = await supabaseApiService.supabase.functions.invoke('issue-api-key');
 
       if (error) throw error;
+      if (data.error) throw new Error(data.error);
 
-      setKeys([data, ...keys]);
-      toast.success(`API Key generated successfully.\n\nPlease copy it now:\n\n${newKey}`, { duration: 10000 });
+      setKeys([{ id: data.id, created_at: data.created_at, display_key: data.display_key }, ...keys]);
+      setNewKeyValue(data.key);
+      toast.success('API Key generated successfully.');
     } catch (err) {
       toast.error('Failed to generate API key');
       console.error(err);
@@ -120,6 +114,32 @@ const ApiKeyManager = () => {
         </button>
       </div>
 
+      {newKeyValue && (
+        <div className="mb-6 p-4 bg-indigo-900/30 border border-indigo-500/50 rounded-lg">
+          <h4 className="text-indigo-400 font-bold flex items-center mb-2">
+            <SafeIcon icon={FiAlertCircle} className="mr-2" />
+            Please copy your API key now
+          </h4>
+          <p className="text-sm text-slate-300 mb-3">
+            For your security, it will not be shown again. If you lose it, you will need to generate a new one.
+          </p>
+          <div className="flex items-center">
+            <code className="flex-1 bg-onyx-950 p-3 rounded border border-onyx-accent/20 text-indigo-300 font-mono select-all">
+              {newKeyValue}
+            </code>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(newKeyValue);
+                toast.success('Copied to clipboard');
+              }}
+              className="ml-3 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded transition-colors text-sm"
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center items-center py-12">
           <SafeIcon icon={FiLoader} className="animate-spin text-indigo-400 text-2xl" />
@@ -151,7 +171,7 @@ const ApiKeyManager = () => {
                   >
                     <td className="py-3 px-4">
                       <code className="text-sm text-indigo-300 bg-indigo-900/30 px-2 py-1 rounded">
-                        {maskKey(k.api_key || k.key)}
+                        {k.display_key || maskKey(k.api_key || k.key)}
                       </code>
                     </td>
                     <td className="py-3 px-4 text-sm text-slate-400">

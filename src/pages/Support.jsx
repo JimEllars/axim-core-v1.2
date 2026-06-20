@@ -7,9 +7,7 @@ const Support = () => {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchTickets();
-  }, []);
+
 
   const fetchTickets = async () => {
     setLoading(true);
@@ -23,6 +21,8 @@ const Support = () => {
     }
     setLoading(false);
   };
+
+
 
   const handleResolutionComplete = () => {
     fetchTickets();

@@ -173,3 +173,29 @@ During `npm install`, several deprecation warnings are visible:
 - **Workstream E:** Smoke test harness runs on Github CI for PRs and checks integration secrets drift.
 - **Workstream F:** OnyxAI live path through API proxy is confirmed with valid stub/mock fallbacks and test coverage.
 - **Workstream G:** Full end-to-end test pass run via `vitest`. 80 test suites / 675 tests passed, achieving the baseline requirements for deployment mode validation.
+
+## Wave 53 — Full-System Pass
+
+### Bug Log
+1. **SecurityAudit.jsx Swallowing Telemetry Error**
+   - **Repro**: Open the Security Audit panel when `fetchTelemetry` encounters an error (e.g. schema mismatch on `telemetry_logs` using `timestamp` instead of `created_at`, or RLS denial).
+   - **Root Cause**: The `fetchTelemetry` try-catch block swallowed the `anomalyError` by only calling `logger.error` without updating the UI state, displaying an empty clean state ("0 threats") misleadingly.
+   - **Fix**: Added `telemetryError` state and surfaced it in the UI with a red `FiAlertTriangle` banner when loading telemetry anomalies fails.
+
+### Wave 53 — Accomplished Additions
+* **Workstream D (API Keys)**: Migrated API key generation to the backend edge function `issue-api-key`. Now the backend hashes the keys with SHA-256 before persisting them in the database (`api_keys.api_key`), solving the plaintext storage vulnerability. The UI only receives the full key once, displays it in a dedicated modal, and only shows a masked `display_key` (e.g. `****************1234`) from then on.
+* **Workstream C (Scheduled Tasks)**: Implemented `workflow-engine` edge function to act as the missing execution engine. Set up `pg_cron` to hit the `workflow-engine` endpoint regularly, fulfilling the requirement for a real execution system beyond just DB persistence.
+* **Workstream A (Deployment Sync)**: Explicitly documented at the top of `supabase/functions/DEPLOYMENT.md` that `supabase db push` only reads `supabase/migrations/` and that the root `migrations/` folder is deprecated.
+* **SecurityAudit UI Fix**: Added proper error handling to surface `telemetry_logs` fetch failures.
+* **RAG Pipeline Hardening**: Updated `cognitive-compression` to use `ai_memory_banks` and generate embeddings.
+
+### Still Open / Carry to Wave 54
+* Complete integration verification of the workflow engine actually orchestrating complex workflows beyond queuing jobs.
+
+### RLS Verification
+- `api_keys`: Holds (Strict Tenant RLS active, `auth.uid() = user_id`).
+- `scheduled_tasks`: Holds (`Allow users to manage their own scheduled tasks`).
+- `ai_memory_banks`: Holds (User access to own, Admin full access).
+- `hitl_audit_logs`: Holds (Admin only).
+- `support_tickets`: Holds (Admin/Support role check).
+- `events_ax2024`: Holds (Tenant isolation confirmed).
