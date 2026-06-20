@@ -51,7 +51,7 @@ describe('ApiKeyManager', () => {
       </AuthProvider>
     );
 
-    expect(screen.getByText('API Key Manager')).toBeInTheDocument();
+    expect(screen.getByText('Ecosystem API Keys')).toBeInTheDocument();
 
     await waitFor(() => {
       expect(screen.getByText('****************t123')).toBeInTheDocument();
@@ -65,12 +65,12 @@ describe('ApiKeyManager', () => {
       </AuthProvider>
     );
 
-    const generateBtn = screen.getByText('Generate New Key');
+    const generateBtn = screen.getByText('Generate Token');
     fireEvent.click(generateBtn);
 
     await waitFor(() => {
       expect(screen.getByText('axim_pk_mocked1234')).toBeInTheDocument();
-      expect(screen.getByText('Please copy your API key now')).toBeInTheDocument();
+      expect(screen.getByText('Secure Token Generated')).toBeInTheDocument();
     });
   });
 

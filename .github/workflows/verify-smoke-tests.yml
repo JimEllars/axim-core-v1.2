@@ -20,5 +20,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Smoke Tests
+      - name: Run Smoke Tests (Unit/Integration)
         run: node scripts/smoke-test-functions.js
+
+      - name: Test api-gateway Endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS "https://pvbcdndqjguzqeafhwhw.supabase.co/functions/v1/api-gateway")
+          echo "api-gateway OPTIONS response status: $HTTP_STATUS"
+          if [[ "$HTTP_STATUS" != "200" && "$HTTP_STATUS" != "202" && "$HTTP_STATUS" != "204" ]]; then
+            echo "Error: api-gateway endpoint is not returning a healthy status."
+            # Force fail
+            bash -c "exit 1"
+          fi
+
+      - name: Test system-status Endpoint
+        run: |
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://pvbcdndqjguzqeafhwhw.supabase.co/functions/v1/system-status")
+          echo "system-status GET response status: $HTTP_STATUS"
+          if [[ "$HTTP_STATUS" != "200" && "$HTTP_STATUS" != "202" && "$HTTP_STATUS" != "204" ]]; then
+             echo "Error: system-status endpoint is not returning a healthy status."
+             bash -c "exit 1"
+          fi

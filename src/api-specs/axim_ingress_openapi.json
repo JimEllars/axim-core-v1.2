@@ -1,0 +1,142 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "AXiM Core Micro-App Ingress API",
+    "version": "1.2.0",
+    "description": "Standardized OpenAPI 3.0 specification for decentralized edge micro-apps (e.g., Pay Stub Generator) to securely pass data back to the AXiM Core API Gateway."
+  },
+  "servers": [
+    {
+      "url": "https://pvbcdndqjguzqeafhwhw.supabase.co/functions/v1",
+      "description": "Production Edge Gateway"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Standardized AXiM_JWT representing the cryptographic access token for the specific micro-app."
+      }
+    },
+    "schemas": {
+      "EncryptedIngressPayload": {
+        "type": "object",
+        "required": [
+          "iv",
+          "ciphertext",
+          "tag"
+        ],
+        "properties": {
+          "iv": {
+            "type": "string",
+            "description": "Base64 encoded 12-byte initialization vector.",
+            "example": "dGhpcyBpcyBhbiBkaWduaXR5IGl2"
+          },
+          "ciphertext": {
+            "type": "string",
+            "description": "Base64 encoded AES-256-GCM encrypted payload body (max 64 KB).",
+            "example": "YmFzZTY0LWVuY29kZWQtY3J5cHRvZ3JhcGhpYy1zdHJpbmc="
+          },
+          "tag": {
+            "type": "string",
+            "description": "Base64 encoded 16-byte cryptographic authentication tag.",
+            "example": "YXV0aGVudGljYXRpb24tdGFn"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "Internal Server Error"
+          }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api-gateway": {
+      "post": {
+        "summary": "Secure Data Ingress",
+        "description": "Receives AES-256 encrypted payloads from decentralized micro-apps. Validates idempotency, decrypts the envelope, and routes data to internal core buffers.",
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Unique key to prevent duplicate form submissions or replay attacks."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EncryptedIngressPayload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Payload accepted for asynchronous processing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "Telemetry event accepted"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request - Missing headers, malformed encryption envelope, or payload exceeds size limits.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing AXiM_JWT Bearer token."
+          },
+          "409": {
+            "description": "Conflict - Idempotency key violation (duplicate payload)."
+          },
+          "500": {
+            "description": "Internal Server Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
