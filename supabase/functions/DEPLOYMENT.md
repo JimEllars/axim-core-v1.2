@@ -1,3 +1,7 @@
+
+> **CRITICAL ARCHITECTURE WARNING (WAVE 53)**
+> Supabase CLI via `supabase db push` strictly targets and applies migrations located in `supabase/migrations/`. The root-level `migrations/` folder is deprecated and its contents will not be deployed to production. If you add pg_cron tasks, new tables (like RAG vector schema changes), or update RLS policies in the root `migrations/` folder, they will **fail to execute** upon deployment. All structural data changes must be placed in `supabase/migrations/`.
+
 # Edge Functions Deployment Manifest
 
 This document tracks all active Edge Functions, their required secrets, and associated cron jobs.
