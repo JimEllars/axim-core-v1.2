@@ -23,7 +23,9 @@
     "electron:build:linux": "npm run build && electron-builder --linux --publish never",
     "electron:build:win": "npm run build && electron-builder --win --publish never",
     "electron:build:mac": "npm run build && electron-builder --mac --publish never",
-    "deploy": "rm -rf .wrangler && cd cloudflare-workers && npx wrangler deploy",
+
+    "deploy": "rm -rf .wrangler cloudflare-workers/.wrangler && rm -rf ~/.config/.wrangler && cd cloudflare-workers && npx wrangler deploy",
+
     "test:functions": "node scripts/smoke-test-functions.js"
   },
   "dependencies": {
