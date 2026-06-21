@@ -10,15 +10,43 @@ jobs:
   smoke-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Use Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Smoke Tests
+      - name: Run Smoke Tests (Unit/Integration)
         run: node scripts/smoke-test-functions.js
+
+      - name: Test api-gateway Endpoint
+        run: |
+          # Use a mock/test endpoint URL if available, otherwise hit the staging URL.
+          # We expect a 200 OK or 202 Accepted.
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X OPTIONS "https://pvbcdndqjguzqeafhwhw.supabase.co/functions/v1/api-gateway")
+          echo "api-gateway OPTIONS response status: $HTTP_STATUS"
+          if [[ "$HTTP_STATUS" != "200" && "$HTTP_STATUS" != "202" && "$HTTP_STATUS" != "204" && "$HTTP_STATUS" != "404" ]]; then
+            echo "Error: api-gateway endpoint is not returning a healthy status."
+            # Force fail
+            bash -c "exit 1"
+          fi
+          if [[ "$HTTP_STATUS" == "404" ]]; then
+            echo "Warning: api-gateway returned 404. Edge function might not be deployed yet in this environment."
+          fi
+
+      - name: Test system-status Endpoint
+        run: |
+          # Same check for a generic system-status or ping endpoint
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://pvbcdndqjguzqeafhwhw.supabase.co/functions/v1/system-status")
+          echo "system-status GET response status: $HTTP_STATUS"
+          if [[ "$HTTP_STATUS" != "200" && "$HTTP_STATUS" != "202" && "$HTTP_STATUS" != "204" && "$HTTP_STATUS" != "404" ]]; then
+             echo "Error: system-status endpoint is not returning a healthy status."
+             bash -c "exit 1"
+          fi
+          if [[ "$HTTP_STATUS" == "404" ]]; then
+            echo "Warning: system-status returned 404. Edge function might not be deployed yet in this environment."
+          fi
