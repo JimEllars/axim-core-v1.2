@@ -79,7 +79,7 @@ The architecture of AXiM Core follows a strict hierarchy focused on cost-effecti
 
 4.  **Set up the database and authentication:**
     -   In your Supabase project, run the `setup.sql` script to create the initial tables. This script will also create a default seed user (`admin@example.com` with a random password). You must set a new password for this user via the Supabase Auth Dashboard before logging in.
-    -   Run the migration files in the `/migrations` directory in numerical order.
+    -   Run the migration files in the `supabase/migrations` directory in numerical order.
     -   **Important Auth Configuration**: Ensure your Supabase Auth settings are correctly configured. Specifically, check that Email authentication is enabled and the JWT settings (secret) match your environment expectations. The seed user requires the `admin` role in the `public.users` table for full dashboard access.
 
 5.  **Run the development server:**

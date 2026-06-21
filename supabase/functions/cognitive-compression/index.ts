@@ -13,8 +13,10 @@ serve(async (req) => {
             });
         }
 
+        const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
+
         const supabaseAdmin = createClient(
-            Deno.env.get('SUPABASE_URL') as string,
+            supabaseUrl,
             expectedKey
         );
 
@@ -23,10 +25,9 @@ serve(async (req) => {
 
         const { data: logs, error: fetchError } = await supabaseAdmin
             .from('ai_interactions_ax2024')
-            .select('id, command, response, timestamp')
-            // Note: Assuming `compressed` is boolean if it exists.
-            // The prompt said "flag the raw logs as compressed: true (or delete them)"
-            .gte('timestamp', oneDayAgo);
+            .select('id, command, response, created_at')
+            .eq('compressed', false)
+            .gte('created_at', oneDayAgo);
 
         if (fetchError) {
             throw new Error(`Failed to fetch interactions: ${fetchError.message}`);
@@ -40,7 +41,7 @@ serve(async (req) => {
         }
 
         // Prepare prompt for summarization
-        const interactionsText = logs.map(l => `[${l.timestamp}] Q: ${l.command}\nA: ${l.response}`).join('\n\n');
+        const interactionsText = logs.map(l => `[${l.created_at}] Q: ${l.command}\nA: ${l.response}`).join('\n\n');
         const summaryPrompt = `Summarize the following AI interactions into a concise 'Executive Summary' of the day's insights, tasks, and key decisions:\n\n${interactionsText}`;
 
         // Invoke llm-proxy
@@ -55,28 +56,53 @@ serve(async (req) => {
 
         const summaryText = llmResponse.data?.response || llmResponse.data?.content || "Summary could not be generated.";
 
-        // Save summary to memory_banks table
+        let embedding = null;
+        try {
+            // Generate embedding for the summary
+            const embedRes = await fetch(`${supabaseUrl}/functions/v1/generate-embedding`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${expectedKey}`
+                },
+                body: JSON.stringify({
+                    input: summaryText
+                })
+            });
+
+            if (embedRes.ok) {
+                const embedData = await embedRes.json();
+                embedding = embedData.embedding;
+            } else {
+                console.warn(`Failed to generate embedding for summary: ${embedRes.status} ${await embedRes.text()}`);
+            }
+        } catch (e) {
+            console.warn('Embedding generation failed during compression:', e);
+        }
+
+        // Save summary to ai_memory_banks table
         const { error: memoryError } = await supabaseAdmin
-            .from('memory_banks')
+            .from('ai_memory_banks')
             .insert({
                 content: summaryText,
-                type: 'daily_summary',
-                metadata: { date: new Date().toISOString(), log_count: logs.length }
+                source_type: 'daily_summary',
+                metadata: { date: new Date().toISOString(), log_count: logs.length },
+                embedding: embedding
             });
 
         if (memoryError) {
             throw new Error(`Failed to save memory bank: ${memoryError.message}`);
         }
 
-        // Delete raw logs based on retention policies
+        // Flag raw logs as compressed
         const logIds = logs.map(l => l.id);
-        const { error: deleteError } = await supabaseAdmin
+        const { error: updateError } = await supabaseAdmin
             .from('ai_interactions_ax2024')
-            .delete()
+            .update({ compressed: true })
             .in('id', logIds);
 
-        if (deleteError) {
-             throw new Error(`Failed to delete raw logs: ${deleteError.message}`);
+        if (updateError) {
+             throw new Error(`Failed to update raw logs: ${updateError.message}`);
         }
 
         return new Response(JSON.stringify({

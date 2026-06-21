@@ -84,7 +84,7 @@ const ApiKeyManager = () => {
       setNewKeyValue(data.new_key);
       toast.success('API Key rotated successfully.');
     } catch (err) {
-      toast.error('Failed to rotate API key. Make sure the edge function exists.');
+      toast.error('Failed to rotate API key: ' + err.message);
       console.error(err);
     } finally {
       setRotating(null);
@@ -98,10 +98,9 @@ const ApiKeyManager = () => {
 
     setRevoking(id);
     try {
-      const { error } = await supabaseApiService.supabase
-        .from('api_keys')
-        .delete()
-        .match({ id });
+      const { error } = await supabaseApiService.supabase.functions.invoke('revoke-api-key', {
+        body: { key_id: id }
+      });
 
       if (error) throw error;
 
