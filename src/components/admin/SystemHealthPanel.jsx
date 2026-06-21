@@ -35,7 +35,28 @@ const SystemHealthPanel = () => {
   useEffect(() => {
     fetchHealth();
     const interval = setInterval(fetchHealth, 30000); // Poll every 30s
-    if (healthData.status === 'loading') {
+    return () => clearInterval(interval);
+  }, []);
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'healthy': return 'text-green-500';
+      case 'degraded': return 'text-yellow-500';
+      case 'error': return 'text-red-500';
+      default: return 'text-red-500';
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'healthy': return FiCheckCircle;
+      case 'degraded': return FiAlertTriangle;
+      case 'error': return FiXCircle;
+      default: return FiActivity;
+    }
+  };
+
+  if (healthData.status === 'loading') {
     return (
       <div className="bg-onyx-950/80 rounded-xl p-6 border border-onyx-accent/30 shadow-[0_0_20px_rgba(0,0,0,0.4)] backdrop-blur-md animate-pulse">
         <div className="h-6 w-1/3 bg-slate-800 rounded mb-6"></div>
