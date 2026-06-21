@@ -2,7 +2,7 @@
   "name": "axim-core-cloudflare-workers",
   "version": "1.0.0",
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "description": "Cloudflare Workers for AXiM Core Edge Network Integration",
   "main": "src/index.js",
