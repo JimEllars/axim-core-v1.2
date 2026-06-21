@@ -178,7 +178,7 @@ serve(async (req) => {
               });
           }
 
-          const allowedEndpoints = ['/api/v1/telemetry/micro-app', '/api/v1/dispatch', '/api/v1/micro-app/ingress'];
+          const allowedEndpoints = ['/api/v1/telemetry/micro-app', '/api/v1/dispatch', '/api/v1/micro-app/ingress', '/api/v1/micro-app/state-commit'];
           if (!allowedEndpoints.includes(endpoint)) {
               await logSecurityAnomaly(`Forbidden: Micro-app '${apiKeyData.service}' attempted to access restricted endpoint ${endpoint}.`);
               return new Response(JSON.stringify({ error: 'Forbidden: Endpoint access denied for micro-apps.' }), {
@@ -332,6 +332,66 @@ serve(async (req) => {
     }
 
     // New artifacts sync endpoint for micro-apps
+
+    if (req.method === 'POST' && endpoint === '/api/v1/micro-app/state-commit') {
+      const authHeader = req.headers.get('Authorization') || '';
+      const token = authHeader.replace('Bearer ', '');
+
+      let userId = partnerId;
+      if (token && token !== SUPABASE_SERVICE_ROLE_KEY) {
+        const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+        if (user && !authError) {
+          userId = user.id;
+        }
+      }
+
+      if (!body.app_id || !body.idempotency_key) {
+        return new Response(JSON.stringify({ error: 'Missing app_id or idempotency_key' }), {
+          status: 400,
+          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Idempotency validation using api_usage_logs is already happening above for all requests
+      // But we can specifically log the state execution.
+
+      const executionId = crypto.randomUUID();
+
+      EdgeRuntime.waitUntil(
+        supabaseAdmin.from('micro_app_executions').insert({
+          id: executionId,
+          passport_id: userId,
+          app_id: body.app_id,
+          execution_status: body.status || 'completed',
+          compute_units_used: body.compute_units || 1,
+          idempotency_key: body.idempotency_key,
+          metadata: body.metadata || {},
+          created_at: new Date().toISOString()
+        }).then(async ({ error: execError }) => {
+          if (!execError && body.artifact_base64 && body.file_name) {
+             const pdfBytes = base64ToUint8Array(body.artifact_base64);
+             const fileName = `${executionId}_${body.file_name}`;
+             await supabaseAdmin.storage.from('secure_artifacts').upload(fileName, pdfBytes, {
+                contentType: body.content_type || 'application/pdf',
+                upsert: false
+             });
+             await supabaseAdmin.from('micro_app_assets').insert({
+                execution_id: executionId,
+                owner_passport_id: userId,
+                asset_type: body.content_type || 'application/pdf',
+                storage_path: fileName,
+                created_at: new Date().toISOString()
+             });
+          }
+        })
+      );
+
+      return new Response(JSON.stringify({ success: true, execution_id: executionId }), {
+        status: 202,
+        headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     if (req.method === 'POST' && endpoint === '/api/v1/artifacts/sync') {
        if (!body.artifact_base64 || !body.file_name) {
            return new Response(JSON.stringify({ error: 'Missing artifact_base64 or file_name' }), {

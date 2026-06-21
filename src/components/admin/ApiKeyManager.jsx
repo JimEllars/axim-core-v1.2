@@ -15,6 +15,7 @@ const ApiKeyManager = () => {
   const [generating, setGenerating] = useState(false);
   const [revoking, setRevoking] = useState(null);
   const [rotating, setRotating] = useState(null);
+  const [rotationConfirmId, setRotationConfirmId] = useState(null);
   const [newKeyValue, setNewKeyValue] = useState(null);
   const [showKeyId, setShowKeyId] = useState(null); // ID of key to show full value for (if we had it, but mostly they are hashed. We just show partial)
 
@@ -63,12 +64,12 @@ const ApiKeyManager = () => {
   };
 
   const handleRotateKey = async (id) => {
-    if (!window.confirm('Are you sure you want to rotate this API key? Applications using the old key will lose access immediately.')) {
+    if (!rotationConfirmId) {
+      setRotationConfirmId(id);
       return;
     }
-
+    setRotationConfirmId(null);
     setRotating(id);
-    setNewKeyValue(null);
     try {
       // Simulate rotating via invoking endpoint that handles it
       const { data, error } = await supabaseApiService.supabase.functions.invoke('rotate-api-key', {
@@ -115,14 +116,14 @@ const ApiKeyManager = () => {
   };
 
   const maskKey = (keyString, isVisible) => {
-    if (!keyString || typeof keyString !== 'string') return 'sk_live_••••••••••••';
-    if (isVisible) return keyString; // Normally backend doesn't return full key, but if it does
+    if (!keyString || typeof keyString !== 'string') return 'sk_live_████████████';
+    if (isVisible) return keyString;
     const prefix = 'sk_live_';
     if (keyString.startsWith(prefix)) {
-       return prefix + '••••••••••••' + keyString.slice(-4);
+       return prefix + '████████████' + keyString.slice(-4);
     }
-    if (keyString.length <= 4) return '••••' + keyString;
-    return 'sk_live_••••••••••••' + keyString.slice(-4);
+    if (keyString.length <= 4) return '████' + keyString;
+    return 'sk_live_████████████' + keyString.slice(-4);
   };
 
   const toggleVisibility = (id) => {
@@ -130,7 +131,7 @@ const ApiKeyManager = () => {
   };
 
   return (
-    <div className="bg-slate-950 border border-cyan-900/40 rounded-xl p-6 shadow-[0_0_15px_rgba(8,145,178,0.05)] text-slate-200">
+    <div className="bg-onyx-950/80 border border-onyx-accent/30 rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] text-slate-200 backdrop-blur-md relative overflow-hidden">
       <div className="flex items-center justify-between mb-8">
         <div>
           <h3 className="text-xl font-semibold text-cyan-50 flex items-center tracking-tight">
@@ -257,17 +258,17 @@ const ApiKeyManager = () => {
                             <SafeIcon icon={FiCopy} />
                           </button>
                           <button
-                            onClick={() => handleRotateKey(k.id)}
-                            disabled={rotating === k.id || revoking === k.id}
-                            className="p-2 text-slate-400 hover:bg-amber-500/20 hover:text-amber-300 rounded-md transition-colors disabled:opacity-50"
-                            title="Rotate Key"
-                          >
-                            {rotating === k.id ? (
-                              <SafeIcon icon={FiLoader} className="animate-spin" />
-                            ) : (
-                              <SafeIcon icon={FiRefreshCw} />
-                            )}
-                          </button>
+    onClick={() => handleRotateKey(k.id)}
+    disabled={rotating === k.id || revoking === k.id}
+    className="p-2 text-slate-400 hover:bg-amber-500/20 hover:text-amber-300 rounded-md transition-all duration-300 backdrop-blur-md disabled:opacity-50"
+    title="Rotate Key"
+  >
+    {rotating === k.id ? (
+      <SafeIcon icon={FiLoader} className="animate-spin" />
+    ) : (
+      <SafeIcon icon={FiRefreshCw} />
+    )}
+  </button>
                           <button
                             onClick={() => handleRevokeKey(k.id)}
                             disabled={revoking === k.id || rotating === k.id}
@@ -288,6 +289,36 @@ const ApiKeyManager = () => {
               </AnimatePresence>
             </tbody>
           </table>
+        </div>
+      )}
+
+      {rotationConfirmId && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm rounded-xl">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="bg-onyx-900 border border-onyx-accent/50 p-6 rounded-lg shadow-2xl max-w-sm w-full mx-4"
+          >
+            <h4 className="text-lg font-bold text-white mb-3">Confirm Token Rotation</h4>
+            <p className="text-sm text-slate-300 mb-6 leading-relaxed">
+              Are you sure you want to rotate this API key? Applications using the old key will lose access <strong className="text-red-400">immediately</strong>.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setRotationConfirmId(null)}
+                className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleRotateKey(rotationConfirmId)}
+                className="px-4 py-2 text-sm bg-red-600/80 hover:bg-red-500 text-white rounded transition-colors shadow-[0_0_10px_rgba(220,38,38,0.3)]"
+              >
+                Rotate Token
+              </button>
+            </div>
+          </motion.div>
         </div>
       )}
     </div>
