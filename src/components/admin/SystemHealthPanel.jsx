@@ -43,7 +43,7 @@ const SystemHealthPanel = () => {
       case 'healthy': return 'text-green-500';
       case 'degraded': return 'text-yellow-500';
       case 'error': return 'text-red-500';
-      default: return 'text-slate-500';
+      default: return 'text-red-500';
     }
   };
 
@@ -57,7 +57,7 @@ const SystemHealthPanel = () => {
   };
 
   return (
-    <div className="glass-effect rounded-xl p-6 border border-cyan-500/20">
+    <div className="bg-onyx-950/80 rounded-xl p-6 border border-onyx-accent/30 shadow-[0_0_20px_rgba(0,0,0,0.4)] backdrop-blur-md">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-white flex items-center">
           <SafeIcon icon={FiActivity} className="mr-2 text-cyan-400" />

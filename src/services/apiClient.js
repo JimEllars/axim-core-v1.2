@@ -100,3 +100,8 @@ export const callCloudApi = async (endpoint, payload) => {
 };
 
 export default apiClient;
+
+
+export const commitMicroAppState = async (payload) => {
+  return callCloudApi('api/v1/micro-app/state-commit', payload);
+};

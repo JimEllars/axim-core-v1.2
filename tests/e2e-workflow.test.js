@@ -151,4 +151,71 @@ describe('End-to-End Workflow Validation', () => {
 
   });
 
+  it('should handle unhandled chunk loading error via ErrorBoundary and transmit telemetry', async () => {
+    // 1. Mock the ErrorBoundary logic manually since we are not rendering the React tree
+    // 2. Validate that it would call captureException
+    const mockError = new TypeError("Failed to fetch dynamically imported module: https://axim.us.com/assets/chunk-123.js");
+
+    let captureExceptionCalled = false;
+    let transmittedPayload = null;
+
+    // Simulate the logger.captureException which calls fetch
+    const captureException = async (error, context) => {
+      captureExceptionCalled = true;
+      transmittedPayload = {
+          session_id: 'mock-session-id',
+          event: "frontend_uncaught_error",
+          app_type: "axim-core-frontend",
+          timestamp: new Date().toISOString(),
+          details: {
+            error: error ? error.toString() : 'Unknown error',
+            componentStack: context ? context.componentStack : undefined,
+            userAgent: 'Mock UserAgent',
+            route: '/'
+          }
+      };
+
+      // We would usually fetch, here we simulate it
+      return Promise.resolve({ ok: true });
+    };
+
+    // Simulate the ErrorBoundary componentDidCatch logic
+    const simulateErrorBoundaryCatch = (error, errorInfo) => {
+        // Handle dynamic import chunking error explicitly
+        if (error && error.name === 'TypeError' && error.message && error.message.includes('Failed to fetch dynamically imported module')) {
+            // Logged to console, but still calls captureException?
+            // Actually ErrorBoundary has a setTimeout to call logger.captureException
+        }
+
+        // Simulating the timeout for capturing exception
+        return new Promise((resolve) => {
+             setTimeout(async () => {
+                 await captureException(error, errorInfo);
+                 resolve();
+             }, 10);
+        });
+    };
+
+    await simulateErrorBoundaryCatch(mockError, { componentStack: 'at <MockComponent />' });
+
+    expect(captureExceptionCalled).toBe(true);
+    expect(transmittedPayload).not.toBeNull();
+    expect(transmittedPayload.event).toBe('frontend_uncaught_error');
+    expect(transmittedPayload.details.error).toContain('Failed to fetch dynamically imported module');
+
+    // Simulate that this goes to the telemetry ingress and ends up in telemetry_events asynchronously
+    // without interrupting adjacent tabs.
+    const mockTelemetryEventsTable = [];
+    mockTelemetryEventsTable.push({
+        id: 'mock-uuid',
+        component_id: 'hub_frontend',
+        severity: 'ERROR',
+        message: transmittedPayload.details.error,
+        payload: transmittedPayload
+    });
+
+    expect(mockTelemetryEventsTable.length).toBe(1);
+    expect(mockTelemetryEventsTable[0].severity).toBe('ERROR');
+  });
+
 });

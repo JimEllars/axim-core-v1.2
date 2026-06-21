@@ -20,7 +20,7 @@ class ErrorBoundary extends Component {
     // Handle dynamic import chunking error explicitly
     if (error && error.name === 'TypeError' && error.message && error.message.includes('Failed to fetch dynamically imported module')) {
         console.error('Dynamically imported module failed to load in ErrorBoundary.');
-        return;
+        // We still want to log this via telemetry so we don't return here!
     }
 
     // Silently transmit the error to telemetry

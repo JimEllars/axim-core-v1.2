@@ -36,6 +36,10 @@ const WorkflowExecutionLog = () => {
   }, []);
 
   const getStatusIcon = (execution) => {
+    if (execution.severity === 'ERROR' || execution.severity === 'FATAL') return <SafeIcon icon={FiXCircle} className="text-red-500" />;
+    if (execution.severity === 'WARN') return <SafeIcon icon={FiAlertTriangle} className="text-yellow-400" />;
+    if (execution.severity === 'INFO' || execution.severity === 'DEBUG') return <SafeIcon icon={FiCheckCircle} className="text-green-500" />;
+
     if (!execution.data?.results) {
       return <SafeIcon icon={FiAlertTriangle} className="text-yellow-400" title="Legacy Trigger or missing data" />;
     }
@@ -82,13 +86,11 @@ const WorkflowExecutionLog = () => {
               executions.map((exec) => (
                 <tr key={exec.id} className="border-b border-onyx-accent/20 hover:bg-onyx-accent/10">
                   <td className="px-6 py-4">{getStatusIcon(exec)}</td>
-                  <td className="px-6 py-4 font-medium text-white">{exec.data?.workflow_name || 'N/A'}</td>
-                  <td className="px-6 py-4">{exec.source || 'N/A'}</td>
+                  <td className="px-6 py-4 font-medium text-white">{exec.component_id || exec.data?.workflow_name || 'N/A'}</td>
+                  <td className="px-6 py-4">{exec.severity || exec.source || 'N/A'}</td>
                   <td className="px-6 py-4">{format(new Date(exec.created_at), 'PPpp')}</td>
                   <td className="px-6 py-4 text-xs">
-                    {exec.data?.details ||
-                     (exec.data?.results && `${exec.data.results.filter(r => r.success).length}/${exec.data.results.length} steps succeeded`) ||
-                     'N/A'}
+                    {exec.message || exec.data?.details || (exec.data?.results && `${exec.data.results.filter(r => r.success).length}/${exec.data.results.length} steps succeeded`) || 'N/A'}
                   </td>
                 </tr>
               ))

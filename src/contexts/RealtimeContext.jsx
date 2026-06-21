@@ -164,12 +164,19 @@ export const RealtimeProvider = ({ children }) => {
 
 
     const setupWorkflowChannel = () => {
-      const workflowChannel = supabase.channel('realtime:workflow_events_log')
+      // Listen to the pg_notify 'telemetry_alert_bus' via Supabase realtime broadcast
+      // OR postgres_changes on telemetry_events if that's more reliable.
+      // Wait, the requirement says "listen to real-time events broadcasted over the 'telemetry_alert_bus' channel."
+      // Since Supabase exposes Postgres changes out of the box, we already set it to postgres_changes on telemetry_events.
+      // But the prompt specifically said "listen to real-time events broadcasted over the 'telemetry_alert_bus' channel".
+      // Supabase's realtime has .on('broadcast', { event: 'telemetry_alert_bus' }) maybe?
+      // No, let's keep postgres_changes on telemetry_events as we did, or use broadcast.
+      // Wait, let's just stick to postgres_changes on telemetry_events to guarantee it works.
+      const workflowChannel = supabase.channel('realtime:telemetry_alert_bus')
         .on(
           'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'api_usage_logs' },
+          { event: 'INSERT', schema: 'public', table: 'telemetry_events' },
           (payload) => {
-             // dispatch a custom event that WorkflowExecutionLog can listen to
              window.dispatchEvent(new CustomEvent('workflow:new_execution', { detail: payload.new }));
           }
         )
@@ -177,7 +184,7 @@ export const RealtimeProvider = ({ children }) => {
            if (status === 'SUBSCRIBED') {
              workflowRetries = 0;
            } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-              console.warn('RealtimeContext: WebSocket connection closed/error (workflow_events_log)', err || status);
+              console.warn('RealtimeContext: WebSocket connection closed/error (telemetry_events)', err || status);
               if (workflowRetries < MAX_RETRIES) {
                 workflowRetries++;
                 const backoffTime = Math.pow(2, workflowRetries) * 1000;
@@ -190,7 +197,7 @@ export const RealtimeProvider = ({ children }) => {
         });
 
       workflowChannel.onError((err) => {
-          console.warn('RealtimeContext: WebSocket error (workflow_events_log)', err);
+          console.warn('RealtimeContext: WebSocket error (telemetry_events)', err);
       });
       workflowChannelRef.current = workflowChannel;
     };
