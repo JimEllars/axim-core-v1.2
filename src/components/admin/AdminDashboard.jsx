@@ -7,6 +7,7 @@ import * as FiIcons from 'react-icons/fi';
 import WorkflowExecutionLog from './WorkflowExecutionLog';
 import UserManagement from './UserManagement';
 import SystemHealthPanel from "./SystemHealthPanel";
+import QueueDepthPanel from "./QueueDepthPanel";
 import KPIOverview from './KPIOverview';
 import WorkflowBuilder from './WorkflowBuilder';
 import MemoryBank from './MemoryBank';
@@ -71,6 +72,7 @@ const AdminDashboard = () => {
         <div>
           {activeTab === 'overview' && <>
               <SystemHealthPanel />
+              <QueueDepthPanel />
               <div className="mt-8">
                 <KPIOverview />
               </div>

@@ -109,6 +109,71 @@ serve(async (req) => {
         } else if (jobType === 'ingest_knowledge') {
             console.log(`Processing ingest_knowledge for job ${job.id}`);
             // Logic for ingest_knowledge
+        } else if (jobType === 'scheduled_task') {
+            console.log(`Processing scheduled_task for job ${job.id}`);
+            const command = payload?.command;
+            const userId = payload?.user_id;
+            if (!command) throw new Error('Missing command for scheduled_task');
+
+            // Execute using trigger-workflow or via proxy
+            const triggerUrl = `${supabaseUrl}/functions/v1/trigger-workflow`;
+            const triggerRes = await fetch(triggerUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+              },
+              body: JSON.stringify({
+                workflowName: command,
+                userId: userId || 'system',
+                context: { triggered_by: 'job-processor' }
+              })
+            });
+
+            if (!triggerRes.ok) {
+              const errText = await triggerRes.text();
+              throw new Error(`Workflow Trigger Error: ${triggerRes.status} - ${errText}`);
+            }
+            console.log(`Successfully executed scheduled workflow ${command}`);
+        } else if (jobType === 'backfill_embedding') {
+            console.log(`Processing backfill_embedding for job ${job.id}`);
+            const interactionId = payload?.interaction_id;
+            if (!interactionId) throw new Error('Missing interaction_id');
+
+            const { data: interaction, error: intError } = await supabase
+                .from('ai_interactions_ax2024')
+                .select('command, response')
+                .eq('id', interactionId)
+                .single();
+            if (intError) throw new Error(`Fetch interaction error: ${intError.message}`);
+            if (!interaction) {
+                console.log(`Interaction ${interactionId} not found, skipping.`);
+            } else {
+                const textToEmbed = interaction.command + (interaction.response ? ' ' + interaction.response : '');
+                const embedRes = await fetch(`${supabaseUrl}/functions/v1/generate-embedding`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+                    },
+                    body: JSON.stringify({ input: textToEmbed })
+                });
+                if (embedRes.ok) {
+                    const embedData = await embedRes.json();
+                    if (embedData.embedding) {
+                        const { error: updError } = await supabase
+                            .from('ai_interactions_ax2024')
+                            .update({ embedding: embedData.embedding })
+                            .eq('id', interactionId);
+                        if (updError) throw new Error(`Update interaction error: ${updError.message}`);
+                        console.log(`Successfully backfilled embedding for interaction ${interactionId}`);
+                    } else {
+                        console.log(`No embedding returned for interaction ${interactionId}`);
+                    }
+                } else {
+                    throw new Error(`Embedding proxy error: ${embedRes.status}`);
+                }
+            }
         } else if (jobType === "generate_nda" || jobType === "generate_demand_letter" || app_id) {
           console.log(
             `Triggering generator for app ${app_id || jobType} (Job: ${job.id})...`,

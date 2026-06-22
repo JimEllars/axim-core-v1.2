@@ -247,7 +247,7 @@ const MemoryBank = () => {
             placeholder="Search overarching strategies or granular chat memories..."
             className="w-full bg-onyx-900 border border-onyx-accent/30 rounded-lg px-4 py-3 pl-10 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors shadow-inner"
           />
-          <SafeIcon icon={FiSearch} className="absolute left-3 top-3.5 text-slate-500" />
+          <SafeIcon icon={FiSearch} className="absolute left-3 top-3.5 text-slate-400" />
           <button
             type="submit"
             disabled={isSearching}
@@ -350,7 +350,7 @@ const MemoryBank = () => {
                             <p className="text-sm text-slate-300 mt-1">{chat.command}</p>
                           </div>
                           <div>
-                            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Response:</span>
+                            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Response:</span>
                             {editingId === chat.id ? renderContent(chat, 'response') : <p className="text-sm text-slate-400 mt-1 line-clamp-2">{chat.response}</p>}
                           </div>
                         </div>
@@ -362,7 +362,7 @@ const MemoryBank = () => {
               </motion.div>
             ) : (
               !isSearching && query && (
-                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center p-8 text-slate-500 border border-dashed border-onyx-accent/20 rounded-lg">
+                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center p-8 text-slate-400 border border-dashed border-onyx-accent/20 rounded-lg">
                     No matching deep memories found in the bank.
                  </motion.div>
               )
@@ -431,7 +431,7 @@ const MemoryBank = () => {
                 ))}
               </div>
             ) : (
-               <div className="text-center p-8 text-slate-500 bg-onyx-900/20 rounded-lg border border-onyx-accent/10">
+               <div className="text-center p-8 text-slate-400 bg-onyx-900/20 rounded-lg border border-onyx-accent/10">
                   {activeTab === 'ai_memory_banks' ? 'No records found.' : activeTab === 'memory_banks' ? 'No memory banks compiled yet. The cognitive compressor runs nightly.' : 'No knowledge base entries found.'}
                </div>
             )}

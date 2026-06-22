@@ -56,6 +56,19 @@ const SystemHealthPanel = () => {
     }
   };
 
+  if (healthData.status === 'loading') {
+    return (
+      <div className="bg-onyx-950/80 rounded-xl p-6 border border-onyx-accent/30 shadow-[0_0_20px_rgba(0,0,0,0.4)] backdrop-blur-md animate-pulse">
+        <div className="h-6 w-1/3 bg-slate-800 rounded mb-6"></div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="h-24 bg-slate-800 rounded-lg"></div>
+          <div className="h-24 bg-slate-800 rounded-lg"></div>
+          <div className="h-24 bg-slate-800 rounded-lg"></div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-onyx-950/80 rounded-xl p-6 border border-onyx-accent/30 shadow-[0_0_20px_rgba(0,0,0,0.4)] backdrop-blur-md">
       <div className="flex items-center justify-between mb-6">

@@ -50,3 +50,6 @@ jobs:
           if [[ "$HTTP_STATUS" == "404" ]]; then
             echo "Warning: system-status returned 404. Edge function might not be deployed yet in this environment."
           fi
+
+      - name: Verify Build
+        run: npm run build

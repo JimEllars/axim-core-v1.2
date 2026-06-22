@@ -24,3 +24,6 @@ jobs:
 
       - name: Run main project tests
         run: npm run test
+
+      - name: Verify Build
+        run: npm run build

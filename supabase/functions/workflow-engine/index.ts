@@ -20,12 +20,9 @@ serve(async (req) => {
 
         // Fetch tasks that are active and due to run
         const now = new Date().toISOString();
-        const { data: tasks, error: fetchError } = await supabaseAdmin
-            .from('scheduled_tasks')
-            .select('*')
-            .eq('status', 'active')
-            .lte('next_run_at', now)
-            .limit(50);
+
+        // We use an RPC to safely dequeue scheduled tasks without race conditions
+        const { data: tasks, error: fetchError } = await supabaseAdmin.rpc('dequeue_scheduled_tasks', { max_tasks: 50 });
 
         if (fetchError) {
             throw new Error(`Failed to fetch scheduled tasks: ${fetchError.message}`);
@@ -55,12 +52,17 @@ serve(async (req) => {
                 if (jobError) throw jobError;
 
                 // Update the task's last_run_at and next_run_at
-                // Very simple next_run_at calculation for demonstration
-                const nextRunAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // +1 hour, should parse cron properly in real impl
-
-                await supabaseAdmin
+                // Use cron-parser to calculate the next true run time
+                let nextRunAt;
+                try {
+                    const cronParser = await import('https://esm.sh/cron-parser@4.9.0');
+                    const interval = cronParser.parseExpression(task.schedule, { currentDate: now, utc: true });
+                    nextRunAt = interval.next().toISOString();
+                } catch (cronErr) {
+                    console.error(`Invalid cron expression for task ${task.id}: ${task.schedule}`, cronErr);
+                    await supabaseAdmin
                     .from('scheduled_tasks')
-                    .update({ last_run_at: now, next_run_at: nextRunAt })
+                    .update({ last_run_at: now, next_run_at: nextRunAt, status: 'active' })
                     .eq('id', task.id);
 
                 results.push({ id: task.id, status: 'queued' });
