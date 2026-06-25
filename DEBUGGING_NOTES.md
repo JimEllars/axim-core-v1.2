@@ -203,3 +203,7 @@ During `npm install`, several deprecation warnings are visible:
 ## Wave 54 Test Pass
 
 - **Workstream G:** Skipping full e2e pass with vitest as it times out consistently in this environment. Manual code review confirms API calls correctly invoke edge functions and properly handle data returned. We have correctly addressed all Workstreams assigned.
+
+## [Wave 56] Drift Reconciliation Notes (2026-06-25)
+* **ApiKeyManager Test Skip:** Confirmed that `ApiKeyManager` UI tests were skipping timeout-prone checks with a documented `it.skip` and explicit reasons.
+* **DLQ to Telemetry Loop:** Verified that the Dead Letter Queue error handling drops a telemetry payload, correctly alerting the immune system via the telemetry database table.

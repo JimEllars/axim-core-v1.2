@@ -2,6 +2,7 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { generatePdf } from '../_shared/pdf-generators/index.ts';
 import { notifyOnyx } from '../_shared/telemetry.ts';
+import { hashApiKey } from '../_shared/crypto.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
@@ -127,15 +128,16 @@ serve(async (req) => {
       }
 
       const apiKey = authHeader.split(' ')[1];
+      const hashedIncoming = await hashApiKey(apiKey);
 
       // Validate the key against the api_keys table
       const { data: apiKeyData, error: apiKeyError } = await supabaseAdmin
         .from('api_keys')
-        .select('id, user_id, service, scopes')
-        .eq('api_key', apiKey)
+        .select('id, user_id, service, scopes, status')
+        .eq('api_key', hashedIncoming)
         .single();
 
-      if (apiKeyError || !apiKeyData) {
+      if (apiKeyError || !apiKeyData || apiKeyData.status === 'revoked') {
         await logSecurityAnomaly('Unauthorized: Invalid API Key');
         return new Response(JSON.stringify({ error: 'Unauthorized: Invalid API Key' }), {
           status: 401,

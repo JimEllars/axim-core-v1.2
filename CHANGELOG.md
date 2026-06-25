@@ -1,5 +1,9 @@
 # AXiM Core Dashboard Changelog
 
+## [Wave 56] - 2026-06-25
+
+### Fixed
+
 ## [Wave 55] - 2026-06-24
 
 ### Added
