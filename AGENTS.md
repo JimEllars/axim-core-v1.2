@@ -2,6 +2,18 @@
 
 This document outlines the development philosophy and technical guidelines for AI agents contributing to the AXiM Core Dashboard. Adherence to these protocols is crucial for maintaining a stable, high-quality, and continuously evolving enterprise-level application.
 
+
+## 0. Verification Appendix (Proof-of-Fix Protocol)
+
+To prevent claims of completed work diverging from the actual codebase state (as observed in previous Waves), every pull request or significant change set **must** include a "Verification Appendix" in its description.
+
+For every bug fix or feature activation claimed, you must list:
+1. **The Target File & Line Range:** e.g., `supabase/functions/job-processor/index.ts:269-286`
+2. **The Exact Change:** A short snippet showing what was altered.
+3. **The Proving Test:** The name of the automated test (e.g., `job-processor edge function logic` in `tests/job-processor.test.js`) that failed before the change and passes after.
+
+Any change submitted without a proving test and a Verification Appendix will be rejected.
+
 ## Core Philosophy: The "Review, Plan, Build, Fix" Cycle
 
 Our development process is iterative and prioritizes stability over rapid feature expansion. All agent contributions must follow this cycle:

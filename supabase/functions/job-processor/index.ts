@@ -267,7 +267,7 @@ serve(async (req) => {
       } catch (err: any) {
         console.error(`Error processing job ${job.id}:`, err);
         const newAttempts = job.attempts + 1;
-        const newStatus = newAttempts >= job.max_attempts ? "failed" : "failed";
+        const newStatus = newAttempts >= job.max_attempts ? "failed" : "pending";
 
         const backoffMinutes = Math.pow(5, job.attempts); // attempt 1 -> 5^0 = 1 min, 5^1 = 5 min, 5^2 = 25 min...
         const nextRunAt = new Date(Date.now() + backoffMinutes * 60000).toISOString();
@@ -282,9 +282,16 @@ serve(async (req) => {
             app_id: job.app_id,
             task_type: job.task_type || jobType || 'unknown',
             payload: job.payload,
-            target_destination: endpoint,
             error_log: err instanceof Error ? err.message : String(err),
             status: 'Pending'
+          });
+
+          await supabase.from("telemetry_events").insert({
+            component_id: 'job_processor',
+            severity: 'FATAL',
+            message: `DLQ entry created for job ${job.id}`,
+            error_code: 'JOB_MAX_ATTEMPTS',
+            payload: { job_id: job.id, error_log: err instanceof Error ? err.message : String(err) }
           });
 
           await supabase.from("telemetry_logs").insert({
