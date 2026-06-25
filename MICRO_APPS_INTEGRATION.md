@@ -35,3 +35,33 @@ The "API Side Door" is a standardized feature of AXiM Core, turning AXiM Systems
 - [x] Abstract payment verification logic into a shared AXiM Core library.
 - [x] Update micro app environments (`wrangler.jsonc`) to include `nodejs_compat` compatibility flags for shared server-side utilities.
 - [x] Standardize `constants.js` patterns across apps so Core programmatically understands supported legal jurisdictions and statutes.
+
+## Ecosystem Runbook: Satellite Artifact Generation
+
+### Round-Trip E2E Flow
+
+This section serves as a verified, tested path for external platforms generating artifacts via the AXiM Core. It ensures that the strict "Internal Autonomy, External Simplicity" philosophy is upheld.
+
+**Step 1: Ingress Authentication (`api-gateway`)**
+The external caller authenticates to the `api-gateway` edge function either with an `axim_pk_` hashed API key or an authenticated user JWT.
+```bash
+curl -X POST "https://<supabase-project-id>.supabase.co/functions/v1/api-gateway" \
+  -H "Authorization: Bearer axim_pk_abcd1234" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app_source": "generate_nda",
+    "document_data": { "company_name": "Lone Star Mfg", "recipient_name": "James Ellars" }
+  }'
+```
+
+**Step 2: Enqueue Job**
+Once authenticated, the `api-gateway` uses the `universal-dispatcher` to sanitize PII and push the request down into `satellite_job_queue` via `job-processor`.
+
+**Step 3: Background Processor (`job-processor`)**
+The `job-processor` pulls `pending` jobs from the `satellite_job_queue`, calls the shared `generatePdf()` generator, and stores the resulting bytes directly into the `secure_artifacts` storage bucket.
+
+**Step 4: Vault Storage and Handoff**
+Finally, a metadata record mapping the job to the file is written to `vault_records`, and an expiring Signed URL is optionally distributed back to the client or via the `send-email` edge function.
+
+### Verification
+This pipeline is verified continuously within the end-to-end Vitest suite (`tests/e2e-workflow.test.js`).

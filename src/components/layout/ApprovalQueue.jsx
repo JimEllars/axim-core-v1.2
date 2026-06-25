@@ -143,7 +143,7 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
                       <div className="mt-2 mb-4 max-h-32 overflow-y-auto text-xs text-slate-400 bg-onyx-950 p-2 rounded border border-onyx-accent/10">
                          <p><strong>Title:</strong> {parsedPayload.title}</p>
                          <textarea
-                           className="mt-1 w-full bg-onyx-900 border border-onyx-accent/30 rounded p-2 text-slate-300 focus:outline-none focus:border-indigo-500"
+                           className="mt-1 w-full bg-onyx-900 border border-onyx-accent/30 rounded p-2 text-slate-300 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500"
                            rows={4}
                            value={editedPayloads[log.id] !== undefined ? editedPayloads[log.id] : parsedPayload.html_content}
                            onChange={(e) => setEditedPayloads(prev => ({ ...prev, [log.id]: e.target.value }))}

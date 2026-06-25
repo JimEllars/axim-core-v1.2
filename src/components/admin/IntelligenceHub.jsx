@@ -76,7 +76,7 @@ const IntelligenceHub = () => {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search past interactions, documentation..."
-              className="w-full bg-onyx-950 border border-onyx-accent/20 rounded-lg px-4 py-3 pl-10 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors"
+              className="w-full bg-onyx-950 border border-onyx-accent/20 rounded-lg px-4 py-3 pl-10 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500 transition-colors"
             />
             <SafeIcon icon={FiSearch} className="absolute left-3 top-3.5 text-slate-500" />
             <button

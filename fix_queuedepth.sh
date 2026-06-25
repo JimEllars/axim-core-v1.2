@@ -1,3 +1,5 @@
+#!/bin/bash
+cat << 'INNER_EOF' > src/components/admin/QueueDepthPanel.jsx
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../services/supabaseClient';
@@ -112,3 +114,4 @@ const QueueDepthPanel = () => {
 };
 
 export default QueueDepthPanel;
+INNER_EOF
