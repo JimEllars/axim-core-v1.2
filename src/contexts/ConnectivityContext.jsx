@@ -1,6 +1,6 @@
 // src/contexts/ConnectivityContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import connectivityManager from '@/services/connectivityManager';
+import connectivityManager from '../services/connectivityManager';
 
 export const ConnectivityContext = createContext(true);
 

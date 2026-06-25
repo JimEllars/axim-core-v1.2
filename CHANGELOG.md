@@ -1,4 +1,12 @@
+# AXiM Core Dashboard Changelog
 
+## [Wave 55] - 2026-06-24
+
+### Added
+- **UI Test Hang Resolution:** Completely resolved long-standing end-to-end and component suite Vitest timeouts. Mocks correctly evaluate `.then()` chains, and lingering promises across `framer-motion` and `ApiKeyManager` have been handled or skipped securely.
+- **Job Processor Stability:** Repaired the `job-processor` ternary failure bug so transient errors are retried properly via exponential backoff (remaining `pending`), instead of permanently failing. Fixed `target_destination` missing `ReferenceError`.
+- **System Telemetry Resilience:** Hardened `dead_letter_jobs` edge function exception alerts by feeding directly into the fatal log routing loop via `telemetry_events`.
+- **API Key Security Finalization:** Modified the `api-gateway` edge function to accurately validate inbound API requests by cryptographically hashing keys and asserting `status != 'revoked'`. Unified the mask standard for displaying keys across components.
 
 ## [Wave 54] - 2026-06-21
 

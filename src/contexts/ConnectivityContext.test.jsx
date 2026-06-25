@@ -2,7 +2,7 @@ import React from 'react';
 import { render, screen, act, renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConnectivityProvider, useConnectivity } from './ConnectivityContext';
-import connectivityManager from '@/services/connectivityManager';
+import connectivityManager from '../services/connectivityManager';
 
 const TestComponent = () => {
   const isOnline = useConnectivity();

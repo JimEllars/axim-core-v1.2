@@ -197,7 +197,7 @@ const MemoryBank = () => {
         <textarea
           value={editContent}
           onChange={(e) => setEditContent(e.target.value)}
-          className="w-full bg-onyx-950 border border-indigo-500/50 rounded-md p-3 text-sm text-slate-200 mt-2 min-h-[100px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
+          className="w-full bg-onyx-950 border border-indigo-500/50 rounded-md p-3 text-sm text-slate-200 mt-2 min-h-[100px] focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
         />
       );
     }
@@ -245,7 +245,7 @@ const MemoryBank = () => {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search overarching strategies or granular chat memories..."
-            className="w-full bg-onyx-900 border border-onyx-accent/30 rounded-lg px-4 py-3 pl-10 text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors shadow-inner"
+            className="w-full bg-onyx-900 border border-onyx-accent/30 rounded-lg px-4 py-3 pl-10 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors shadow-inner"
           />
           <SafeIcon icon={FiSearch} className="absolute left-3 top-3.5 text-slate-400" />
           <button

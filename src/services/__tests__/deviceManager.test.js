@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DeviceManager } from '../deviceManager';
-import logger from '@/services/logging';
+import logger from './logging';
 import { Blob } from 'node:buffer';
 
 // Mock for global Blob, required by JSDOM environment

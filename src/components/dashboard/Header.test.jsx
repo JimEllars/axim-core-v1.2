@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Header from './Header';
 import { useAuth } from '../../contexts/AuthContext';
+import { BrowserRouter } from 'react-router-dom';
 
 // Mock the AuthContext
 vi.mock('../../contexts/AuthContext', () => ({
@@ -31,31 +32,31 @@ describe('Header Component', () => {
   });
 
   it('renders the header title and version', () => {
-    render(<Header />);
+    render(<BrowserRouter><Header /></BrowserRouter>);
     expect(screen.getByText('Axim Core')).toBeInTheDocument();
     expect(screen.getByText('Operations Dashboard v1.1')).toBeInTheDocument();
   });
 
   it('renders the "System Online" status', () => {
-    render(<Header />);
+    render(<BrowserRouter><Header /></BrowserRouter>);
     expect(screen.getByText('System Online')).toBeInTheDocument();
     expect(screen.getByTestId('fi-activity')).toBeInTheDocument();
   });
 
   it('renders the shield icon', () => {
-    render(<Header />);
+    render(<BrowserRouter><Header /></BrowserRouter>);
     expect(screen.getByTestId('fi-shield')).toBeInTheDocument();
   });
 
   it('calls logout when the Logout button is clicked', () => {
-    render(<Header />);
+    render(<BrowserRouter><Header /></BrowserRouter>);
     const logoutButton = screen.getByRole('button', { name: /logout/i });
     fireEvent.click(logoutButton);
     expect(mockLogout).toHaveBeenCalledTimes(1);
   });
 
   it('renders the logout icon', () => {
-    render(<Header />);
+    render(<BrowserRouter><Header /></BrowserRouter>);
     expect(screen.getByTestId('fi-logout')).toBeInTheDocument();
   });
 });

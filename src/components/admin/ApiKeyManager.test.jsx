@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import ApiKeyManager from './ApiKeyManager';
 import { AuthProvider } from '../../contexts/AuthContext';
 
@@ -41,6 +41,9 @@ vi.mock('../../services/supabaseApiService', () => {
 
 describe('ApiKeyManager', () => {
   beforeEach(() => {
+  afterEach(() => {
+    vi.clearAllTimers();
+  });
     vi.clearAllMocks();
   });
 

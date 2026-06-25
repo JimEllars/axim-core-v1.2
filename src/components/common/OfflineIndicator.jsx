@@ -1,6 +1,6 @@
 // src/components/common/OfflineIndicator.jsx
 import React from 'react';
-import { useConnectivity } from '@/contexts/ConnectivityContext';
+import { useConnectivity } from '../../contexts/ConnectivityContext';
 import { FiWifiOff } from 'react-icons/fi';
 
 const OfflineIndicator = () => {

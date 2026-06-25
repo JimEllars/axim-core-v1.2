@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom';
-import { vi } from 'vitest';
+import { vi, afterEach } from 'vitest';
+import { cleanup } from '@testing-library/react';
 
 // Mock matchMedia for jsdom
 Object.defineProperty(window, 'matchMedia', {
@@ -35,12 +36,76 @@ vi.mock('react-hot-toast', () => {
   };
 });
 
-// Mock framer-motion AnimatePresence to bypass the missing export issue
-vi.mock('framer-motion', async (importOriginal) => {
-  const actual = await importOriginal();
+// Mock framer-motion entirely to prevent rAF loops
+vi.mock('framer-motion', () => {
   return {
-    ...actual,
-    AnimatePresence: ({ children }) => <>{children}</>,
+    motion: {
+      div: 'div',
+      tr: 'tr',
+      span: 'span',
+      p: 'p',
+      button: 'button',
+      h2: 'h2',
+      h3: 'h3',
+      h4: 'h4',
+      ul: 'ul',
+      li: 'li',
+      a: 'a',
+      nav: 'nav',
+      header: 'header'
+    },
+    AnimatePresence: ({ children }) => children,
+  };
+});
+
+// Mock Supabase
+vi.mock('./src/services/supabaseClient', () => {
+  return {
+    supabase: {
+      from: vi.fn().mockReturnThis(),
+      select: vi.fn().mockReturnThis(),
+      insert: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      delete: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      single: vi.fn().mockReturnThis(),
+      channel: vi.fn().mockReturnThis(),
+      on: vi.fn().mockReturnThis(),
+      subscribe: vi.fn().mockReturnThis(),
+      removeChannel: vi.fn().mockReturnThis(),
+      rpc: vi.fn().mockReturnThis(),
+      functions: {
+        invoke: vi.fn()
+      }
+    }
+  };
+});
+
+vi.mock('./src/services/supabaseApiService', () => {
+  return {
+    default: {
+      supabase: {
+        from: vi.fn().mockReturnThis(),
+        select: vi.fn().mockReturnThis(),
+        insert: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
+        delete: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis(),
+        single: vi.fn().mockReturnThis(),
+        channel: vi.fn().mockReturnThis(),
+        on: vi.fn().mockReturnThis(),
+        subscribe: vi.fn().mockReturnThis(),
+        removeChannel: vi.fn().mockReturnThis(),
+        rpc: vi.fn().mockReturnThis(),
+        functions: {
+          invoke: vi.fn()
+        }
+      }
+    }
   };
 });
 
@@ -67,3 +132,10 @@ console.warn = (...args) => {
   }
   originalConsoleWarn(...args);
 };
+
+afterEach(() => {
+  vi.clearAllTimers();
+  cleanup();
+});
+
+global.fetch = vi.fn();

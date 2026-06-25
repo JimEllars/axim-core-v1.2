@@ -2,7 +2,7 @@
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { ConnectivityContext } from '@/contexts/ConnectivityContext';
+import { ConnectivityContext } from '../../../contexts/ConnectivityContext';
 import OfflineIndicator from '../OfflineIndicator';
 
 describe('OfflineIndicator', () => {

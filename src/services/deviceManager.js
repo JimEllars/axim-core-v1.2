@@ -1,6 +1,6 @@
 // src/services/deviceManager.js
 import ApiService from '@/services/onyxAI/api';
-import logger from '@/services/logging';
+import logger from './logging';
 import { getOS } from '@/utils/osDetection';
 
 const DEVICE_ID_KEY = 'axim_device_id';

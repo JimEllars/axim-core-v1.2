@@ -1,5 +1,5 @@
 // src/services/connectivityManager.js
-import logger from '@/services/logging';
+import logger from './logging';
 import offlineManager from './offline'; // Import the new offline manager
 import toast from 'react-hot-toast';
 

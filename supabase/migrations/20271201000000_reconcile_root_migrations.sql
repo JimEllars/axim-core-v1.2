@@ -11,8 +11,8 @@ ALTER TABLE public.ai_interactions_ax2024 ADD COLUMN IF NOT EXISTS execution_tim
 ALTER TABLE public.ai_interactions_ax2024 ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id);
 ALTER TABLE public.ai_interactions_ax2024 ADD COLUMN IF NOT EXISTS conversation_id UUID;
 
--- Make sure embedding exists (from 20260615000000_add_embedding_to_ai_interactions.sql)
-ALTER TABLE public.ai_interactions_ax2024 ADD COLUMN IF NOT EXISTS embedding vector(1536);
+-- Note: The `embedding vector(1536)` column is explicitly established in 20261201000000_add_vector_embeddings.sql
+-- It has been stripped from here to ensure duplicate idempotent conflicts don't occur across Supabase pushes.
 
 -- user_settings
 CREATE TABLE IF NOT EXISTS public.user_settings (
