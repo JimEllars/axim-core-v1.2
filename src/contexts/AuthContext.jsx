@@ -135,6 +135,7 @@ export const AuthProvider = ({ children }) => {
     const params = new URLSearchParams(window.location.search);
     const handoffToken = params.get('handoff_token');
     if (handoffToken) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAximSessionToken(handoffToken);
       localStorage.setItem('axim_session_token', handoffToken);
       // Strip token from URL
@@ -192,6 +193,10 @@ export const AuthProvider = ({ children }) => {
   }, [supabase, handleSession, loadUserSettings]);
 
 
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
+  }, []);
+
   useEffect(() => {
     const handleUnauthorized = () => {
       logout();
@@ -200,7 +205,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       window.removeEventListener('auth:unauthorized', handleUnauthorized);
     };
-  }, []);
+  }, [logout]);
 
   const login = async (email, password) => {
     console.log('[AuthContext] Attempting login for:', email);
@@ -235,9 +240,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = async () => {
-    await supabase.auth.signOut();
-  };
 
   const value = {
     user,

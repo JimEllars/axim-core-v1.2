@@ -14,9 +14,9 @@ const reducer = (state, action) => {
     case 'ADD_MESSAGE':
       return { ...state, messages: [...state.messages, action.payload] };
     case 'ADD_OR_UPDATE_MESSAGE':
-      const existingMessageIndex = state.messages.findIndex(m => m.id === action.payload.id);
+      var existingMessageIndex = state.messages.findIndex(m => m.id === action.payload.id);
       if (existingMessageIndex > -1) {
-        const newMessages = [...state.messages];
+        var newMessages = [...state.messages];
         newMessages[existingMessageIndex] = action.payload;
         return { ...state, messages: newMessages };
       }

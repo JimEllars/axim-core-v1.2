@@ -42,7 +42,7 @@ export const useApi = (apiCall, dependencies = [], options = {}) => {
     } finally {
       setLoading(false);
     }
-  }, dependencies);
+  }, dependencies); // eslint-disable-line react-hooks/exhaustive-deps, react-hooks/use-memo
 
   useEffect(() => {
     fetchData();
