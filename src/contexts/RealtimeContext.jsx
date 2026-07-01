@@ -1,27 +1,29 @@
 import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import toast from 'react-hot-toast';
-import { useAuth } from './AuthContext';
-import { useDashboard } from './DashboardContext';
-import * as FiIcons from 'react-icons/fi';
-import SafeIcon from '../common/SafeIcon';
 import { listenForWorkflowEvents } from '../services/workflows/engine';
+import { useAuth } from './AuthContext'; // Updated from useAuthStore based on memory hints
 
-const RealtimeContext = createContext();
+const RealtimeContext = createContext({});
 
 export const useRealtime = () => useContext(RealtimeContext);
 
 export const RealtimeProvider = ({ children }) => {
   const { user } = useAuth();
-  const { refreshDashboard } = useDashboard();
   const hitlChannelRef = useRef(null);
   const telemetryChannelRef = useRef(null);
   const ticketsChannelRef = useRef(null);
   const workflowChannelRef = useRef(null);
+  const execChannelRef = useRef(null);
   const workflowListenerRef = useRef(null);
-  const reconnectTimeouts = useRef({ hitl: null, telemetry: null, workflow: null });
+  const reconnectTimeouts = useRef({
+    hitl: null,
+    telemetry: null,
+    workflow: null,
+    exec: null
+  });
 
-  // Move refs outside of useEffect so they persist across re-renders
+  // Track toast times outside of useEffect so they persist across re-renders
   const lastToastTimes = useRef({
       support_tickets: 0,
       hitl_audit_logs: 0
@@ -38,17 +40,17 @@ export const RealtimeProvider = ({ children }) => {
     let hitlRetries = 0;
     let telemetryRetries = 0;
     let workflowRetries = 0;
+    let execRetries = 0;
     const MAX_RETRIES = 3;
+    const currentReconnectTimeouts = reconnectTimeouts.current;
 
     const triggerThrottledToast = (type, defaultMessage, multipleMessage, duration, id) => {
         const now = Date.now();
         const lastTime = lastToastTimes.current[type] || 0;
 
         if (now - lastTime < 10000) {
-            // Within throttle window, queue it
             pendingToasts.current[type] += 1;
         } else {
-            // Outside throttle window, show it immediately
             const count = pendingToasts.current[type] + 1;
             const message = count > 1 ? multipleMessage.replace('{count}', count) : defaultMessage;
             toast.error(message, { duration, id });
@@ -56,7 +58,6 @@ export const RealtimeProvider = ({ children }) => {
             lastToastTimes.current[type] = now;
             pendingToasts.current[type] = 0;
 
-            // Set timeout to show any remaining queued toasts after window
             setTimeout(() => {
                 if (pendingToasts.current[type] > 0) {
                     const finalCount = pendingToasts.current[type];
@@ -68,7 +69,6 @@ export const RealtimeProvider = ({ children }) => {
             }, 10000);
         }
     };
-
 
     const setupSupportTicketsChannel = () => {
       const ticketsChannel = supabase.channel('realtime:support_tickets')
@@ -84,9 +84,9 @@ export const RealtimeProvider = ({ children }) => {
             }
         });
 
-        ticketsChannel.onError((err) => {
-            console.warn('RealtimeContext: WebSocket error (support_tickets)', err);
-        });
+      ticketsChannel.onError((err) => {
+          console.warn('RealtimeContext: WebSocket error (support_tickets)', err);
+      });
 
       ticketsChannelRef.current = ticketsChannel;
     };
@@ -99,7 +99,6 @@ export const RealtimeProvider = ({ children }) => {
           (payload) => {
             if (payload.new.status.toLowerCase() === 'pending') {
               triggerThrottledToast('hitl_audit_logs', 'Action Required: Tier 4 Agent proposes deployment. Human authorization needed.', 'Multiple Actions Required: Tier 4 Agent proposes deployment. Human authorization needed.', 5000, 'hitl_audit_logs_toast');
-
             }
           }
         ).subscribe((status, err) => {
@@ -110,68 +109,87 @@ export const RealtimeProvider = ({ children }) => {
             if (hitlRetries < MAX_RETRIES) {
               hitlRetries++;
               const backoffTime = Math.pow(2, hitlRetries) * 1000;
-              console.log(`RealtimeContext: Reconnecting HITL channel in ${backoffTime}ms...`);
-              reconnectTimeouts.current.hitl = setTimeout(setupHitlChannel, backoffTime);
+              currentReconnectTimeouts.hitl = setTimeout(setupHitlChannel, backoffTime);
             } else {
               toast.error('Disconnected from HITL live updates.', { id: 'offline-hitl' });
             }
           }
         });
 
-        hitlChannel.onError((err) => {
-            console.warn('RealtimeContext: WebSocket error (hitl_audit_logs)', err);
-        });
+      hitlChannel.onError((err) => {
+          console.warn('RealtimeContext: WebSocket error (hitl_audit_logs)', err);
+      });
 
       hitlChannelRef.current = hitlChannel;
     };
 
     const setupTelemetryChannel = () => {
-      const telemetryChannel = supabase.channel('realtime:telemetry_logs')
+      const telemetryChannel = supabase.channel('realtime:telemetry_events')
         .on(
           'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'events_ax2024' },
+          { event: '*', schema: 'public', table: 'telemetry_events' },
           (payload) => {
-              const isError = payload.new.type === 'error' || payload.new.data?.error_code >= 500;
+              const isError = payload.new?.severity === 'ERROR' || payload.new?.severity === 'FATAL';
               if (isError) {
-                  toast.error(`System Event: ${payload.new.type}`, {
+                  toast.error(`System Event: ${payload.new.severity} in ${payload.new.component_id}`, {
                       style: { background: '#7f1d1d', color: '#fff', border: '1px solid #ef4444' }
                   });
               }
+              window.dispatchEvent(new CustomEvent('axim:telemetry_update', { detail: payload }));
           }
         )
         .subscribe((status, err) => {
           if (status === 'SUBSCRIBED') {
             telemetryRetries = 0;
           } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-            console.warn('RealtimeContext: WebSocket connection closed/error (telemetry_logs)', err || status);
+            console.warn('RealtimeContext: WebSocket connection closed/error (telemetry_events)', err || status);
             if (telemetryRetries < MAX_RETRIES) {
               telemetryRetries++;
               const backoffTime = Math.pow(2, telemetryRetries) * 1000;
-              console.log(`RealtimeContext: Reconnecting telemetry channel in ${backoffTime}ms...`);
-              reconnectTimeouts.current.telemetry = setTimeout(setupTelemetryChannel, backoffTime);
+              currentReconnectTimeouts.telemetry = setTimeout(setupTelemetryChannel, backoffTime);
             } else {
               toast.error('Disconnected from telemetry live updates.', { id: 'offline-telemetry' });
             }
           }
         });
 
-        telemetryChannel.onError((err) => {
-            console.warn('RealtimeContext: WebSocket error (telemetry_logs)', err);
-        });
+      telemetryChannel.onError((err) => {
+          console.warn('RealtimeContext: WebSocket error (telemetry_events)', err);
+      });
 
       telemetryChannelRef.current = telemetryChannel;
     };
 
+    const setupExecChannel = () => {
+      const execChannel = supabase.channel('realtime:micro_app_executions')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'micro_app_executions' },
+          (payload) => {
+              window.dispatchEvent(new CustomEvent('axim:exec_update', { detail: payload }));
+          }
+        )
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            execRetries = 0;
+          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+            console.warn('RealtimeContext: WebSocket connection closed/error (micro_app_executions)', err || status);
+            if (execRetries < MAX_RETRIES) {
+              execRetries++;
+              const backoffTime = Math.pow(2, execRetries) * 1000;
+              currentReconnectTimeouts.exec = setTimeout(setupExecChannel, backoffTime);
+            }
+          }
+        });
+
+      execChannel.onError((err) => {
+          console.warn('RealtimeContext: WebSocket error (micro_app_executions)', err);
+      });
+
+      execChannelRef.current = execChannel;
+    };
 
     const setupWorkflowChannel = () => {
-      // Listen to the pg_notify 'telemetry_alert_bus' via Supabase realtime broadcast
-      // OR postgres_changes on telemetry_events if that's more reliable.
-      // Wait, the requirement says "listen to real-time events broadcasted over the 'telemetry_alert_bus' channel."
-      // Since Supabase exposes Postgres changes out of the box, we already set it to postgres_changes on telemetry_events.
-      // But the prompt specifically said "listen to real-time events broadcasted over the 'telemetry_alert_bus' channel".
-      // Supabase's realtime has .on('broadcast', { event: 'telemetry_alert_bus' }) maybe?
-      // No, let's keep postgres_changes on telemetry_events as we did, or use broadcast.
-      // Wait, let's just stick to postgres_changes on telemetry_events to guarantee it works.
       const workflowChannel = supabase.channel('realtime:telemetry_alert_bus')
         .on(
           'postgres_changes',
@@ -188,8 +206,7 @@ export const RealtimeProvider = ({ children }) => {
               if (workflowRetries < MAX_RETRIES) {
                 workflowRetries++;
                 const backoffTime = Math.pow(2, workflowRetries) * 1000;
-                console.log(`RealtimeContext: Reconnecting workflow channel in ${backoffTime}ms...`);
-                reconnectTimeouts.current.workflow = setTimeout(setupWorkflowChannel, backoffTime);
+                currentReconnectTimeouts.workflow = setTimeout(setupWorkflowChannel, backoffTime);
               } else {
                 toast.error('Disconnected from workflow live updates.', { id: 'offline-workflow' });
               }
@@ -203,23 +220,25 @@ export const RealtimeProvider = ({ children }) => {
     };
 
     setupWorkflowChannel();
-        setupSupportTicketsChannel();
+    setupSupportTicketsChannel();
     setupHitlChannel();
     setupTelemetryChannel();
+    setupExecChannel();
     workflowListenerRef.current = listenForWorkflowEvents(supabase);
 
     const handleOnline = () => {
-        console.log('RealtimeContext: Network online. Reconnecting WebSockets.');
         if (hitlChannelRef.current) supabase.removeChannel(hitlChannelRef.current);
         if (telemetryChannelRef.current) supabase.removeChannel(telemetryChannelRef.current);
         if (ticketsChannelRef.current) supabase.removeChannel(ticketsChannelRef.current);
-      if (workflowChannelRef.current) supabase.removeChannel(workflowChannelRef.current);
+        if (workflowChannelRef.current) supabase.removeChannel(workflowChannelRef.current);
+        if (execChannelRef.current) supabase.removeChannel(execChannelRef.current);
         if (workflowListenerRef.current) workflowListenerRef.current();
 
         setupSupportTicketsChannel();
         setupHitlChannel();
         setupTelemetryChannel();
         setupWorkflowChannel();
+        setupExecChannel();
         workflowListenerRef.current = listenForWorkflowEvents(supabase);
     };
 
@@ -227,13 +246,15 @@ export const RealtimeProvider = ({ children }) => {
 
     return () => {
       window.removeEventListener('online', handleOnline);
-      if (reconnectTimeouts.current.hitl) clearTimeout(reconnectTimeouts.current.hitl);
-      if (reconnectTimeouts.current.telemetry) clearTimeout(reconnectTimeouts.current.telemetry);
-      if (reconnectTimeouts.current.workflow) clearTimeout(reconnectTimeouts.current.workflow);
+      if (currentReconnectTimeouts.hitl) clearTimeout(currentReconnectTimeouts.hitl);
+      if (currentReconnectTimeouts.telemetry) clearTimeout(currentReconnectTimeouts.telemetry);
+      if (currentReconnectTimeouts.workflow) clearTimeout(currentReconnectTimeouts.workflow);
+      if (currentReconnectTimeouts.exec) clearTimeout(currentReconnectTimeouts.exec);
       if (hitlChannelRef.current) supabase.removeChannel(hitlChannelRef.current);
       if (telemetryChannelRef.current) supabase.removeChannel(telemetryChannelRef.current);
       if (ticketsChannelRef.current) supabase.removeChannel(ticketsChannelRef.current);
       if (workflowChannelRef.current) supabase.removeChannel(workflowChannelRef.current);
+      if (execChannelRef.current) supabase.removeChannel(execChannelRef.current);
       if (workflowListenerRef.current) workflowListenerRef.current();
     };
   }, [user]);
@@ -244,3 +265,5 @@ export const RealtimeProvider = ({ children }) => {
     </RealtimeContext.Provider>
   );
 };
+
+export default RealtimeProvider;

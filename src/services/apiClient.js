@@ -105,3 +105,7 @@ export default apiClient;
 export const commitMicroAppState = async (payload) => {
   return callCloudApi('api/v1/micro-app/state-commit', payload);
 };
+
+export const replayDeadLetter = async (jobId, queueType) => {
+  return callCloudApi('api/v1/dlq/replay', { jobId, queueType });
+};
