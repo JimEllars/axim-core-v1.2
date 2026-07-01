@@ -89,6 +89,72 @@ class AXiMHandshake {
       console.error('[AXiM Satellite] Pulse transmission failed:', err.message);
     });
   }
+
+  /**
+   * Dispatches an error envelope directly formatted for public.telemetry_events.
+   *
+   * @param {string} message - Human readable error message
+   * @param {string} severity - DEBUG, INFO, WARN, ERROR, FATAL
+   * @param {string} errorCode - Specific error code
+   * @param {Object} payload - Context object, stack traces, request state
+   * @param {string} idempotencyKey - Prevents duplicate retry storms
+   */
+  emit_error_envelope(message, severity = 'ERROR', errorCode = null, payload = {}, idempotencyKey = null) {
+    if (!this.token) {
+      console.warn('[AXiM Satellite] Error envelope skipped: Not connected (No Token). Call connect() first.');
+      return;
+    }
+
+    const errorPayload = {
+      component_id: this.appId,
+      environment: process.env.NODE_ENV || 'production',
+      severity,
+      error_code: errorCode,
+      message,
+      payload,
+      idempotency_key: idempotencyKey || crypto.randomUUID()
+    };
+
+    // Assuming we use an ingest endpoint for telemetry events directly or map it via telemetry/ingest
+    fetch(`${this.coreUrl}/v1/telemetry/ingest`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.token}`
+      },
+      body: JSON.stringify(errorPayload)
+    })
+    .then(res => {
+        if (!res.ok) {
+            console.warn(`[AXiM Satellite] Error envelope rejected by Core: ${res.status}`);
+        }
+    })
+    .catch(err => {
+      console.error('[AXiM Satellite] Error envelope transmission failed:', err.message);
+    });
+  }
+
+  /**
+   * Pings the health endpoint to assert node liveliness
+   */
+  async ping_health() {
+    try {
+      const response = await fetch(`${this.coreUrl}/v1/health`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ component_id: this.appId })
+      });
+
+      if (!response.ok) {
+         console.warn(`[AXiM Satellite] Health ping rejected: ${response.status}`);
+         return false;
+      }
+      return true;
+    } catch (error) {
+      console.error('[AXiM Satellite] Health ping failed:', error.message);
+      return false;
+    }
+  }
 }
 
 module.exports = { AXiMHandshake };

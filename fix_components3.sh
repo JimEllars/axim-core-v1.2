@@ -1,3 +1,4 @@
+cat << 'INNER_EOF' > src/contexts/RealtimeContext.jsx
 import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import toast from 'react-hot-toast';
@@ -267,3 +268,4 @@ const RealtimeProvider = ({ children }) => {
 };
 
 export { RealtimeProvider };
+INNER_EOF

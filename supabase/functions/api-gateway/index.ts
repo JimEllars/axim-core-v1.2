@@ -180,7 +180,7 @@ serve(async (req) => {
               });
           }
 
-          const allowedEndpoints = ['/api/v1/telemetry/micro-app', '/api/v1/dispatch', '/api/v1/micro-app/ingress', '/api/v1/micro-app/state-commit'];
+          const allowedEndpoints = ['/api/v1/dlq/replay', '/api/v1/health', '/api/v1/telemetry/micro-app', '/api/v1/dispatch', '/api/v1/micro-app/ingress', '/api/v1/micro-app/state-commit'];
           if (!allowedEndpoints.includes(endpoint)) {
               await logSecurityAnomaly(`Forbidden: Micro-app '${apiKeyData.service}' attempted to access restricted endpoint ${endpoint}.`);
               return new Response(JSON.stringify({ error: 'Forbidden: Endpoint access denied for micro-apps.' }), {
@@ -490,6 +490,57 @@ serve(async (req) => {
           status: 200,
           headers: { ...securityHeaders, 'Content-Type': 'application/json' }
        });
+    }
+
+    if (req.method === 'POST' && endpoint === '/api/v1/health') {
+      if (!body.component_id) {
+        return new Response(JSON.stringify({ error: 'Missing component_id' }), {
+          status: 400,
+          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const { error: upsertError } = await supabaseAdmin.from('ecosystem_nodes')
+        .upsert({
+           app_name: body.component_id,
+           status: 'online',
+           last_ping: new Date().toISOString()
+        }, { onConflict: 'app_name' });
+
+      if (upsertError) {
+        console.error('Failed to record health ping:', upsertError);
+      }
+
+      return new Response(JSON.stringify({ success: true, message: 'Node health asserted' }), {
+        status: 200,
+        headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    if (req.method === 'POST' && endpoint === '/api/v1/dlq/replay') {
+      if (!body.jobId || !body.queueType) {
+        return new Response(JSON.stringify({ error: 'Missing jobId or queueType' }), {
+          status: 400,
+          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const tableName = body.queueType === 'email' ? 'email_dead_letter_queue' : 'dead_letter_jobs';
+      const { error: updateError } = await supabaseAdmin.from(tableName)
+        .update({ status: 'Replaying', updated_at: new Date().toISOString() })
+        .eq('id', body.jobId);
+
+      if (updateError) {
+        return new Response(JSON.stringify({ error: 'Failed to update DLQ record' }), {
+          status: 500,
+          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true, message: 'Job queued for replay' }), {
+        status: 200,
+        headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+      });
     }
 
     if (req.method === 'POST' && endpoint === '/api/v1/external-webhook') {

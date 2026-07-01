@@ -71,6 +71,23 @@ const SystemAutonomyMap = () => {
   useEffect(() => {
     fetchEvents();
 
+    // The component used to subscribe directly. Now we use the RealtimeContext custom events
+    // Wait, the prompt says: "Securely connect the state outputs directly to the layout hooks of SystemAutonomyMap.jsx ... so changes ... display instantly."
+
+    const handleTelemetryUpdate = (event) => {
+        // Just trigger a re-fetch, or optimally append the new event. For simplicity and correctness, fetch again or prepend.
+        // Let's re-fetch to ensure order and limits.
+        fetchEvents();
+    };
+
+    const handleExecUpdate = (event) => {
+        fetchEvents();
+    };
+
+    window.addEventListener('axim:telemetry_update', handleTelemetryUpdate);
+    window.addEventListener('axim:exec_update', handleExecUpdate);
+
+    // Keep the old subscriptions too just in case we are missing some tables
     const usageSub = supabase.channel('api_usage_logs_changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'api_usage_logs' }, () => {
         fetchEvents();
@@ -82,13 +99,15 @@ const SystemAutonomyMap = () => {
       }).subscribe();
 
     return () => {
+      window.removeEventListener('axim:telemetry_update', handleTelemetryUpdate);
+      window.removeEventListener('axim:exec_update', handleExecUpdate);
       supabase.removeChannel(usageSub);
       supabase.removeChannel(bcSub);
     };
   }, []);
 
   return (
-    <div className="glass-effect rounded-xl p-6">
+    <div className="glass-effect rounded-xl p-6 border border-slate-800 bg-zinc-950/80">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-2">
           <SafeIcon icon={FiCpu} className="text-indigo-400 text-xl" />
@@ -116,7 +135,7 @@ const SystemAutonomyMap = () => {
               <div className="flex items-start justify-between">
                 <div>
                   <span className="text-xs font-semibold text-slate-300 block mb-1">{event.source}</span>
-                  <span className="text-sm text-white">{event.description}</span>
+                  <span className="text-sm text-white font-mono">{event.description}</span>
                 </div>
                 <span className="text-xs text-slate-500">
                   {new Date(event.timestamp).toLocaleTimeString()}
