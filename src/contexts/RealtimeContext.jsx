@@ -1,14 +1,14 @@
 import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { supabase } from '../services/supabaseClient';
 import toast from 'react-hot-toast';
-import { listenForWorkflowEvents } from '../services/workflowListener';
+import { listenForWorkflowEvents } from '../services/workflows/engine';
 import { useAuth } from './AuthContext'; // Updated from useAuthStore based on memory hints
 
 const RealtimeContext = createContext({});
 
 export const useRealtime = () => useContext(RealtimeContext);
 
-const RealtimeProvider = ({ children }) => {
+export const RealtimeProvider = ({ children }) => {
   const { user } = useAuth();
   const hitlChannelRef = useRef(null);
   const telemetryChannelRef = useRef(null);
@@ -266,4 +266,4 @@ const RealtimeProvider = ({ children }) => {
   );
 };
 
-export { RealtimeProvider };
+export default RealtimeProvider;
