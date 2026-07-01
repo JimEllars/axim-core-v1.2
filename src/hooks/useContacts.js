@@ -35,14 +35,14 @@ export const useContacts = () => {
   }, [searchTerm]);
 
   useEffect(() => {
-    fetchContacts();
+    setTimeout(() => fetchContacts(), 0);
   }, [fetchContacts, refreshKey]);
 
   const deleteContact = async (contactId) => {
     try {
       await api.deleteContactById(contactId);
       toast.success('Contact deleted successfully.');
-      fetchContacts();
+      setTimeout(() => fetchContacts(), 0);
     } catch (error) {
       toast.error('Failed to delete contact.');
     }
@@ -52,7 +52,7 @@ export const useContacts = () => {
     try {
       await api.updateContactById(contactId, data);
       toast.success('Contact updated successfully.');
-      fetchContacts();
+      setTimeout(() => fetchContacts(), 0);
     } catch (error) {
       toast.error('Failed to update contact.');
     }

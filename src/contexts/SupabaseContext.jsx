@@ -32,7 +32,7 @@ export const SupabaseProvider = ({ children, client = null }) => {
            toast.error('Ecosystem Data Schema Cache Mismatch. Please execute schema reload sequence.', { duration: Infinity, id: 'schema-mismatch' });
            // we don't throw so it doesn't hard block, just shows banner
         }
-        setConnectionError(null);
+        setTimeout(() => setConnectionError(null), 0);
       } catch (error) {
         console.error("API initialization error or network issue caught in SupabaseContext:", error);
         if (error?.code?.startsWith('PGRST') || error?.message?.includes('does not exist')) {
@@ -45,13 +45,13 @@ export const SupabaseProvider = ({ children, client = null }) => {
         // Do not throw the error here to prevent a hard crash
         setConnectionError(error);
       } finally {
-        setIsConnectionChecked(true);
+        setTimeout(() => setIsConnectionChecked(true), 0);
       }
     };
 
     if (client || config.isMockLlmEnabled) {
-      setIsConnectionChecked(true);
-      setConnectionError(null);
+      setTimeout(() => setIsConnectionChecked(true), 0);
+      setTimeout(() => setConnectionError(null), 0);
     } else {
       checkConnection();
     }

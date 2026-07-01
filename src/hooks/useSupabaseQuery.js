@@ -45,7 +45,7 @@ export const useSupabaseQuery = (rpcName, { autoFetch = true } = {}) => {
 
   useEffect(() => {
     if (autoFetch) {
-      fetchData();
+      setTimeout(() => fetchData(), 0);
     }
   }, [fetchData, autoFetch, refreshKey]);
 

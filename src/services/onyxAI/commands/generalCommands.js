@@ -1,5 +1,5 @@
 import { createCommand } from './commandFactory';
-import { getOS } from '@/utils/osDetection';
+import { getOS } from '../../../utils/osDetection';
 import { supabase } from '../../supabaseClient.js';
 
 const getInstallCommand = createCommand({
