@@ -1,5 +1,14 @@
+
+interface Env {
+  VITE_SUPABASE_URL: string;
+  VITE_SUPABASE_ANON_KEY: string;
+  ANTHROPIC_API_KEY: string;
+}
+
+const windowCache = new Map<string, number[]>();
+
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -14,44 +23,53 @@ export default {
        return new Response("Method Not Allowed", { status: 405, headers: corsHeaders });
     }
 
-
-    const authHeader = request.headers.get("Authorization");
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return new Response("Unauthorized", { status: 401, headers: corsHeaders });
-    }
-    const token = authHeader.split('Bearer ')[1];
-
-    // We still allow the static key, BUT only for non-privileged stuff?
-    // Wait, the prompt says:
-    // "Ping the Supabase Auth API (/auth/v1/user) to validate the token. If the user's metadata role is not admin or support, immediately throw a 403 Forbidden error and halt execution."
-
     try {
-        const supabaseUrl = env.VITE_SUPABASE_URL || 'https://pvbcdndqjguzqeafhwhw.supabase.co';
-        const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
-        const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'apikey': supabaseAnonKey
-            }
-        });
+      const { prompt, command, context, nodeScope } = await request.json() as any;
 
-        if (!userRes.ok) {
-            return new Response("Unauthorized - Invalid Token", { status: 403, headers: corsHeaders });
+      // Task 3: Edge Telemetry Sliding-Window Filter
+      if (nodeScope) {
+        const now = Date.now();
+        const windowTime = 1000; // 1 second window
+
+        let timestamps = windowCache.get(nodeScope) || [];
+        timestamps = timestamps.filter(time => now - time < windowTime);
+
+        if (timestamps.length >= 5) { // Threshold: 5 requests per second
+          return new Response(JSON.stringify({ error: "Rate limit exceeded for this node scope" }), {
+            status: 429,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+          });
         }
 
-        const userData = await userRes.json();
-        const role = userData.app_metadata?.role;
+        timestamps.push(now);
+        windowCache.set(nodeScope, timestamps);
+      }
 
-        if (role !== 'admin' && role !== 'support') {
-            return new Response("Forbidden - Insufficient Privileges", { status: 403, headers: corsHeaders });
-        }
-    } catch (err) {
-        return new Response("Internal Server Error during auth", { status: 500, headers: corsHeaders });
-    }
+      const authHeader = request.headers.get("Authorization");
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+      }
+      const token = authHeader.split('Bearer ')[1];
 
+      const supabaseUrl = env.VITE_SUPABASE_URL || 'https://pvbcdndqjguzqeafhwhw.supabase.co';
+      const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
+      const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+          headers: {
+              'Authorization': `Bearer ${token}`,
+              'apikey': supabaseAnonKey
+          }
+      });
 
-    try {
-      const { prompt, command, context } = await request.json();
+      if (!userRes.ok) {
+          return new Response("Unauthorized - Invalid Token", { status: 403, headers: corsHeaders });
+      }
+
+      const userData = await userRes.json();
+      const role = userData.app_metadata?.role;
+
+      if (role !== 'admin' && role !== 'support') {
+          return new Response("Forbidden - Insufficient Privileges", { status: 403, headers: corsHeaders });
+      }
 
       const onyxSystemPrompt = `You are Onyx mk3, the advanced AI orchestrator for AXiM Core.
 Analyze the following command and available system context. Execute the task efficiently.
@@ -89,7 +107,7 @@ Context: ${JSON.stringify(context || {})}`;
         timestamp: new Date().toISOString()
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    } catch (e) {
+    } catch (e: any) {
       return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
   }

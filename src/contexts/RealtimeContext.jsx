@@ -227,6 +227,7 @@ export const RealtimeProvider = ({ children }) => {
     workflowListenerRef.current = listenForWorkflowEvents(supabase);
 
     const handleOnline = () => {
+        toast.success('Connection re-established. Live updates resumed.', { id: 'connection-status' });
         if (hitlChannelRef.current) supabase.removeChannel(hitlChannelRef.current);
         if (telemetryChannelRef.current) supabase.removeChannel(telemetryChannelRef.current);
         if (ticketsChannelRef.current) supabase.removeChannel(ticketsChannelRef.current);
@@ -243,9 +244,14 @@ export const RealtimeProvider = ({ children }) => {
     };
 
     window.addEventListener('online', handleOnline);
+    const handleOffline = () => {
+        toast.error('Network disconnected. Live updates paused.', { id: 'connection-status', duration: Infinity });
+    };
+    window.addEventListener('offline', handleOffline);
 
     return () => {
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
       if (currentReconnectTimeouts.hitl) clearTimeout(currentReconnectTimeouts.hitl);
       if (currentReconnectTimeouts.telemetry) clearTimeout(currentReconnectTimeouts.telemetry);
       if (currentReconnectTimeouts.workflow) clearTimeout(currentReconnectTimeouts.workflow);
