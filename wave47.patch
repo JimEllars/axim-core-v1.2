@@ -1,0 +1,269 @@
+From 428b540406df417b4f597c9c65284fc9c43a0ee7 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Wed, 1 Jul 2026 21:32:09 +0000
+Subject: [PATCH] Wave 47: Code clutter consolidation and streaming resiliency
+
+---
+ .../onyx-edge-worker/src/index.ts             | 86 +++++++++++--------
+ .../archive-hygiene/fix_final_lint.cjs        |  0
+ .../archive-hygiene/fix_lint.cjs              |  0
+ .../archive-hygiene/fix_lint_2.cjs            |  0
+ .../archive-hygiene/fix_lint_3.cjs            |  0
+ .../archive-hygiene/fix_lint_4.cjs            |  0
+ .../archive-hygiene/fix_lint_5.cjs            |  0
+ .../archive-hygiene/fix_lint_6.cjs            |  0
+ .../archive-hygiene/fix_lint_7.cjs            |  0
+ .../archive-hygiene/fix_lint_8.cjs            |  0
+ .../archive-hygiene/fix_lint_9.cjs            |  0
+ .../archive-hygiene/fix_remaining_lint.cjs    |  0
+ .../archive-hygiene/patch_alias.cjs           |  0
+ .../archive-hygiene/patch_api_key.cjs         |  0
+ .../archive-hygiene/patch_smoke_test.cjs      |  0
+ .../archive-hygiene/patch_tests.cjs           |  0
+ .../archive-hygiene/test_fixer.cjs            |  0
+ .../archive-hygiene/test_fixer2.cjs           |  0
+ .../archive-hygiene/test_fixer3.cjs           |  0
+ .../archive-hygiene/test_fixer4.cjs           |  0
+ src/contexts/RealtimeContext.jsx              |  6 ++
+ 21 files changed, 58 insertions(+), 34 deletions(-)
+ rename fix_final_lint.cjs => scripts/archive-hygiene/fix_final_lint.cjs (100%)
+ rename fix_lint.cjs => scripts/archive-hygiene/fix_lint.cjs (100%)
+ rename fix_lint_2.cjs => scripts/archive-hygiene/fix_lint_2.cjs (100%)
+ rename fix_lint_3.cjs => scripts/archive-hygiene/fix_lint_3.cjs (100%)
+ rename fix_lint_4.cjs => scripts/archive-hygiene/fix_lint_4.cjs (100%)
+ rename fix_lint_5.cjs => scripts/archive-hygiene/fix_lint_5.cjs (100%)
+ rename fix_lint_6.cjs => scripts/archive-hygiene/fix_lint_6.cjs (100%)
+ rename fix_lint_7.cjs => scripts/archive-hygiene/fix_lint_7.cjs (100%)
+ rename fix_lint_8.cjs => scripts/archive-hygiene/fix_lint_8.cjs (100%)
+ rename fix_lint_9.cjs => scripts/archive-hygiene/fix_lint_9.cjs (100%)
+ rename fix_remaining_lint.cjs => scripts/archive-hygiene/fix_remaining_lint.cjs (100%)
+ rename patch_alias.cjs => scripts/archive-hygiene/patch_alias.cjs (100%)
+ rename patch_api_key.cjs => scripts/archive-hygiene/patch_api_key.cjs (100%)
+ rename patch_smoke_test.cjs => scripts/archive-hygiene/patch_smoke_test.cjs (100%)
+ rename patch_tests.cjs => scripts/archive-hygiene/patch_tests.cjs (100%)
+ rename test_fixer.cjs => scripts/archive-hygiene/test_fixer.cjs (100%)
+ rename test_fixer2.cjs => scripts/archive-hygiene/test_fixer2.cjs (100%)
+ rename test_fixer3.cjs => scripts/archive-hygiene/test_fixer3.cjs (100%)
+ rename test_fixer4.cjs => scripts/archive-hygiene/test_fixer4.cjs (100%)
+
+diff --git a/cloudflare-workers/onyx-edge-worker/src/index.ts b/cloudflare-workers/onyx-edge-worker/src/index.ts
+index aa8b00b..24dd1a8 100644
+--- a/cloudflare-workers/onyx-edge-worker/src/index.ts
++++ b/cloudflare-workers/onyx-edge-worker/src/index.ts
+@@ -1,5 +1,14 @@
++
++interface Env {
++  VITE_SUPABASE_URL: string;
++  VITE_SUPABASE_ANON_KEY: string;
++  ANTHROPIC_API_KEY: string;
++}
++
++const windowCache = new Map<string, number[]>();
++
+ export default {
+-  async fetch(request, env, ctx) {
++  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+     const corsHeaders = {
+       "Access-Control-Allow-Origin": "*",
+       "Access-Control-Allow-Methods": "POST, OPTIONS",
+@@ -14,44 +23,53 @@ export default {
+        return new Response("Method Not Allowed", { status: 405, headers: corsHeaders });
+     }
+
+-
+-    const authHeader = request.headers.get("Authorization");
+-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+-      return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+-    }
+-    const token = authHeader.split('Bearer ')[1];
+-
+-    // We still allow the static key, BUT only for non-privileged stuff?
+-    // Wait, the prompt says:
+-    // "Ping the Supabase Auth API (/auth/v1/user) to validate the token. If the user's metadata role is not admin or support, immediately throw a 403 Forbidden error and halt execution."
+-
+     try {
+-        const supabaseUrl = env.VITE_SUPABASE_URL || 'https://pvbcdndqjguzqeafhwhw.supabase.co';
+-        const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
+-        const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+-            headers: {
+-                'Authorization': `Bearer ${token}`,
+-                'apikey': supabaseAnonKey
+-            }
+-        });
+-
+-        if (!userRes.ok) {
+-            return new Response("Unauthorized - Invalid Token", { status: 403, headers: corsHeaders });
++      const { prompt, command, context, nodeScope } = await request.json() as any;
++
++      // Task 3: Edge Telemetry Sliding-Window Filter
++      if (nodeScope) {
++        const now = Date.now();
++        const windowTime = 1000; // 1 second window
++
++        let timestamps = windowCache.get(nodeScope) || [];
++        timestamps = timestamps.filter(time => now - time < windowTime);
++
++        if (timestamps.length >= 5) { // Threshold: 5 requests per second
++          return new Response(JSON.stringify({ error: "Rate limit exceeded for this node scope" }), {
++            status: 429,
++            headers: { ...corsHeaders, "Content-Type": "application/json" }
++          });
+         }
++
++        timestamps.push(now);
++        windowCache.set(nodeScope, timestamps);
++      }
+
+-        const userData = await userRes.json();
+-        const role = userData.app_metadata?.role;
++      const authHeader = request.headers.get("Authorization");
++      if (!authHeader || !authHeader.startsWith('Bearer ')) {
++        return new Response("Unauthorized", { status: 401, headers: corsHeaders });
++      }
++      const token = authHeader.split('Bearer ')[1];
++
++      const supabaseUrl = env.VITE_SUPABASE_URL || 'https://pvbcdndqjguzqeafhwhw.supabase.co';
++      const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
++      const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
++          headers: {
++              'Authorization': `Bearer ${token}`,
++              'apikey': supabaseAnonKey
++          }
++      });
+
+-        if (role !== 'admin' && role !== 'support') {
+-            return new Response("Forbidden - Insufficient Privileges", { status: 403, headers: corsHeaders });
+-        }
+-    } catch (err) {
+-        return new Response("Internal Server Error during auth", { status: 500, headers: corsHeaders });
+-    }
++      if (!userRes.ok) {
++          return new Response("Unauthorized - Invalid Token", { status: 403, headers: corsHeaders });
++      }
+
++      const userData = await userRes.json();
++      const role = userData.app_metadata?.role;
+
+-    try {
+-      const { prompt, command, context } = await request.json();
++      if (role !== 'admin' && role !== 'support') {
++          return new Response("Forbidden - Insufficient Privileges", { status: 403, headers: corsHeaders });
++      }
+
+       const onyxSystemPrompt = `You are Onyx mk3, the advanced AI orchestrator for AXiM Core.
+ Analyze the following command and available system context. Execute the task efficiently.
+@@ -89,7 +107,7 @@ Context: ${JSON.stringify(context || {})}`;
+         timestamp: new Date().toISOString()
+       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+-    } catch (e) {
++    } catch (e: any) {
+       return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+     }
+   }
+diff --git a/fix_final_lint.cjs b/scripts/archive-hygiene/fix_final_lint.cjs
+similarity index 100%
+rename from fix_final_lint.cjs
+rename to scripts/archive-hygiene/fix_final_lint.cjs
+diff --git a/fix_lint.cjs b/scripts/archive-hygiene/fix_lint.cjs
+similarity index 100%
+rename from fix_lint.cjs
+rename to scripts/archive-hygiene/fix_lint.cjs
+diff --git a/fix_lint_2.cjs b/scripts/archive-hygiene/fix_lint_2.cjs
+similarity index 100%
+rename from fix_lint_2.cjs
+rename to scripts/archive-hygiene/fix_lint_2.cjs
+diff --git a/fix_lint_3.cjs b/scripts/archive-hygiene/fix_lint_3.cjs
+similarity index 100%
+rename from fix_lint_3.cjs
+rename to scripts/archive-hygiene/fix_lint_3.cjs
+diff --git a/fix_lint_4.cjs b/scripts/archive-hygiene/fix_lint_4.cjs
+similarity index 100%
+rename from fix_lint_4.cjs
+rename to scripts/archive-hygiene/fix_lint_4.cjs
+diff --git a/fix_lint_5.cjs b/scripts/archive-hygiene/fix_lint_5.cjs
+similarity index 100%
+rename from fix_lint_5.cjs
+rename to scripts/archive-hygiene/fix_lint_5.cjs
+diff --git a/fix_lint_6.cjs b/scripts/archive-hygiene/fix_lint_6.cjs
+similarity index 100%
+rename from fix_lint_6.cjs
+rename to scripts/archive-hygiene/fix_lint_6.cjs
+diff --git a/fix_lint_7.cjs b/scripts/archive-hygiene/fix_lint_7.cjs
+similarity index 100%
+rename from fix_lint_7.cjs
+rename to scripts/archive-hygiene/fix_lint_7.cjs
+diff --git a/fix_lint_8.cjs b/scripts/archive-hygiene/fix_lint_8.cjs
+similarity index 100%
+rename from fix_lint_8.cjs
+rename to scripts/archive-hygiene/fix_lint_8.cjs
+diff --git a/fix_lint_9.cjs b/scripts/archive-hygiene/fix_lint_9.cjs
+similarity index 100%
+rename from fix_lint_9.cjs
+rename to scripts/archive-hygiene/fix_lint_9.cjs
+diff --git a/fix_remaining_lint.cjs b/scripts/archive-hygiene/fix_remaining_lint.cjs
+similarity index 100%
+rename from fix_remaining_lint.cjs
+rename to scripts/archive-hygiene/fix_remaining_lint.cjs
+diff --git a/patch_alias.cjs b/scripts/archive-hygiene/patch_alias.cjs
+similarity index 100%
+rename from patch_alias.cjs
+rename to scripts/archive-hygiene/patch_alias.cjs
+diff --git a/patch_api_key.cjs b/scripts/archive-hygiene/patch_api_key.cjs
+similarity index 100%
+rename from patch_api_key.cjs
+rename to scripts/archive-hygiene/patch_api_key.cjs
+diff --git a/patch_smoke_test.cjs b/scripts/archive-hygiene/patch_smoke_test.cjs
+similarity index 100%
+rename from patch_smoke_test.cjs
+rename to scripts/archive-hygiene/patch_smoke_test.cjs
+diff --git a/patch_tests.cjs b/scripts/archive-hygiene/patch_tests.cjs
+similarity index 100%
+rename from patch_tests.cjs
+rename to scripts/archive-hygiene/patch_tests.cjs
+diff --git a/test_fixer.cjs b/scripts/archive-hygiene/test_fixer.cjs
+similarity index 100%
+rename from test_fixer.cjs
+rename to scripts/archive-hygiene/test_fixer.cjs
+diff --git a/test_fixer2.cjs b/scripts/archive-hygiene/test_fixer2.cjs
+similarity index 100%
+rename from test_fixer2.cjs
+rename to scripts/archive-hygiene/test_fixer2.cjs
+diff --git a/test_fixer3.cjs b/scripts/archive-hygiene/test_fixer3.cjs
+similarity index 100%
+rename from test_fixer3.cjs
+rename to scripts/archive-hygiene/test_fixer3.cjs
+diff --git a/test_fixer4.cjs b/scripts/archive-hygiene/test_fixer4.cjs
+similarity index 100%
+rename from test_fixer4.cjs
+rename to scripts/archive-hygiene/test_fixer4.cjs
+diff --git a/src/contexts/RealtimeContext.jsx b/src/contexts/RealtimeContext.jsx
+index f41cb30..1497db2 100644
+--- a/src/contexts/RealtimeContext.jsx
++++ b/src/contexts/RealtimeContext.jsx
+@@ -227,6 +227,7 @@ export const RealtimeProvider = ({ children }) => {
+     workflowListenerRef.current = listenForWorkflowEvents(supabase);
+
+     const handleOnline = () => {
++        toast.success('Connection re-established. Live updates resumed.', { id: 'connection-status' });
+         if (hitlChannelRef.current) supabase.removeChannel(hitlChannelRef.current);
+         if (telemetryChannelRef.current) supabase.removeChannel(telemetryChannelRef.current);
+         if (ticketsChannelRef.current) supabase.removeChannel(ticketsChannelRef.current);
+@@ -243,9 +244,14 @@ export const RealtimeProvider = ({ children }) => {
+     };
+
+     window.addEventListener('online', handleOnline);
++    const handleOffline = () => {
++        toast.error('Network disconnected. Live updates paused.', { id: 'connection-status', duration: Infinity });
++    };
++    window.addEventListener('offline', handleOffline);
+
+     return () => {
+       window.removeEventListener('online', handleOnline);
++      window.removeEventListener('offline', handleOffline);
+       if (currentReconnectTimeouts.hitl) clearTimeout(currentReconnectTimeouts.hitl);
+       if (currentReconnectTimeouts.telemetry) clearTimeout(currentReconnectTimeouts.telemetry);
+       if (currentReconnectTimeouts.workflow) clearTimeout(currentReconnectTimeouts.workflow);
+--
+2.53.0
