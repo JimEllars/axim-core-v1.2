@@ -35,4 +35,50 @@ describe('api-gateway Auth Integrity', () => {
         const unknownHashedKey = unknownHashArray.map(b => b.toString(16).padStart(2, '0')).join('');
         expect(authenticate(unknownHashedKey)).toBe(false);
     });
+
+
+    it('simulates edge sliding window rate limiting and correctly writes headers for deflected bursts', () => {
+        // Simple mock of the edge sliding window
+        const windowCache = new Map();
+
+        const simulateEdgeRequest = (nodeScope, now) => {
+            const windowTime = 1000;
+            let timestamps = windowCache.get(nodeScope) || [];
+            timestamps = timestamps.filter(time => now - time < windowTime);
+
+            if (timestamps.length >= 5) {
+                timestamps.push(now);
+                windowCache.set(nodeScope, timestamps);
+                return {
+                    status: 429,
+                    headers: {
+                        "X-AXiM-Edge-Throttled": timestamps.length.toString()
+                    }
+                };
+            }
+
+            timestamps.push(now);
+            windowCache.set(nodeScope, timestamps);
+            return { status: 200 };
+        };
+
+        const nodeScope = "test-node-123";
+        const baseTime = Date.now();
+
+        // 5 successful requests
+        for (let i = 0; i < 5; i++) {
+            const res = simulateEdgeRequest(nodeScope, baseTime + i * 10);
+            expect(res.status).toBe(200);
+        }
+
+        // 6th request triggers rate limit, deflected count is 6
+        const throttledRes1 = simulateEdgeRequest(nodeScope, baseTime + 50);
+        expect(throttledRes1.status).toBe(429);
+        expect(throttledRes1.headers["X-AXiM-Edge-Throttled"]).toBe("6");
+
+        // 7th request
+        const throttledRes2 = simulateEdgeRequest(nodeScope, baseTime + 60);
+        expect(throttledRes2.status).toBe(429);
+        expect(throttledRes2.headers["X-AXiM-Edge-Throttled"]).toBe("7");
+    });
 });

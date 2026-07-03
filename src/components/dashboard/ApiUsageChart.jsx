@@ -48,7 +48,7 @@ const ApiUsageChart = () => {
 
       const { data: logs, error: supabaseError } = await supabase
         .from('api_usage_logs')
-        .select('created_at, status_code')
+        .select('created_at, status_code, details')
         .eq('partner_id', user.id)
         .gte('created_at', sevenDaysAgo.toISOString());
 
@@ -59,10 +59,12 @@ const ApiUsageChart = () => {
       logs.forEach(log => {
         const date = new Date(log.created_at).toLocaleDateString();
         if (!aggregated[date]) {
-          aggregated[date] = { date, successCount: 0, errorCount: 0 };
+          aggregated[date] = { date, successCount: 0, errorCount: 0, deflectedStorms: 0 };
         }
         if (log.status_code >= 200 && log.status_code < 300) {
           aggregated[date].successCount++;
+        } else if (log.status_code === 429 && log.details?.event === 'deflected_ingress_storm') {
+          aggregated[date].deflectedStorms += log.details.count || 1;
         } else {
           aggregated[date].errorCount++;
         }
@@ -73,7 +75,7 @@ const ApiUsageChart = () => {
 
       // If no data, provide an empty structure for today
       if (formattedData.length === 0) {
-         formattedData.push({ date: new Date().toLocaleDateString(), successCount: 0, errorCount: 0 });
+         formattedData.push({ date: new Date().toLocaleDateString(), successCount: 0, errorCount: 0, deflectedStorms: 0 });
       }
 
       setData(formattedData);
@@ -85,8 +87,46 @@ const ApiUsageChart = () => {
     }
   };
 
-  useEffect(() => {
+    useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchApiUsageData();
+
+    // Subscribe to real-time changes
+    const channel = supabase.channel('api_usage_realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'api_usage_logs' },
+        (payload) => {
+          const newLog = payload.new;
+          const date = new Date(newLog.created_at).toLocaleDateString();
+
+          setData(currentData => {
+            const newData = [...currentData];
+            let dateEntry = newData.find(item => item.date === date);
+
+            if (!dateEntry) {
+              dateEntry = { date, successCount: 0, errorCount: 0, deflectedStorms: 0 };
+              newData.push(dateEntry);
+              newData.sort((a, b) => new Date(a.date) - new Date(b.date));
+            }
+
+            if (newLog.status_code >= 200 && newLog.status_code < 300) {
+              dateEntry.successCount++;
+            } else if (newLog.status_code === 429 && newLog.details?.event === 'deflected_ingress_storm') {
+              dateEntry.deflectedStorms += newLog.details.count || 1;
+            } else {
+              dateEntry.errorCount++;
+            }
+
+            return newData;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [refreshKey]);
 
   if (error) {
@@ -128,6 +168,7 @@ const ApiUsageChart = () => {
             <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px', color: '#F9FAFB' }} />
             <Bar dataKey="successCount" name="Requests Made" fill="#2DD4BF" radius={[4, 4, 0, 0]} />
    <Bar dataKey="errorCount" name="Errors" fill="#EF4444" radius={[4, 4, 0, 0]} />
+   <Bar dataKey="deflectedStorms" name="Deflected Storms" fill="#F59E0B" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       )}

@@ -141,6 +141,20 @@ serve(async (req) => {
 
     console.log(`[${request_id}] Routing to provider: ${provider}`);
 
+
+    let finalPrompt = prompt;
+    let isCompressed = false;
+    const MAX_PROMPT_LENGTH = 15000; // Arbitrary high limit to trigger compression
+
+    if (finalPrompt.length > MAX_PROMPT_LENGTH || options.forceCompression) {
+        finalPrompt = finalPrompt.substring(0, MAX_PROMPT_LENGTH) + '... [Content Truncated]';
+        isCompressed = true;
+        console.log(`[${request_id}] Prompt compressed/truncated. length: ${finalPrompt.length}`);
+    }
+
+    // Determine actual provider used for logging
+    let activeProvider = provider;
+
     // 4. Get the user's API key using the secure service client.
     const apiKey = await getApiKey(serviceClient, user.id, provider);
     if (!apiKey) {
@@ -153,8 +167,24 @@ serve(async (req) => {
 
     // 5. Call the provider's handler with fallback logic
     try {
-      const content = await handler(apiKey, prompt, options);
+      const content = await handler(apiKey, finalPrompt, options);
       console.log(`[${request_id}] Successfully received response from ${provider}.`);
+
+      // Log to database
+      try {
+          await serviceClient.from('ai_interactions_ax2024').insert({
+              user_id: user.id,
+              command_type: 'proxy_passthrough',
+              llm_provider: activeProvider,
+              llm_model: options.model || 'default',
+              command: prompt,
+              response: content,
+              compressed: isCompressed
+          });
+      } catch (logError) {
+          console.error(`[${request_id}] Failed to log interaction:`, logError);
+      }
+
       return new Response(JSON.stringify({ content }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -176,9 +206,26 @@ serve(async (req) => {
           }
 
           const fallbackHandler = providerHandlers[fallbackProvider as keyof typeof providerHandlers];
-          const fallbackContent = await fallbackHandler(fallbackApiKey, prompt, options);
+          const fallbackContent = await fallbackHandler(fallbackApiKey, finalPrompt, options);
 
           console.log(`[${request_id}] Successfully received response from fallback provider ${fallbackProvider}.`);
+
+          activeProvider = fallbackProvider;
+          // Log fallback to database
+          try {
+              await serviceClient.from('ai_interactions_ax2024').insert({
+                  user_id: user.id,
+                  command_type: 'proxy_passthrough',
+                  llm_provider: activeProvider,
+                  llm_model: options.model || 'default',
+                  command: prompt,
+                  response: fallbackContent,
+                  compressed: isCompressed
+              });
+          } catch (logError) {
+              console.error(`[${request_id}] Failed to log interaction:`, logError);
+          }
+
           return new Response(JSON.stringify({ content: fallbackContent, fallbackUsed: fallbackProvider }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });

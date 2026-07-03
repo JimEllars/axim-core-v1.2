@@ -35,9 +35,16 @@ export default {
         timestamps = timestamps.filter(time => now - time < windowTime);
 
         if (timestamps.length >= 5) { // Threshold: 5 requests per second
+          timestamps.push(now); // Count deflected burst
+          windowCache.set(nodeScope, timestamps);
+
           return new Response(JSON.stringify({ error: "Rate limit exceeded for this node scope" }), {
             status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+              "X-AXiM-Edge-Throttled": timestamps.length.toString()
+            }
           });
         }
 
