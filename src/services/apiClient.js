@@ -43,7 +43,20 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
 
     if (error.response) {
-      if (error.response.status === 401 && !originalRequest._retry) {
+
+      if (error.response.status === 429) {
+          const throttledCount = error.response.headers['x-axim-edge-throttled'];
+          if (throttledCount) {
+             supabase.from('api_usage_logs').insert({
+                 endpoint: error.response.config?.url || 'unknown',
+                 status_code: 429,
+                 details: { event: 'deflected_ingress_storm', count: parseInt(throttledCount, 10) }
+             }).then(({error: dbError}) => {
+                if(dbError) logger.error('Failed to log deflected_ingress_storm', dbError);
+             });
+          }
+          return Promise.reject({ error: true, message: "Too Many Requests" });
+      } else if (error.response.status === 401 && !originalRequest._retry) {
         originalRequest._retry = true;
         try {
           const { data, error: refreshError } = await supabase.auth.refreshSession();

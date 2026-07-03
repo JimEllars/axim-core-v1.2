@@ -9,6 +9,7 @@ const { FiServer, FiActivity, FiGlobe, FiCheckCircle, FiAlertTriangle, FiXCircle
 const SystemHealthPanel = () => {
   const [healthData, setHealthData] = useState({
     workerUptime: 'Unknown',
+    deflectedStorms: 0,
     gcpLatency: 'Unknown',
     activeConnections: 0,
     status: 'loading'
@@ -33,9 +34,33 @@ const SystemHealthPanel = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchHealth();
     const interval = setInterval(fetchHealth, 30000); // Poll every 30s
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    // Subscribe to real-time changes for deflected storms
+    const channel = supabase.channel('health_panel_realtime')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'api_usage_logs', filter: 'status_code=eq.429' },
+        (payload) => {
+          const newLog = payload.new;
+          if (newLog.details?.event === 'deflected_ingress_storm') {
+            setHealthData(prev => ({
+              ...prev,
+              deflectedStorms: prev.deflectedStorms + (newLog.details.count || 1)
+            }));
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const getStatusColor = (status) => {
@@ -60,7 +85,8 @@ const SystemHealthPanel = () => {
     return (
       <div className="bg-onyx-950/80 rounded-xl p-6 border border-onyx-accent/30 shadow-[0_0_20px_rgba(0,0,0,0.4)] backdrop-blur-md animate-pulse">
         <div className="h-6 w-1/3 bg-slate-800 rounded mb-6"></div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="h-24 bg-slate-800 rounded-lg"></div>
           <div className="h-24 bg-slate-800 rounded-lg"></div>
           <div className="h-24 bg-slate-800 rounded-lg"></div>
           <div className="h-24 bg-slate-800 rounded-lg"></div>
@@ -85,7 +111,7 @@ const SystemHealthPanel = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-onyx-950/50 p-4 rounded-lg border border-slate-800">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiGlobe} className="mr-2" />
@@ -113,6 +139,15 @@ const SystemHealthPanel = () => {
           </div>
           <div className="text-2xl font-mono text-cyan-400">
             {healthData.activeConnections}
+          </div>
+        </div>
+        <div className="bg-onyx-950/50 p-4 rounded-lg border border-slate-800">
+          <div className="flex items-center text-slate-400 mb-2">
+            <SafeIcon icon={FiAlertTriangle} className="mr-2 text-amber-500" />
+            <span className="text-sm uppercase tracking-wider">Deflected Storms</span>
+          </div>
+          <div className="text-2xl font-mono text-amber-500">
+            {healthData.deflectedStorms}
           </div>
         </div>
       </div>

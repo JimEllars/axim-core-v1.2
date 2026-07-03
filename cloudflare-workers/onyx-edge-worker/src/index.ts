@@ -8,7 +8,7 @@ interface Env {
 const windowCache = new Map<string, number[]>();
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+  async fetch(request: Request, env: Env, ctx: any) {
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -35,9 +35,16 @@ export default {
         timestamps = timestamps.filter(time => now - time < windowTime);
 
         if (timestamps.length >= 5) { // Threshold: 5 requests per second
+          timestamps.push(now); // Count deflected burst
+          windowCache.set(nodeScope, timestamps);
+
           return new Response(JSON.stringify({ error: "Rate limit exceeded for this node scope" }), {
             status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json" }
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "application/json",
+              "X-AXiM-Edge-Throttled": timestamps.length.toString()
+            }
           });
         }
 
