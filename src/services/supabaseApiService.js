@@ -598,13 +598,19 @@ class SupabaseApiService {
     try {
       const { data, error } = await this.supabase
         .from('ai_interactions_ax2024')
-        .select('command, response, status')
+        .select('command, response, status, is_compressed')
         .eq('user_id', userId)
         .eq('conversation_id', conversationId)
         .order('created_at', { ascending: true });
 
       if (error) throw new DatabaseError(error.message);
-      return data;
+
+      const safeData = data.map(item => ({
+        ...item,
+        is_compressed: item.is_compressed || false
+      }));
+
+      return safeData;
     } catch (error) {
       logger.warn('Could not fetch chat history:', error);
       toast.error('Could not load chat history. Displaying current session only.', { id: 'get-chat-history-error' });
@@ -639,7 +645,11 @@ class SupabaseApiService {
         logger.warn('searchMemory RPC failed:', error.message);
         return []; // Return empty array gracefully during development
       }
-      return [...results, ...(data || [])].slice(0, limit);
+      const combined = [...results, ...(data || [])].slice(0, limit);
+      return combined.map(item => ({
+        ...item,
+        is_compressed: item.is_compressed || false
+      }));
     } catch (error) {
       logger.error('Failed to execute searchMemory:', error);
       return [];
@@ -655,7 +665,13 @@ class SupabaseApiService {
       });
 
       if (error) throw new DatabaseError(error.message);
-      return data;
+
+      const safeData = (data || []).map(item => ({
+        ...item,
+        is_compressed: item.is_compressed || false
+      }));
+
+      return safeData;
     } catch (error) {
       logger.error('Failed to search chat history:', error);
       toast.error('Failed to search memory.');
