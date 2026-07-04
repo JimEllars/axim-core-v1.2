@@ -38,7 +38,7 @@ describe('Cloudflare Worker Integration', () => {
       method: 'GET'
     });
 
-    const env = { GCP_BACKEND_URL: 'https://gcp.axim.us.com' };
+    const env = { SUPABASE_URL: 'https://gcp.axim.us.com' };
     const ctx = { waitUntil: vi.fn() };
 
     // Mock the global fetch for the proxy

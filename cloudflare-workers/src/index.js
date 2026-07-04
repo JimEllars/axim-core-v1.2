@@ -101,7 +101,7 @@ export default {
       // Proxy to GCP backend
       try {
         const targetUrl = new URL(request.url);
-        const backendUrlStr = env.GCP_BACKEND_URL || 'https://gcp.axim.us.com';
+        const backendUrlStr = env.SUPABASE_URL || 'https://your-supabase-url.supabase.co';
         const backendUrl = new URL(backendUrlStr);
         targetUrl.hostname = backendUrl.hostname;
         targetUrl.port = backendUrl.port || '';
