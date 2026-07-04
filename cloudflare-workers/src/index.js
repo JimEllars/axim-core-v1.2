@@ -98,7 +98,7 @@ export default {
            return cachedResponse;
         }
       }
-      // Proxy to GCP backend
+      // Proxy to Supabase backend
       try {
         const targetUrl = new URL(request.url);
         const backendUrlStr = env.SUPABASE_URL || 'https://your-supabase-url.supabase.co';
