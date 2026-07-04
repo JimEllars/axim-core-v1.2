@@ -26,17 +26,27 @@ export default {
     try {
       const { prompt, command, context, nodeScope } = await request.json() as any;
 
-      // Task 3: Edge Telemetry Sliding-Window Filter
+            // Task 3: Edge Telemetry Sliding-Window Filter
       if (nodeScope) {
         const now = Date.now();
         const windowTime = 1000; // 1 second window
 
+        // Add an optimized low-overhead cache check
         let timestamps = windowCache.get(nodeScope) || [];
-        timestamps = timestamps.filter(time => now - time < windowTime);
+
+        // Safety wrap for state cache retrieval
+        try {
+          timestamps = timestamps.filter(time => now - time < windowTime);
+        } catch (cacheErr) {
+          timestamps = []; // Safe fallback
+        }
 
         if (timestamps.length >= 5) { // Threshold: 5 requests per second
           timestamps.push(now); // Count deflected burst
-          windowCache.set(nodeScope, timestamps);
+
+          try {
+             windowCache.set(nodeScope, timestamps);
+          } catch (cacheErr) {}
 
           return new Response(JSON.stringify({ error: "Rate limit exceeded for this node scope" }), {
             status: 429,
@@ -49,7 +59,9 @@ export default {
         }
 
         timestamps.push(now);
-        windowCache.set(nodeScope, timestamps);
+        try {
+          windowCache.set(nodeScope, timestamps);
+        } catch (cacheErr) {}
       }
 
       const authHeader = request.headers.get("Authorization");
@@ -60,14 +72,20 @@ export default {
 
       const supabaseUrl = env.VITE_SUPABASE_URL || 'https://pvbcdndqjguzqeafhwhw.supabase.co';
       const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
-      const userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
-          headers: {
-              'Authorization': `Bearer ${token}`,
-              'apikey': supabaseAnonKey
-          }
-      });
+      let userRes;
+      try {
+        userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'apikey': supabaseAnonKey
+            }
+        });
+      } catch (authErr) {
+         // Add standard safe check fallbacks to verify the worker safely handles instances where telemetry endpoints return non-200 responses
+         return new Response(JSON.stringify({ error: "Authentication service unavailable" }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
 
-      if (!userRes.ok) {
+      if (!userRes || !userRes.ok) {
           return new Response("Unauthorized - Invalid Token", { status: 403, headers: corsHeaders });
       }
 

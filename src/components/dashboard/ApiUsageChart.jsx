@@ -6,6 +6,7 @@ import SafeIcon from '../../common/SafeIcon';
 import api from '../../services/onyxAI/api';
 import config from '../../config';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { useConnectivity } from '../../contexts/ConnectivityContext';
 import { supabase } from '../../services/supabaseClient';
 import logger from '../../services/logging';
 
@@ -13,6 +14,7 @@ const { FiTrendingUp, FiAlertTriangle } = FiIcons;
 
 const ApiUsageChart = () => {
   const { refreshKey } = useDashboard();
+  const { isOnline, offlineTelemetryCache, clearOfflineTelemetry } = useConnectivity();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -87,7 +89,38 @@ const ApiUsageChart = () => {
     }
   };
 
-    useEffect(() => {
+
+  useEffect(() => {
+    if (isOnline && offlineTelemetryCache.length > 0) {
+      setData(currentData => {
+        const newData = [...currentData];
+        offlineTelemetryCache.forEach(log => {
+          const date = new Date(log.created_at || Date.now()).toLocaleDateString();
+          let dateEntry = newData.find(item => item.date === date);
+
+          if (!dateEntry) {
+            dateEntry = { date, successCount: 0, errorCount: 0, deflectedStorms: 0 };
+            newData.push(dateEntry);
+            newData.sort((a, b) => new Date(a.date) - new Date(b.date));
+          }
+
+          if (log.status_code >= 200 && log.status_code < 300) {
+            dateEntry.successCount++;
+          } else if (log.status_code === 429 && log.details?.event === 'deflected_ingress_storm') {
+            dateEntry.deflectedStorms += log.details.count || 1;
+          } else if (log.status_code === 429 && log.headers && log.headers['x-axim-edge-throttled']) {
+            dateEntry.deflectedStorms += parseInt(log.headers['x-axim-edge-throttled'], 10) || 1;
+          } else {
+            dateEntry.errorCount++;
+          }
+        });
+        return newData;
+      });
+      clearOfflineTelemetry();
+    }
+  }, [isOnline, offlineTelemetryCache, clearOfflineTelemetry]);
+
+  useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchApiUsageData();
 
