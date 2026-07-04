@@ -5,7 +5,7 @@ import { ConnectivityProvider, useConnectivity } from './ConnectivityContext';
 import connectivityManager from '../services/connectivityManager';
 
 const TestComponent = () => {
-  const isOnline = useConnectivity();
+  const { isOnline } = useConnectivity();
   return <div>{isOnline ? 'Online' : 'Offline'}</div>;
 };
 
@@ -123,14 +123,14 @@ describe('ConnectivityContext', () => {
       wrapper: ConnectivityProvider,
     });
 
-    expect(result.current).toBe(true); // Default starting state based on mock
+    expect(result.current.isOnline).toBe(true); // Default starting state based on mock
 
     act(() => {
       vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
       window.dispatchEvent(new Event('offline'));
     });
 
-    expect(result.current).toBe(false);
+    expect(result.current.isOnline).toBe(false);
   });
 
   it('useConnectivity hook starts false when app initializes offline', () => {
@@ -146,7 +146,7 @@ describe('ConnectivityContext', () => {
     });
 
     // Should start false based on getIsOnline mock
-    expect(result.current).toBe(false);
+    expect(result.current.isOnline).toBe(false);
 
     // Should transition to online
     act(() => {
@@ -154,7 +154,7 @@ describe('ConnectivityContext', () => {
       window.dispatchEvent(new Event('online'));
     });
 
-    expect(result.current).toBe(true);
+    expect(result.current.isOnline).toBe(true);
   });
 
   it('prevents unnecessary re-renders in consuming components when status remains the same', () => {

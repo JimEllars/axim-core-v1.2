@@ -33,7 +33,7 @@ async function logSecurityAnomaly(reason: string, metadata: any = {}) {
     console.warn(`[Security Anomaly] ${reason}`, metadata);
     if (typeof EdgeRuntime !== 'undefined') {
          EdgeRuntime.waitUntil(
-            supabaseAdmin.from('telemetry_logs').insert({
+            supabaseAdmin.from('api_usage_logs').insert({
                 event: 'security_anomaly',
                 app_type: 'api-gateway',
                 timestamp: new Date().toISOString(),
@@ -280,7 +280,7 @@ serve(async (req) => {
 
     if (req.method === 'POST' && endpoint === '/api/v1/telemetry/ingest') {
       EdgeRuntime.waitUntil(
-        supabaseAdmin.from('telemetry_logs').insert({
+        supabaseAdmin.from('api_usage_logs').insert({
           session_id: body.session_id,
           event: body.event,
           app_type: body.app_type,
@@ -300,7 +300,7 @@ serve(async (req) => {
     // New telemetry endpoint for micro-apps
     if (req.method === 'POST' && endpoint === '/api/v1/telemetry/micro-app') {
       EdgeRuntime.waitUntil(
-        supabaseAdmin.from('telemetry_logs').insert({
+        supabaseAdmin.from('api_usage_logs').insert({
           event: 'micro_app_telemetry',
           app_type: body.app_id || 'unknown_micro_app',
           timestamp: new Date().toISOString(),
@@ -559,7 +559,7 @@ serve(async (req) => {
 
         if (typeof EdgeRuntime !== 'undefined') {
           EdgeRuntime.waitUntil(
-            supabaseAdmin.from('telemetry_logs').insert({
+            supabaseAdmin.from('api_usage_logs').insert({
               event: eventTag,
               app_type: 'tabby-accounting',
               timestamp: new Date().toISOString(),
@@ -580,7 +580,7 @@ serve(async (req) => {
 
         if (typeof EdgeRuntime !== 'undefined') {
           EdgeRuntime.waitUntil(
-            supabaseAdmin.from('telemetry_logs').insert({
+            supabaseAdmin.from('api_usage_logs').insert({
               event: eventTag,
               app_type: 'roundups-affiliate',
               timestamp: new Date().toISOString(),
