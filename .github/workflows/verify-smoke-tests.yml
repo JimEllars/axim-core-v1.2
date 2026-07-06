@@ -55,5 +55,4 @@ jobs:
         run: npm run build
 
       - name: Verify Cloudflare Worker Build
-
-        run: npx wrangler deploy --dry-run -c cloudflare-workers/wrangler.toml
+        run: cd cloudflare-workers && npx wrangler deploy --dry-run -c wrangler.toml

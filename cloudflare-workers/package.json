@@ -9,7 +9,7 @@
   "scripts": {
     "build": "echo 'No build step required for simple worker'",
     "dev": "wrangler dev",
-    "deploy": "npx wrangler deploy -c cloudflare-workers/wrangler.toml",
+    "deploy": "npx wrangler deploy -c wrangler.toml",
     "tail": "wrangler tail",
     "test:integration": "vitest run tests/integration.test.js",
     "test": "npm run test:integration"
