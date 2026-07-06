@@ -7,9 +7,9 @@
   "description": "Cloudflare Workers for AXiM Core Edge Network Integration",
   "main": "src/index.js",
   "scripts": {
-    "build": "npx wrangler deploy --dry-run",
+    "build": "echo 'No build step required for simple worker'",
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "deploy": "npx wrangler deploy -c wrangler.toml",
     "tail": "wrangler tail",
     "test:integration": "vitest run tests/integration.test.js",
     "test": "npm run test:integration"

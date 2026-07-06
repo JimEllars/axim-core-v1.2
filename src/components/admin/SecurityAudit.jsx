@@ -41,7 +41,7 @@ const SecurityAudit = () => {
       try {
         // Fetch security anomalies
         const { data: anomalies, error: anomalyError } = await supabase
-          .from('telemetry_logs')
+          .from('api_usage_logs')
           .select('*')
           .eq('event', 'security_anomaly')
           .gte('timestamp', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
