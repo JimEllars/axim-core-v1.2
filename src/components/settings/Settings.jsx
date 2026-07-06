@@ -17,6 +17,7 @@ const Settings = () => {
   const [theme, setTheme] = useState('dark');
   const [isLoading, setIsLoading] = useState(false);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (settings) {
       setAiSettings(settings.ai || { model: 'gpt-4', temperature: 0.7 });

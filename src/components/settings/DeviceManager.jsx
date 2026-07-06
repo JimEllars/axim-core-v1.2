@@ -24,6 +24,7 @@ const DeviceManager = () => {
     // Error handling is managed by the global ApiContext
   }, [user, listDevices]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     fetchDevices();
   }, [fetchDevices]);
