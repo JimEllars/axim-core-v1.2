@@ -8,6 +8,7 @@ const UpdateManager = () => {
   const [updateStatus, setUpdateStatus] = useState('Checking for updates on load...');
   const [updateDownloaded, setUpdateDownloaded] = useState(false);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (!ipcRenderer) {
       setUpdateStatus('Updates are only available in the desktop app.');

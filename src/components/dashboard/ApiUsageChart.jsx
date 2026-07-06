@@ -49,7 +49,7 @@ const ApiUsageChart = () => {
 
       const { data: logs, error: supabaseError } = await supabase
         .from('api_usage_logs')
-        .select('created_at, status_code, details')
+        .select('created_at, status_code, details, headers')
         .eq('partner_id', user.id)
         .gte('created_at', sevenDaysAgo.toISOString());
 
@@ -65,6 +65,8 @@ const ApiUsageChart = () => {
           aggregated[date].successCount++;
         } else if (log.status_code === 429 && log.details?.event === 'deflected_ingress_storm') {
           aggregated[date].deflectedStorms += log.details.count || 1;
+        } else if (log.status_code === 429 && log.headers && log.headers['x-axim-edge-throttled']) {
+          aggregated[date].deflectedStorms += parseInt(log.headers['x-axim-edge-throttled'], 10) || 1;
         } else {
           aggregated[date].errorCount++;
         }
@@ -150,6 +152,8 @@ const ApiUsageChart = () => {
               dateEntry.successCount++;
             } else if (newLog.status_code === 429 && newLog.details?.event === 'deflected_ingress_storm') {
               dateEntry.deflectedStorms += newLog.details.count || 1;
+            } else if (newLog.status_code === 429 && newLog.headers && newLog.headers['x-axim-edge-throttled']) {
+              dateEntry.deflectedStorms += parseInt(newLog.headers['x-axim-edge-throttled'], 10) || 1;
             } else {
               dateEntry.errorCount++;
             }

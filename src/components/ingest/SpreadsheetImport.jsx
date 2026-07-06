@@ -55,6 +55,7 @@ const SpreadsheetImport = () => {
     }
   }, [dataType]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (rawData.length === 0 || !dataType) {
       setProcessedData([]);
