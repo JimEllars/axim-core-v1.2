@@ -46,7 +46,7 @@ describe('ServiceRegistry', () => {
 
   it('should fetch and register dynamic integrations from API', async () => {
     const dynamicIntegrations = [
-      { name: 'My Custom Endpoint', type: 'webhook', base_url: 'http://example.com' }
+      { name: 'My Custom Endpoint', type: 'data plane endpoint', base_url: 'http://example.com' }
     ];
     api.listAPIIntegrations.mockResolvedValue(dynamicIntegrations);
 

@@ -4,3 +4,6 @@ select cron.schedule('content_engine_daily', '0 9 * * *', $$ select net.http_pos
 
 -- Nightly Cognitive Compression
 select cron.schedule('nightly_cognitive_compression', '0 2 * * *', $$ select net.http_post( url:='https://supabase.local/functions/v1/cognitive-compression', headers:='{"Authorization": "Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}", "Content-Type": "application/json"}'::jsonb, body:='{}'::jsonb ); $$);
+
+-- Daily 2:00 AM UTC Enrichment Sweeps
+select cron.schedule('daily_enrichment_sweep', '0 2 * * *', $$ select net.http_post( url:='https://supabase.local/functions/v1/enrichment-sweep', headers:='{"Authorization": "Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}", "Content-Type": "application/json"}'::jsonb, body:='{}'::jsonb ); $$);

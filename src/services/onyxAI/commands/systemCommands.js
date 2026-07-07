@@ -440,7 +440,7 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
           if (log.status_code === 500 || log.error_code === 500) {
             errorCount500++;
           }
-          if (log.endpoint && log.endpoint.includes('webhook-dispatch') && (log.status_code !== 200)) {
+          if (log.endpoint && log.endpoint.includes('crm/genericCrm/sync') && (log.status_code !== 200)) {
             webhookFailures++;
           }
           if (log.error_code === 'database_timeout' || log.status_code === 504) {

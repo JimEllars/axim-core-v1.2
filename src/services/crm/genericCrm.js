@@ -52,7 +52,7 @@ class GenericCrm {
         name: contact.name,
         email: contact.email,
         source: this.integration.name,
-        axim_lead_score: contact.axim_lead_score // Explicit mapping for Deskera custom fields via Albato
+        axim_lead_score: contact.axim_lead_score // Explicit mapping for internal data tier
       }));
 
       const sanitizedContacts = sanitizePayload(contactsToImport);
@@ -61,10 +61,26 @@ class GenericCrm {
           payload_scrubbed: sanitizedContacts
       });
 
-      // Note: We use undefined for userId to let the API handle the current user
-      const result = await api.bulkAddContacts(contactsToImport, undefined);
-      // Assuming result is an array of added contacts
-      addedCount = result ? result.length : contactsToImport.length;
+      // Task 2: Route payloads directly to our Supabase core data plane
+      // Use PostgREST natively for bulk requests backed by Prefer: resolution=merge-duplicates header
+      // Using direct rest URL logic if configured, else Supabase client standard
+      const dataPlaneUrl = import.meta.env.VITE_AXIM_CORE_REST_URL || import.meta.env.VITE_SUPABASE_URL + '/rest/v1';
+      const response = await fetch(`${dataPlaneUrl}/crm.contacts`, {
+          method: 'POST',
+          headers: {
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates',
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+              'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
+          },
+          body: JSON.stringify(contactsToImport)
+      });
+
+      if (!response.ok) {
+          throw new Error('Data plane ingress failed');
+      }
+
+      addedCount = contactsToImport.length;
     } catch (error) {
       if (error.message.includes('already exist')) {
         // Fallback for duplicates, or just log

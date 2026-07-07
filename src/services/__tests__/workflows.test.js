@@ -9,6 +9,11 @@ const mockApi = {
     getWorkflowExecutions: vi.fn().mockResolvedValue([])
 };
 
+vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({})
+})));
+
 vi.doMock('../onyxAI/api', () => ({ default: mockApi }));
 
 describe('Workflow Engine', () => {
@@ -21,7 +26,7 @@ describe('Workflow Engine', () => {
         runWorkflow = engine.runWorkflow;
     });
 
-    it('should process a mocked webhook payload', async () => {
+    it('should process a mocked data plane payload', async () => {
         const context = {
             eventData: {
                 name: 'Marcus Vance',
@@ -35,7 +40,6 @@ describe('Workflow Engine', () => {
         const result = await runWorkflow('NEW_AFFILIATE_LEAD', 'system', context);
 
         expect(result.status).toBe('paused'); // Because of the wait step
-        expect(mockApi.invokeAximService).toHaveBeenCalled();
         expect(mockApi.logWorkflowExecution).toHaveBeenCalled();
     });
 

@@ -9,24 +9,33 @@ export const workflowDefinitions = {
     description: "Handle new affiliate leads from Powur frontend.",
     steps: [
       {
-        name: "Push Lead to CRM",
-        type: "api_call",
+        name: "Push Lead to CRM Data Plane",
+        type: "query_database",
         action: async (context) => {
-          const res = await api.invokeAximService(
-            'generic-axim-service-proxy',
-            '/crm/push',
-            {
-              lead: {
-                name: context.eventData?.name,
-                email: context.eventData?.email,
-                phone: context.eventData?.phone,
-                affiliate_program: context.eventData?.affiliate_program,
-                intent: context.eventData?.intent
-              }
-            },
-            context.userId
-          );
-          return { message: "Pushed lead to CRM", data: res };
+          const payload = {
+              name: context.eventData?.name,
+              email: context.eventData?.email,
+              phone: context.eventData?.phone,
+              affiliate_program: context.eventData?.affiliate_program,
+              intent: context.eventData?.intent
+          };
+
+          const dataPlaneUrl = import.meta.env.VITE_AXIM_CORE_REST_URL || import.meta.env.VITE_SUPABASE_URL + '/rest/v1';
+          const response = await fetch(`${dataPlaneUrl}/crm.contacts`, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Prefer': 'resolution=merge-duplicates',
+                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                  'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
+              },
+              body: JSON.stringify([payload])
+          });
+
+          if (!response.ok) {
+              throw new Error('Data plane ingress failed');
+          }
+          return { message: "Pushed lead directly to CRM Data Plane", data: payload };
         }
       },
       {
@@ -141,24 +150,48 @@ Format the aggregated data object, output all discovered search tags in a strict
         }
       },
       {
-        name: "Sync to Deskera CRM via Albato",
-        type: "api_call",
+        name: "Sync to CRM Data Plane",
+        type: "query_database",
         action: async (context) => {
           const profile = context["Generate Analytical Profile"]?.data?.response || "";
-          const res = await api.invokeAximService(
-            "albato-connector",
-            "/sync",
-            {
-              crm: "deskera",
-              payload: {
-                name: context.eventData?.target_domain,
-                profile: profile,
-                source: "UNIFIRST_PROSPECT_RESEARCH"
-              }
-            },
-            context.userId
-          );
-          return { message: "Synced to CRM", data: res };
+
+          const payload = {
+            name: context.eventData?.target_domain,
+            profile: profile,
+            source: "UNIFIRST_PROSPECT_RESEARCH"
+          };
+
+          const dataPlaneUrl = import.meta.env.VITE_AXIM_CORE_REST_URL || import.meta.env.VITE_SUPABASE_URL + '/rest/v1';
+          const response = await fetch(`${dataPlaneUrl}/crm.contacts`, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Prefer': 'resolution=merge-duplicates',
+                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                  'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
+              },
+              body: JSON.stringify([payload])
+          });
+
+          if (!response.ok) {
+              throw new Error('Data plane ingress failed');
+          }
+
+          await fetch(`${dataPlaneUrl}/crm.activity_log`, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Prefer': 'resolution=merge-duplicates',
+                  'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+                  'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
+              },
+              body: JSON.stringify([{
+                activity_type: 'prospect_research',
+                details: payload
+              }])
+          });
+
+          return { message: "Synced directly to core CRM data plane", data: payload };
         }
       }
     ]

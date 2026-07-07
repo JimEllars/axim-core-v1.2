@@ -1,4 +1,3 @@
-
 interface Env {
   VITE_SUPABASE_URL: string;
   VITE_SUPABASE_ANON_KEY: string;
@@ -26,7 +25,7 @@ export default {
     try {
       const { prompt, command, context, nodeScope } = await request.json() as any;
 
-            // Task 3: Edge Telemetry Sliding-Window Filter
+      // Task 3: Edge Telemetry Sliding-Window Filter
       if (nodeScope) {
         const now = Date.now();
         const windowTime = 1000; // 1 second window
@@ -39,6 +38,8 @@ export default {
           timestamps = timestamps.filter(time => now - time < windowTime);
         } catch (cacheErr) {
           timestamps = []; // Safe fallback
+          const faultPayload = [{ type: 'kv_write_fault', message: 'Failed to read from cache' }];
+          console.error(JSON.stringify(faultPayload));
         }
 
         if (timestamps.length >= 5) { // Threshold: 5 requests per second
@@ -46,7 +47,10 @@ export default {
 
           try {
              windowCache.set(nodeScope, timestamps);
-          } catch (cacheErr) {}
+          } catch (cacheErr) {
+            const faultPayload = [{ type: 'kv_write_fault', message: 'Failed to write to cache' }];
+            console.error(JSON.stringify(faultPayload));
+          }
 
           return new Response(JSON.stringify({ error: "Rate limit exceeded for this node scope" }), {
             status: 429,
@@ -61,7 +65,10 @@ export default {
         timestamps.push(now);
         try {
           windowCache.set(nodeScope, timestamps);
-        } catch (cacheErr) {}
+        } catch (cacheErr) {
+          const faultPayload = [{ type: 'kv_write_fault', message: 'Failed to write to cache' }];
+          console.error(JSON.stringify(faultPayload));
+        }
       }
 
       const authHeader = request.headers.get("Authorization");
@@ -82,7 +89,9 @@ export default {
         });
       } catch (authErr) {
          // Add standard safe check fallbacks to verify the worker safely handles instances where telemetry endpoints return non-200 responses
-         return new Response(JSON.stringify({ error: "Authentication service unavailable" }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+         const faultPayload = [{ type: 'enrichment_fault', message: 'Authentication service unavailable' }];
+         console.error(JSON.stringify(faultPayload));
+         return new Response(JSON.stringify({ error: "Authentication service unavailable", telemetry: faultPayload }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       }
 
       if (!userRes || !userRes.ok) {
@@ -117,7 +126,9 @@ Context: ${JSON.stringify(context || {})}`;
 
       if (!claudeResponse.ok) {
         const errorText = await claudeResponse.text();
-        return new Response(JSON.stringify({ error: `Anthropic API error: ${claudeResponse.status} ${errorText}` }), {
+        const faultPayload = [{ type: 'enrichment_fault', message: `Anthropic API error: ${claudeResponse.status} ${errorText}` }];
+        console.error(JSON.stringify(faultPayload));
+        return new Response(JSON.stringify({ error: `Anthropic API error: ${claudeResponse.status} ${errorText}`, telemetry: faultPayload }), {
           status: claudeResponse.status,
           headers: { ...corsHeaders, "Content-Type": "application/json" }
         });
@@ -133,7 +144,9 @@ Context: ${JSON.stringify(context || {})}`;
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     } catch (e: any) {
-      return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const faultPayload = [{ type: 'enrichment_fault', message: e.message }];
+      console.error(JSON.stringify(faultPayload));
+      return new Response(JSON.stringify({ error: e.message, telemetry: faultPayload }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
   }
 };
