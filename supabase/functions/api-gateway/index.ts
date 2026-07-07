@@ -260,6 +260,25 @@ serve(async (req) => {
     }
 
     if (req.method === 'POST' && endpoint === '/api/v1/micro-app/ingress') {
+      // Lightweight structural multi-tenant validation filter
+      if (Array.isArray(body)) {
+        for (const item of body) {
+          if (!item.tenant_id && !item.partner_id && !item.organization_id) {
+            return new Response(JSON.stringify({ error: 'Validation Error: Missing structural multi-tenant identifier in array payload' }), {
+              status: 400,
+              headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+            });
+          }
+        }
+      } else if (body && typeof body === 'object') {
+        if (!body.tenant_id && !body.partner_id && !body.organization_id && !partnerId) {
+            return new Response(JSON.stringify({ error: 'Validation Error: Missing structural multi-tenant identifier in payload' }), {
+              status: 400,
+              headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+            });
+        }
+      }
+
       const dispatcherUrl = `${SUPABASE_URL}/functions/v1/universal-dispatcher`;
       const dispatchRes = await fetch(dispatcherUrl, {
         method: 'POST',

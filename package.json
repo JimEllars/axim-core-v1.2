@@ -23,7 +23,7 @@
     "electron:build:linux": "npm run build && electron-builder --linux --publish never",
     "electron:build:win": "npm run build && electron-builder --win --publish never",
     "electron:build:mac": "npm run build && electron-builder --mac --publish never",
-    "deploy": "cd cloudflare-workers && npx wrangler deploy -c wrangler.toml",
+    "deploy": "npx wrangler deploy cloudflare-workers/onyx-edge-worker/src/index.ts -c cloudflare-workers/onyx-edge-worker/wrangler.toml",
     "test:functions": "node scripts/smoke-test-functions.js"
   },
   "dependencies": {
@@ -70,7 +70,7 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^5.2.0",
-    "@vitest/coverage-v8": "^4.1.9",
+    "@vitest/coverage-v8": "^4.1.10",
     "autoprefixer": "^10.4.20",
     "baseline-browser-mapping": "^2.10.20",
     "bcryptjs": "^3.0.3",
@@ -97,7 +97,7 @@
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
     "vite": "^7.3.5",
-    "vitest": "^4.1.9",
+    "vitest": "^4.1.10",
     "wrangler": "^4.76.0"
   },
   "build": {
