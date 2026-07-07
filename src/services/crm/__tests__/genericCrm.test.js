@@ -1,73 +1,61 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import GenericCrm from '../genericCrm.js';
+import GenericCrm from '../genericCrm';
 import api from '../../onyxAI/api';
-import * as sanitization from '../../../utils/sanitization.js';
+import { sanitizePayload } from '../../../utils/sanitization';
 
-// Mock dependencies
-vi.mock('../../onyxAI/api', () => {
-  return {
-    default: {
-      supabaseApiService: {
-        supabase: {
-          from: vi.fn().mockReturnThis(),
-          insert: vi.fn().mockResolvedValue({ error: null })
-        }
+vi.mock('../../onyxAI/api', () => ({
+  default: {
+    supabaseApiService: {
+      supabase: {
+        from: vi.fn().mockReturnThis(),
+        insert: vi.fn().mockResolvedValue({ data: [], error: null }),
       },
-      bulkAddContacts: vi.fn().mockResolvedValue([
-        { id: 1, email: 'test1@test.com' },
-        { id: 2, email: 'test2@test.com' }
-      ])
-    }
-  };
-});
+    },
+  },
+}));
 
-vi.mock('../../../utils/sanitization.js', () => {
-  return {
-    sanitizePayload: vi.fn((data) => data)
-  };
-});
+vi.mock('../../../utils/sanitization', () => ({
+  sanitizePayload: vi.fn((data) => data),
+}));
 
 // Mock fetch
 global.fetch = vi.fn();
 
 describe('GenericCrm', () => {
-  const mockIntegration = {
-    name: 'Test CRM',
-    base_url: 'https://test-crm.com/api'
-  };
+  let crm;
+  const mockIntegration = { name: 'TestCRM', base_url: 'http://test.com' };
 
   beforeEach(() => {
     vi.clearAllMocks();
+    crm = new GenericCrm(mockIntegration);
   });
 
   it('should filter out contacts that are out of bounds geographically', async () => {
-    const mockUsers = [
-      { name: 'In Bounds 1', email: 'in1@test.com', facility_zip: '75601' },
-      { name: 'In Bounds 2', email: 'in2@test.com', facility_zip: '75695' },
-      { name: 'In Bounds Specific', email: 'in3@test.com', facility_zip: '75654' },
-      { name: 'Out of Bounds 1', email: 'out1@test.com', facility_zip: '75000' },
-      { name: 'Out of Bounds 2', email: 'out2@test.com', facility_zip: '75700' },
-      { name: 'No Zip', email: 'nozip@test.com' }
+    const mockData = [
+      { name: 'Out of Bounds 1', email: 'oob1@test.com', facility_zip: '75600' },
+      { name: 'Out of Bounds 2', email: 'oob2@test.com', facility_zip: '75696' },
+      { name: 'In Bounds 1', email: 'ib1@test.com', facility_zip: '75650' },
+      { name: 'No Zip', email: 'nozip@test.com', facility_zip: null },
     ];
 
-    fetch.mockResolvedValue({
+    // First fetch for genericCrm sync contacts
+    fetch.mockResolvedValueOnce({
       ok: true,
-      json: async () => mockUsers
+      json: async () => mockData,
+    });
+    // Second fetch for the Data Plane postgrest
+    fetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => []
     });
 
-    const crm = new GenericCrm(mockIntegration);
-    const result = await crm.syncContacts();
+    await crm.syncContacts();
 
-    // Out of bounds are removed (2 out of bounds), so 6 total - 2 = 4 mapped over.
-    // wait, 'No Zip' has no facility_zip, it stays.
-    // in1, in2, in3, nozip => 4.
-    expect(result.synced).toBe(4);
+    // Check fetch payload to the Data Plane
+    const dataPlaneCall = fetch.mock.calls[1];
+    const contactsToImport = JSON.parse(dataPlaneCall[1].body);
 
-    // Check bulkAddContacts payload
-    const bulkAddCall = api.bulkAddContacts.mock.calls[0];
-    const contactsToImport = bulkAddCall[0];
-
-    expect(contactsToImport.length).toBe(4);
+    expect(contactsToImport.length).toBe(2);
     expect(contactsToImport.some(c => c.name === 'Out of Bounds 1')).toBe(false);
     expect(contactsToImport.some(c => c.name === 'Out of Bounds 2')).toBe(false);
     expect(contactsToImport.some(c => c.name === 'In Bounds 1')).toBe(true);

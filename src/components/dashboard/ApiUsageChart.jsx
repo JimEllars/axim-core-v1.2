@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import * as FiIcons from 'react-icons/fi';
-import SafeIcon from '../../common/SafeIcon';
-import config from '../../config';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
 import { useConnectivity } from '../../contexts/ConnectivityContext';
+import config from '../../config';
+import * as FiIcons from 'react-icons/fi';
+import SafeIcon from '../../common/SafeIcon';
 import { supabase } from '../../services/supabaseClient';
 import logger from '../../services/logging';
 
@@ -27,13 +27,13 @@ const ApiUsageChart = () => {
     if (config.isMockLlmEnabled) {
       logger.debug('Mock mode: providing mock API usage data.');
       const mockData = [
-        { date: '2023-10-01', count: 120 },
-        { date: '2023-10-02', count: 150 },
-        { date: '2023-10-03', count: 200 },
-        { date: '2023-10-04', count: 180 },
-        { date: '2023-10-05', count: 250 },
-        { date: '2023-10-06', count: 230 },
-        { date: '2023-10-07', count: 300 },
+        { date: '2023-10-01', successCount: 120, errorCount: 10, deflectedStorms: 2, enrichmentFaults: 0, kvWriteFaults: 0 },
+        { date: '2023-10-02', successCount: 150, errorCount: 5, deflectedStorms: 0, enrichmentFaults: 1, kvWriteFaults: 0 },
+        { date: '2023-10-03', successCount: 200, errorCount: 15, deflectedStorms: 5, enrichmentFaults: 0, kvWriteFaults: 2 },
+        { date: '2023-10-04', successCount: 180, errorCount: 8, deflectedStorms: 1, enrichmentFaults: 0, kvWriteFaults: 0 },
+        { date: '2023-10-05', successCount: 250, errorCount: 12, deflectedStorms: 0, enrichmentFaults: 2, kvWriteFaults: 1 },
+        { date: '2023-10-06', successCount: 230, errorCount: 20, deflectedStorms: 10, enrichmentFaults: 0, kvWriteFaults: 0 },
+        { date: '2023-10-07', successCount: 300, errorCount: 18, deflectedStorms: 4, enrichmentFaults: 3, kvWriteFaults: 0 },
       ];
       setData(mockData);
       setLoading(false);
@@ -49,7 +49,7 @@ const ApiUsageChart = () => {
 
       const { data: logs, error: supabaseError } = await supabase
         .from('api_usage_logs')
-        .select('created_at, status_code, details, headers')
+        .select('created_at, status_code, details, headers, endpoint')
         .eq('partner_id', user.id)
         .gte('created_at', sevenDaysAgo.toISOString());
 
@@ -59,7 +59,7 @@ const ApiUsageChart = () => {
       logs.forEach(log => {
         const date = new Date(log.created_at).toLocaleDateString();
         if (!aggregated[date]) {
-          aggregated[date] = { date, successCount: 0, errorCount: 0, deflectedStorms: 0 };
+          aggregated[date] = { date, successCount: 0, errorCount: 0, deflectedStorms: 0, enrichmentFaults: 0, kvWriteFaults: 0 };
         }
         if (log.status_code >= 200 && log.status_code < 300) {
           aggregated[date].successCount++;
@@ -68,14 +68,28 @@ const ApiUsageChart = () => {
         } else if (log.status_code === 429 && log.headers && log.headers['x-axim-edge-throttled']) {
           aggregated[date].deflectedStorms += parseInt(log.headers['x-axim-edge-throttled'], 10) || 1;
         } else {
-          aggregated[date].errorCount++;
+          let hasFault = false;
+          if (log.details?.telemetry && Array.isArray(log.details.telemetry)) {
+              log.details.telemetry.forEach(t => {
+                  if (t.type === 'enrichment_fault') {
+                      aggregated[date].enrichmentFaults++;
+                      hasFault = true;
+                  } else if (t.type === 'kv_write_fault') {
+                      aggregated[date].kvWriteFaults++;
+                      hasFault = true;
+                  }
+              });
+          }
+          if (!hasFault) {
+             aggregated[date].errorCount++;
+          }
         }
       });
 
       const formattedData = Object.values(aggregated).sort((a, b) => new Date(a.date) - new Date(b.date));
 
       if (formattedData.length === 0) {
-         formattedData.push({ date: new Date().toLocaleDateString(), successCount: 0, errorCount: 0, deflectedStorms: 0 });
+         formattedData.push({ date: new Date().toLocaleDateString(), successCount: 0, errorCount: 0, deflectedStorms: 0, enrichmentFaults: 0, kvWriteFaults: 0 });
       }
 
       setData(formattedData);
@@ -92,6 +106,7 @@ const ApiUsageChart = () => {
       // Calculate compression efficiency metrics as requested by architecture
       const uncompressedSize = JSON.stringify(offlineTelemetryCache).length;
 
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsRestoring(true);
       setSynchronizedPackets(offlineTelemetryCache.length);
 
@@ -104,7 +119,7 @@ const ApiUsageChart = () => {
           let dateEntry = newData.find(item => item.date === date);
 
           if (!dateEntry) {
-            dateEntry = { date, successCount: 0, errorCount: 0, deflectedStorms: 0 };
+            dateEntry = { date, successCount: 0, errorCount: 0, deflectedStorms: 0, enrichmentFaults: 0, kvWriteFaults: 0 };
             newData.push(dateEntry);
           }
 
@@ -115,7 +130,21 @@ const ApiUsageChart = () => {
           } else if (log.status_code === 429 && log.headers && log.headers['x-axim-edge-throttled']) {
             dateEntry.deflectedStorms += parseInt(log.headers['x-axim-edge-throttled'], 10) || 1;
           } else {
-            dateEntry.errorCount++;
+             let hasFault = false;
+             if (log.details?.telemetry && Array.isArray(log.details.telemetry)) {
+                  log.details.telemetry.forEach(t => {
+                      if (t.type === 'enrichment_fault') {
+                          dateEntry.enrichmentFaults++;
+                          hasFault = true;
+                      } else if (t.type === 'kv_write_fault') {
+                          dateEntry.kvWriteFaults++;
+                          hasFault = true;
+                      }
+                  });
+              }
+              if (!hasFault) {
+                 dateEntry.errorCount++;
+              }
           }
         });
 
@@ -155,7 +184,7 @@ const ApiUsageChart = () => {
             let dateEntry = newData.find(item => item.date === date);
 
             if (!dateEntry) {
-              dateEntry = { date, successCount: 0, errorCount: 0, deflectedStorms: 0 };
+              dateEntry = { date, successCount: 0, errorCount: 0, deflectedStorms: 0, enrichmentFaults: 0, kvWriteFaults: 0 };
               newData.push(dateEntry);
               newData.sort((a, b) => new Date(a.date) - new Date(b.date));
             }
@@ -167,7 +196,21 @@ const ApiUsageChart = () => {
             } else if (newLog.status_code === 429 && newLog.headers && newLog.headers['x-axim-edge-throttled']) {
               dateEntry.deflectedStorms += parseInt(newLog.headers['x-axim-edge-throttled'], 10) || 1;
             } else {
-              dateEntry.errorCount++;
+               let hasFault = false;
+               if (newLog.details?.telemetry && Array.isArray(newLog.details.telemetry)) {
+                    newLog.details.telemetry.forEach(t => {
+                        if (t.type === 'enrichment_fault') {
+                            dateEntry.enrichmentFaults++;
+                            hasFault = true;
+                        } else if (t.type === 'kv_write_fault') {
+                            dateEntry.kvWriteFaults++;
+                            hasFault = true;
+                        }
+                    });
+                }
+                if (!hasFault) {
+                   dateEntry.errorCount++;
+                }
             }
 
             return newData;
@@ -247,6 +290,8 @@ const ApiUsageChart = () => {
             <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px', color: '#F9FAFB' }} />
             <Bar dataKey="successCount" name="Requests Made" fill="#2DD4BF" radius={[4, 4, 0, 0]} />
             <Bar dataKey="errorCount" name="Errors" fill="#EF4444" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="enrichmentFaults" name="Enrichment Faults" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="kvWriteFaults" name="KV Write Faults" fill="#EC4899" radius={[4, 4, 0, 0]} />
             <Bar dataKey="deflectedStorms" name="Deflected Storms" fill="#F59E0B" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
