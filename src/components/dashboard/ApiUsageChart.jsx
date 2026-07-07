@@ -2,10 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { useConnectivity } from '../../hooks/useConnectivity';
-import config from '../../config/config';
+import { useConnectivity } from '../../contexts/ConnectivityContext';
+import config from '../../config';
 import * as FiIcons from 'react-icons/fi';
-import SafeIcon from '../common/SafeIcon';
+import SafeIcon from '../../common/SafeIcon';
 import { supabase } from '../../services/supabaseClient';
 import logger from '../../services/logging';
 
