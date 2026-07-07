@@ -89,12 +89,16 @@ const ApiUsageChart = () => {
 
   useEffect(() => {
     if (isOnline && offlineTelemetryCache.length > 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      // Calculate compression efficiency metrics as requested by architecture
+      const uncompressedSize = JSON.stringify(offlineTelemetryCache).length;
+
       setIsRestoring(true);
       setSynchronizedPackets(offlineTelemetryCache.length);
 
       setData(currentData => {
-        const newData = [...currentData];
+        // Create a deep copy to prevent unwanted layout shifts and component unmounts
+        const newData = currentData.map(item => ({...item}));
+
         offlineTelemetryCache.forEach(log => {
           const date = new Date(log.created_at || Date.now()).toLocaleDateString();
           let dateEntry = newData.find(item => item.date === date);
@@ -102,7 +106,6 @@ const ApiUsageChart = () => {
           if (!dateEntry) {
             dateEntry = { date, successCount: 0, errorCount: 0, deflectedStorms: 0 };
             newData.push(dateEntry);
-            newData.sort((a, b) => new Date(a.date) - new Date(b.date));
           }
 
           if (log.status_code >= 200 && log.status_code < 300) {
@@ -115,8 +118,17 @@ const ApiUsageChart = () => {
             dateEntry.errorCount++;
           }
         });
+
+        newData.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+        // Calculate compression ratio metric for the synchronized telemetry block
+        const compressedSize = JSON.stringify(newData).length;
+        const compressionRatio = compressedSize > 0 ? (uncompressedSize / compressedSize).toFixed(2) : '1.00';
+        logger.debug(`Synchronized backfill cluster. Compression Ratio: ${compressionRatio}`);
+
         return newData;
       });
+
       clearOfflineTelemetry();
 
       const timer = setTimeout(() => {
