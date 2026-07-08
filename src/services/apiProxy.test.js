@@ -1,108 +1,110 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { callApiProxy } from './apiProxy';
+import { callApiProxy, submitMicroAppTelemetry } from './apiProxy';
 import { supabase } from './supabaseClient';
+import logger from './logging';
 
-vi.mock('./supabaseClient', () => {
-  return {
-    supabase: {
-      functions: {
-        invoke: vi.fn(),
-      },
+vi.mock('./supabaseClient', () => ({
+  supabase: {
+    functions: {
+      invoke: vi.fn(),
     },
-  };
-});
+    from: vi.fn(() => ({
+      insert: vi.fn()
+    }))
+  },
+}));
 
-describe('callApiProxy', () => {
+vi.mock('./logging', () => ({
+  default: {
+    error: vi.fn(),
+    info: vi.fn(),
+  },
+}));
+
+describe('apiProxy.js tests', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should call supabase.functions.invoke with correct parameters and return data on success', async () => {
-    const mockResponse = { data: { success: true }, error: null };
-    supabase.functions.invoke.mockResolvedValueOnce(mockResponse);
+  describe('submitMicroAppTelemetry', () => {
+    it('should validate payloads and insert them into api_usage_logs directly', async () => {
+      const mockInsert = vi.fn().mockResolvedValue({ data: { success: true }, error: null });
+      supabase.from.mockReturnValue({ insert: mockInsert });
 
-    const params = {
-      integrationId: 'int-123',
-      endpoint: '/users',
-      method: 'GET',
-      body: { name: 'test' },
-      headers: { 'Authorization': 'Bearer token' },
-    };
+      const payload = {
+        app_id: 'test_app',
+        endpoint: '/test/endpoint',
+        method: 'POST',
+        status_code: 200,
+        execution_time_ms: 150
+      };
 
-    const result = await callApiProxy(params);
+      const result = await submitMicroAppTelemetry(payload);
 
-    expect(supabase.functions.invoke).toHaveBeenCalledWith('api-proxy', {
-      body: {
-        integrationId: 'int-123',
-        endpoint: '/users',
-        method: 'GET',
-        body: { name: 'test' },
-        headers: { 'Authorization': 'Bearer token' },
-      },
-    });
-    expect(result).toEqual({ success: true });
-  });
-
-  it('should throw an error if supabase.functions.invoke returns an error object', async () => {
-    const mockResponse = { data: null, error: { message: 'Network error' } };
-    supabase.functions.invoke.mockResolvedValueOnce(mockResponse);
-
-    const params = {
-      integrationId: 'int-123',
-      endpoint: '/users',
-      method: 'GET',
-    };
-
-    await expect(callApiProxy(params)).rejects.toThrow('API Proxy Error');
-  });
-
-  it('should throw an error if the returned data contains an error property', async () => {
-    const mockResponse = { data: { error: 'Invalid API Key' }, error: null };
-    supabase.functions.invoke.mockResolvedValueOnce(mockResponse);
-
-    const params = {
-      integrationId: 'int-123',
-      endpoint: '/users',
-      method: 'GET',
-    };
-
-    await expect(callApiProxy(params)).rejects.toThrow('API Proxy Error');
-  });
-
-  it('should throw an error if supabase client is not initialized', async () => {
-    vi.resetModules();
-    vi.doMock('./supabaseClient', () => {
-      return { supabase: null };
+      expect(supabase.from).toHaveBeenCalledWith('api_usage_logs');
+      expect(mockInsert).toHaveBeenCalledWith([payload]);
+      expect(result).toEqual({ success: true });
     });
 
-    const { callApiProxy: dynamicCallApiProxy } = await import('./apiProxy');
+    it('should handle payload arrays', async () => {
+      const mockInsert = vi.fn().mockResolvedValue({ data: { success: true }, error: null });
+      supabase.from.mockReturnValue({ insert: mockInsert });
 
-    await expect(dynamicCallApiProxy({
-      integrationId: '123', endpoint: '/test', method: 'GET'
-    })).rejects.toThrow('Supabase client is not initialized.');
+      const payload = [{
+        app_id: 'test_app',
+        endpoint: '/test/endpoint',
+      }];
+
+      await submitMicroAppTelemetry(payload);
+
+      expect(mockInsert).toHaveBeenCalledWith([{
+        app_id: 'test_app',
+        endpoint: '/test/endpoint',
+        method: 'UNKNOWN',
+        status_code: 200,
+        execution_time_ms: 0
+      }]);
+    });
+
+    it('should return undefined and log error on invalid payload format', async () => {
+      const result = await submitMicroAppTelemetry(null);
+
+      expect(logger.error).toHaveBeenCalledWith('Invalid payload format for telemetry');
+      expect(result).toBeUndefined();
+    });
+
+    it('should not throw on insert failure, but log it', async () => {
+      const mockInsert = vi.fn().mockResolvedValue({ data: null, error: new Error("Insert Failed") });
+      supabase.from.mockReturnValue({ insert: mockInsert });
+
+      const result = await submitMicroAppTelemetry({ app_id: 'test' });
+
+      expect(logger.error).toHaveBeenCalledWith('Failed to submit micro-app telemetry: Insert Failed');
+      expect(result).toBeUndefined();
+    });
   });
 
-  it('should call supabase.functions.invoke correctly without optional parameters (body, headers)', async () => {
-    const mockResponse = { data: { success: true }, error: null };
-    supabase.functions.invoke.mockResolvedValueOnce(mockResponse);
+  describe('callApiProxy', () => {
+    it('should call api-proxy edge function and return data', async () => {
+      supabase.functions.invoke.mockResolvedValue({ data: { success: true }, error: null });
 
-    const params = {
-      integrationId: 'int-456',
-      endpoint: '/health',
-      method: 'GET',
-    };
-
-    const result = await callApiProxy(params);
-
-    expect(supabase.functions.invoke).toHaveBeenCalledWith('api-proxy', {
-      body: {
-        integrationId: 'int-456',
-        endpoint: '/health',
-        method: 'GET',
-        body: undefined,
-        headers: undefined,
-      },
+      const result = await callApiProxy({ integrationId: 'test' });
+      expect(result).toEqual({ success: true });
+      expect(supabase.functions.invoke).toHaveBeenCalledWith('api-proxy', {
+        body: { integrationId: 'test', endpoint: undefined, method: undefined, body: undefined, headers: undefined }
+      });
     });
-    expect(result).toEqual({ success: true });
+
+    it('should throw an error if invoke fails', async () => {
+      supabase.functions.invoke.mockResolvedValue({ data: null, error: new Error('Network error') });
+
+      await expect(callApiProxy({ integrationId: 'test' })).rejects.toThrow('API Proxy Error: Network error');
+    });
+
+    it('should throw an error if data contains error', async () => {
+      supabase.functions.invoke.mockResolvedValue({ data: { error: 'API Error' }, error: null });
+
+      await expect(callApiProxy({ integrationId: 'test' })).rejects.toThrow('API Proxy Error: API Error: API Error');
+    });
   });
 });

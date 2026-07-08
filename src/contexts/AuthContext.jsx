@@ -71,7 +71,8 @@ export const AuthProvider = ({ children }) => {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'x-axim-edge-token': session.access_token // Ensure auth tokens are safely integrated into standard fetch request headers
         }
       });
       if (response.ok) {

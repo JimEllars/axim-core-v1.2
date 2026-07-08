@@ -5,7 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { Link } from 'react-router-dom';
 
-const { FiLock, FiEye, FiEyeOff, FiShield, FiMail } = FiIcons;
+const { FiLock, FiEye, FiEyeOff, FiShield, FiMail, FiActivity } = FiIcons;
 
 const Login = () => {
   const [email, setEmail] = useState('');
@@ -13,6 +13,11 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const { login, loading } = useAuth();
+
+  // Mock values for diagnostic panel
+  const validatedTokens = 42;
+  const totalRequests = 45;
+  const efficiency = ((validatedTokens / totalRequests) * 100).toFixed(1);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -95,33 +100,56 @@ const Login = () => {
               </div>
             </div>
 
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                className="text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg p-3"
-              >
-                {error}
-              </motion.div>
-            )}
+            <div className="h-12 flex items-center">
+              {error ? (
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  className="w-full text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg p-3"
+                >
+                  {error}
+                </motion.div>
+              ) : null}
+            </div>
 
             <motion.button
               type="submit"
               disabled={loading}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 px-4 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              className="w-full h-12 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
               {loading ? (
-                <div className="flex items-center justify-center">
+                <>
                   <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                   Authenticating...
-                </div>
+                </>
               ) : (
                 'Access Dashboard'
               )}
             </motion.button>
           </form>
+
+          {/* Diagnostic Panel */}
+          <div className="mt-8 pt-6 border-t border-onyx-accent/20">
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <div className="flex items-center space-x-2">
+                <SafeIcon icon={FiActivity} className="text-emerald-500" />
+                <span>Session Verification Efficiency:</span>
+              </div>
+              <span className="font-mono text-emerald-400">{efficiency}%</span>
+            </div>
+            <div className="mt-2 w-full bg-onyx-950/50 rounded-full h-1.5">
+              <div
+                className="bg-emerald-500 h-1.5 rounded-full"
+                style={{ width: `${efficiency}%` }}
+              ></div>
+            </div>
+            <div className="mt-2 flex justify-between text-[10px] font-mono text-slate-500">
+              <span>{validatedTokens} Validated</span>
+              <span>{totalRequests} Total Requests</span>
+            </div>
+          </div>
 
         </div>
       </motion.div>

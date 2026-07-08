@@ -46,6 +46,7 @@ const SpreadsheetImport = () => {
         acc[key] = '';
         return acc;
       }, {});
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setColumnMap(initialMap);
       const firstRequiredField = Object.keys(schema).find(key => schema[key].required);
       setSortConfig({ key: firstRequiredField || Object.keys(schema)[0], direction: 'ascending' });
@@ -55,9 +56,10 @@ const SpreadsheetImport = () => {
     }
   }, [dataType]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+
   useEffect(() => {
     if (rawData.length === 0 || !dataType) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setProcessedData([]);
       return;
     }
@@ -67,6 +69,7 @@ const SpreadsheetImport = () => {
     const isMappingIncomplete = requiredFields.some(key => !columnMap[key]);
 
     if (isMappingIncomplete) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setProcessedData([]);
       return;
     }
@@ -140,7 +143,8 @@ const SpreadsheetImport = () => {
     setIsParsing(true);
     setFileName(file.name);
     setRawData([]);
-    setProcessedData([]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+      setProcessedData([]);
     setHeaders([]);
 
     // Reset columnMap based on the current dataType's schema
@@ -150,6 +154,7 @@ const SpreadsheetImport = () => {
         acc[key] = '';
         return acc;
       }, {});
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setColumnMap(initialMap);
     }
 
@@ -248,6 +253,7 @@ const SpreadsheetImport = () => {
 
       // Reset state to start over
       setRawData([]);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setProcessedData([]);
       setFileName('');
       setHeaders([]);

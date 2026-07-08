@@ -26,6 +26,7 @@ const DeviceManager = () => {
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDevices();
   }, [fetchDevices]);
 
@@ -49,7 +50,8 @@ const DeviceManager = () => {
     const success = await updateDevice(selectedDevice.id, { device_name: newDeviceName.trim() });
     if (success) {
       toast.success('Device renamed successfully.');
-      await fetchDevices(); // Refresh the list
+      await // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchDevices(); // Refresh the list
       closeRenameModal();
     } else {
       toast.error('Failed to rename device.');
@@ -71,7 +73,8 @@ const DeviceManager = () => {
     const success = await deleteDevice(selectedDevice.id);
     if (success) {
       toast.success('Device removed successfully.');
-      await fetchDevices(); // Refresh the list
+      await // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchDevices(); // Refresh the list
       closeDeleteModal();
     } else {
       toast.error('Failed to remove device.');

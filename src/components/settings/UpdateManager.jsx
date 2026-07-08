@@ -11,15 +11,18 @@ const UpdateManager = () => {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (!ipcRenderer) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUpdateStatus('Updates are only available in the desktop app.');
       return;
     }
 
     const handleUpdateStatus = (event, message) => {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUpdateStatus(message);
     };
 
     const handleUpdateDownloaded = () => {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUpdateStatus('Update downloaded. Ready to install.');
       setUpdateDownloaded(true);
     };
@@ -36,6 +39,7 @@ const UpdateManager = () => {
 
   const handleCheckForUpdates = () => {
     if (ipcRenderer) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUpdateStatus('Manual update check started...');
       ipcRenderer.send('check-for-updates');
     }

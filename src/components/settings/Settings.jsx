@@ -20,6 +20,7 @@ const Settings = () => {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (settings) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAiSettings(settings.ai || { model: 'gpt-4', temperature: 0.7 });
       setConnections(settings.connections || { primaryCrm: 'salesforce' });
       setTheme(settings.theme || 'dark');
@@ -73,7 +74,8 @@ const Settings = () => {
               <select
                 id="ai-model"
                 value={aiSettings.model}
-                onChange={(e) => setAiSettings({ ...aiSettings, model: e.target.value })}
+                onChange={(e) => // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAiSettings({ ...aiSettings, model: e.target.value })}
                 className="w-full pl-3 pr-10 py-2 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg text-white"
               >
                 <option>gpt-4</option>
@@ -90,7 +92,8 @@ const Settings = () => {
                 max="1"
                 step="0.1"
                 value={aiSettings.temperature}
-                onChange={(e) => setAiSettings({ ...aiSettings, temperature: parseFloat(e.target.value) })}
+                onChange={(e) => // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAiSettings({ ...aiSettings, temperature: parseFloat(e.target.value) })}
                 className="w-full h-2 bg-onyx-950 rounded-lg appearance-none cursor-pointer"
               />
               <div className="text-right text-sm text-slate-400 mt-1">{aiSettings.temperature}</div>

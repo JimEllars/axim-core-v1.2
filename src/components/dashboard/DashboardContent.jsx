@@ -11,7 +11,7 @@ import AIInteractionsChart from './AIInteractionsChart';
 import FleetStatusMap from './FleetStatusMap';
 import SystemAutonomyMap from './SystemAutonomyMap';
 import { useDashboard } from '../../contexts/DashboardContext';
-import { FiRefreshCw } from 'react-icons/fi';
+import { FiRefreshCw, FiTerminal } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const DashboardContent = () => {
@@ -33,8 +33,11 @@ const DashboardContent = () => {
         {/* Header */}
         <div className="lg:col-span-3 mb-4 flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Operations Center</h1>
-            <p className="text-slate-400">Real-time system monitoring and control</p>
+            <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
+              <FiTerminal className="text-blue-500" />
+              Unified Command Terminal
+            </h1>
+            <p className="text-slate-400 font-mono text-sm tracking-wider uppercase">Active State Monitoring & Ecosystem Aggregation</p>
           </div>
           <button
             onClick={handleRefresh}
@@ -45,6 +48,11 @@ const DashboardContent = () => {
           </button>
         </div>
 
+        {/* Metrics Overview - Unified Command Terminal Indicators */}
+        <div className="lg:col-span-3">
+          <MetricsGrid />
+        </div>
+
         {/* Fleet Map Overview */}
         <div className="lg:col-span-2">
           <FleetStatusMap />
@@ -53,11 +61,6 @@ const DashboardContent = () => {
         {/* System Autonomy Map */}
         <div className="lg:col-span-1">
           <SystemAutonomyMap />
-        </div>
-
-        {/* Metrics Overview */}
-        <div className="lg:col-span-3">
-          <MetricsGrid />
         </div>
 
         {/* Left Column */}

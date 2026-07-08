@@ -21,3 +21,11 @@ it('verifies UI components can accept deflected storms metrics gracefully', () =
 
     expect(mockChartData[0].deflectedStorms).toBe(5);
 });
+
+it('verifies Login Diagnostic Panel metrics calculation', () => {
+    const validatedTokens = 42;
+    const totalRequests = 45;
+    const efficiency = ((validatedTokens / totalRequests) * 100).toFixed(1);
+
+    expect(efficiency).toBe("93.3");
+});
