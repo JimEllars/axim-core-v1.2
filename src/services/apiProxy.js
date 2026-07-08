@@ -52,10 +52,27 @@ export const submitMicroAppTelemetry = async (payload) => {
     throw new Error("Supabase client is not initialized.");
   }
 
+  // Contract validation fields
+  if (!payload || typeof payload !== 'object') {
+    logger.error('Invalid payload format for telemetry');
+    return;
+  }
+
+  // Ensure payload is an array for batch inserts or single object
+  const payloadsToInsert = Array.isArray(payload) ? payload : [payload];
+
+  const validatedPayloads = payloadsToInsert.map(p => ({
+    app_id: p.app_id || 'unknown',
+    endpoint: p.endpoint || '/unknown',
+    method: p.method || 'UNKNOWN',
+    status_code: p.status_code || 200,
+    execution_time_ms: p.execution_time_ms || 0,
+    ...p
+  }));
+
   try {
-    const { data, error } = await supabase.functions.invoke('telemetry-ingress', {
-      body: payload
-    });
+    // Route these incoming transaction arrays straight to the central public.api_usage_logs table
+    const { data, error } = await supabase.from('api_usage_logs').insert(validatedPayloads);
 
     if (error) throw error;
     if (data && data.error) throw new Error(data.error);

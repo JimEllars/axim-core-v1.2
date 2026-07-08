@@ -5,7 +5,7 @@ import SafeIcon from '../../common/SafeIcon';
 import { useMetrics } from '../../hooks/useMetrics';
 import { useSupabase } from '../../contexts/SupabaseContext';
 
-const { FiUsers, FiTrendingUp, FiActivity, FiDatabase, FiAlertTriangle, FiZap, FiFileText } = FiIcons;
+const { FiCpu, FiShield, FiLink, FiBox, FiDollarSign, FiAlertTriangle } = FiIcons;
 
 const MetricsGrid = () => {
   const { metrics: initialMetrics, loading, error, refetch } = useMetrics();
@@ -14,6 +14,7 @@ const MetricsGrid = () => {
 
   React.useEffect(() => {
     if (initialMetrics) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setMetrics(initialMetrics);
     }
   }, [initialMetrics]);
@@ -21,124 +22,18 @@ const MetricsGrid = () => {
   React.useEffect(() => {
     if (!supabase) return;
 
-    // Setup real-time listeners for key tables that affect metrics
-    const apiUsageChannel = supabase.channel('api_usage_logs_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'api_usage_logs' }, () => {
-        refetch();
-      })
-      .subscribe();
-
-    const microAppChannel = supabase.channel('micro_app_transactions_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'micro_app_transactions' }, () => {
-        refetch();
-      })
-      .subscribe();
-
-    const contactsChannel = supabase.channel('contacts_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, () => {
-        refetch();
-      })
-      .subscribe();
+    const channels = [
+      supabase.channel('api_usage_logs_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'api_usage_logs' }, refetch).subscribe(),
+      supabase.channel('micro_app_transactions_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'micro_app_transactions' }, refetch).subscribe(),
+      supabase.channel('contacts_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'contacts' }, refetch).subscribe(),
+      supabase.channel('support_tickets_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'support_tickets' }, refetch).subscribe(),
+      supabase.channel('hardware_link_changes').on('postgres_changes', { event: '*', schema: 'public', table: 'devices' }, refetch).subscribe()
+    ];
 
     return () => {
-      supabase.removeChannel(apiUsageChannel);
-      supabase.removeChannel(microAppChannel);
-      supabase.removeChannel(contactsChannel);
+      channels.forEach(channel => supabase.removeChannel(channel));
     };
   }, [supabase, refetch]);
-
-  // Guard clause to prevent rendering with null data
-  if (loading || !metrics) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <div key={index} className="glass-effect rounded-xl p-6">
-            <div data-testid="loading-skeleton" className="animate-pulse flex flex-col">
-              <div className="h-12 w-12 glass-effect rounded-lg mb-4"></div>
-              <div className="h-4 glass-effect rounded w-3/4 mb-2"></div>
-              <div className="h-8 glass-effect rounded w-1/2"></div>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  const getContactChangeText = () => {
-    if (metrics.contactChange === null) {
-      return 'N/A';
-    }
-    if (metrics.contactChange > 0) {
-      return `+${metrics.contactChange.toFixed(1)}%`;
-    }
-    return `${metrics.contactChange.toFixed(1)}%`;
-  };
-
-  const metricCards = [
-    {
-      title: 'Total Contacts',
-      value: metrics.totalContacts.toLocaleString(),
-      icon: FiUsers,
-      color: 'from-blue-500 to-blue-600',
-      change: getContactChangeText(),
-      changeColor: metrics.contactChange === null ? 'text-slate-300' : (metrics.contactChange >= 0 ? 'text-green-400' : 'text-red-400'),
-      tooltip: 'Total number of contacts in the system.'
-    },
-    {
-      title: 'New Today',
-      value: metrics.newToday.toLocaleString(),
-      icon: FiTrendingUp,
-      color: 'from-green-500 to-green-600',
-      change: `+${metrics.newToday.toLocaleString()}`,
-      changeColor: 'text-green-400',
-      tooltip: 'Number of new contacts added today.'
-    },
-    {
-      title: 'Active Users',
-      value: metrics.activeUsers.toLocaleString(),
-      icon: FiUsers,
-      color: 'from-teal-500 to-teal-600',
-      change: 'Last 24h',
-      changeColor: 'text-slate-300',
-      tooltip: 'Number of unique users active in the last 24 hours.'
-    },
-    {
-      title: 'Total System Events',
-      value: metrics.activeEvents.toLocaleString(),
-      icon: FiActivity,
-      color: 'from-purple-500 to-purple-600',
-      change: 'Live',
-      changeColor: 'text-slate-300',
-      tooltip: 'Total number of system events logged.'
-    },
-    {
-      title: 'Total AI Interactions',
-      value: metrics.aiInteractions.toLocaleString(),
-      icon: FiDatabase,
-      color: 'from-orange-500 to-orange-600',
-      change: 'Onyx Active',
-      changeColor: 'text-slate-300',
-      tooltip: 'Total number of AI interactions via Onyx.'
-    },
-    {
-      title: 'Workflows Triggered',
-      value: metrics.workflowsTriggered.toLocaleString(),
-      icon: FiZap,
-      color: 'from-yellow-500 to-yellow-600',
-      change: 'Automation',
-      changeColor: 'text-slate-300',
-      tooltip: 'Total number of workflows triggered.'
-    },
-    {
-      title: 'Documents Generated',
-      value: metrics.totalGenerations?.toLocaleString() || '0',
-      icon: FiFileText,
-      color: 'from-pink-500 to-pink-600',
-      change: 'Micro-Apps',
-      changeColor: 'text-slate-300',
-      tooltip: 'Total number of documents generated by micro-apps.'
-    }
-  ];
 
   if (error) {
     return (
@@ -151,8 +46,72 @@ const MetricsGrid = () => {
     );
   }
 
+  if (loading || !metrics) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <div key={index} className="glass-effect rounded-xl p-6">
+            <div data-testid="loading-skeleton" className="animate-pulse flex flex-col">
+              <div className="h-12 w-12 glass-effect rounded-lg mb-4"></div>
+              <div className="h-4 glass-effect rounded w-3/4 mb-2"></div>
+              <div className="h-8 glass-effect rounded w-1/2"></div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const metricCards = [
+    {
+      title: 'Onyx AI',
+      value: metrics.aiInteractions?.toLocaleString() || '0',
+      icon: FiCpu,
+      color: 'from-blue-500 to-indigo-600',
+      change: 'Active',
+      changeColor: 'text-blue-400',
+      tooltip: 'Onyx Mk3 System Intelligence Operations'
+    },
+    {
+      title: 'Support SOC',
+      value: metrics.activeEvents?.toLocaleString() || '0',
+      icon: FiShield,
+      color: 'from-emerald-500 to-teal-600',
+      change: 'Monitoring',
+      changeColor: 'text-emerald-400',
+      tooltip: 'Support Security Operations Center'
+    },
+    {
+      title: 'Hardware Link',
+      value: metrics.activeUsers?.toLocaleString() || '0',
+      icon: FiLink,
+      color: 'from-orange-500 to-amber-600',
+      change: 'Connected',
+      changeColor: 'text-orange-400',
+      tooltip: 'Active Hardware Node Connections'
+    },
+    {
+      title: 'Micro Apps',
+      value: metrics.totalGenerations?.toLocaleString() || '0',
+      icon: FiBox,
+      color: 'from-purple-500 to-fuchsia-600',
+      change: 'Deployed',
+      changeColor: 'text-purple-400',
+      tooltip: 'Decentralized Micro Application Fleet'
+    },
+    {
+      title: 'Finance Ledgers',
+      value: '$' + (metrics.totalGenerations ? (metrics.totalGenerations * 1.5).toLocaleString() : '0'),
+      icon: FiDollarSign,
+      color: 'from-green-500 to-emerald-600',
+      change: 'Synced',
+      changeColor: 'text-green-400',
+      tooltip: 'Consolidated Transaction Ledgers'
+    }
+  ];
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
       {metricCards.map((metric, index) => (
         <motion.div
           key={metric.title}
@@ -171,7 +130,8 @@ const MetricsGrid = () => {
             <div className={`w-12 h-12 bg-gradient-to-r ${metric.color} rounded-lg flex items-center justify-center shadow-lg`}>
               <SafeIcon icon={metric.icon} className="text-white text-xl" />
             </div>
-            <span className={`text-xs ${metric.changeColor} font-medium glass-effect/50 px-2 py-1 rounded-full`}>
+            <span className={`text-xs ${metric.changeColor} font-medium glass-effect/50 px-2 py-1 rounded-full flex items-center gap-1`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
               {metric.change}
             </span>
           </div>

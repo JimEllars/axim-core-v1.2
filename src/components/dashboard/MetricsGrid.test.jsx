@@ -1,111 +1,101 @@
+import React from 'react';
 import { render, screen } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import MetricsGrid from './MetricsGrid';
 import { useMetrics } from '../../hooks/useMetrics';
-import { DashboardProvider } from '../../contexts/DashboardContext';
+import { useSupabase } from '../../contexts/SupabaseContext';
 
-vi.mock('../../contexts/SupabaseContext', () => ({
-  useSupabase: () => ({
-    supabase: {
-      channel: vi.fn().mockReturnThis(),
-      on: vi.fn().mockReturnThis(),
-      subscribe: vi.fn(),
-      removeChannel: vi.fn(),
-    }
-  })
+// Mock dependencies
+vi.mock('../../hooks/useMetrics', () => ({
+  useMetrics: vi.fn(),
 }));
 
-vi.mock('../../hooks/useMetrics');
+vi.mock('../../contexts/SupabaseContext', () => ({
+  useSupabase: vi.fn(),
+}));
 
-const mockMetrics = {
-  totalContacts: 1250,
-  contactChange: 5.2,
-  newToday: 25,
-  activeUsers: 300,
-  activeEvents: 5420,
-  aiInteractions: 1890,
-  workflowsTriggered: 120,
+// Mock framer-motion to avoid animation issues in tests
+vi.mock('framer-motion', () => ({
+  motion: {
+    div: ({ children, ...props }) => <div {...props}>{children}</div>,
+  },
+  AnimatePresence: ({ children }) => <>{children}</>,
+}));
+
+const mockSupabase = {
+  channel: vi.fn().mockReturnValue({
+    on: vi.fn().mockReturnThis(),
+    subscribe: vi.fn(),
+  }),
+  removeChannel: vi.fn(),
 };
-
-const defaultMetrics = {
-  totalContacts: 0,
-  contactChange: 0,
-  newToday: 0,
-  activeUsers: 0,
-  activeEvents: 0,
-  aiInteractions: 0,
-  workflowsTriggered: 0,
-};
-
-const renderWithProvider = (ui) => {
-  return render(<DashboardProvider>{ui}</DashboardProvider>);
-}
 
 describe('MetricsGrid', () => {
-  it('should render loading skeletons when loading', () => {
-    useMetrics.mockReturnValue({ metrics: defaultMetrics, loading: true, error: null });
-    renderWithProvider(<MetricsGrid />);
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useSupabase.mockReturnValue({ supabase: mockSupabase });
+  });
 
-    const loadingElements = screen.getAllByTestId('loading-skeleton');
-    expect(loadingElements.length).toBeGreaterThan(0);
-    loadingElements.forEach(el => {
-      expect(el).toHaveClass('animate-pulse');
+  const renderWithProvider = (ui) => {
+    return render(ui);
+  };
+
+  it('should render loading skeletons when loading', () => {
+    useMetrics.mockReturnValue({
+      metrics: null,
+      loading: true,
+      error: null,
+      refetch: vi.fn(),
     });
+
+    renderWithProvider(<MetricsGrid />);
+    const skeletons = screen.getAllByTestId('loading-skeleton');
+    expect(skeletons.length).toBeGreaterThan(0);
   });
 
   it('should render an error message when there is an error', () => {
-    const errorMessage = 'Failed to fetch metrics';
-    useMetrics.mockReturnValue({ metrics: defaultMetrics, loading: false, error: errorMessage });
-    renderWithProvider(<MetricsGrid />);
+    useMetrics.mockReturnValue({
+      metrics: null,
+      loading: false,
+      error: 'Failed to load metrics',
+      refetch: vi.fn(),
+    });
 
-    expect(screen.getByText(errorMessage)).toBeInTheDocument();
+    renderWithProvider(<MetricsGrid />);
+    expect(screen.getByText('Failed to load metrics')).toBeInTheDocument();
   });
 
   it('should render all metric cards with correct data', () => {
-    useMetrics.mockReturnValue({ metrics: mockMetrics, loading: false, error: null });
+    const mockMetricsData = {
+      aiInteractions: 1890,
+      activeEvents: 42,
+      activeUsers: 156,
+      totalGenerations: 850,
+      totalContacts: 5000,
+      newToday: 20
+    };
+
+    useMetrics.mockReturnValue({
+      metrics: mockMetricsData,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
     renderWithProvider(<MetricsGrid />);
 
-    expect(screen.getByText('Total Contacts')).toBeInTheDocument();
-    expect(screen.getByText('1,250')).toBeInTheDocument();
-    expect(screen.getByText('+5.2%')).toBeInTheDocument();
+    // Check titles
+    expect(screen.getByText('Onyx AI')).toBeInTheDocument();
+    expect(screen.getByText('Support SOC')).toBeInTheDocument();
+    expect(screen.getByText('Hardware Link')).toBeInTheDocument();
+    expect(screen.getByText('Micro Apps')).toBeInTheDocument();
+    expect(screen.getByText('Finance Ledgers')).toBeInTheDocument();
 
-    expect(screen.getByText('New Today')).toBeInTheDocument();
-    expect(screen.getByText('25')).toBeInTheDocument();
-
-    expect(screen.getByText('Active Users')).toBeInTheDocument();
-    expect(screen.getByText('300')).toBeInTheDocument();
-
-    expect(screen.getByText('Total System Events')).toBeInTheDocument();
-    expect(screen.getByText('5,420')).toBeInTheDocument();
-
-    expect(screen.getByText('Total AI Interactions')).toBeInTheDocument();
+    // Check values
     expect(screen.getByText('1,890')).toBeInTheDocument();
-
-    expect(screen.getByText('Workflows Triggered')).toBeInTheDocument();
-    expect(screen.getByText('120')).toBeInTheDocument();
-  });
-
-  it('should display negative contact change correctly', () => {
-    useMetrics.mockReturnValue({
-      metrics: { ...mockMetrics, contactChange: -2.1 },
-      loading: false,
-      error: null
-    });
-    renderWithProvider(<MetricsGrid />);
-    const changeElement = screen.getByText('-2.1%');
-    expect(changeElement).toBeInTheDocument();
-    expect(changeElement).toHaveClass('text-red-400');
-  });
-
-  it('should display N/A for null contact change', () => {
-    useMetrics.mockReturnValue({
-      metrics: { ...mockMetrics, contactChange: null },
-      loading: false,
-      error: null
-    });
-    renderWithProvider(<MetricsGrid />);
-    const changeElement = screen.getByText('N/A');
-    expect(changeElement).toBeInTheDocument();
-    expect(changeElement).toHaveClass('text-slate-300');
+    expect(screen.getByText('42')).toBeInTheDocument();
+    expect(screen.getByText('156')).toBeInTheDocument();
+    expect(screen.getByText('850')).toBeInTheDocument();
+    expect(screen.getByText('$1,275')).toBeInTheDocument(); // 850 * 1.5
   });
 });

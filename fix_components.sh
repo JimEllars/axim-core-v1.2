@@ -1,2 +1,2 @@
-#!/bin/bash
-find src/components -type f -name "*.jsx" -exec sed -i 's/from '"'"'..\/..\/..\/contexts\/ConnectivityContext'"'"'/from '"'"'..\/..\/contexts\/ConnectivityContext'"'"'/g' {} +
+sed -i 's/const ChartSkeleton = () => (/const ChartSkeleton = () => (/g' src/components/dashboard/ApiUsageChart.jsx
+sed -i '100s/const PieSkeleton = () => (/const PieSkeleton = () => (/' src/components/dashboard/ApiUsageChart.jsx

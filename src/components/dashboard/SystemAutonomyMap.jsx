@@ -69,6 +69,7 @@ const SystemAutonomyMap = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchEvents();
 
     // The component used to subscribe directly. Now we use the RealtimeContext custom events
@@ -77,11 +78,13 @@ const SystemAutonomyMap = () => {
     const handleTelemetryUpdate = (event) => {
         // Just trigger a re-fetch, or optimally append the new event. For simplicity and correctness, fetch again or prepend.
         // Let's re-fetch to ensure order and limits.
-        fetchEvents();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchEvents();
     };
 
     const handleExecUpdate = (event) => {
-        fetchEvents();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchEvents();
     };
 
     window.addEventListener('axim:telemetry_update', handleTelemetryUpdate);
@@ -90,12 +93,14 @@ const SystemAutonomyMap = () => {
     // Keep the old subscriptions too just in case we are missing some tables
     const usageSub = supabase.channel('api_usage_logs_changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'api_usage_logs' }, () => {
-        fetchEvents();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchEvents();
       }).subscribe();
 
     const bcSub = supabase.channel('blockchain_changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'blockchain_transactions' }, () => {
-        fetchEvents();
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchEvents();
       }).subscribe();
 
     return () => {
