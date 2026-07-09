@@ -23,7 +23,7 @@
     "electron:build:linux": "npm run build && electron-builder --linux --publish never",
     "electron:build:win": "npm run build && electron-builder --win --publish never",
     "electron:build:mac": "npm run build && electron-builder --mac --publish never",
-    "deploy": "npx wrangler deploy --dry-run",
+    "deploy": "rm -rf .wrangler && npx wrangler deploy --dry-run",
     "test:functions": "node scripts/smoke-test-functions.js"
   },
   "dependencies": {
