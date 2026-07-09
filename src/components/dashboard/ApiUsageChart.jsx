@@ -39,6 +39,8 @@ const ApiUsageChart = () => {
   const [error, setError] = useState(null);
   const [isRestoring, setIsRestoring] = useState(false);
   const [synchronizedPackets, setSynchronizedPackets] = useState(0);
+  const [telemetryFallbackFaults, setTelemetryFallbackFaults] = useState(0);
+  const [totalCloudflareIngressRequests, setTotalCloudflareIngressRequests] = useState(0);
 
   const fetchApiUsageData = async () => {
     setLoading(true);
@@ -47,14 +49,16 @@ const ApiUsageChart = () => {
     if (config.isMockLlmEnabled) {
       logger.debug('Mock mode: providing mock API usage data.');
       const mockData = [
-        { date: '2023-10-01', successCount: 120, errorCount: 10, deflectedStorms: 2, enrichmentFaults: 0, kvWriteFaults: 0 },
-        { date: '2023-10-02', successCount: 150, errorCount: 5, deflectedStorms: 0, enrichmentFaults: 1, kvWriteFaults: 0 },
-        { date: '2023-10-03', successCount: 200, errorCount: 15, deflectedStorms: 5, enrichmentFaults: 0, kvWriteFaults: 2 },
-        { date: '2023-10-04', successCount: 180, errorCount: 8, deflectedStorms: 1, enrichmentFaults: 0, kvWriteFaults: 0 },
-        { date: '2023-10-05', successCount: 250, errorCount: 12, deflectedStorms: 0, enrichmentFaults: 2, kvWriteFaults: 1 },
-        { date: '2023-10-06', successCount: 230, errorCount: 20, deflectedStorms: 10, enrichmentFaults: 0, kvWriteFaults: 0 },
-        { date: '2023-10-07', successCount: 300, errorCount: 18, deflectedStorms: 4, enrichmentFaults: 3, kvWriteFaults: 0 },
+        { date: '2023-10-01', successCount: 120, errorCount: 10, deflectedStorms: 2, enrichmentFaults: 0, kvWriteFaults: 0, telemetryFallbackFaults: 0 },
+        { date: '2023-10-02', successCount: 150, errorCount: 5, deflectedStorms: 0, enrichmentFaults: 1, kvWriteFaults: 0, telemetryFallbackFaults: 1 },
+        { date: '2023-10-03', successCount: 200, errorCount: 15, deflectedStorms: 5, enrichmentFaults: 0, kvWriteFaults: 2, telemetryFallbackFaults: 0 },
+        { date: '2023-10-04', successCount: 180, errorCount: 8, deflectedStorms: 1, enrichmentFaults: 0, kvWriteFaults: 0, telemetryFallbackFaults: 2 },
+        { date: '2023-10-05', successCount: 250, errorCount: 12, deflectedStorms: 0, enrichmentFaults: 2, kvWriteFaults: 1, telemetryFallbackFaults: 0 },
+        { date: '2023-10-06', successCount: 230, errorCount: 20, deflectedStorms: 10, enrichmentFaults: 0, kvWriteFaults: 0, telemetryFallbackFaults: 0 },
+        { date: '2023-10-07', successCount: 300, errorCount: 18, deflectedStorms: 4, enrichmentFaults: 3, kvWriteFaults: 0, telemetryFallbackFaults: 1 },
       ];
+      setTotalCloudflareIngressRequests(1450);
+      setTelemetryFallbackFaults(4);
       setData(mockData);
       setLoading(false);
       return;
@@ -76,13 +80,16 @@ const ApiUsageChart = () => {
       if (supabaseError) throw supabaseError;
 
       const aggregated = {};
+      let totalIngress = 0;
+      let totalFallback = 0;
       logs.forEach(log => {
         const date = new Date(log.created_at).toLocaleDateString();
         if (!aggregated[date]) {
-          aggregated[date] = { date, successCount: 0, errorCount: 0, deflectedStorms: 0, enrichmentFaults: 0, kvWriteFaults: 0 };
+          aggregated[date] = { date, successCount: 0, errorCount: 0, deflectedStorms: 0, enrichmentFaults: 0, kvWriteFaults: 0, telemetryFallbackFaults: 0 };
         }
         if (log.status_code >= 200 && log.status_code < 300) {
           aggregated[date].successCount++;
+          totalIngress++;
         } else if (log.status_code === 429 && log.details?.event === 'deflected_ingress_storm') {
           aggregated[date].deflectedStorms += log.details.count || 1;
         } else if (log.status_code === 429 && log.headers && log.headers['x-axim-edge-throttled']) {
@@ -97,8 +104,17 @@ const ApiUsageChart = () => {
                   } else if (t.type === 'kv_write_fault') {
                       aggregated[date].kvWriteFaults++;
                       hasFault = true;
+                  } else if (t.type === 'telemetry_fallback_fault' || t.message === 'telemetry_fallback_fault') {
+                      aggregated[date].telemetryFallbackFaults++;
+                      totalFallback++;
+                      hasFault = true;
                   }
               });
+          }
+          if (log.message === 'telemetry_fallback_fault' || (log.details && log.details.message === 'telemetry_fallback_fault')) {
+              aggregated[date].telemetryFallbackFaults++;
+              totalFallback++;
+              hasFault = true;
           }
           if (!hasFault) {
              aggregated[date].errorCount++;
@@ -106,10 +122,12 @@ const ApiUsageChart = () => {
         }
       });
 
+      setTotalCloudflareIngressRequests(totalIngress);
+      setTelemetryFallbackFaults(totalFallback);
       const formattedData = Object.values(aggregated).sort((a, b) => new Date(a.date) - new Date(b.date));
 
       if (formattedData.length === 0) {
-         formattedData.push({ date: new Date().toLocaleDateString(), successCount: 0, errorCount: 0, deflectedStorms: 0, enrichmentFaults: 0, kvWriteFaults: 0 });
+         formattedData.push({ date: new Date().toLocaleDateString(), successCount: 0, errorCount: 0, deflectedStorms: 0, enrichmentFaults: 0, kvWriteFaults: 0, telemetryFallbackFaults: 0 });
       }
 
       setData(formattedData);
@@ -139,12 +157,13 @@ const ApiUsageChart = () => {
           let dateEntry = newData.find(item => item.date === date);
 
           if (!dateEntry) {
-            dateEntry = { date, successCount: 0, errorCount: 0, deflectedStorms: 0, enrichmentFaults: 0, kvWriteFaults: 0 };
+            dateEntry = { date, successCount: 0, errorCount: 0, deflectedStorms: 0, enrichmentFaults: 0, kvWriteFaults: 0, telemetryFallbackFaults: 0 };
             newData.push(dateEntry);
           }
 
           if (log.status_code >= 200 && log.status_code < 300) {
             dateEntry.successCount++;
+            setTotalCloudflareIngressRequests(prev => prev + 1);
           } else if (log.status_code === 429 && log.details?.event === 'deflected_ingress_storm') {
             dateEntry.deflectedStorms += log.details.count || 1;
           } else if (log.status_code === 429 && log.headers && log.headers['x-axim-edge-throttled']) {
@@ -159,8 +178,17 @@ const ApiUsageChart = () => {
                       } else if (t.type === 'kv_write_fault') {
                           dateEntry.kvWriteFaults++;
                           hasFault = true;
+                      } else if (t.type === 'telemetry_fallback_fault' || t.message === 'telemetry_fallback_fault') {
+                          dateEntry.telemetryFallbackFaults++;
+                          setTelemetryFallbackFaults(prev => prev + 1);
+                          hasFault = true;
                       }
                   });
+              }
+              if (log.message === 'telemetry_fallback_fault' || (log.details && log.details.message === 'telemetry_fallback_fault')) {
+                  dateEntry.telemetryFallbackFaults++;
+                  setTelemetryFallbackFaults(prev => prev + 1);
+                  hasFault = true;
               }
               if (!hasFault) {
                  dateEntry.errorCount++;
@@ -204,13 +232,14 @@ const ApiUsageChart = () => {
             let dateEntry = newData.find(item => item.date === date);
 
             if (!dateEntry) {
-              dateEntry = { date, successCount: 0, errorCount: 0, deflectedStorms: 0, enrichmentFaults: 0, kvWriteFaults: 0 };
+              dateEntry = { date, successCount: 0, errorCount: 0, deflectedStorms: 0, enrichmentFaults: 0, kvWriteFaults: 0, telemetryFallbackFaults: 0 };
               newData.push(dateEntry);
               newData.sort((a, b) => new Date(a.date) - new Date(b.date));
             }
 
             if (newLog.status_code >= 200 && newLog.status_code < 300) {
               dateEntry.successCount++;
+              setTotalCloudflareIngressRequests(prev => prev + 1);
             } else if (newLog.status_code === 429 && newLog.details?.event === 'deflected_ingress_storm') {
               dateEntry.deflectedStorms += newLog.details.count || 1;
             } else if (newLog.status_code === 429 && newLog.headers && newLog.headers['x-axim-edge-throttled']) {
@@ -225,8 +254,17 @@ const ApiUsageChart = () => {
                         } else if (t.type === 'kv_write_fault') {
                             dateEntry.kvWriteFaults++;
                             hasFault = true;
+                        } else if (t.type === 'telemetry_fallback_fault' || t.message === 'telemetry_fallback_fault') {
+                            dateEntry.telemetryFallbackFaults++;
+                            setTelemetryFallbackFaults(prev => prev + 1);
+                            hasFault = true;
                         }
                     });
+                }
+                if (newLog.message === 'telemetry_fallback_fault' || (newLog.details && newLog.details.message === 'telemetry_fallback_fault')) {
+                    dateEntry.telemetryFallbackFaults++;
+                    setTelemetryFallbackFaults(prev => prev + 1);
+                    hasFault = true;
                 }
                 if (!hasFault) {
                    dateEntry.errorCount++;
@@ -252,6 +290,8 @@ const ApiUsageChart = () => {
       </div>
     );
   }
+
+  const perimeterEmbeddingReliabilityRatio = totalCloudflareIngressRequests > 0 ? ((1 - (telemetryFallbackFaults / totalCloudflareIngressRequests)) * 100).toFixed(1) : "100.0";
 
   return (
     <motion.div
@@ -281,19 +321,26 @@ const ApiUsageChart = () => {
           </div>
         </div>
 
-        <motion.div
-          animate={isRestoring ? { scale: [1, 1.05, 1] } : {}}
-          transition={{ duration: 1.5, repeat: isRestoring ? Infinity : 0 }}
-          className="glass-effect bg-slate-800/80 border border-slate-700/50 px-4 py-2 rounded-full flex items-center backdrop-blur-md"
-        >
-          <SafeIcon icon={FiActivity} className={`mr-2 ${isRestoring ? 'text-amber-400' : 'text-emerald-400'}`} />
-          <span className="text-xs font-mono font-medium text-slate-200 tracking-wider">
-            {isRestoring ? 'RESTORING DATA...' : 'Synchronized Edge Packets'}
-            <span className="ml-2 px-2 py-0.5 bg-slate-900 rounded-md text-emerald-400">
-              {synchronizedPackets}
+        <div className="flex flex-col space-y-1 items-end">
+          <motion.div
+            animate={isRestoring ? { scale: [1, 1.05, 1] } : {}}
+            transition={{ duration: 1.5, repeat: isRestoring ? Infinity : 0 }}
+            className="glass-effect bg-slate-800/80 border border-slate-700/50 px-4 py-2 rounded-full flex items-center backdrop-blur-md mb-2"
+          >
+            <SafeIcon icon={FiActivity} className={`mr-2 ${isRestoring ? 'text-amber-400' : 'text-emerald-400'}`} />
+            <span className="text-xs font-mono font-medium text-slate-200 tracking-wider">
+              {isRestoring ? 'RESTORING DATA...' : 'Synchronized Edge Packets'}
+              <span className="ml-2 px-2 py-0.5 bg-slate-900 rounded-md text-emerald-400">
+                {synchronizedPackets}
+              </span>
             </span>
-          </span>
-        </motion.div>
+          </motion.div>
+          <div className="glass-effect bg-slate-800/80 border border-slate-700/50 px-4 py-2 rounded-full flex items-center backdrop-blur-md">
+            <span className="text-xs font-mono font-medium text-slate-200 tracking-wider">
+              Perimeter Embedding Reliability Ratio: <span className="ml-2 px-2 py-0.5 bg-slate-900 rounded-md text-emerald-400">{perimeterEmbeddingReliabilityRatio}%</span>
+            </span>
+          </div>
+        </div>
       </div>
 
       {loading ? (
@@ -313,6 +360,7 @@ const ApiUsageChart = () => {
             <Bar dataKey="enrichmentFaults" name="Enrichment Faults" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
             <Bar dataKey="kvWriteFaults" name="KV Write Faults" fill="#EC4899" radius={[4, 4, 0, 0]} />
             <Bar dataKey="deflectedStorms" name="Deflected Storms" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="telemetryFallbackFaults" name="Telemetry Fallback Faults" fill="#EF4444" radius={[4, 4, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       )}
