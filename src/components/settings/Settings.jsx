@@ -17,7 +17,7 @@ const Settings = () => {
   const [theme, setTheme] = useState('dark');
   const [isLoading, setIsLoading] = useState(false);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+
   useEffect(() => {
     if (settings) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -74,7 +74,7 @@ const Settings = () => {
               <select
                 id="ai-model"
                 value={aiSettings.model}
-                onChange={(e) => // eslint-disable-next-line react-hooks/set-state-in-effect
+                onChange={(e) =>
       setAiSettings({ ...aiSettings, model: e.target.value })}
                 className="w-full pl-3 pr-10 py-2 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg text-white"
               >
@@ -92,7 +92,7 @@ const Settings = () => {
                 max="1"
                 step="0.1"
                 value={aiSettings.temperature}
-                onChange={(e) => // eslint-disable-next-line react-hooks/set-state-in-effect
+                onChange={(e) =>
       setAiSettings({ ...aiSettings, temperature: parseFloat(e.target.value) })}
                 className="w-full h-2 bg-onyx-950 rounded-lg appearance-none cursor-pointer"
               />

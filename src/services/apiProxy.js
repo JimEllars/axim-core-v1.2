@@ -61,14 +61,28 @@ export const submitMicroAppTelemetry = async (payload) => {
   // Ensure payload is an array for batch inserts or single object
   const payloadsToInsert = Array.isArray(payload) ? payload : [payload];
 
-  const validatedPayloads = payloadsToInsert.map(p => ({
-    app_id: p.app_id || 'unknown',
-    endpoint: p.endpoint || '/unknown',
-    method: p.method || 'UNKNOWN',
-    status_code: p.status_code || 200,
-    execution_time_ms: p.execution_time_ms || 0,
-    ...p
-  }));
+  // Lightweight validation structural checks
+  const validatedPayloads = payloadsToInsert.map(p => {
+    // Sanitize and enforce types
+    const sanitized = {
+      app_id: typeof p.app_id === 'string' ? p.app_id.substring(0, 50) : 'unknown',
+      endpoint: typeof p.endpoint === 'string' ? p.endpoint.substring(0, 100) : '/unknown',
+      method: typeof p.method === 'string' ? p.method.substring(0, 10).toUpperCase() : 'UNKNOWN',
+      status_code: typeof p.status_code === 'number' ? p.status_code : 200,
+      execution_time_ms: typeof p.execution_time_ms === 'number' ? Math.max(0, p.execution_time_ms) : 0,
+      compute_ms: typeof p.compute_ms === 'number' ? Math.max(0, p.compute_ms) : 0,
+      token_count: typeof p.token_count === 'number' ? Math.max(0, p.token_count) : null,
+      error_message: typeof p.error_message === 'string' ? p.error_message.substring(0, 500) : null,
+    };
+
+    // Add any remaining safe properties that were passed
+    for (const key in p) {
+      if (Object.prototype.hasOwnProperty.call(p, key) && !Object.prototype.hasOwnProperty.call(sanitized, key)) {
+          sanitized[key] = p[key];
+      }
+    }
+    return sanitized;
+  });
 
   try {
     // Route these incoming transaction arrays straight to the central public.api_usage_logs table

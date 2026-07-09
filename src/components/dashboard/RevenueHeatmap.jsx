@@ -18,7 +18,9 @@ const RevenueHeatmap = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchRevenueData();
+
+
+      fetchRevenueData();
 
     if (supabase) {
       const subscription = supabase.channel('revenue_changes')

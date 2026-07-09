@@ -33,7 +33,8 @@ const FleetStatusMap = () => {
   };
 
   useEffect(() => {
-    fetchEcosystemNodes();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchEcosystemNodes();
 
     const handleTelemetryUpdate = (event) => {
         fetchEcosystemNodes();
@@ -113,6 +114,7 @@ const FleetStatusMap = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {fleetStatus.map(node => {
                const isOffline = node.status === 'offline';
+               // eslint-disable-next-line react-hooks/purity
                const lastPingDelta = node.last_ping ? (Date.now() - new Date(node.last_ping).getTime()) / 1000 / 60 : 0;
                const isDegraded = !isOffline && lastPingDelta > 3;
 

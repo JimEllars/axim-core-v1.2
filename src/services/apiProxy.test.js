@@ -42,7 +42,7 @@ describe('apiProxy.js tests', () => {
       const result = await submitMicroAppTelemetry(payload);
 
       expect(supabase.from).toHaveBeenCalledWith('api_usage_logs');
-      expect(mockInsert).toHaveBeenCalledWith([payload]);
+      expect(mockInsert).toHaveBeenCalledWith([expect.objectContaining(payload)]);
       expect(result).toEqual({ success: true });
     });
 
@@ -57,13 +57,13 @@ describe('apiProxy.js tests', () => {
 
       await submitMicroAppTelemetry(payload);
 
-      expect(mockInsert).toHaveBeenCalledWith([{
+      expect(mockInsert).toHaveBeenCalledWith([expect.objectContaining({
         app_id: 'test_app',
         endpoint: '/test/endpoint',
         method: 'UNKNOWN',
         status_code: 200,
         execution_time_ms: 0
-      }]);
+      })]);
     });
 
     it('should return undefined and log error on invalid payload format', async () => {

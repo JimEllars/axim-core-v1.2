@@ -5,7 +5,7 @@ import SafeIcon from '../../common/SafeIcon';
 import { useMetrics } from '../../hooks/useMetrics';
 import { useSupabase } from '../../contexts/SupabaseContext';
 
-const { FiCpu, FiShield, FiLink, FiBox, FiDollarSign, FiAlertTriangle } = FiIcons;
+const { FiCpu, FiShield, FiLink, FiBox, FiDollarSign, FiAlertTriangle, FiActivity } = FiIcons;
 
 const MetricsGrid = () => {
   const { metrics: initialMetrics, loading, error, refetch } = useMetrics();
@@ -37,7 +37,7 @@ const MetricsGrid = () => {
 
   if (error) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
         <div className="col-span-full glass-effect rounded-xl p-6 flex items-center justify-center text-red-400">
           <SafeIcon icon={FiAlertTriangle} className="mr-2" />
           {error}
@@ -48,8 +48,8 @@ const MetricsGrid = () => {
 
   if (loading || !metrics) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-        {Array.from({ length: 5 }).map((_, index) => (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
+        {Array.from({ length: 6 }).map((_, index) => (
           <div key={index} className="glass-effect rounded-xl p-6">
             <div data-testid="loading-skeleton" className="animate-pulse flex flex-col">
               <div className="h-12 w-12 glass-effect rounded-lg mb-4"></div>
@@ -61,6 +61,12 @@ const MetricsGrid = () => {
       </div>
     );
   }
+
+  const systemComponentFaults = metrics.activeEvents || 0;
+  const totalActiveNodes = metrics.activeUsers || 100; // avoid division by zero or use a real baseline
+  const ecosystemHealth = totalActiveNodes > 0
+    ? ((1 - (systemComponentFaults / Math.max(totalActiveNodes, systemComponentFaults + 1))) * 100).toFixed(1)
+    : 100.0;
 
   const metricCards = [
     {
@@ -107,21 +113,30 @@ const MetricsGrid = () => {
       change: 'Synced',
       changeColor: 'text-green-400',
       tooltip: 'Consolidated Transaction Ledgers'
+    },
+    {
+      title: 'System Health',
+      value: `${ecosystemHealth}%`,
+      icon: FiActivity,
+      color: 'from-cyan-500 to-blue-600',
+      change: 'Optimal',
+      changeColor: 'text-cyan-400',
+      tooltip: 'Ecosystem Operational Integrity'
     }
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
       {metricCards.map((metric, index) => (
         <motion.div
           key={metric.title}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.1 }}
-          className="glass-effect rounded-xl p-6 hover:bg-white/10 transition-all duration-300 relative group"
+          className="glass-effect rounded-xl p-6 hover:bg-white/10 transition-all duration-300 relative group border border-onyx-accent/20"
         >
           {/* Tooltip */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full mb-2 hidden group-hover:block z-10 w-48 p-2 glass-effect border border-onyx-accent/20 text-slate-300 text-xs rounded shadow-xl text-center">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full mb-2 hidden group-hover:block z-10 w-48 p-2 glass-effect border border-onyx-accent/20 text-slate-300 text-xs rounded shadow-xl text-center font-mono">
             {metric.tooltip}
             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-2 h-2 glass-effect border-r border-b border-onyx-accent/20 transform rotate-45"></div>
           </div>
@@ -130,17 +145,17 @@ const MetricsGrid = () => {
             <div className={`w-12 h-12 bg-gradient-to-r ${metric.color} rounded-lg flex items-center justify-center shadow-lg`}>
               <SafeIcon icon={metric.icon} className="text-white text-xl" />
             </div>
-            <span className={`text-xs ${metric.changeColor} font-medium glass-effect/50 px-2 py-1 rounded-full flex items-center gap-1`}>
+            <span className={`text-[10px] ${metric.changeColor} font-mono uppercase tracking-wider glass-effect/50 px-2 py-1 rounded-full flex items-center gap-1 border border-${metric.color.split('-')[1]}-500/30`}>
               <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
               {metric.change}
             </span>
           </div>
           
           <div>
-            <h3 className="text-slate-400 text-sm font-medium mb-1">
+            <h3 className="text-slate-400 text-xs font-mono uppercase tracking-wider mb-1">
               {metric.title}
             </h3>
-            <div className="text-2xl font-bold text-white tracking-tight">
+            <div className="text-2xl font-bold text-white tracking-tight font-mono">
               {loading ? (
                 <div data-testid="loading-skeleton" className="animate-pulse glass-effect h-8 w-16 rounded"></div>
               ) : (

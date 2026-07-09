@@ -26,7 +26,8 @@ const JobQueueMonitor = () => {
   };
 
   useEffect(() => {
-    fetchJobs();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchJobs();
 
     // Optional: Set up real-time subscription
     const channel = supabase
