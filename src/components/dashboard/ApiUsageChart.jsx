@@ -163,7 +163,7 @@ const ApiUsageChart = () => {
 
           if (log.status_code >= 200 && log.status_code < 300) {
             dateEntry.successCount++;
-            setTotalCloudflareIngressRequests(prev => prev + 1);
+          setTotalCloudflareIngressRequests(prev => prev + 1);
           } else if (log.status_code === 429 && log.details?.event === 'deflected_ingress_storm') {
             dateEntry.deflectedStorms += log.details.count || 1;
           } else if (log.status_code === 429 && log.headers && log.headers['x-axim-edge-throttled']) {
@@ -239,7 +239,7 @@ const ApiUsageChart = () => {
 
             if (newLog.status_code >= 200 && newLog.status_code < 300) {
               dateEntry.successCount++;
-              setTotalCloudflareIngressRequests(prev => prev + 1);
+          setTotalCloudflareIngressRequests(prev => prev + 1);
             } else if (newLog.status_code === 429 && newLog.details?.event === 'deflected_ingress_storm') {
               dateEntry.deflectedStorms += newLog.details.count || 1;
             } else if (newLog.status_code === 429 && newLog.headers && newLog.headers['x-axim-edge-throttled']) {
@@ -253,21 +253,21 @@ const ApiUsageChart = () => {
                             hasFault = true;
                         } else if (t.type === 'kv_write_fault') {
                             dateEntry.kvWriteFaults++;
-                            hasFault = true;
-                        } else if (t.type === 'telemetry_fallback_fault' || t.message === 'telemetry_fallback_fault') {
-                            dateEntry.telemetryFallbackFaults++;
-                            setTelemetryFallbackFaults(prev => prev + 1);
-                            hasFault = true;
-                        }
+                          hasFault = true;
+                      } else if (t.type === 'telemetry_fallback_fault' || t.message === 'telemetry_fallback_fault') {
+                          dateEntry.telemetryFallbackFaults++;
+                          setTelemetryFallbackFaults(prev => prev + 1);
+                          hasFault = true;
+                      }
                     });
-                }
-                if (newLog.message === 'telemetry_fallback_fault' || (newLog.details && newLog.details.message === 'telemetry_fallback_fault')) {
-                    dateEntry.telemetryFallbackFaults++;
-                    setTelemetryFallbackFaults(prev => prev + 1);
-                    hasFault = true;
-                }
-                if (!hasFault) {
-                   dateEntry.errorCount++;
+              }
+              if (log.message === 'telemetry_fallback_fault' || (log.details && log.details.message === 'telemetry_fallback_fault')) {
+                  dateEntry.telemetryFallbackFaults++;
+                  setTelemetryFallbackFaults(prev => prev + 1);
+                  hasFault = true;
+              }
+              if (!hasFault) {
+                 dateEntry.errorCount++;
                 }
             }
 
@@ -323,15 +323,15 @@ const ApiUsageChart = () => {
 
         <div className="flex flex-col space-y-1 items-end">
           <motion.div
-            animate={isRestoring ? { scale: [1, 1.05, 1] } : {}}
-            transition={{ duration: 1.5, repeat: isRestoring ? Infinity : 0 }}
-            className="glass-effect bg-slate-800/80 border border-slate-700/50 px-4 py-2 rounded-full flex items-center backdrop-blur-md mb-2"
-          >
-            <SafeIcon icon={FiActivity} className={`mr-2 ${isRestoring ? 'text-amber-400' : 'text-emerald-400'}`} />
-            <span className="text-xs font-mono font-medium text-slate-200 tracking-wider">
-              {isRestoring ? 'RESTORING DATA...' : 'Synchronized Edge Packets'}
-              <span className="ml-2 px-2 py-0.5 bg-slate-900 rounded-md text-emerald-400">
-                {synchronizedPackets}
+          animate={isRestoring ? { scale: [1, 1.05, 1] } : {}}
+          transition={{ duration: 1.5, repeat: isRestoring ? Infinity : 0 }}
+          className="glass-effect bg-slate-800/80 border border-slate-700/50 px-4 py-2 rounded-full flex items-center backdrop-blur-md"
+        >
+          <SafeIcon icon={FiActivity} className={`mr-2 ${isRestoring ? 'text-amber-400' : 'text-emerald-400'}`} />
+          <span className="text-xs font-mono font-medium text-slate-200 tracking-wider">
+            {isRestoring ? 'RESTORING DATA...' : 'Synchronized Edge Packets'}
+            <span className="ml-2 px-2 py-0.5 bg-slate-900 rounded-md text-emerald-400">
+              {synchronizedPackets}
               </span>
             </span>
           </motion.div>
