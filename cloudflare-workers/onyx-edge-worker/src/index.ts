@@ -2,6 +2,7 @@ interface Env {
   VITE_SUPABASE_URL: string;
   VITE_SUPABASE_ANON_KEY: string;
   ANTHROPIC_API_KEY: string;
+  AI: any;
 }
 
 const windowCache = new Map<string, number[]>();
@@ -24,6 +25,40 @@ export default {
 
     try {
       const { prompt, command, context, nodeScope } = await request.json() as any;
+
+      const payloadString = prompt || command;
+
+      // Handle async embedding generation
+      if (payloadString) {
+        ctx.waitUntil((async () => {
+          try {
+            const aiResponse = await env.AI.run("@cf/baai/bge-base-en-v1.5", {
+              text: [payloadString]
+            });
+            const embedding = aiResponse.data[0];
+
+            const supabaseUrl = env.VITE_SUPABASE_URL || 'https://pvbcdndqjguzqeafhwhw.supabase.co';
+            const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
+
+            await fetch(`${supabaseUrl}/rest/v1/ai_interactions_ax2024`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${env.VITE_SUPABASE_ANON_KEY}`, // Using anon key for this context if needed, or service_role
+                'apikey': supabaseAnonKey,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+              },
+              body: JSON.stringify({
+                command: payloadString,
+                embedding: embedding,
+                command_type: 'edge_embedding'
+              })
+            });
+          } catch (e) {
+            console.error("Async embedding failed", e);
+          }
+        })());
+      }
 
       // Task 3: Edge Telemetry Sliding-Window Filter
       if (nodeScope) {
@@ -120,7 +155,7 @@ Context: ${JSON.stringify(context || {})}`;
           model: "claude-3-haiku-20240307",
           max_tokens: 1024,
           system: onyxSystemPrompt,
-          messages: [{ role: "user", content: prompt || command }]
+          messages: [{ role: "user", content: payloadString }]
         })
       });
 

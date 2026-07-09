@@ -7,3 +7,5 @@ AXIM_ONYX_SECRET = "your_secure_bearer_token"
 # ANTHROPIC_API_KEY = "..."
 VITE_SUPABASE_URL = "https://pvbcdndqjguzqeafhwhw.supabase.co"
 VITE_SUPABASE_ANON_KEY = "dummy-key-update-in-dashboard"
+[ai]
+binding = "AI"
