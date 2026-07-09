@@ -106,18 +106,7 @@ const VisualizationPanel = () => {
   );
 
 
-  const ChartSkeleton = () => (
-    <div className="h-64 flex flex-col items-center justify-center space-y-4">
-       <div className="animate-pulse flex space-x-4 items-end h-full w-full px-8 pb-4">
-           <div className="w-1/6 bg-onyx-950 rounded-t h-1/4"></div>
-           <div className="w-1/6 bg-onyx-950 rounded-t h-1/2"></div>
-           <div className="w-1/6 bg-onyx-950 rounded-t h-3/4"></div>
-           <div className="w-1/6 bg-onyx-950 rounded-t h-full"></div>
-           <div className="w-1/6 bg-onyx-950 rounded-t h-2/3"></div>
-           <div className="w-1/6 bg-onyx-950 rounded-t h-1/3"></div>
-       </div>
-    </div>
-  );
+
 
 
 
@@ -147,7 +136,16 @@ const VisualizationPanel = () => {
             </div>
 
             {loading ? (
-              <ChartSkeleton />
+              <div className="h-64 flex flex-col items-center justify-center space-y-4">
+                 <div className="animate-pulse flex space-x-4 items-end h-full w-full px-8 pb-4">
+                     <div className="w-1/6 bg-onyx-950 rounded-t h-1/4"></div>
+                     <div className="w-1/6 bg-onyx-950 rounded-t h-1/2"></div>
+                     <div className="w-1/6 bg-onyx-950 rounded-t h-3/4"></div>
+                     <div className="w-1/6 bg-onyx-950 rounded-t h-full"></div>
+                     <div className="w-1/6 bg-onyx-950 rounded-t h-2/3"></div>
+                     <div className="w-1/6 bg-onyx-950 rounded-t h-1/3"></div>
+                 </div>
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={sourceData}>

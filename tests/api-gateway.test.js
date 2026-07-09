@@ -98,7 +98,7 @@ describe('api-gateway Auth Integrity', () => {
     });
 
     it('executes mock calls to Cloudflare AI embedding arrays cleanly', () => {
-        const mockEmbeddingAI = async (text) => {
+        const mockEmbeddingAI = async () => {
             return {
                 data: [
                     Array(1536).fill(0.1)

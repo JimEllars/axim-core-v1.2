@@ -17,24 +17,6 @@ const RevenueHeatmap = () => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-
-
-      fetchRevenueData();
-
-    if (supabase) {
-      const subscription = supabase.channel('revenue_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'micro_app_transactions' }, () => {
-          fetchRevenueData();
-        })
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(subscription);
-      };
-    }
-  }, [supabase]);
-
   const fetchRevenueData = async () => {
     try {
       setLoading(true);
@@ -85,6 +67,25 @@ const RevenueHeatmap = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+
+
+      fetchRevenueData();
+
+    if (supabase) {
+      const subscription = supabase.channel('revenue_changes')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'micro_app_transactions' }, () => {
+          fetchRevenueData();
+        })
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(subscription);
+      };
+    }
+  }, [supabase]);
+
 
   const getBarColor = (index, revenue, maxRevenue) => {
     // Highlight highest-converting funnels in AXiM Teal (#00ffff or similar, teal-400 is #2dd4bf)
