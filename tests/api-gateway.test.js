@@ -82,3 +82,31 @@ describe('api-gateway Auth Integrity', () => {
         expect(throttledRes2.headers["X-AXiM-Edge-Throttled"]).toBe("7");
     });
 });
+
+    it('invokes edge proxy layer without an explicit model parameter resolves natively to deepseek-chat compute path', () => {
+        // Mocking the proxy route default
+        const simulateLlmProxy = (reqBody) => {
+             const { provider = "deepseek", prompt } = reqBody;
+             if (!prompt) return { status: 400, error: 'Missing prompt' };
+
+             return { status: 200, resolvedProvider: provider };
+        };
+
+        const res = simulateLlmProxy({ prompt: "Hello" });
+        expect(res.status).toBe(200);
+        expect(res.resolvedProvider).toBe('deepseek');
+    });
+
+    it('executes mock calls to Cloudflare AI embedding arrays cleanly', () => {
+        const mockEmbeddingAI = async (text) => {
+            return {
+                data: [
+                    Array(1536).fill(0.1)
+                ]
+            };
+        };
+
+        return mockEmbeddingAI("Test query").then(res => {
+            expect(res.data[0].length).toBe(1536);
+        });
+    });

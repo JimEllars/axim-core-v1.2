@@ -129,8 +129,8 @@ serve(async (req) => {
     }
 
     // 3. Parse the request body.
-    const { provider, prompt, options = {} } = await req.json();
-    if (!provider || !prompt) {
+    const { provider = "deepseek", prompt, options = {} } = await req.json();
+    if (!prompt) {
       throw new Error('Missing required fields: provider and prompt.');
     }
 

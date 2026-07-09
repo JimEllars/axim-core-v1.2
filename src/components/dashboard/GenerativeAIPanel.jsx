@@ -5,13 +5,25 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import onyxAI from '../../services/onyxAI';
 import ProviderSelector from '../common/ProviderSelector';
+import { useVectorSearch } from '../../hooks/useVectorSearch';
 
-const { FiCpu, FiSend, FiLoader } = FiIcons;
+const { FiCpu, FiSend, FiLoader, FiCrosshair } = FiIcons;
 
 const GenerativeAIPanel = () => {
   const [prompt, setPrompt] = useState('');
   const [generatedContent, setGeneratedContent] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Use vector search to provide the confidence metric if exposed
+  let confidenceMetric = null;
+  try {
+     const vectorSearch = useVectorSearch();
+     if (vectorSearch && vectorSearch.confidenceMetric !== undefined) {
+         confidenceMetric = vectorSearch.confidenceMetric;
+     }
+  } catch (e) {
+      // In case the hook context isn't available
+  }
 
   const handleGenerate = async (e) => {
     e.preventDefault();
@@ -50,7 +62,11 @@ const GenerativeAIPanel = () => {
             className="w-full h-32 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg px-4 py-2 text-white placeholder-slate-400 focus:ring-2 focus:ring-purple-500"
             placeholder="Enter your prompt here to generate content..."
           />
-          <div className="flex justify-end mt-4">
+          <div className="flex justify-between items-center mt-4">
+            <div className="flex items-center text-sm text-slate-400">
+                <SafeIcon icon={FiCrosshair} className="mr-2" />
+                <span>Vector Match Confidence: {confidenceMetric !== null ? confidenceMetric.toFixed(4) : 'N/A'}</span>
+            </div>
             <motion.button
               type="submit"
               disabled={isLoading || !prompt}

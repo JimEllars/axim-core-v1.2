@@ -30,4 +30,4 @@ jobs:
 
       - name: Verify Cloudflare Worker Build
         working-directory: cloudflare-workers
-        run: npx wrangler deploy --dry-run -c wrangler.toml
+        run: rm -rf .wrangler && npx wrangler deploy --dry-run -c wrangler.toml
