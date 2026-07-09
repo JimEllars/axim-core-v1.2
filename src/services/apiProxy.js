@@ -86,7 +86,7 @@ export const submitMicroAppTelemetry = async (payload) => {
 
   try {
     // Route these incoming transaction arrays straight to the central public.api_usage_logs table
-    const { data, error } = await supabase.from('api_usage_logs').insert(validatedPayloads).setHeader('Prefer', 'resolution=merge-duplicates');
+    const { data, error } = await supabase.from('api_usage_logs').insert(validatedPayloads, { returning: 'minimal' }).setHeader('Prefer', 'resolution=merge-duplicates');
 
     if (error) throw error;
     if (data && data.error) throw new Error(data.error);

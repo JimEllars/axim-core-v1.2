@@ -228,7 +228,10 @@ class ApiService {
     return this._executeWithFallback('deleteIntegration', id);
   }
 
-  async logAIInteraction(command, response, executionTime, status = 'success', userId, conversationId, commandType, llmProvider, llmModel, embedding = null) {
+  async logAIInteraction(command, response, executionTime, status = 'success', userId, conversationId, commandType, llmProvider = 'deepseek', llmModel, embedding = null) {
+    if (!llmProvider || llmProvider.trim() === '') {
+        llmProvider = 'deepseek';
+    }
     const args = [command, response, executionTime, status, userId, conversationId, commandType, llmProvider, llmModel, embedding];
     let primarySuccess = false;
 

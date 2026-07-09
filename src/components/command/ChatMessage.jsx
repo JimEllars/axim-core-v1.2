@@ -71,7 +71,7 @@ const ChatMessage = ({ message, onCopyContent }) => {
   React.useEffect(() => {
     if (!isUser && !isError && typeof message.content === 'string' && !message.isTyping) {
       if (displayedContent === '' && message.content !== '') {
-        setIsTypingEffect(true);
+        setTimeout(() => setIsTypingEffect(true), 0);
         let i = 0;
         const speed = 10;
         const interval = setInterval(() => {

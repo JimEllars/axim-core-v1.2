@@ -56,6 +56,24 @@ export default {
             });
           } catch (e) {
             console.error("Async embedding failed", e);
+            const supabaseUrl = env.VITE_SUPABASE_URL || 'https://pvbcdndqjguzqeafhwhw.supabase.co';
+            const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
+
+            await fetch(`${supabaseUrl}/rest/v1/telemetry_events`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${env.VITE_SUPABASE_ANON_KEY}`,
+                'apikey': supabaseAnonKey,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+              },
+              body: JSON.stringify({
+                component_id: 'onyx_bridge',
+                severity: 'WARN',
+                message: 'telemetry_fallback_fault',
+                payload: { error: e.message }
+              })
+            }).catch(telemetryErr => console.error("Telemetry logging failed", telemetryErr));
           }
         })());
       }

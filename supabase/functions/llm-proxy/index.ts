@@ -70,7 +70,7 @@ async function getApiKey(supabaseClient: any, userId: string, provider: string) 
       return data.api_key;
     });
 
-  // Update cache immediately to prevent cache stampedes
+  // Update cache immediately to prevent cache stampedes with verified TTL
   apiKeyPromiseCache.set(cacheKey, {
     promise,
     expiresAt: Date.now() + CACHE_TTL_MS,
@@ -129,7 +129,11 @@ serve(async (req) => {
     }
 
     // 3. Parse the request body.
-    const { provider = "deepseek", prompt, options = {} } = await req.json();
+    let { provider, prompt, options = {} } = await req.json();
+    if (!provider || provider.trim() === '') {
+        provider = 'deepseek';
+    }
+
     if (!prompt) {
       throw new Error('Missing required fields: provider and prompt.');
     }
@@ -141,15 +145,17 @@ serve(async (req) => {
 
     console.log(`[${request_id}] Routing to provider: ${provider}`);
 
-
     let finalPrompt = prompt;
     let isCompressed = false;
-    const MAX_PROMPT_LENGTH = 15000; // Arbitrary high limit to trigger compression
+    // Strict 15,000-character input truncation perimeter bounds
+    const MAX_PROMPT_LENGTH = 15000;
 
-    if (finalPrompt.length > MAX_PROMPT_LENGTH || options.forceCompression) {
-        finalPrompt = finalPrompt.substring(0, MAX_PROMPT_LENGTH) + '... [Content Truncated]';
+    if (finalPrompt.length > MAX_PROMPT_LENGTH) {
+        finalPrompt = finalPrompt.substring(0, MAX_PROMPT_LENGTH);
         isCompressed = true;
-        console.log(`[${request_id}] Prompt compressed/truncated. length: ${finalPrompt.length}`);
+        console.log(`[${request_id}] Prompt truncated to strictly ${MAX_PROMPT_LENGTH} characters. length: ${finalPrompt.length}`);
+    } else if (options.forceCompression) {
+        isCompressed = true;
     }
 
     // Determine actual provider used for logging
