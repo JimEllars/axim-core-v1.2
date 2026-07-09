@@ -8,7 +8,7 @@ const UpdateManager = () => {
   const [updateStatus, setUpdateStatus] = useState('Checking for updates on load...');
   const [updateDownloaded, setUpdateDownloaded] = useState(false);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+
   useEffect(() => {
     if (!ipcRenderer) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -17,12 +17,12 @@ const UpdateManager = () => {
     }
 
     const handleUpdateStatus = (event, message) => {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+
       setUpdateStatus(message);
     };
 
     const handleUpdateDownloaded = () => {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+
       setUpdateStatus('Update downloaded. Ready to install.');
       setUpdateDownloaded(true);
     };
@@ -39,7 +39,7 @@ const UpdateManager = () => {
 
   const handleCheckForUpdates = () => {
     if (ipcRenderer) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+
       setUpdateStatus('Manual update check started...');
       ipcRenderer.send('check-for-updates');
     }

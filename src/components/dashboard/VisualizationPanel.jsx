@@ -94,7 +94,8 @@ const VisualizationPanel = () => {
   };
 
   useEffect(() => {
-    fetchVisualizationData();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchVisualizationData();
   }, [refreshKey]);
 
   const renderError = (chartName) => (
@@ -103,6 +104,7 @@ const VisualizationPanel = () => {
       Error loading {chartName}.
     </div>
   );
+
 
   const ChartSkeleton = () => (
     <div className="h-64 flex flex-col items-center justify-center space-y-4">

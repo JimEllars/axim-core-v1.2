@@ -78,12 +78,12 @@ const SystemAutonomyMap = () => {
     const handleTelemetryUpdate = (event) => {
         // Just trigger a re-fetch, or optimally append the new event. For simplicity and correctness, fetch again or prepend.
         // Let's re-fetch to ensure order and limits.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+
     fetchEvents();
     };
 
     const handleExecUpdate = (event) => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+
     fetchEvents();
     };
 
@@ -93,13 +93,13 @@ const SystemAutonomyMap = () => {
     // Keep the old subscriptions too just in case we are missing some tables
     const usageSub = supabase.channel('api_usage_logs_changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'api_usage_logs' }, () => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+
     fetchEvents();
       }).subscribe();
 
     const bcSub = supabase.channel('blockchain_changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'blockchain_transactions' }, () => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
+
     fetchEvents();
       }).subscribe();
 

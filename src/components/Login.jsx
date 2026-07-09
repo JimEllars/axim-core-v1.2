@@ -32,68 +32,75 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-onyx-950 via-purple-900 to-onyx-950 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-onyx-950 flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Neon-saturated grid backdrop */}
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.05)_1px,transparent_1px)] bg-[size:40px_40px] pointer-events-none"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-blue-900/10 via-purple-900/10 to-onyx-950 pointer-events-none"></div>
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="w-full max-w-md"
+        className="w-full max-w-md relative z-10"
       >
-        <div className="glass-effect rounded-2xl p-8 shadow-2xl">
+        <div className="glass-effect rounded-2xl p-8 shadow-2xl border border-onyx-accent/30 relative overflow-hidden">
+          {/* Subtle cyber-onyx border glow */}
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50"></div>
+
           <div className="text-center mb-8">
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full mb-4"
+              className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-onyx-800 to-onyx-900 border border-onyx-accent/50 shadow-[0_0_15px_rgba(59,130,246,0.3)] rounded-full mb-4"
             >
-              <SafeIcon icon={FiShield} className="text-2xl text-white" />
+              <SafeIcon icon={FiShield} className="text-2xl text-blue-400" />
             </motion.div>
-            <h1 className="text-3xl font-bold gradient-text mb-2">Axim Core</h1>
-            <p className="text-slate-400">AXiM Internal Systems - Authorized Personnel Only</p>
+            <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">AXiM Core</h1>
+            <p className="text-slate-400 text-sm tracking-wide">Internal Systems - Authorized Personnel Only</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="email" className="block text-xs font-mono text-slate-400 uppercase tracking-wider mb-2">
                 Email Address
               </label>
-              <div className="relative">
+              <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <SafeIcon icon={FiMail} className="text-slate-400" />
+                  <SafeIcon icon={FiMail} className="text-slate-500 group-focus-within:text-blue-400 transition-colors" />
                 </div>
                 <input
                   id="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-slate-400"
+                  className="w-full pl-10 pr-4 py-3 bg-onyx-900/50 border border-onyx-accent/30 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-slate-500 transition-all outline-none"
                   placeholder="your@email.com"
                   required
                 />
               </div>
             </div>
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
+              <label htmlFor="password" className="block text-xs font-mono text-slate-400 uppercase tracking-wider mb-2">
                 Password
               </label>
-              <div className="relative">
+              <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <SafeIcon icon={FiLock} className="text-slate-400" />
+                  <SafeIcon icon={FiLock} className="text-slate-500 group-focus-within:text-blue-400 transition-colors" />
                 </div>
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-3 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-slate-400"
+                  className="w-full pl-10 pr-12 py-3 bg-onyx-900/50 border border-onyx-accent/30 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-slate-500 transition-all outline-none"
                   placeholder="Enter your password"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-white transition-colors"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-blue-400 transition-colors"
                 >
                   <SafeIcon icon={showPassword ? FiEyeOff : FiEye} />
                 </button>
@@ -105,7 +112,7 @@ const Login = () => {
                 <motion.div
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  className="w-full text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg p-3"
+                  className="w-full text-red-400 text-sm bg-red-900/20 border border-red-800/50 rounded-lg p-3"
                 >
                   {error}
                 </motion.div>
@@ -117,11 +124,11 @@ const Login = () => {
               disabled={loading}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="w-full h-12 flex items-center justify-center bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 rounded-lg font-medium hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+              className="w-full h-12 flex items-center justify-center bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 rounded-lg font-medium hover:from-blue-500 hover:to-indigo-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-onyx-950 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-[0_0_15px_rgba(59,130,246,0.2)]"
             >
               {loading ? (
                 <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white/80 mr-2"></div>
                   Authenticating...
                 </>
               ) : (
@@ -135,17 +142,17 @@ const Login = () => {
             <div className="flex items-center justify-between text-xs text-slate-400">
               <div className="flex items-center space-x-2">
                 <SafeIcon icon={FiActivity} className="text-emerald-500" />
-                <span>Session Verification Efficiency:</span>
+                <span className="font-mono tracking-wide">Session Verification Efficiency:</span>
               </div>
-              <span className="font-mono text-emerald-400">{efficiency}%</span>
+              <span className="font-mono text-emerald-400 font-bold">{efficiency}%</span>
             </div>
-            <div className="mt-2 w-full bg-onyx-950/50 rounded-full h-1.5">
+            <div className="mt-2 w-full bg-onyx-900 rounded-full h-1.5 overflow-hidden">
               <div
-                className="bg-emerald-500 h-1.5 rounded-full"
+                className="bg-gradient-to-r from-emerald-600 to-emerald-400 h-1.5 rounded-full"
                 style={{ width: `${efficiency}%` }}
               ></div>
             </div>
-            <div className="mt-2 flex justify-between text-[10px] font-mono text-slate-500">
+            <div className="mt-2 flex justify-between text-[10px] font-mono text-slate-500 uppercase tracking-wider">
               <span>{validatedTokens} Validated</span>
               <span>{totalRequests} Total Requests</span>
             </div>

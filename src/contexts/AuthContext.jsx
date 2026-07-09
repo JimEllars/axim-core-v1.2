@@ -6,20 +6,6 @@ import toast from 'react-hot-toast';
 
 export const AuthContext = createContext();
 
-const MOCK_USER = {
-  id: 'mock-user-id-12345',
-  email: 'admin@example.com',
-  app_metadata: {
-    provider: 'email',
-    providers: ['email'],
-  },
-  user_metadata: {
-    full_name: 'Mock Admin',
-  },
-  aud: 'authenticated',
-  created_at: new Date().toISOString(),
-};
-
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -39,10 +25,6 @@ export const AuthProvider = ({ children }) => {
   const [aximSessionToken, setAximSessionToken] = useState(null);
 
   const loadUserSettings = useCallback(async (currentUser) => {
-    if (config.isMockLlmEnabled) {
-      setSettings({ theme: 'dark', notifications: true }); // Example mock settings
-      return;
-    }
     if (!currentUser) {
       setSettings(null);
       return;
@@ -130,9 +112,7 @@ export const AuthProvider = ({ children }) => {
   }, [supabase, loadUserSettings, refreshAximSession]);
 
   useEffect(() => {
-    const isMock = config.isMockLlmEnabled;
-
-    // Check for handoff_token
+        // Check for handoff_token
     const params = new URLSearchParams(window.location.search);
     const handoffToken = params.get('handoff_token');
     if (handoffToken) {
@@ -142,15 +122,6 @@ export const AuthProvider = ({ children }) => {
       // Strip token from URL
       params.delete('handoff_token');
       window.history.replaceState({}, document.title, window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
-    }
-
-    if (isMock) {
-      setUser(MOCK_USER);
-      setIsAuthenticated(true);
-      setRole('admin');
-      loadUserSettings(MOCK_USER);
-      setLoading(false);
-      return;
     }
 
     if (!supabase) {
@@ -216,14 +187,6 @@ export const AuthProvider = ({ children }) => {
       throw new Error('Access Denied. AXiM Internal Systems are for authorized personnel only.');
     }
 
-    if (config.isMockLlmEnabled) {
-      console.log('[AuthContext] Mock mode enabled. Faking login.');
-      setUser({ ...MOCK_USER, email });
-      setIsAuthenticated(true);
-      setRole('admin');
-      await loadUserSettings(MOCK_USER);
-      return;
-    }
     try {
       console.log('[AuthContext] Calling supabase.auth.signInWithPassword');
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });

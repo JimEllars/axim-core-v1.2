@@ -69,7 +69,7 @@ const SpreadsheetImport = () => {
     const isMappingIncomplete = requiredFields.some(key => !columnMap[key]);
 
     if (isMappingIncomplete) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+
       setProcessedData([]);
       return;
     }
@@ -143,7 +143,7 @@ const SpreadsheetImport = () => {
     setIsParsing(true);
     setFileName(file.name);
     setRawData([]);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
       setProcessedData([]);
     setHeaders([]);
 
@@ -154,7 +154,7 @@ const SpreadsheetImport = () => {
         acc[key] = '';
         return acc;
       }, {});
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+
       setColumnMap(initialMap);
     }
 
@@ -253,7 +253,7 @@ const SpreadsheetImport = () => {
 
       // Reset state to start over
       setRawData([]);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+
       setProcessedData([]);
       setFileName('');
       setHeaders([]);

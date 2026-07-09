@@ -127,9 +127,11 @@ vi.mock('framer-motion', async () => {
 
   // A factory that creates a mock motion component, filtering out motion-specific props
   const createMockMotionComponent = (tag) => {
-    return React.forwardRef(({ children, whileHover, whileTap, animate, initial, exit, layout, transition, ...props }, ref) => {
+    const Component = React.forwardRef(({ children, whileHover, whileTap, animate, initial, exit, layout, transition, ...props }, ref) => {
       return React.createElement(tag, { ...props, ref }, children);
     });
+    Component.displayName = `motion.${tag}`;
+    return Component;
   };
 
   // Use a Proxy to dynamically create mock components for any HTML tag

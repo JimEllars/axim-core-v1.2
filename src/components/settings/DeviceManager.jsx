@@ -24,7 +24,7 @@ const DeviceManager = () => {
     // Error handling is managed by the global ApiContext
   }, [user, listDevices]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchDevices();
@@ -50,7 +50,7 @@ const DeviceManager = () => {
     const success = await updateDevice(selectedDevice.id, { device_name: newDeviceName.trim() });
     if (success) {
       toast.success('Device renamed successfully.');
-      await // eslint-disable-next-line react-hooks/set-state-in-effect
+      await
     fetchDevices(); // Refresh the list
       closeRenameModal();
     } else {
@@ -73,7 +73,7 @@ const DeviceManager = () => {
     const success = await deleteDevice(selectedDevice.id);
     if (success) {
       toast.success('Device removed successfully.');
-      await // eslint-disable-next-line react-hooks/set-state-in-effect
+      await
     fetchDevices(); // Refresh the list
       closeDeleteModal();
     } else {
