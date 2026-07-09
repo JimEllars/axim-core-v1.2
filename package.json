@@ -15,7 +15,7 @@
     "build:cloud": "vite build",
     "lint": "eslint .",
     "lint:error": "eslint . --quiet",
-    "preview": "npm run build && wrangler dev",
+    "preview": "npm run build && npx wrangler dev -c wrangler.jsonc",
     "test": "vitest run --coverage",
     "electron:dev": "concurrently \"npm run dev\" \"electron .\"",
     "preelectron:build": "npm run lint",
@@ -23,7 +23,7 @@
     "electron:build:linux": "npm run build && electron-builder --linux --publish never",
     "electron:build:win": "npm run build && electron-builder --win --publish never",
     "electron:build:mac": "npm run build && electron-builder --mac --publish never",
-    "deploy": "rm -rf .wrangler && npx wrangler deploy --dry-run",
+    "deploy": "npm run build && npx wrangler deploy --dry-run -c wrangler.jsonc",
     "test:functions": "node scripts/smoke-test-functions.js"
   },
   "dependencies": {

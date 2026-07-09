@@ -1,68 +1,59 @@
-# AXiM Core Cloudflare Workers Integration
+# AXiM Core Cloudflare Workers
 
-This directory contains the Cloudflare Worker logic for the AXiM Core ecosystem. Cloudflare Workers run at the edge, providing a low-latency proxy and caching layer for interacting with the AXiM Core API.
+This directory manages both Cloudflare Worker deployments used by AXiM Core:
 
-## Features
-
-- **Edge Proxy:** Routes requests effectively to the main GCP backend (`/api/v1/*`).
-- **Health Check Endpoint:** Simple endpoint to verify worker connectivity and status (`/api/edge/healthz`).
-- **CORS Handling:** Automatically processes Cross-Origin Resource Sharing (CORS) preflight requests and appends appropriate headers.
+1. `wrangler.toml` → `axim-core-worker` (edge API proxy + cache)
+2. `onyx-edge-worker/wrangler.toml` → `onyx-edge-worker` (Onyx AI bridge)
 
 ## Prerequisites
 
-Ensure you have Node.js and npm installed.
+1. Node.js 22+
+2. Cloudflare account access with Worker deploy permission
+3. Wrangler authentication
 
-## Setup Instructions
+```bash
+npx wrangler login
+```
 
-1. **Install Dependencies:**
-   Navigate to this directory (`cloudflare-workers/`) and install the Wrangler package:
+## Install
 
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
-2. **Configure Variables:**
-   Update `wrangler.toml` to set your actual `GCP_BACKEND_URL` and `SUPABASE_URL` if they differ from the defaults:
+## Configure
 
-   ```toml
-   [vars]
-   GCP_BACKEND_URL = "https://your-actual-gcp-backend.com"
-   SUPABASE_URL = "https://your-actual-supabase.co"
-   ```
+Update both Wrangler config files before deployment:
 
-3. **Login to Cloudflare:**
-   Authenticate Wrangler with your Cloudflare account:
+1. `wrangler.toml`:
+   - `SUPABASE_URL`
+   - `ALLOWED_ORIGINS`
+2. `onyx-edge-worker/wrangler.toml`:
+   - `AXIM_ONYX_SECRET`
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_ANON_KEY`
+   - AI binding (`[ai] binding = "AI"`)
 
-   ```bash
-   npx wrangler login
-   ```
+Use `wrangler secret put` for sensitive production values instead of checking secrets into config.
 
-## Running Locally
-
-To test the worker locally, use the Wrangler development server:
+## Local development
 
 ```bash
 npm run dev
 ```
 
-This will start a local server, usually on `http://localhost:8787`, proxying requests appropriately.
-
-## Deployment
-
-To deploy the worker to your Cloudflare account, run:
+## Deployment and verification
 
 ```bash
-npm run deploy
+npm run dry-run        # Validate axim-core-worker package
+npm run dry-run:onyx   # Validate onyx-edge-worker package
+npm run deploy         # Deploy axim-core-worker
+npm run deploy:onyx    # Deploy onyx-edge-worker
+npm run check          # Integration test + dry-runs for both workers
 ```
 
-You can view logs for your deployed worker by running:
+Tail logs with:
 
 ```bash
 npm run tail
 ```
-
-## Future Enhancements
-
-- **Edge Caching:** Implement caching for frequently accessed, read-only data (like legal constants or jurisdiction details).
-- **Authentication Proxy:** Perform preliminary JWT/API key validation at the edge before hitting the origin server.
-- **Micro-App Routing:** Directly map external micro-app requests to their specific Supabase Edge Functions.
