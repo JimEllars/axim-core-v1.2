@@ -15,12 +15,14 @@ export const RealtimeProvider = ({ children }) => {
   const ticketsChannelRef = useRef(null);
   const workflowChannelRef = useRef(null);
   const execChannelRef = useRef(null);
+  const revenueChannelRef = useRef(null);
   const workflowListenerRef = useRef(null);
   const reconnectTimeouts = useRef({
     hitl: null,
     telemetry: null,
     workflow: null,
-    exec: null
+    exec: null,
+    revenue: null
   });
 
   // Track toast times outside of useEffect so they persist across re-renders
@@ -41,6 +43,7 @@ export const RealtimeProvider = ({ children }) => {
     let telemetryRetries = 0;
     let workflowRetries = 0;
     let execRetries = 0;
+    let revenueRetries = 0;
     const MAX_RETRIES = 3;
     const currentReconnectTimeouts = reconnectTimeouts.current;
 
@@ -160,6 +163,35 @@ export const RealtimeProvider = ({ children }) => {
       telemetryChannelRef.current = telemetryChannel;
     };
 
+    const setupRevenueChannel = () => {
+      const revenueChannel = supabase.channel('realtime:revenue_changes')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'micro_app_transactions' },
+          (payload) => {
+              window.dispatchEvent(new CustomEvent('axim:revenue_update', { detail: payload }));
+          }
+        )
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            revenueRetries = 0;
+          } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+            console.warn('RealtimeContext: WebSocket connection closed/error (revenue_changes)', err || status);
+            if (revenueRetries < MAX_RETRIES) {
+              revenueRetries++;
+              const backoffTime = Math.pow(2, revenueRetries) * 1000;
+              currentReconnectTimeouts.revenue = setTimeout(setupRevenueChannel, backoffTime);
+            }
+          }
+        });
+
+      revenueChannel.onError((err) => {
+          console.warn('RealtimeContext: WebSocket error (revenue_changes)', err);
+      });
+
+      revenueChannelRef.current = revenueChannel;
+    };
+
     const setupExecChannel = () => {
       const execChannel = supabase.channel('realtime:micro_app_executions')
         .on(
@@ -224,6 +256,7 @@ export const RealtimeProvider = ({ children }) => {
     setupHitlChannel();
     setupTelemetryChannel();
     setupExecChannel();
+    setupRevenueChannel();
     workflowListenerRef.current = listenForWorkflowEvents(supabase);
 
     const handleOnline = () => {
@@ -233,6 +266,7 @@ export const RealtimeProvider = ({ children }) => {
         if (ticketsChannelRef.current) supabase.removeChannel(ticketsChannelRef.current);
         if (workflowChannelRef.current) supabase.removeChannel(workflowChannelRef.current);
         if (execChannelRef.current) supabase.removeChannel(execChannelRef.current);
+        if (revenueChannelRef.current) supabase.removeChannel(revenueChannelRef.current);
         if (workflowListenerRef.current) workflowListenerRef.current();
 
         setupSupportTicketsChannel();
@@ -240,6 +274,7 @@ export const RealtimeProvider = ({ children }) => {
         setupTelemetryChannel();
         setupWorkflowChannel();
         setupExecChannel();
+        setupRevenueChannel();
         workflowListenerRef.current = listenForWorkflowEvents(supabase);
     };
 
@@ -256,11 +291,13 @@ export const RealtimeProvider = ({ children }) => {
       if (currentReconnectTimeouts.telemetry) clearTimeout(currentReconnectTimeouts.telemetry);
       if (currentReconnectTimeouts.workflow) clearTimeout(currentReconnectTimeouts.workflow);
       if (currentReconnectTimeouts.exec) clearTimeout(currentReconnectTimeouts.exec);
+      if (currentReconnectTimeouts.revenue) clearTimeout(currentReconnectTimeouts.revenue);
       if (hitlChannelRef.current) supabase.removeChannel(hitlChannelRef.current);
       if (telemetryChannelRef.current) supabase.removeChannel(telemetryChannelRef.current);
       if (ticketsChannelRef.current) supabase.removeChannel(ticketsChannelRef.current);
       if (workflowChannelRef.current) supabase.removeChannel(workflowChannelRef.current);
       if (execChannelRef.current) supabase.removeChannel(execChannelRef.current);
+      if (revenueChannelRef.current) supabase.removeChannel(revenueChannelRef.current);
       if (workflowListenerRef.current) workflowListenerRef.current();
     };
   }, [user]);

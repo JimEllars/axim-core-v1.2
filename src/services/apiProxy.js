@@ -47,14 +47,25 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
  * Endpoint ingress proxy blocks to process direct performance tracking payloads transmitted from external systems.
  * Route incoming metrics straight into public.api_usage_logs table.
  */
+export const validateDecentralizedLedgerPayload = (payload) => {
+  // Provision empty validation schemas within apiProxy.js to handle data ingress routing blocks
+  // for standalone decentralized extension layers.
+  // In the future this will enforce strict structural requirements (e.g. signature checks, schema matching)
+  if (!payload || typeof payload !== 'object') {
+    return false;
+  }
+  // Stub for more complex future schema validation
+  return true;
+};
+
 export const submitMicroAppTelemetry = async (payload) => {
   if (!supabase) {
     throw new Error("Supabase client is not initialized.");
   }
 
-  // Contract validation fields
-  if (!payload || typeof payload !== 'object') {
-    logger.error('Invalid payload format for telemetry');
+  // Contract validation fields using decentralized ledger schemas
+  if (!validateDecentralizedLedgerPayload(payload)) {
+    logger.error('Invalid payload format for decentralized ledger telemetry');
     return;
   }
 
@@ -86,7 +97,11 @@ export const submitMicroAppTelemetry = async (payload) => {
 
   try {
     // Route these incoming transaction arrays straight to the central public.api_usage_logs table
-    const { data, error } = await supabase.from('api_usage_logs').insert(validatedPayloads, { returning: 'minimal' }).setHeader('Prefer', 'resolution=merge-duplicates');
+    // Maintain strict infrastructure isolation, routing payload strings to perform conflict-resolved bulk writes
+    const { data, error } = await supabase.from('api_usage_logs').upsert(validatedPayloads, {
+      onConflict: 'id', // Assuming 'id' or another unique constraint handles conflicts
+      ignoreDuplicates: true
+    });
 
     if (error) throw error;
     if (data && data.error) throw new Error(data.error);
