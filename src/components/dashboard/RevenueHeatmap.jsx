@@ -69,22 +69,44 @@ const RevenueHeatmap = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchRevenueData();
 
+    const handleRevenueUpdate = (event) => {
+      // Recalculate cell illumination parameters incrementally as inbound ledger transactions land
+      // using a sliding memory configuration capped at a maximum of 50 visible tracking points
+      const newPayload = event.detail.new;
+      if (newPayload && newPayload.status === 'succeeded') {
+        setData(prevData => {
+          const appSource = newPayload.app_source || 'Unknown';
+          const newAmount = (Number(newPayload.amount) || 0) / 100;
 
-      fetchRevenueData();
+          let found = false;
+          let updatedData = prevData.map(item => {
+            if (item.name === appSource) {
+              found = true;
+              return { ...item, revenue: item.revenue + newAmount };
+            }
+            return item;
+          });
 
-    if (supabase) {
-      const subscription = supabase.channel('revenue_changes')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'micro_app_transactions' }, () => {
-          fetchRevenueData();
-        })
-        .subscribe();
+          if (!found) {
+            updatedData.push({ name: appSource, revenue: newAmount });
+          }
 
-      return () => {
-        supabase.removeChannel(subscription);
-      };
-    }
-  }, [supabase]);
+          updatedData.sort((a, b) => b.revenue - a.revenue);
+          // Capped at a maximum of 50 visible tracking points
+          return updatedData.slice(0, 50);
+        });
+      }
+    };
+
+    window.addEventListener('axim:revenue_update', handleRevenueUpdate);
+    return () => {
+      window.removeEventListener('axim:revenue_update', handleRevenueUpdate);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
 
   const getBarColor = (index, revenue, maxRevenue) => {

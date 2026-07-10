@@ -28,8 +28,8 @@ describe('apiProxy.js tests', () => {
 
   describe('submitMicroAppTelemetry', () => {
     it('should validate payloads and insert them into api_usage_logs directly', async () => {
-      const mockInsert = vi.fn().mockResolvedValue({ data: { success: true }, error: null });
-      supabase.from.mockReturnValue({ insert: mockInsert });
+      const mockUpsert = vi.fn().mockResolvedValue({ data: { success: true }, error: null });
+      supabase.from.mockReturnValue({ upsert: mockUpsert });
 
       const payload = {
         app_id: 'test_app',
@@ -42,13 +42,13 @@ describe('apiProxy.js tests', () => {
       const result = await submitMicroAppTelemetry(payload);
 
       expect(supabase.from).toHaveBeenCalledWith('api_usage_logs');
-      expect(mockInsert).toHaveBeenCalledWith([expect.objectContaining(payload)]);
+      expect(mockUpsert).toHaveBeenCalledWith([expect.objectContaining(payload)], { onConflict: 'id', ignoreDuplicates: true });
       expect(result).toEqual({ success: true });
     });
 
     it('should handle payload arrays', async () => {
-      const mockInsert = vi.fn().mockResolvedValue({ data: { success: true }, error: null });
-      supabase.from.mockReturnValue({ insert: mockInsert });
+      const mockUpsert = vi.fn().mockResolvedValue({ data: { success: true }, error: null });
+      supabase.from.mockReturnValue({ upsert: mockUpsert });
 
       const payload = [{
         app_id: 'test_app',
@@ -57,25 +57,25 @@ describe('apiProxy.js tests', () => {
 
       await submitMicroAppTelemetry(payload);
 
-      expect(mockInsert).toHaveBeenCalledWith([expect.objectContaining({
+      expect(mockUpsert).toHaveBeenCalledWith([expect.objectContaining({
         app_id: 'test_app',
         endpoint: '/test/endpoint',
         method: 'UNKNOWN',
         status_code: 200,
         execution_time_ms: 0
-      })]);
+      })], { onConflict: 'id', ignoreDuplicates: true });
     });
 
     it('should return undefined and log error on invalid payload format', async () => {
       const result = await submitMicroAppTelemetry(null);
 
-      expect(logger.error).toHaveBeenCalledWith('Invalid payload format for telemetry');
+      expect(logger.error).toHaveBeenCalledWith('Invalid payload format for decentralized ledger telemetry');
       expect(result).toBeUndefined();
     });
 
     it('should not throw on insert failure, but log it', async () => {
-      const mockInsert = vi.fn().mockResolvedValue({ data: null, error: new Error("Insert Failed") });
-      supabase.from.mockReturnValue({ insert: mockInsert });
+      const mockUpsert = vi.fn().mockResolvedValue({ data: null, error: new Error("Insert Failed") });
+      supabase.from.mockReturnValue({ upsert: mockUpsert });
 
       const result = await submitMicroAppTelemetry({ app_id: 'test' });
 
