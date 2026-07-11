@@ -56,4 +56,4 @@ jobs:
 
       - name: Verify Cloudflare Worker Build
         working-directory: cloudflare-workers
-        run: rm -rf .wrangler && npm install && npm run build && npx wrangler deploy src/index.js --dry-run -c wrangler.toml && cd onyx-edge-worker && rm -rf .wrangler && npm install --no-audit --no-fund && npx wrangler deploy src/index.ts --dry-run -c wrangler.toml
+        run: rm -rf .wrangler && npm install && npm run build && npx wrangler deploy --dry-run -c wrangler.toml && cd onyx-edge-worker && rm -rf .wrangler && npm install --no-audit --no-fund && npx wrangler deploy --dry-run -c wrangler.toml

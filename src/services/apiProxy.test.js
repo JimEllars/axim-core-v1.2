@@ -75,7 +75,7 @@ describe('apiProxy.js tests', () => {
     it('should return undefined and log error on invalid payload format', async () => {
       const result = await submitMicroAppTelemetry(null);
 
-      expect(logger.error).toHaveBeenCalledWith('Invalid payload format for decentralized ledger telemetry');
+      expect(logger.error).toHaveBeenCalledWith('Invalid payload format for decentralized ledger telemetry. Routing to Dead-Letter Ingress.');
       expect(result).toBeUndefined();
     });
 

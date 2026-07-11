@@ -1,1 +1,0 @@
-sed -i "s/await supabase.from('api_usage_logs').insert(validatedPayloads);/await supabase.from('api_usage_logs').insert(validatedPayloads).setHeader('Prefer', 'resolution=merge-duplicates');/" src/services/apiProxy.js
