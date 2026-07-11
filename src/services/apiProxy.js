@@ -48,13 +48,25 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
  * Route incoming metrics straight into public.api_usage_logs table.
  */
 export const validateDecentralizedLedgerPayload = (payload) => {
-  // Provision empty validation schemas within apiProxy.js to handle data ingress routing blocks
-  // for standalone decentralized extension layers.
-  // In the future this will enforce strict structural requirements (e.g. signature checks, schema matching)
   if (!payload || typeof payload !== 'object') {
     return false;
   }
-  // Stub for more complex future schema validation
+
+  // Lightweight schema validation stub for standalone extensions (e.g., Demand Letter Generator, NDA Validation)
+  const hasRequiredFields = 'app_id' in payload && 'endpoint' in payload;
+
+  return hasRequiredFields;
+};
+
+/**
+ * Lightweight, stateless validation stubs to handle future partnership payment ledger dispatches.
+ * Isolated to protect core storage speeds.
+ */
+export const validatePartnershipPaymentLedger = (ledgerEntry) => {
+  if (!ledgerEntry || typeof ledgerEntry !== 'object') {
+    return false;
+  }
+  // Validation logic stub for future partnership payment dispatches
   return true;
 };
 
@@ -101,7 +113,7 @@ export const submitMicroAppTelemetry = async (payload) => {
     const { data, error } = await supabase.from('api_usage_logs').upsert(validatedPayloads, {
       onConflict: 'id', // Assuming 'id' or another unique constraint handles conflicts
       ignoreDuplicates: true
-    });
+    }).setHeader('Prefer', 'resolution=ignore-duplicates');
 
     if (error) throw error;
     if (data && data.error) throw new Error(data.error);

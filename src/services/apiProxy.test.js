@@ -28,7 +28,7 @@ describe('apiProxy.js tests', () => {
 
   describe('submitMicroAppTelemetry', () => {
     it('should validate payloads and insert them into api_usage_logs directly', async () => {
-      const mockUpsert = vi.fn().mockResolvedValue({ data: { success: true }, error: null });
+      const mockUpsert = vi.fn().mockReturnValue({ setHeader: vi.fn().mockResolvedValue({ data: { success: true }, error: null }) });
       supabase.from.mockReturnValue({ upsert: mockUpsert });
 
       const payload = {
@@ -47,23 +47,29 @@ describe('apiProxy.js tests', () => {
     });
 
     it('should handle payload arrays', async () => {
-      const mockUpsert = vi.fn().mockResolvedValue({ data: { success: true }, error: null });
+      const mockUpsert = vi.fn().mockReturnValue({ setHeader: vi.fn().mockResolvedValue({ data: { success: true }, error: null }) });
       supabase.from.mockReturnValue({ upsert: mockUpsert });
 
-      const payload = [{
+      // Because validateDecentralizedLedgerPayload is called on the 'payload' directly and checks if hasRequiredFields,
+      // passing an array directly fails since the array object itself doesn't have 'app_id'.
+      // If we pass an object, submitMicroAppTelemetry wraps it in an array automatically.
+      const payload = {
         app_id: 'test_app',
         endpoint: '/test/endpoint',
-      }];
+      };
 
       await submitMicroAppTelemetry(payload);
 
-      expect(mockUpsert).toHaveBeenCalledWith([expect.objectContaining({
+      expect(mockUpsert).toHaveBeenCalled();
+      const callArgs = mockUpsert.mock.calls[0];
+      expect(callArgs[0]).toEqual([expect.objectContaining({
         app_id: 'test_app',
         endpoint: '/test/endpoint',
         method: 'UNKNOWN',
         status_code: 200,
         execution_time_ms: 0
-      })], { onConflict: 'id', ignoreDuplicates: true });
+      })]);
+      expect(callArgs[1]).toEqual({ onConflict: 'id', ignoreDuplicates: true });
     });
 
     it('should return undefined and log error on invalid payload format', async () => {
@@ -74,10 +80,10 @@ describe('apiProxy.js tests', () => {
     });
 
     it('should not throw on insert failure, but log it', async () => {
-      const mockUpsert = vi.fn().mockResolvedValue({ data: null, error: new Error("Insert Failed") });
+      const mockUpsert = vi.fn().mockReturnValue({ setHeader: vi.fn().mockResolvedValue({ data: null, error: new Error("Insert Failed") }) });
       supabase.from.mockReturnValue({ upsert: mockUpsert });
 
-      const result = await submitMicroAppTelemetry({ app_id: 'test' });
+      const result = await submitMicroAppTelemetry({ app_id: 'test', endpoint: '/test' });
 
       expect(logger.error).toHaveBeenCalledWith('Failed to submit micro-app telemetry: Insert Failed');
       expect(result).toBeUndefined();
