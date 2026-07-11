@@ -6,7 +6,7 @@ const DatabaseUplinkError = ({ node, incident }) => {
     <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="p-6 bg-gray-900 border border-red-800 rounded-lg shadow-lg flex flex-col items-center justify-center text-center space-y-4"
+      className="glass-effect p-6 border border-red-800 rounded-lg shadow-lg flex flex-col items-center justify-center text-center space-y-4"
     >
       <div className="w-16 h-16 bg-red-900/30 rounded-full flex items-center justify-center mb-2">
         <svg

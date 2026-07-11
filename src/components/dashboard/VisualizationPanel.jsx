@@ -96,7 +96,7 @@ const VisualizationPanel = () => {
       // Defensive fallback against 401/expired tokens
       if (error?.message?.includes('401') || error?.status === 401 || error?.code === 'PGRST301' || error?.message?.includes('JWT')) {
         logger.warn('Token verification failed, clearing session and routing to auth gate.');
-        localStorage.removeItem('axim_session'); // Or whatever the local session marker is
+        localStorage.clear();
         sessionStorage.clear();
         navigate('/login');
         return;
