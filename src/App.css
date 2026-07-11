@@ -21,7 +21,7 @@ body {
 
 .glass-effect {
   background: rgba(9, 9, 11, 0.7);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px) saturate(190%);
   border: 1px solid rgba(6, 182, 212, 0.2);
 }
 
