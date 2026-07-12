@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.0.0";
 import { corsHeaders } from "../_shared/cors.ts";
+import { ethers } from "https://esm.sh/ethers@6.11.1";
 
 console.log("Smart Contract Dispatcher Service function loaded");
 
@@ -13,69 +14,115 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
+    if (!supabaseUrl || !supabaseKey) {
+        throw new Error("Missing Supabase configuration");
+    }
+
     const { lead_id, partner_id, amount, wallet_address } = await req.json();
 
     if (!partner_id || !amount || !wallet_address) {
-       // Mock for testing
-       console.log("Using mock data for smart contract execution");
+       throw new Error("Missing required payload parameters: partner_id, amount, wallet_address");
     }
 
-    const mockPartnerId = partner_id || "00000000-0000-0000-0000-000000000000";
-    const mockAmount = amount || 500;
-    const mockWallet = wallet_address || "0x71C...3a9";
-    const mockTxHash = `0xmocktxhash${Date.now()}`;
+    console.log(`Executing smart contract payout on Arbitrum for partner ${partner_id}`);
 
-    console.log(`Executing smart contract payout on Arbitrum for partner ${mockPartnerId}`);
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Here we would use thirdweb SDK or ethers to execute the smart contract
-    // For this environment, we mock the execution and record to ledger
+    // Secure the environment signer properties using database service-role keys
+    const { data: connection, error: connError } = await supabase
+      .from('ecosystem_connections')
+      .select('api_key, webhook_url')
+      .eq('service_name', 'arbitrum_wallet')
+      .eq('status', 'active')
+      .single();
 
-    let result;
-    if (supabaseUrl && supabaseKey) {
-        const supabase = createClient(supabaseUrl, supabaseKey);
+    if (connError || !connection) {
+       throw new Error("Blockchain wallet connection configuration not found or inactive.");
+    }
 
-        // Find a valid user to use as partner_id to avoid foreign key errors
-        const { data: users } = await supabase.from('user_roles').select('user_id').limit(1);
-        const validPartnerId = (users && users.length > 0) ? users[0].user_id : mockPartnerId;
+    // The API key field holds the private key, webhook_url holds the RPC URL
+    const privateKey = connection.api_key;
+    const rpcUrl = connection.webhook_url || "https://arb1.arbitrum.io/rpc";
 
-        const { data, error } = await supabase
-            .from("blockchain_transactions")
-            .insert({
-                partner_id: validPartnerId,
-                wallet_address: mockWallet,
-                amount: mockAmount,
-                currency: "USDC",
-                status: "minted",
-                transaction_hash: mockTxHash,
-                smart_contract_address: "0xSafeTreasuryVaultAddress123"
-            })
-            .select()
-            .single();
+    // Validate the target wallet address
+    if (!ethers.isAddress(wallet_address)) {
+        throw new Error("Invalid destination wallet address.");
+    }
 
-        if (error) {
-            console.error("Failed to log transaction", error);
-            // It might fail in tests due to fk constraints if the user doesn't exist, ignore for tests
+    // Set up the Arbitrum provider and wallet
+    const provider = new ethers.JsonRpcProvider(rpcUrl, 42161);
+    const wallet = new ethers.Wallet(privateKey, provider);
+
+    // Using USDC contract on Arbitrum One
+    const USDC_ADDRESS = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
+
+    // Minimal ABI for ERC-20 transfer
+    const abi = [
+        "function transfer(address to, uint256 amount) returns (bool)",
+        "function decimals() view returns (uint8)"
+    ];
+
+    const usdcContract = new ethers.Contract(USDC_ADDRESS, abi, wallet);
+
+    // Format amount (USDC has 6 decimals)
+    const decimals = 6;
+    const amountToTransfer = ethers.parseUnits(amount.toString(), decimals);
+
+    console.log(`Broadcasting transaction to Arbitrum network. Amount: ${amount} USDC`);
+
+    let txHash;
+    try {
+        const tx = await usdcContract.transfer(wallet_address, amountToTransfer);
+        console.log(`Transaction sent. Hash: ${tx.hash}`);
+
+        // Wait for 1 confirmation
+        const receipt = await tx.wait(1);
+        if (receipt.status !== 1) {
+            throw new Error("Transaction execution reverted on-chain.");
         }
-        result = data || {
-            transaction_hash: mockTxHash,
-            status: "minted",
-            wallet_address: mockWallet,
-            partner_id: validPartnerId
-        };
-    } else {
-        // Mock result if no db
-        result = {
-            transaction_hash: mockTxHash,
-            status: "minted",
-            wallet_address: mockWallet
-        };
+        txHash = tx.hash;
+        console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
+    } catch (txError: any) {
+        console.error("On-chain transaction failed:", txError);
+        throw new Error(`Transaction failed: ${txError.message || 'Unknown error'}`);
     }
+
+    // Find a valid user to use as partner_id to avoid foreign key errors if partner_id doesn't exist
+    // Fallback logic specific to our local testing environment
+    const { data: users } = await supabase.from('user_roles').select('user_id').eq('user_id', partner_id).limit(1);
+    const validPartnerId = (users && users.length > 0) ? partner_id : partner_id; // Keeping the actual partner_id for accuracy, assume FK exists in prod.
+
+    const { data: record, error: dbError } = await supabase
+        .from("blockchain_transactions")
+        .insert({
+            partner_id: validPartnerId,
+            wallet_address: wallet_address,
+            amount: amount,
+            currency: "USDC",
+            status: "minted",
+            transaction_hash: txHash,
+            smart_contract_address: USDC_ADDRESS
+        })
+        .select()
+        .single();
+
+    if (dbError) {
+        console.error("Failed to log transaction to database", dbError);
+        // Even if logging fails, the transaction happened, so we still return success with the hash.
+    }
+
+    const result = record || {
+        transaction_hash: txHash,
+        status: "minted",
+        wallet_address: wallet_address,
+        partner_id: validPartnerId
+    };
 
     return new Response(JSON.stringify({ success: true, transaction: result }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in smart-contract-dispatcher:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

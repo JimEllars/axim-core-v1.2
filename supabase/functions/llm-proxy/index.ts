@@ -138,7 +138,7 @@ serve(async (req) => {
       throw new Error('Missing required fields: provider and prompt.');
     }
 
-    const handler = providerHandlers[provider];
+    const handler = providerHandlers[provider as keyof typeof providerHandlers];
     if (!handler) {
       throw new Error(`Unsupported provider: ${provider}`);
     }
@@ -173,8 +173,11 @@ serve(async (req) => {
 
     // 5. Call the provider's handler with fallback logic
     try {
-      const content = await handler(apiKey, finalPrompt, options);
-      console.log(`[${request_id}] Successfully received response from ${provider}.`);
+      const responseObj = await handler(apiKey, finalPrompt, options);
+      const content = typeof responseObj === 'string' ? responseObj : responseObj.content;
+      const cached = typeof responseObj === 'object' ? responseObj.cached : false;
+
+      console.log(`[${request_id}] Successfully received response from ${provider}. Cached: ${cached}`);
 
       // Log to database
       try {
@@ -185,13 +188,15 @@ serve(async (req) => {
               llm_model: options.model || 'default',
               command: prompt,
               response: content,
-              compressed: isCompressed
+              compressed: isCompressed,
+              // Record cache status for metrics
+              metadata: { cached: cached }
           });
       } catch (logError) {
           console.error(`[${request_id}] Failed to log interaction:`, logError);
       }
 
-      return new Response(JSON.stringify({ content }), {
+      return new Response(JSON.stringify({ content, cached }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     } catch (providerError) {
@@ -212,9 +217,11 @@ serve(async (req) => {
           }
 
           const fallbackHandler = providerHandlers[fallbackProvider as keyof typeof providerHandlers];
-          const fallbackContent = await fallbackHandler(fallbackApiKey, finalPrompt, options);
+          const fallbackResponseObj = await fallbackHandler(fallbackApiKey, finalPrompt, options);
+          const fallbackContent = typeof fallbackResponseObj === 'string' ? fallbackResponseObj : fallbackResponseObj.content;
+          const fallbackCached = typeof fallbackResponseObj === 'object' ? fallbackResponseObj.cached : false;
 
-          console.log(`[${request_id}] Successfully received response from fallback provider ${fallbackProvider}.`);
+          console.log(`[${request_id}] Successfully received response from fallback provider ${fallbackProvider}. Cached: ${fallbackCached}`);
 
           activeProvider = fallbackProvider;
           // Log fallback to database
@@ -226,13 +233,14 @@ serve(async (req) => {
                   llm_model: options.model || 'default',
                   command: prompt,
                   response: fallbackContent,
-                  compressed: isCompressed
+                  compressed: isCompressed,
+                  metadata: { cached: fallbackCached, fallback: true }
               });
           } catch (logError) {
               console.error(`[${request_id}] Failed to log interaction:`, logError);
           }
 
-          return new Response(JSON.stringify({ content: fallbackContent, fallbackUsed: fallbackProvider }), {
+          return new Response(JSON.stringify({ content: fallbackContent, fallbackUsed: fallbackProvider, cached: fallbackCached }), {
               headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           });
       } catch (fallbackError) {
@@ -244,7 +252,7 @@ serve(async (req) => {
       }
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error(`[${request_id}] General llm-proxy error:`, error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400, // Bad Request for parsing errors or other client-side issues.

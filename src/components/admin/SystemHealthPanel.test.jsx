@@ -6,6 +6,12 @@ import { supabase } from '../../services/supabaseClient';
 
 vi.mock('../../services/supabaseClient', () => ({
   supabase: {
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      not: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      order: vi.fn().mockResolvedValue({ data: [], error: null })
+    })),
     functions: {
       invoke: vi.fn()
     },
