@@ -10,12 +10,33 @@ vi.mock('../contexts/AuthContext', () => ({
   useAuth: vi.fn(),
 }));
 
+vi.mock('@thirdweb-dev/react', () => ({
+  useWallet: vi.fn(() => null),
+  useSigner: vi.fn(() => null),
+  useDisconnect: vi.fn(() => vi.fn()),
+}));
+
+vi.mock('./web3/Web3ConnectButton', () => ({
+  default: () => <div data-testid="web3-connect-button" />
+}));
+
+vi.mock('framer-motion', async () => {
+    const actual = await vi.importActual('framer-motion');
+    return {
+        ...actual,
+        AnimatePresence: ({ children }) => <>{children}</>
+    };
+});
+
+
 describe('Login Component', () => {
   let loginMock;
+  let loginWithCustomTokenMock;
 
   beforeEach(() => {
     vi.clearAllMocks();
     loginMock = vi.fn();
+    loginWithCustomTokenMock = vi.fn();
   });
 
   const renderWithRouter = (ui) => {
@@ -25,6 +46,7 @@ describe('Login Component', () => {
   it('renders login form correctly', () => {
     useAuth.mockReturnValue({
       login: loginMock,
+      loginWithCustomToken: loginWithCustomTokenMock,
       loading: false,
       error: '',
     });
@@ -37,6 +59,7 @@ describe('Login Component', () => {
   it('calls login function with correct credentials on submit', async () => {
     useAuth.mockReturnValue({
       login: loginMock,
+      loginWithCustomToken: loginWithCustomTokenMock,
       loading: false,
       error: '',
     });
@@ -58,6 +81,7 @@ describe('Login Component', () => {
     const errorMessage = 'Invalid email or password';
     useAuth.mockReturnValue({
       login: loginMock,
+      loginWithCustomToken: loginWithCustomTokenMock,
       loading: false,
       error: '',
     });
@@ -75,6 +99,7 @@ describe('Login Component', () => {
   it('disables the submit button and shows loading text when loading', () => {
     useAuth.mockReturnValue({
       login: loginMock,
+      loginWithCustomToken: loginWithCustomTokenMock,
       loading: true, // Set loading state to true
       error: '',
     });
