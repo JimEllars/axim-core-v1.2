@@ -8,4 +8,4 @@ SUPABASE_URL = "https://your-supabase-url.supabase.co"
 ALLOWED_ORIGINS = "https://axim.us.com,http://localhost:5173"
 
 [build]
-# Ensure no legacy custom commands override Wrangler's native compilation pass
+command = "npm run build"
