@@ -146,3 +146,13 @@ export const submitMicroAppTelemetry = async (payload) => {
     // Don't throw for telemetry failure
   }
 };
+
+export const logSmartContractPayment = async (paymentDetails) => {
+  if (!validatePartnershipPaymentLedger(paymentDetails)) {
+    logger.warn('Invalid partnership payment ledger entry.');
+    return false;
+  }
+
+  logger.info(`Logging USDC payment confirmation for contract: ${paymentDetails.payment_contract_id}`);
+  return true;
+};

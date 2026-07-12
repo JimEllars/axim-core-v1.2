@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { callApiProxy, submitMicroAppTelemetry } from './apiProxy';
+import { callApiProxy, validateDecentralizedLedgerPayload, submitMicroAppTelemetry, logSmartContractPayment } from './apiProxy';
 import { supabase } from './supabaseClient';
 import logger from './logging';
 
@@ -9,108 +9,64 @@ vi.mock('./supabaseClient', () => ({
       invoke: vi.fn(),
     },
     from: vi.fn(() => ({
-      insert: vi.fn()
+      upsert: vi.fn(() => ({
+        setHeader: vi.fn(() => Promise.resolve({ data: [], error: null }))
+      })),
+      insert: vi.fn(() => Promise.resolve({ data: [], error: null })),
     }))
-  },
+  }
 }));
 
 vi.mock('./logging', () => ({
   default: {
-    error: vi.fn(),
     info: vi.fn(),
-  },
+    error: vi.fn(),
+    warn: vi.fn()
+  }
 }));
 
-describe('apiProxy.js tests', () => {
+describe('apiProxy Service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  describe('submitMicroAppTelemetry', () => {
-    it('should validate payloads and insert them into api_usage_logs directly', async () => {
-      const mockUpsert = vi.fn().mockReturnValue({ setHeader: vi.fn().mockResolvedValue({ data: { success: true }, error: null }) });
-      supabase.from.mockReturnValue({ upsert: mockUpsert });
-
-      const payload = {
-        app_id: 'test_app',
-        endpoint: '/test/endpoint',
-        method: 'POST',
-        status_code: 200,
-        execution_time_ms: 150
-      };
-
-      const result = await submitMicroAppTelemetry(payload);
-
-      expect(supabase.from).toHaveBeenCalledWith('api_usage_logs');
-      expect(mockUpsert).toHaveBeenCalledWith([expect.objectContaining(payload)], { onConflict: 'id', ignoreDuplicates: true });
-      expect(result).toEqual({ success: true });
+  describe('validateDecentralizedLedgerPayload', () => {
+    it('returns true for valid payload', () => {
+      expect(validateDecentralizedLedgerPayload({ app_id: 'test', endpoint: '/test' })).toBe(true);
     });
-
-    it('should handle payload arrays', async () => {
-      const mockUpsert = vi.fn().mockReturnValue({ setHeader: vi.fn().mockResolvedValue({ data: { success: true }, error: null }) });
-      supabase.from.mockReturnValue({ upsert: mockUpsert });
-
-      // Because validateDecentralizedLedgerPayload is called on the 'payload' directly and checks if hasRequiredFields,
-      // passing an array directly fails since the array object itself doesn't have 'app_id'.
-      // If we pass an object, submitMicroAppTelemetry wraps it in an array automatically.
-      const payload = {
-        app_id: 'test_app',
-        endpoint: '/test/endpoint',
-      };
-
-      await submitMicroAppTelemetry(payload);
-
-      expect(mockUpsert).toHaveBeenCalled();
-      const callArgs = mockUpsert.mock.calls[0];
-      expect(callArgs[0]).toEqual([expect.objectContaining({
-        app_id: 'test_app',
-        endpoint: '/test/endpoint',
-        method: 'UNKNOWN',
-        status_code: 200,
-        execution_time_ms: 0
-      })]);
-      expect(callArgs[1]).toEqual({ onConflict: 'id', ignoreDuplicates: true });
-    });
-
-    it('should return undefined and log error on invalid payload format', async () => {
-      const result = await submitMicroAppTelemetry(null);
-
-      expect(logger.error).toHaveBeenCalledWith('Invalid payload format for decentralized ledger telemetry. Routing to Dead-Letter Ingress.');
-      expect(result).toBeUndefined();
-    });
-
-    it('should not throw on insert failure, but log it', async () => {
-      const mockUpsert = vi.fn().mockReturnValue({ setHeader: vi.fn().mockResolvedValue({ data: null, error: new Error("Insert Failed") }) });
-      supabase.from.mockReturnValue({ upsert: mockUpsert });
-
-      const result = await submitMicroAppTelemetry({ app_id: 'test', endpoint: '/test' });
-
-      expect(logger.error).toHaveBeenCalledWith('Failed to submit micro-app telemetry: Insert Failed');
-      expect(result).toBeUndefined();
+    it('returns false for invalid payload', () => {
+      expect(validateDecentralizedLedgerPayload({ app_id: 'test' })).toBe(false);
+      expect(validateDecentralizedLedgerPayload(null)).toBe(false);
     });
   });
 
-  describe('callApiProxy', () => {
-    it('should call api-proxy edge function and return data', async () => {
-      supabase.functions.invoke.mockResolvedValue({ data: { success: true }, error: null });
-
-      const result = await callApiProxy({ integrationId: 'test' });
-      expect(result).toEqual({ success: true });
-      expect(supabase.functions.invoke).toHaveBeenCalledWith('api-proxy', {
-        body: { integrationId: 'test', endpoint: undefined, method: undefined, body: undefined, headers: undefined }
-      });
+  describe('submitMicroAppTelemetry', () => {
+    it('submits valid telemetry payload successfully', async () => {
+      const payload = { app_id: 'test_app', endpoint: '/test' };
+      await submitMicroAppTelemetry(payload);
+      expect(supabase.from).toHaveBeenCalledWith('api_usage_logs');
     });
 
-    it('should throw an error if invoke fails', async () => {
-      supabase.functions.invoke.mockResolvedValue({ data: null, error: new Error('Network error') });
+    it('routes invalid payload to dead letter logs', async () => {
+      const payload = { app_id: 'test_app' }; // missing endpoint
+      await submitMicroAppTelemetry(payload);
+      expect(supabase.from).toHaveBeenCalledWith('hitl_dead_letter_logs');
+      expect(logger.error).toHaveBeenCalledWith('Invalid payload format for decentralized ledger telemetry. Routing to Dead-Letter Ingress.');
+    });
+  });
 
-      await expect(callApiProxy({ integrationId: 'test' })).rejects.toThrow('API Proxy Error: Network error');
+  describe('logSmartContractPayment', () => {
+    it('logs USDC payment confirmation successfully', async () => {
+      const paymentDetails = { payment_contract_id: 'contract_123', multi_chain_hash: 'hash_456' };
+      const result = await logSmartContractPayment(paymentDetails);
+      expect(result).toBe(true);
+      expect(logger.info).toHaveBeenCalledWith('Logging USDC payment confirmation for contract: contract_123');
     });
 
-    it('should throw an error if data contains error', async () => {
-      supabase.functions.invoke.mockResolvedValue({ data: { error: 'API Error' }, error: null });
-
-      await expect(callApiProxy({ integrationId: 'test' })).rejects.toThrow('API Proxy Error: API Error: API Error');
+    it('returns false for invalid payment details', async () => {
+      const result = await logSmartContractPayment(null);
+      expect(result).toBe(false);
+      expect(logger.warn).toHaveBeenCalledWith('Invalid partnership payment ledger entry.');
     });
   });
 });

@@ -2,6 +2,7 @@ import React, { useEffect, Suspense } from 'react';
 import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
+import { ThirdwebProvider, embeddedWallet, metamaskWallet, safeWallet } from '@thirdweb-dev/react';
 import { SupabaseProvider } from './contexts/SupabaseContext.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { ConnectivityProvider } from './contexts/ConnectivityContext.jsx';
@@ -78,7 +79,7 @@ function AppContent() {
     return () => {
       DeviceManager.stopHeartbeat();
     };
-  }, [isAuthenticated, onyxAI.isInitialized, supabase, user]);
+  }, [isAuthenticated, supabase, user]);
 
 
   const loading = authLoading || !isConnectionChecked;
@@ -151,32 +152,42 @@ function AppContent() {
 
 function App() {
   return (
-    <HashRouter>
-      <SupabaseProvider>
-        <AuthProvider>
-          <ConnectivityProvider>
-            <ApiProvider>
-              <DashboardProvider>
-              <RealtimeProvider>
-                <AppContent />
-              </RealtimeProvider>
-            </DashboardProvider>
-            </ApiProvider>
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                style: {
-                  borderRadius: '10px',
-                  background: '#1e293b', // slate-800
-                  color: '#e2e8f0', // slate-200
-                  border: '1px solid #334155', // slate-700
-                },
-              }}
-            />
-          </ConnectivityProvider>
-        </AuthProvider>
-      </SupabaseProvider>
-    </HashRouter>
+    <ThirdwebProvider
+      activeChain="arbitrum"
+      clientId={import.meta.env.VITE_THIRDWEB_CLIENT_ID}
+      supportedWallets={[
+        embeddedWallet({ auth: { options: ["google", "apple", "email"] } }),
+        metamaskWallet(),
+        safeWallet(),
+      ]}
+    >
+      <HashRouter>
+        <SupabaseProvider>
+          <AuthProvider>
+            <ConnectivityProvider>
+              <ApiProvider>
+                <DashboardProvider>
+                <RealtimeProvider>
+                  <AppContent />
+                </RealtimeProvider>
+              </DashboardProvider>
+              </ApiProvider>
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  style: {
+                    borderRadius: '10px',
+                    background: '#1e293b', // slate-800
+                    color: '#e2e8f0', // slate-200
+                    border: '1px solid #334155', // slate-700
+                  },
+                }}
+              />
+            </ConnectivityProvider>
+          </AuthProvider>
+        </SupabaseProvider>
+      </HashRouter>
+    </ThirdwebProvider>
   );
 }
 
