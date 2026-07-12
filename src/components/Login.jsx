@@ -113,7 +113,7 @@ const Login = () => {
           <AnimatePresence mode="wait">
             {(!wallet || error) ? (
               <motion.form
-                key="email-form"
+                key={`email-form`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -206,7 +206,7 @@ const Login = () => {
               </motion.form>
             ) : (
               <motion.div
-                key="web3-signing"
+                key={`web3-signing`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
