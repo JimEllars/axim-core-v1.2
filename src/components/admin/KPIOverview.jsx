@@ -1,18 +1,15 @@
 import RevenueHeatmap from '../dashboard/RevenueHeatmap';
 import React, { useEffect, useState } from 'react';
 import { useSupabase } from '../../contexts/SupabaseContext';
-import { FiTrendingUp, FiUsers, FiDollarSign, FiActivity, FiUserPlus, FiTarget, FiPieChart, FiBarChart2, FiAlertTriangle } from 'react-icons/fi';
+import { FiTrendingUp, FiUsers, FiDollarSign, FiActivity, FiUserPlus, FiTarget, FiPieChart, FiBarChart2, FiAlertTriangle, FiCpu } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 
 const PredictiveInsights = ({ supabase }) => {
   const [insights, setInsights] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchInsights();
-  }, []);
-
   const fetchInsights = async () => {
+
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -127,14 +124,12 @@ const KPIOverview = () => {
     cac: 0,
     ltv: 0,
     grossMargin: 0,
-    dailyActiveUsers: 0
+    dailyActiveUsers: 0,
+    tokenOptimization: 0
   });
 
   useEffect(() => {
-    fetchMetrics();
-  }, []);
-
-  const fetchMetrics = async () => {
+    const fetchMetrics = async () => {
     try {
         // 1. Active Subscribers
         let subscriberCount = 0;
@@ -167,7 +162,24 @@ const KPIOverview = () => {
         // In a real scenario, we would sum the actual plan amounts from the subscription table.
         const estimatedMRR = subscriberCount * 29;
 
-        // 4. Set Metrics (Mixing real data with placeholders/mocks for MVP)
+                // 5. Calculate Token Optimization (Cache Hit Rate)
+        let tokenOptimization = 0;
+        try {
+            const { data, error } = await supabase
+                .from('ai_interactions_ax2024')
+                .select('metadata')
+                .limit(100)
+                .order('created_at', { ascending: false });
+
+            if (!error && data && data.length > 0) {
+                const cacheHits = data.filter(d => d.metadata?.cached === true).length;
+                tokenOptimization = Math.round((cacheHits / data.length) * 100);
+            }
+        } catch (e) {
+            console.warn("Could not fetch token optimization metrics:", e);
+        }
+
+        // 6. Set Metrics (Mixing real data with placeholders/mocks for MVP)
         setMetrics(prev => ({
             ...prev,
             mrr: estimatedMRR,
@@ -177,14 +189,16 @@ const KPIOverview = () => {
             cac: 45.00, // Placeholder: Customer Acquisition Cost (Requires marketing spend data)
             ltv: 850.00, // Placeholder: Lifetime Value (Requires long-term cohort analysis)
             grossMargin: 78, // Placeholder: Gross Margin % (Requires cost accounting data)
-            dailyActiveUsers: dau
+            dailyActiveUsers: dau,
+            tokenOptimization: tokenOptimization
         }));
 
     } catch (e) {
         console.error("Failed to fetch KPI metrics:", e);
-        // Fallback to zeros is handled by initial state
     }
   };
+  fetchMetrics();
+}, [supabase]);
 
   return (
     <div className="space-y-6">
@@ -242,12 +256,20 @@ const KPIOverview = () => {
             icon={FiPieChart}
             color="bg-indigo-500/20"
         />
-        <KPICard
+                <KPICard
             title="Daily Active Users"
             value={metrics.dailyActiveUsers}
             change={15} // Placeholder change %
             icon={FiBarChart2}
             color="bg-cyan-500/20"
+        />
+        <KPICard
+            title="Token Optimization"
+            value={`${metrics.tokenOptimization}%`}
+            change={5.2} // Placeholder change %
+            icon={FiCpu}
+            color="bg-pink-500/20"
+            info="AI Gateway Cache Hits"
         />
       </div>
 
