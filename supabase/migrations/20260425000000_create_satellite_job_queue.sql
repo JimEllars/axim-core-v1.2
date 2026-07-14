@@ -1,6 +1,3 @@
-create extension if not exists pg_cron;
-create extension if not exists pg_net;
-
 CREATE TYPE job_status AS ENUM ('pending', 'processing', 'completed', 'failed');
 
 CREATE TABLE IF NOT EXISTS satellite_job_queue (

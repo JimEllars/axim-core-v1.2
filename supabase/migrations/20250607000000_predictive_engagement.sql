@@ -1,6 +1,3 @@
-create extension if not exists pg_cron;
-create extension if not exists pg_net;
-
 CREATE MATERIALIZED VIEW IF NOT EXISTS user_engagement_scores AS
 SELECT
     u.id AS user_id,
