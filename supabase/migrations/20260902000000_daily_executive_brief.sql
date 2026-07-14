@@ -1,3 +1,6 @@
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
 -- Enable pg_cron if not already enabled
 CREATE EXTENSION IF NOT EXISTS pg_cron WITH SCHEMA "extensions";
 

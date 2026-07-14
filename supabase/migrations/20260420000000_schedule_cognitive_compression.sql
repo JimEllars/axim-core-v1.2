@@ -1,3 +1,6 @@
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
 -- Create extension for pg_net if it doesn't exist
 CREATE EXTENSION IF NOT EXISTS pg_net;
 

@@ -1,3 +1,6 @@
+create extension if not exists pg_cron;
+create extension if not exists pg_net;
+
 CREATE TABLE IF NOT EXISTS system_status (
     id SERIAL PRIMARY KEY,
     key VARCHAR NOT NULL UNIQUE,
