@@ -2,6 +2,9 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.0.0";
 import { corsHeaders } from "../_shared/cors.ts";
 import { ethers } from "https://esm.sh/ethers@6.11.1";
+import SafeApiKit from "https://esm.sh/@safe-global/api-kit@2.4.3";
+import Safe from "https://esm.sh/@safe-global/protocol-kit@3.0.1";
+import { MetaTransactionData, OperationType } from "https://esm.sh/@safe-global/safe-core-sdk-types@5.0.1";
 
 console.log("Smart Contract Dispatcher Service function loaded");
 
@@ -53,6 +56,11 @@ serve(async (req) => {
     const provider = new ethers.JsonRpcProvider(rpcUrl, 42161);
     const wallet = new ethers.Wallet(privateKey, provider);
 
+    const safeAddress = Deno.env.get("GNOSIS_SAFE_ADDRESS");
+    if (!safeAddress) {
+        throw new Error("Missing Gnosis Safe Address configuration");
+    }
+
     // Using USDC contract on Arbitrum One
     const USDC_ADDRESS = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
 
@@ -62,33 +70,45 @@ serve(async (req) => {
         "function decimals() view returns (uint8)"
     ];
 
-    const usdcContract = new ethers.Contract(USDC_ADDRESS, abi, wallet);
+    const usdcInterface = new ethers.Interface(abi);
 
     // Format amount (USDC has 6 decimals)
     const decimals = 6;
     const amountToTransfer = ethers.parseUnits(amount.toString(), decimals);
 
-    console.log(`Broadcasting transaction to Arbitrum network. Amount: ${amount} USDC`);
+    const safeTransactionData: MetaTransactionData = {
+      to: USDC_ADDRESS,
+      data: usdcInterface.encodeFunctionData("transfer", [wallet_address, amountToTransfer]),
+      value: "0",
+      operation: OperationType.Call,
+    };
+
+    console.log(`Initializing Gnosis Safe Protocol Kit...`);
+    const protocolKit = await Safe.default.init({
+      provider: rpcUrl,
+      signer: privateKey,
+      safeAddress
+    });
+
+    console.log(`Creating Safe transaction...`);
+    const safeTransaction = await protocolKit.createTransaction({
+      transactions: [safeTransactionData]
+    });
+
+    console.log(`Broadcasting Safe transaction to Arbitrum network via Relayer. Amount: ${amount} USDC`);
 
     let txHash;
     try {
-        // Implement explicit gas estimation to detect RPC drop frames or revert errors before broadcasting
-        console.log("Estimating gas for transaction...");
-        const gasEstimate = await usdcContract.transfer.estimateGas(wallet_address, amountToTransfer);
-        console.log(`Gas estimation successful: ${gasEstimate.toString()}`);
-
-        const tx = await usdcContract.transfer(wallet_address, amountToTransfer, {
-            gasLimit: gasEstimate * 120n / 100n // Add 20% buffer
-        });
-        console.log(`Transaction sent. Hash: ${tx.hash}`);
+        const txResponse = await protocolKit.executeTransaction(safeTransaction);
+        console.log(`Transaction sent. Hash: ${txResponse.hash}`);
 
         // Wait for 1 confirmation
-        const receipt = await tx.wait(1);
-        if (receipt.status !== 1) {
+        const receipt = await provider.waitForTransaction(txResponse.hash, 1);
+        if (receipt && receipt.status !== 1) {
             throw new Error("Transaction execution reverted on-chain.");
         }
-        txHash = tx.hash;
-        console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
+        txHash = txResponse.hash;
+        console.log(`Transaction confirmed in block ${receipt?.blockNumber}`);
     } catch (txError: any) {
         console.error("On-chain transaction failed:", txError);
         throw new Error(`Engine Fault: Transaction failed during gas estimation or execution: ${txError.message || 'Unknown error'}`);

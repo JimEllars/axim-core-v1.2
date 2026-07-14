@@ -1221,6 +1221,7 @@ class SupabaseApiService {
         contactChange: d.contact_change,
         workflowsTriggered: d.workflows_triggered,
         activeUsers: d.active_users,
+        cacheSavings: d.cache_savings,
       };
     } catch (error) {
       toast.error('Failed to fetch dashboard metrics');
