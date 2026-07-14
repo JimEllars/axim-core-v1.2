@@ -7,5 +7,3 @@ compatibility_flags = ["nodejs_compat"]
 SUPABASE_URL = "https://your-supabase-url.supabase.co"
 ALLOWED_ORIGINS = "https://axim.us.com,http://localhost:5173"
 
-[build]
-command = "npm run build"

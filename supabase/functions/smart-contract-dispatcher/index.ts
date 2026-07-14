@@ -72,7 +72,14 @@ serve(async (req) => {
 
     let txHash;
     try {
-        const tx = await usdcContract.transfer(wallet_address, amountToTransfer);
+        // Implement explicit gas estimation to detect RPC drop frames or revert errors before broadcasting
+        console.log("Estimating gas for transaction...");
+        const gasEstimate = await usdcContract.transfer.estimateGas(wallet_address, amountToTransfer);
+        console.log(`Gas estimation successful: ${gasEstimate.toString()}`);
+
+        const tx = await usdcContract.transfer(wallet_address, amountToTransfer, {
+            gasLimit: gasEstimate * 120n / 100n // Add 20% buffer
+        });
         console.log(`Transaction sent. Hash: ${tx.hash}`);
 
         // Wait for 1 confirmation
@@ -84,18 +91,14 @@ serve(async (req) => {
         console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
     } catch (txError: any) {
         console.error("On-chain transaction failed:", txError);
-        throw new Error(`Transaction failed: ${txError.message || 'Unknown error'}`);
+        throw new Error(`Engine Fault: Transaction failed during gas estimation or execution: ${txError.message || 'Unknown error'}`);
     }
 
-    // Find a valid user to use as partner_id to avoid foreign key errors if partner_id doesn't exist
-    // Fallback logic specific to our local testing environment
-    const { data: users } = await supabase.from('user_roles').select('user_id').eq('user_id', partner_id).limit(1);
-    const validPartnerId = (users && users.length > 0) ? partner_id : partner_id; // Keeping the actual partner_id for accuracy, assume FK exists in prod.
-
+    // Remove local fallback, explicitly use the provided partner_id
     const { data: record, error: dbError } = await supabase
         .from("blockchain_transactions")
         .insert({
-            partner_id: validPartnerId,
+            partner_id: partner_id,
             wallet_address: wallet_address,
             amount: amount,
             currency: "USDC",
@@ -108,17 +111,11 @@ serve(async (req) => {
 
     if (dbError) {
         console.error("Failed to log transaction to database", dbError);
-        // Even if logging fails, the transaction happened, so we still return success with the hash.
+        // Throw an explicit error if we fail to write the hash back to the database
+        throw new Error(`Engine Fault: Transaction succeeded on-chain (${txHash}), but failed to persist to database: ${dbError.message}`);
     }
 
-    const result = record || {
-        transaction_hash: txHash,
-        status: "minted",
-        wallet_address: wallet_address,
-        partner_id: validPartnerId
-    };
-
-    return new Response(JSON.stringify({ success: true, transaction: result }), {
+    return new Response(JSON.stringify({ success: true, transaction: record }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });

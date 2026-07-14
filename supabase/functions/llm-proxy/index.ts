@@ -1,19 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.0.0';
 import { corsHeaders } from '../_shared/cors.ts';
-import { handleOpenAI } from './providers/openai.ts';
-import { handleClaude } from './providers/claude.ts';
-import { handleGemini } from './providers/gemini.ts';
-import { handleDeepseek } from './providers/deepseek.ts';
-import { handleChatbase } from './providers/chatbase.ts';
-
-const providerHandlers = {
-  openai: handleOpenAI,
-  claude: handleClaude,
-  gemini: handleGemini,
-  deepseek: handleDeepseek,
-  chatbase: handleChatbase,
-};
 
 // In-memory cache for API keys to reduce database load.
 const apiKeyPromiseCache = new Map<string, { promise: Promise<string>; expiresAt: number }>();
@@ -93,7 +80,7 @@ serve(async (req) => {
   }
 
   const request_id = crypto.randomUUID();
-  console.log(`[${request_id}] New llm-proxy request received.`);
+  console.log(`[${request_id}] New llm-proxy request received via Cloudflare AI Gateway Universal Endpoint.`);
 
   try {
     // 1. Create a Supabase client with the SERVICE_ROLE_KEY for admin operations.
@@ -131,19 +118,12 @@ serve(async (req) => {
     // 3. Parse the request body.
     let { provider, prompt, options = {} } = await req.json();
     if (!provider || provider.trim() === '') {
-        provider = 'deepseek';
+        provider = 'openai';
     }
 
     if (!prompt) {
       throw new Error('Missing required fields: provider and prompt.');
     }
-
-    const handler = providerHandlers[provider as keyof typeof providerHandlers];
-    if (!handler) {
-      throw new Error(`Unsupported provider: ${provider}`);
-    }
-
-    console.log(`[${request_id}] Routing to provider: ${provider}`);
 
     let finalPrompt = prompt;
     let isCompressed = false;
@@ -171,86 +151,170 @@ serve(async (req) => {
       });
     }
 
-    // 5. Call the provider's handler with fallback logic
+    // Attempt to get a fallback key
+    let fallbackProvider = provider === 'claude' ? 'openai' : 'claude';
+    let fallbackApiKey = null;
     try {
-      const responseObj = await handler(apiKey, finalPrompt, options);
-      const content = typeof responseObj === 'string' ? responseObj : responseObj.content;
-      const cached = typeof responseObj === 'object' ? responseObj.cached : false;
-
-      console.log(`[${request_id}] Successfully received response from ${provider}. Cached: ${cached}`);
-
-      // Log to database
-      try {
-          await serviceClient.from('ai_interactions_ax2024').insert({
-              user_id: user.id,
-              command_type: 'proxy_passthrough',
-              llm_provider: activeProvider,
-              llm_model: options.model || 'default',
-              command: prompt,
-              response: content,
-              compressed: isCompressed,
-              // Record cache status for metrics
-              metadata: { cached: cached }
-          });
-      } catch (logError) {
-          console.error(`[${request_id}] Failed to log interaction:`, logError);
-      }
-
-      return new Response(JSON.stringify({ content, cached }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    } catch (providerError) {
-      console.error(`[${request_id}] Upstream provider error from ${provider}:`, providerError);
-
-      // Fallback Logic
-      let fallbackProvider = 'claude';
-      if (provider === 'claude') {
-          fallbackProvider = 'openai';
-      }
-
-      console.log(`[${request_id}] Attempting fallback to ${fallbackProvider}`);
-
-      try {
-          const fallbackApiKey = await getApiKey(serviceClient, user.id, fallbackProvider);
-          if (!fallbackApiKey) {
-             throw new Error(`Fallback API key for ${fallbackProvider} not found.`);
-          }
-
-          const fallbackHandler = providerHandlers[fallbackProvider as keyof typeof providerHandlers];
-          const fallbackResponseObj = await fallbackHandler(fallbackApiKey, finalPrompt, options);
-          const fallbackContent = typeof fallbackResponseObj === 'string' ? fallbackResponseObj : fallbackResponseObj.content;
-          const fallbackCached = typeof fallbackResponseObj === 'object' ? fallbackResponseObj.cached : false;
-
-          console.log(`[${request_id}] Successfully received response from fallback provider ${fallbackProvider}. Cached: ${fallbackCached}`);
-
-          activeProvider = fallbackProvider;
-          // Log fallback to database
-          try {
-              await serviceClient.from('ai_interactions_ax2024').insert({
-                  user_id: user.id,
-                  command_type: 'proxy_passthrough',
-                  llm_provider: activeProvider,
-                  llm_model: options.model || 'default',
-                  command: prompt,
-                  response: fallbackContent,
-                  compressed: isCompressed,
-                  metadata: { cached: fallbackCached, fallback: true }
-              });
-          } catch (logError) {
-              console.error(`[${request_id}] Failed to log interaction:`, logError);
-          }
-
-          return new Response(JSON.stringify({ content: fallbackContent, fallbackUsed: fallbackProvider, cached: fallbackCached }), {
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-      } catch (fallbackError) {
-          console.error(`[${request_id}] Upstream fallback provider error from ${fallbackProvider}:`, fallbackError);
-          return new Response(JSON.stringify({ error: `Error from primary and fallback upstream providers.` }), {
-            status: 502, // Bad Gateway
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-      }
+        fallbackApiKey = await getApiKey(serviceClient, user.id, fallbackProvider);
+    } catch (e) {
+        console.warn(`[${request_id}] Fallback API key for ${fallbackProvider} not found, skipping fallback routing.`);
     }
+
+    // 5. Construct Universal Endpoint Payload for Cloudflare AI Gateway
+    const cfAccountId = Deno.env.get('CLOUDFLARE_ACCOUNT_ID');
+    const cfGatewayId = Deno.env.get('CLOUDFLARE_GATEWAY_ID');
+
+    if (!cfAccountId || !cfGatewayId) {
+        throw new Error("Missing Cloudflare AI Gateway Configuration (CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_GATEWAY_ID)");
+    }
+
+    const universalEndpoint = `https://gateway.ai.cloudflare.com/v1/${cfAccountId}/${cfGatewayId}`;
+
+    const messages = [{ role: 'user', content: finalPrompt }];
+
+    // Construct the provider configurations for the universal payload
+    const providerList = [];
+
+    if (provider === 'openai') {
+        providerList.push({
+            provider: 'openai',
+            endpoint: 'chat/completions',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`
+            },
+            query: {
+                model: options.model || 'gpt-4o-mini',
+                messages: messages,
+                max_tokens: options.max_tokens || 1024,
+                temperature: options.temperature || 0.7
+            }
+        });
+    } else if (provider === 'claude') {
+        providerList.push({
+            provider: 'anthropic',
+            endpoint: 'v1/messages',
+            headers: {
+                'x-api-key': apiKey,
+                'anthropic-version': '2023-06-01'
+            },
+            query: {
+                model: options.model || 'claude-3-haiku-20240307',
+                messages: messages,
+                max_tokens: options.max_tokens || 1024,
+                temperature: options.temperature || 0.7
+            }
+        });
+    } else if (provider === 'gemini') {
+        providerList.push({
+            provider: 'google-ai-studio',
+            endpoint: `v1beta/models/${options.model || 'gemini-pro'}:generateContent?key=${apiKey}`,
+            query: {
+                contents: [{ parts: [{ text: finalPrompt }] }],
+                generationConfig: {
+                    maxOutputTokens: options.max_tokens || 1024,
+                    temperature: options.temperature || 0.7
+                }
+            }
+        });
+    } else {
+        throw new Error(`Provider ${provider} is not supported by the universal routing gateway.`);
+    }
+
+    // Add fallback if configured
+    if (fallbackApiKey && provider !== fallbackProvider) {
+        if (fallbackProvider === 'openai') {
+            providerList.push({
+                provider: 'openai',
+                endpoint: 'chat/completions',
+                headers: {
+                    'Authorization': `Bearer ${fallbackApiKey}`
+                },
+                query: {
+                    model: 'gpt-4o-mini',
+                    messages: messages,
+                    max_tokens: options.max_tokens || 1024,
+                    temperature: options.temperature || 0.7
+                }
+            });
+        } else if (fallbackProvider === 'claude') {
+            providerList.push({
+                provider: 'anthropic',
+                endpoint: 'v1/messages',
+                headers: {
+                    'x-api-key': fallbackApiKey,
+                    'anthropic-version': '2023-06-01'
+                },
+                query: {
+                    model: 'claude-3-haiku-20240307',
+                    messages: messages,
+                    max_tokens: options.max_tokens || 1024,
+                    temperature: options.temperature || 0.7
+                }
+            });
+        }
+    }
+
+    console.log(`[${request_id}] Dispatching to Cloudflare AI Gateway Universal Endpoint...`);
+
+    const response = await fetch(universalEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(providerList),
+    });
+
+    if (!response.ok) {
+        let errMessage = response.statusText;
+        try {
+            const errData = await response.json();
+            errMessage = JSON.stringify(errData);
+        } catch(e) {}
+        throw new Error(`Cloudflare AI Gateway Error: ${errMessage}`);
+    }
+
+    const data = await response.json();
+
+    // Parse response headers for caching status
+    const cached = response.headers.get('cf-aig-cache-status') === 'HIT';
+    const respondingProvider = response.headers.get('cf-aig-provider') || provider;
+
+    console.log(`[${request_id}] Successfully received response from CF AI Gateway. Cached: ${cached}, Responding Provider: ${respondingProvider}`);
+
+    let content = "";
+    if (respondingProvider === 'openai' && data.choices && data.choices.length > 0) {
+        content = data.choices[0].message.content;
+    } else if (respondingProvider === 'anthropic' && data.content && data.content.length > 0) {
+        content = data.content[0].text;
+    } else if (respondingProvider === 'google-ai-studio' && data.candidates && data.candidates.length > 0) {
+        content = data.candidates[0].content.parts[0].text;
+    } else {
+        content = JSON.stringify(data); // Fallback for unknown structure
+    }
+
+    // Log to database
+    try {
+        await serviceClient.from('ai_interactions_ax2024').insert({
+            user_id: user.id,
+            command_type: 'proxy_passthrough',
+            llm_provider: respondingProvider,
+            llm_model: options.model || 'default',
+            command: prompt,
+            response: content,
+            compressed: isCompressed,
+            // Record cache status for metrics
+            metadata: {
+                cached: cached,
+                fallback: respondingProvider !== provider && respondingProvider !== 'anthropic' // anthropic is used for claude in CF AIG
+            }
+        });
+    } catch (logError) {
+        console.error(`[${request_id}] Failed to log interaction:`, logError);
+    }
+
+    return new Response(JSON.stringify({ content, cached, respondingProvider }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
 
   } catch (error: any) {
     console.error(`[${request_id}] General llm-proxy error:`, error);
