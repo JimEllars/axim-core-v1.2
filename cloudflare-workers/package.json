@@ -12,7 +12,7 @@
     "dry-run": "npx wrangler deploy --dry-run -c wrangler.toml",
     "deploy:onyx": "npx wrangler deploy -c onyx-edge-worker/wrangler.toml",
     "dry-run:onyx": "npx wrangler deploy --dry-run -c onyx-edge-worker/wrangler.toml",
-    "check": "npm run test && npm run build && npm run dry-run && npm run dry-run:onyx",
+    "check": "npm run test && npm run dry-run && npm run dry-run:onyx",
     "tail": "wrangler tail",
     "test:integration": "vitest run tests/integration.test.js",
     "test": "npm run test:integration"
