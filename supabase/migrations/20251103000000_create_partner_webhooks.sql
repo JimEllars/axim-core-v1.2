@@ -1,3 +1,12 @@
+
+CREATE OR REPLACE FUNCTION update_modified_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TABLE IF NOT EXISTS partner_webhooks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     partner_id UUID REFERENCES users(id) ON DELETE CASCADE,
