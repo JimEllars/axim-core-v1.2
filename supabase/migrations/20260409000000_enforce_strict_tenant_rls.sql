@@ -3,7 +3,7 @@
 -- Enable RLS for all mentioned tables
 ALTER TABLE public.api_keys ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.partner_webhooks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.secure_artifacts ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public.secure_artifacts ENABLE ROW LEVEL SECURITY; (removed as secure_artifacts is a storage bucket)
 
 -- API Keys Policies
 DROP POLICY IF EXISTS "Strict Tenant RLS for API Keys Select" ON public.api_keys;
