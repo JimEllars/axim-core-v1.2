@@ -110,6 +110,11 @@ export const submitMicroAppTelemetry = async (payload) => {
   const validatedPayloads = payloadsToInsert.map(p => {
     // Sanitize and enforce types
     const sanitized = {
+      metadata: typeof p.metadata === 'object' && p.metadata !== null ? {
+        ...p.metadata,
+        cached: p.metadata["cf-aig-cache-status"] === "HIT" || p.metadata.cached === true
+      } : {},
+
       app_id: typeof p.app_id === 'string' ? p.app_id.substring(0, 50) : 'unknown',
       endpoint: typeof p.endpoint === 'string' ? p.endpoint.substring(0, 100) : '/unknown',
       method: typeof p.method === 'string' ? p.method.substring(0, 10).toUpperCase() : 'UNKNOWN',
@@ -155,4 +160,35 @@ export const logSmartContractPayment = async (paymentDetails) => {
 
   logger.info(`Logging USDC payment confirmation for contract: ${paymentDetails.payment_contract_id}`);
   return true;
+};
+
+/**
+ * Bi-Directional Orchestration Hooks
+ * Allows AXiM Core to request specialized document profiles directly from external autonomous micro-apps.
+ * Maintains strict decoupling boundaries.
+ */
+export const requestMicroAppDocument = async (appId, requestPayload) => {
+  if (!supabase) {
+    throw new Error("Supabase client is not initialized.");
+  }
+
+  logger.info(`Dispatching stateless document request to micro-app: ${appId}`);
+
+  try {
+    const { data, error } = await supabase.functions.invoke('micro-app-orchestrator', {
+      body: {
+        appId,
+        action: 'generate_document',
+        payload: requestPayload
+      }
+    });
+
+    if (error) throw error;
+    if (data && data.error) throw new Error(data.error);
+
+    return data;
+  } catch (error) {
+    logger.error(`Failed to execute bi-directional request to ${appId}: ${error.message}`);
+    throw error;
+  }
 };

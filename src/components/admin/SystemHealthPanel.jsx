@@ -129,7 +129,7 @@ const SystemHealthPanel = () => {
 
   if (healthData.status === 'loading') {
     return (
-      <div className="bg-onyx-950/80 rounded-xl p-6 border border-onyx-accent/30 shadow-[0_0_20px_rgba(0,0,0,0.4)] backdrop-blur-md animate-pulse">
+      <div className="glass-effect rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] animate-pulse">
         <div className="h-6 w-1/3 bg-slate-800 rounded mb-6"></div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="h-24 bg-slate-800 rounded-lg"></div>
@@ -143,7 +143,7 @@ const SystemHealthPanel = () => {
   }
 
   return (
-    <div className="bg-onyx-950/80 rounded-xl p-6 border border-onyx-accent/30 shadow-[0_0_20px_rgba(0,0,0,0.4)] backdrop-blur-md">
+    <div className="glass-effect rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)]">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-white flex items-center">
           <SafeIcon icon={FiActivity} className="mr-2 text-cyan-400" />

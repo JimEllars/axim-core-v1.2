@@ -123,7 +123,7 @@ const RevenueHeatmap = () => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20 h-full flex flex-col"
+      className="glass-effect rounded-xl p-6 border border-onyx-accent/20 h-full flex flex-col"
     >
       <div className="mb-4">
         <h3 className="text-lg font-medium text-white">Ecosystem Revenue Heatmap</h3>

@@ -49,7 +49,7 @@ const PredictiveInsights = ({ supabase }) => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20 h-full flex flex-col"
+      className="glass-effect rounded-xl p-6 border border-onyx-accent/20 h-full flex flex-col"
     >
       <div className="mb-4 flex items-center justify-between">
         <div>
@@ -92,7 +92,7 @@ const PredictiveInsights = ({ supabase }) => {
 
 
 const KPICard = ({ title, value, change, icon: Icon, color, info }) => (
-  <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20 flex flex-col justify-between h-36 hover:border-onyx-accent/50 transition-colors">
+  <div className="glass-effect rounded-xl p-6 border border-onyx-accent/20 flex flex-col justify-between h-36 hover:border-onyx-accent/50 transition-colors">
     <div className="flex justify-between items-start">
       <div>
         <h3 className="text-slate-400 text-sm font-medium">{title}</h3>

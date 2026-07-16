@@ -93,7 +93,7 @@ const Login = () => {
         transition={{ duration: 0.6 }}
         className="w-full max-w-md relative z-10"
       >
-        <div className="glass-effect rounded-2xl p-8 shadow-2xl border border-onyx-accent/30 relative overflow-hidden">
+        <div className="glass-effect rounded-2xl p-8 shadow-2xl relative overflow-hidden">
           {/* Subtle cyber-onyx border glow */}
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-50"></div>
 
@@ -142,7 +142,7 @@ const Login = () => {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full pl-10 pr-4 py-3 bg-onyx-900/50 border border-onyx-accent/30 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-slate-500 transition-all outline-none"
+                      className="w-full pl-10 pr-4 py-3 glass-effect rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-slate-500 transition-all outline-none"
                       placeholder="your@email.com"
                       required
                     />
@@ -161,7 +161,7 @@ const Login = () => {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full pl-10 pr-12 py-3 bg-onyx-900/50 border border-onyx-accent/30 rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-slate-500 transition-all outline-none"
+                      className="w-full pl-10 pr-12 py-3 glass-effect rounded-lg focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-white placeholder-slate-500 transition-all outline-none"
                       placeholder="Enter your password"
                       required
                     />

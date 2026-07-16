@@ -4,11 +4,22 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import QueueDepthPanel from '../QueueDepthPanel';
 
 // Mock Dependencies
-vi.mock('../../services/supabaseClient', () => ({
+vi.mock('../../../services/supabaseClient', () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
-        eq: vi.fn(() => Promise.resolve({ count: 1, error: null }))
+        eq: vi.fn(() => ({
+            order: vi.fn(() => ({
+                limit: vi.fn(() => Promise.resolve({ data: [], error: null }))
+            })),
+            limit: vi.fn(() => Promise.resolve({ data: [], error: null })),
+            then: (resolve) => resolve({ data: [], count: 1, error: null })
+        })),
+        order: vi.fn(() => ({
+            limit: vi.fn(() => Promise.resolve({ data: [], error: null }))
+        })),
+        then: (resolve) => resolve({ data: [], count: 1, error: null }),
+        limit: vi.fn(() => Promise.resolve({ data: [], error: null }))
       }))
     }))
   }

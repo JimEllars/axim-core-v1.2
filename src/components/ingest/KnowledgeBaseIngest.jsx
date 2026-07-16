@@ -114,7 +114,7 @@ const KnowledgeBaseIngest = () => {
   };
 
   return (
-    <div className="bg-onyx-950/50 backdrop-blur-md rounded-xl p-6 border border-onyx-accent/20">
+    <div className="glass-effect rounded-xl p-6 border border-onyx-accent/20">
       <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
         <FiBookOpen className="mr-2 text-onyx-accent" />
         Executive Knowledge Base Ingestion
