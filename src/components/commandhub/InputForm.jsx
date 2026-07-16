@@ -340,7 +340,7 @@ const InputForm = ({
           </div>
         )}
 
-        <div className="flex items-center bg-gray-900/50 backdrop-blur-md border border-gray-700 rounded-lg p-2">
+        <div className="flex items-center glass-effect border border-gray-700 rounded-lg p-2">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}

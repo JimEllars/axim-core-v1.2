@@ -41,7 +41,7 @@ const AgentSelector = ({ selectedAgentId, onSelect }) => {
         <span className="text-slate-400 text-sm font-medium">Active Persona:</span>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center space-x-2 bg-onyx-950/80 backdrop-blur-sm text-white px-4 py-2 rounded-lg border border-onyx-accent/20 hover:border-purple-500 hover:bg-onyx-accent/10 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+          className="flex items-center space-x-2 glass-effect text-white px-4 py-2 rounded-lg border border-onyx-accent/20 hover:border-purple-500 hover:bg-onyx-accent/10 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
         >
           <selected.icon className="w-4 h-4 text-purple-400" />
           <span className="font-medium">{selected.name}</span>

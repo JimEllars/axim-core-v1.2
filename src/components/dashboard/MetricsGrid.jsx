@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 import React from 'react';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
@@ -38,7 +37,7 @@ const MetricsGrid = () => {
 
   if (error) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-6 min-h-[160px]">
         <div className="col-span-full glass-effect rounded-xl p-6 flex items-center justify-center text-red-400">
           <SafeIcon icon={FiAlertTriangle} className="mr-2" />
           {error}
@@ -49,7 +48,7 @@ const MetricsGrid = () => {
 
   if (loading || !metrics) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-6 min-h-[160px]">
         {Array.from({ length: 7 }).map((_, index) => (
           <div key={index} className="glass-effect rounded-xl p-6">
             <div data-testid="loading-skeleton" className="animate-pulse flex flex-col">
@@ -72,7 +71,7 @@ const MetricsGrid = () => {
   const metricCards = [
     {
       title: 'Cache Savings',
-      value: `${metrics.cacheSavings || '0'}%`,
+      value: `${metrics.metadata?.cached || '0'}%`,
       icon: FiDatabase,
       color: 'from-rose-500 to-red-600',
       change: 'Optimized',
@@ -136,7 +135,7 @@ const MetricsGrid = () => {
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-6 min-h-[160px]">
       {metricCards.map((metric, index) => (
         <motion.div
           key={metric.title}
@@ -180,4 +179,3 @@ const MetricsGrid = () => {
 };
 
 export default MetricsGrid;
-// lint exceptions

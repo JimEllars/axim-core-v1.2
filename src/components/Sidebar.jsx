@@ -119,7 +119,7 @@ const Sidebar = () => {
       variants={dockVariants}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="glass-effect border-r border-onyx-accent/20 flex flex-col z-40 bg-onyx-950/80 backdrop-blur-md relative overflow-hidden"
+      className="glass-effect border-r border-onyx-accent/20 flex flex-col z-40 glass-effect relative overflow-hidden"
     >
       {/* Decorative Scanline */}
       <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(transparent_50%,rgba(0,0,0,0.5)_50%)] bg-[length:100%_4px]" />

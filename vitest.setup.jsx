@@ -52,7 +52,8 @@ vi.mock('framer-motion', () => {
       li: 'li',
       a: 'a',
       nav: 'nav',
-      header: 'header'
+      header: 'header',
+      form: 'form'
     },
     AnimatePresence: ({ children }) => children,
   };
@@ -139,3 +140,24 @@ afterEach(() => {
 });
 
 global.fetch = vi.fn();
+
+class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+}
+
+window.ResizeObserver = ResizeObserver;
+
+class PointerEvent extends Event {
+    constructor(type, props) {
+        super(type, props);
+        this.pointerId = props?.pointerId || 0;
+        this.width = props?.width || 1;
+        this.height = props?.height || 1;
+        this.pressure = props?.pressure || 0.5;
+        this.pointerType = props?.pointerType || 'mouse';
+        this.isPrimary = props?.isPrimary || true;
+    }
+}
+window.PointerEvent = PointerEvent;

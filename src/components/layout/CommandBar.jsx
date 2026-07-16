@@ -96,7 +96,7 @@ const CommandBar = () => {
       initial="collapsed"
       animate={isExpanded ? 'expanded' : 'collapsed'}
       variants={barVariants}
-      className="bg-onyx-950/90 backdrop-blur-md border-t border-onyx-accent/30 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] flex flex-col justify-end relative"
+      className="glass-effect border-t border-onyx-accent/30 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] flex flex-col justify-end relative"
     >
       {/* Decorative top border glow */}
       <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-onyx-accent to-transparent opacity-50 shadow-[0_0_10px_rgba(34,211,238,1)]" />
