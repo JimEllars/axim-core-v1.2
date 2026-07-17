@@ -4,6 +4,16 @@ import { describe, it, expect, vi } from 'vitest';
 import SystemHealthPanel from './SystemHealthPanel';
 import { supabase } from '../../services/supabaseClient';
 
+vi.mock('../../hooks/useMetrics', () => ({
+  useMetrics: () => ({
+    metrics: {
+      microAppMetrics: [
+        { app_id: 'test_app', avg_execution_time_ms: 100, avg_compute_ms: 50, total_tokens: 1000, total_requests: 10, error_count: 0 }
+      ]
+    }
+  })
+}));
+
 vi.mock('../../services/supabaseClient', () => ({
   supabase: {
     from: vi.fn(() => ({
