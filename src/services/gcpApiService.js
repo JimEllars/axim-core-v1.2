@@ -638,6 +638,17 @@ class GcpApiService {
     }
   }
 
+  async getMicroAppMetrics() {
+    if (!this.client) { throw new DatabaseError("GCP Api Service is disabled because VITE_API_BASE_URL is not set in production."); } this._ensureInitialized();
+    try {
+      const response = await this.client.get('/metrics/micro-apps');
+      return response.data;
+    } catch (error) {
+      logger.error('GCP getMicroAppMetrics failed:', error);
+      throw new DatabaseError(error.response?.data?.error || error.message);
+    }
+  }
+
   // --- Project Management ---
 
   async createProject(name, description, userId) {

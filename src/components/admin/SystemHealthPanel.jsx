@@ -18,12 +18,6 @@ const SystemHealthPanel = () => {
     status: 'loading'
   });
 
-  const [aiGatewayMetrics, setAiGatewayMetrics] = useState({
-    tokenOptimization: 0,
-    totalRequests: 0,
-    cachedRequests: 0
-  });
-
   const fetchHealth = async () => {
     try {
       const { data, error } = await supabase.functions.invoke('system-status');
@@ -42,40 +36,6 @@ const SystemHealthPanel = () => {
     }
   };
 
-  const fetchAiMetrics = async () => {
-    try {
-      // Calculate token optimization metric from our interaction logs
-      const { data, error } = await supabase
-        .from('ai_interactions_ax2024')
-        .select('metadata')
-        .not('metadata', 'is', null)
-        .limit(100)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        let cached = 0;
-        let total = data.length;
-
-        data.forEach(interaction => {
-          if (interaction.metadata && interaction.metadata.cached) {
-            cached++;
-          }
-        });
-
-        const tokenOpt = total > 0 ? Math.round((cached / total) * 100) : 0;
-
-        setAiGatewayMetrics({
-          tokenOptimization: tokenOpt,
-          totalRequests: total,
-          cachedRequests: cached
-        });
-      }
-    } catch (err) {
-      console.error('Error fetching AI Gateway metrics:', err);
-    }
-  };
 
   useEffect(() => {
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -85,12 +45,10 @@ const SystemHealthPanel = () => {
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchHealth();
-    fetchAiMetrics();
 
     const interval = setInterval(() => {
       fetchHealth();
-      fetchAiMetrics();
-    }, 30000); // Poll every 30s
+      }, 30000); // Poll every 30s
     return () => clearInterval(interval);
   }, []);
 
@@ -213,7 +171,7 @@ const SystemHealthPanel = () => {
             <span className="text-sm uppercase tracking-wider">CF AI Cache</span>
           </div>
           <div className="text-2xl font-mono text-indigo-400">
-            {aiGatewayMetrics.tokenOptimization}%
+            {metrics?.cacheSavings || 0}%
           </div>
         </div>
       </div>

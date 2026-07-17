@@ -1231,6 +1231,19 @@ class SupabaseApiService {
     }
   }
 
+  async getMicroAppMetrics() {
+    if (this._checkConnectivity('getMicroAppMetrics', [])) return [];
+    try {
+      const { data, error } = await this.supabase.rpc('micro_app_metrics_rpc');
+      if (error) throw new DatabaseError(error.message);
+      return data || [];
+    } catch (error) {
+      toast.error('Failed to fetch micro app metrics');
+      logger.error('Failed to fetch micro app metrics:', error);
+      throw new DatabaseError(`Failed to fetch micro app metrics: ${error.message}`);
+    }
+  }
+
   /**
    * Creates a new task for a given project.
    * @param {string} title - The title of the new task.
