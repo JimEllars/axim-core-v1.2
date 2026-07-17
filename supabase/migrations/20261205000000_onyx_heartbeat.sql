@@ -7,7 +7,7 @@ CREATE OR REPLACE FUNCTION check_gateways_heartbeat()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $$
+AS $function$
 DECLARE
     req_id bigint;
 BEGIN
@@ -34,7 +34,7 @@ BEGIN
         $$
     );
 END;
-$$;
+$function$;
 
 -- Run it once to initialize the cron
 SELECT check_gateways_heartbeat();
