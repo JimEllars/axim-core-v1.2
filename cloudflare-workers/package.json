@@ -15,6 +15,7 @@
     "check": "npm run test && npm run dry-run && npm run dry-run:onyx",
     "tail": "wrangler tail",
     "test:integration": "vitest run tests/integration.test.js",
+    "build": "echo \"No build step for cloudflare workers.\"",
     "test": "npm run test:integration"
   },
   "devDependencies": {

@@ -1,8 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { supabase } from '../../services/supabaseClient';
 
 const OnyxInvestigationPanel = ({ traceHistory, semanticAnalysis, proposedPatch, onApprovePatch }) => {
   const [reviewed, setReviewed] = useState(false);
+
+  const [desktopStream, setDesktopStream] = useState([]);
+
+  useEffect(() => {
+    // Calibrate the real-time HUD view to safely ingest this state changes payload
+    // ensuring desktop actions render visually on the administrator tray in real-time.
+    const subscription = supabase
+      .channel('public:hitl_audit_logs')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'hitl_audit_logs' }, payload => {
+        if (payload.new.action === 'desktop_sync') {
+          let progressData = payload.new.tool_called;
+          try {
+            const parsed = JSON.parse(payload.new.tool_called);
+            progressData = parsed.progress || progressData;
+          } catch (e) { /* ignore parse error */ }
+          setDesktopStream(prev => [...prev, progressData].slice(-5)); // Keep last 5 events
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  }, []);
+
 
   return (
     <div className="bg-gray-900 border border-indigo-900/50 rounded-xl overflow-hidden shadow-2xl">
@@ -27,6 +53,24 @@ const OnyxInvestigationPanel = ({ traceHistory, semanticAnalysis, proposedPatch,
         <div>
           <h4 className="text-gray-400 text-xs uppercase tracking-wider mb-2">Terminal Execution Trace</h4>
           <div className="bg-black/60 rounded-lg p-4 border border-gray-800 max-h-64 overflow-y-auto">
+
+        {/* Desktop Operations Sync Stream */}
+        {desktopStream.length > 0 && (
+          <div className="bg-indigo-900/20 rounded-lg p-4 border border-indigo-700/50">
+            <h4 className="text-indigo-400 text-xs uppercase tracking-wider mb-2 flex items-center">
+              <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse mr-2"></span>
+              Desktop Sync Stream
+            </h4>
+            <div className="space-y-2">
+              {desktopStream.map((log, idx) => (
+                <div key={idx} className="text-indigo-200 text-xs font-mono bg-black/40 p-2 rounded border border-indigo-800/30">
+                  {log}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
             {traceHistory ? (
               <pre className="text-red-400 font-mono text-xs whitespace-pre-wrap break-words">
                 {typeof traceHistory === 'object' ? JSON.stringify(traceHistory, null, 2) : traceHistory}

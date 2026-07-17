@@ -7,7 +7,7 @@ CREATE OR REPLACE FUNCTION check_gateways_heartbeat()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-AS $$
+AS $function$
 DECLARE
     req_id bigint;
 BEGIN
@@ -20,7 +20,7 @@ BEGIN
     -- Alternatively, since we can't easily wait, let's just create a cron job that triggers an edge function
     -- Let's define the cron job here.
 
-    SELECT cron.schedule(
+    PERFORM cron.schedule(
         'onyx-gateway-heartbeat',
         '*/60 * * * *',
         $$
@@ -34,7 +34,7 @@ BEGIN
         $$
     );
 END;
-$$;
+$function$;
 
 -- Run it once to initialize the cron
 SELECT check_gateways_heartbeat();

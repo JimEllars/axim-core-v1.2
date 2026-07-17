@@ -90,6 +90,30 @@ serve(async (req: Request) => {
     }
 
 
+
+    // Handshake Gateway Closeout Infrastructure (Task 3)
+    if (action_type === 'lab_code_generation' || action_type === 'lab_engine_closeout') {
+        // Provision empty parsing properties for incoming data payload deserializations sent from the Lab code generation engines.
+        const deserializedLabPayload = {
+            target_repository: payload.target_repository || null,
+            generated_branch: payload.generated_branch || null,
+            diff_metrics: payload.diff_metrics || {},
+            security_clearance_hash: payload.security_clearance_hash || null,
+            ast_parse_tree: payload.ast_parse_tree || null
+        };
+
+        console.log('[Dispatcher] Received Lab closeout handshake. Ready for downstream schema ingestion.', deserializedLabPayload);
+
+        return new Response(JSON.stringify({
+            success: true,
+            message: "Lab handshake received and deserialized",
+            parsed: deserializedLabPayload
+        }), {
+            status: 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" }
+        });
+    }
+
     if (action_type === 'spawn_sub_agents') {
         console.log('[Dispatcher] Detected spawn_sub_agents payload. Initializing Swarm Blackboard...');
 
