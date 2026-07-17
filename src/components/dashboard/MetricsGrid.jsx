@@ -13,6 +13,12 @@ const MetricsGrid = () => {
   const [metrics, setMetrics] = React.useState(null);
 
   React.useEffect(() => {
+    const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const onyxSecret = import.meta.env.VITE_ONYX_SECRET || import.meta.env.VITE_ONYX_SECURE_KEY;
+    if (!anonKey || !onyxSecret) {
+      console.warn("Security Perimeter Warning: VITE_SUPABASE_ANON_KEY or AXIM_ONYX_SECRET missing.");
+    }
+
     if (initialMetrics) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setMetrics(initialMetrics);
@@ -135,8 +141,9 @@ const MetricsGrid = () => {
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-6 min-h-[160px]">
-      {metricCards.map((metric, index) => (
+    <div className="flex flex-col w-full">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-6 min-h-[160px]">
+        {metricCards.map((metric, index) => (
         <motion.div
           key={metric.title}
           initial={{ opacity: 0, y: 20 }}
@@ -174,6 +181,48 @@ const MetricsGrid = () => {
           </div>
         </motion.div>
       ))}
+      </div>
+
+      {metrics?.microAppMetrics && metrics.microAppMetrics.length > 0 && (
+        <div className="col-span-full mt-6">
+          <h3 className="text-slate-400 text-sm font-mono uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">
+            Decentralized Micro-App Fleet Telemetry
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {metrics.microAppMetrics.filter(app => app.app_id !== 'unknown').map(app => (
+              <div key={app.app_id} className="glass-effect rounded-xl p-4 border border-onyx-accent/20">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-cyan-400 font-mono text-sm font-bold uppercase tracking-wider truncate" title={app.app_id}>
+                    {app.app_id.replace(/_/g, ' ')}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-mono ${app.error_count > 0 ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
+                    {app.error_count > 0 ? `${app.error_count} FAULTS` : 'STABLE'}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-xs font-mono">
+                    <span className="text-slate-500">Latency:</span>
+                    <span className="text-slate-300">{app.avg_execution_time_ms || 0}ms</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs font-mono">
+                    <span className="text-slate-500">Compute:</span>
+                    <span className="text-slate-300">{app.avg_compute_ms || 0}ms</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs font-mono">
+                    <span className="text-slate-500">Tokens:</span>
+                    <span className="text-slate-300">{(app.total_tokens || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs font-mono">
+                    <span className="text-slate-500">Reqs:</span>
+                    <span className="text-slate-300">{(app.total_requests || 0).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1222,6 +1222,7 @@ class SupabaseApiService {
         workflowsTriggered: d.workflows_triggered,
         activeUsers: d.active_users,
         cacheSavings: d.cache_savings,
+        microAppMetrics: d.micro_app_metrics || [],
       };
     } catch (error) {
       toast.error('Failed to fetch dashboard metrics');
