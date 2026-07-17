@@ -395,6 +395,10 @@ class ApiService {
     return this._executeWithFallback('getDashboardMetrics');
   }
 
+  async getMicroAppMetrics() {
+    return this._executeWithFallback('getMicroAppMetrics');
+  }
+
   async createTaskForProject(title, projectName, userId, description = null) {
     return this._executeWithFallback('createTaskForProject', title, projectName, userId, description);
   }

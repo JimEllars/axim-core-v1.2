@@ -77,7 +77,7 @@ const MetricsGrid = () => {
   const metricCards = [
     {
       title: 'Cache Savings',
-      value: `${metrics.metadata?.cached || '0'}%`,
+      value: `${metrics.cacheSavings || '0'}%`,
       icon: FiDatabase,
       color: 'from-rose-500 to-red-600',
       change: 'Optimized',
