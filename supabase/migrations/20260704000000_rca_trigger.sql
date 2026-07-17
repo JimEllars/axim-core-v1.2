@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS public.support_tickets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    node_id UUID REFERENCES public.ecosystem_nodes(id) ON DELETE CASCADE,
+    app_id TEXT REFERENCES public.ecosystem_apps(app_id) ON DELETE CASCADE,
     subject TEXT NOT NULL,
     description TEXT,
     priority TEXT DEFAULT 'Medium',
@@ -35,8 +35,8 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'api_usage_logs' AND column_name = 'execution_time_ms') THEN
         ALTER TABLE public.api_usage_logs ADD COLUMN execution_time_ms INTEGER;
     END IF;
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'api_usage_logs' AND column_name = 'node_id') THEN
-        ALTER TABLE public.api_usage_logs ADD COLUMN node_id UUID REFERENCES public.ecosystem_nodes(id) ON DELETE CASCADE;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'api_usage_logs' AND column_name = 'app_id') THEN
+        ALTER TABLE public.api_usage_logs ADD COLUMN app_id TEXT REFERENCES public.ecosystem_apps(app_id) ON DELETE CASCADE;
     END IF;
 END $$;
 
@@ -51,20 +51,20 @@ BEGIN
     IF NEW.execution_time_ms = -1 OR NEW.endpoint LIKE '%error%' THEN
 
         -- 1. Quarantine the application immediately by changing its registry state
-        UPDATE public.ecosystem_nodes
+        UPDATE public.ecosystem_apps
         SET status = 'suspended'
-        WHERE id = NEW.node_id;
+        WHERE app_id = NEW.app_id;
 
         -- 2. Inject an automated incident entry straight into the internal support queue
         INSERT INTO public.support_tickets (
-            node_id,
+            app_id,
             subject,
             description,
             priority,
             status
         ) VALUES (
-            NEW.node_id,
-            CONCAT('Automated RCA: Critical Anomaly Detected in [', COALESCE(NEW.node_id::TEXT, 'Unknown'), ']'),
+            NEW.app_id,
+            CONCAT('Automated RCA: Critical Anomaly Detected in [', COALESCE(NEW.app_id::TEXT, 'Unknown'), ']'),
             CONCAT('System isolated due to execution fault on endpoint: ', NEW.endpoint, '. Handoff to Onyx internal router initiated.'),
             'Critical',
             'Pending_Review'
