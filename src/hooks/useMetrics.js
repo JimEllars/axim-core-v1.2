@@ -25,10 +25,26 @@ export const useMetrics = () => {
   const apiCall = config.isMockLlmEnabled
     ? async () => mockMetrics
     : async () => {
-        const [dashboardMetrics, rawMicroAppMetrics] = await Promise.all([
+
+        const [dashboardMetrics, rawMicroAppMetrics, supportTickets] = await Promise.all([
           api.getDashboardMetrics(),
-          api.getMicroAppMetrics()
+          api.getMicroAppMetrics(),
+          api.supabase.from('support_tickets').select('*')
         ]);
+
+        const tickets = supportTickets?.data || [];
+        // Calculate Ecosystem Alarm Processing Velocity
+        // = (Sum Autonomously Spawned Support Tickets) / (delta_t_ingress_window)
+        // Let's assume window is 24 hours (1 day) to match other metrics
+        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+        const autonomouslySpawnedTickets = tickets.filter(t =>
+          new Date(t.created_at) >= oneDayAgo &&
+          t.subject && t.subject.includes('Automated RCA:')
+        ).length;
+
+        // velocity per hour = autonomouslySpawnedTickets / 24
+        const ecosystemAlarmProcessingVelocity = +(autonomouslySpawnedTickets / 24).toFixed(2);
+
 
         // Segment inbound telemetry array states dynamically
         const segmented = (rawMicroAppMetrics || []).reduce((acc, log) => {
@@ -61,6 +77,8 @@ export const useMetrics = () => {
 
         return {
           ...dashboardMetrics,
+          ecosystemAlarmProcessingVelocity,
+          autonomouslySpawnedTickets,
           microAppMetrics: microAppMetrics.length > 0 ? microAppMetrics : dashboardMetrics.microAppMetrics || []
         };
       };

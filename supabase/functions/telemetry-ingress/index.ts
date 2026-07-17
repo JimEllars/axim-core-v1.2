@@ -17,9 +17,13 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const clientIp = req.headers.get('x-forwarded-for') || 'unknown_ip'
-    const payload = await req.json()
-    const app_id = payload.app_id || 'unknown_app'
+    const rawPayload = await req.json();
+    const app_id = rawPayload.app_id || 'unknown_app';
+    const clientIp = req.headers.get('x-forwarded-for') || 'unknown_ip';
+
+    // Import sanitization dynamically
+    const { sanitizePayload } = await import('../telemetry-archiver/sanitization.ts');
+    const sanitizedPayload = sanitizePayload(rawPayload);
 
     const oneMinuteAgo = new Date(Date.now() - 60000).toISOString()
 
@@ -49,12 +53,11 @@ serve(async (req) => {
     }
 
     // Insert the telemetry log
-    const { error: insertError } = await supabaseClient.from('telemetry_logs').insert({
-        event: payload.event || 'generic_telemetry',
-        app_type: app_id,
-        details: payload.details || {},
-        ip_address: clientIp,
-        timestamp: new Date().toISOString()
+    const { error: insertError } = await supabaseClient.from('events_ax2024').insert({
+        type: sanitizedPayload.event || 'generic_telemetry',
+        source: app_id,
+        data: sanitizedPayload.details || sanitizedPayload,
+        created_at: new Date().toISOString()
     })
 
     if (insertError) throw insertError
