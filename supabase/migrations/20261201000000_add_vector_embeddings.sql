@@ -7,6 +7,12 @@ ALTER TABLE public.ai_interactions_ax2024 ADD COLUMN IF NOT EXISTS embedding vec
 -- Optimize vector search with hnsw index if not created yet
 CREATE INDEX IF NOT EXISTS ai_interactions_embedding_idx ON public.ai_interactions_ax2024 USING hnsw (embedding vector_l2_ops);
 
+
+-- Drop existing versions of the function to allow changing return type
+DROP FUNCTION IF EXISTS match_ai_interactions(vector, double precision, integer, uuid, integer);
+DROP FUNCTION IF EXISTS match_ai_interactions(vector, double precision, integer, uuid, text);
+DROP FUNCTION IF EXISTS match_ai_interactions(vector, double precision, integer, uuid);
+
 -- Create or replace match_ai_interactions RPC function for semantic search
 CREATE OR REPLACE FUNCTION match_ai_interactions (
   query_embedding vector(1536),
