@@ -20,7 +20,7 @@ BEGIN
     -- Alternatively, since we can't easily wait, let's just create a cron job that triggers an edge function
     -- Let's define the cron job here.
 
-    SELECT cron.schedule(
+    PERFORM cron.schedule(
         'onyx-gateway-heartbeat',
         '*/60 * * * *',
         $$
