@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
-import SafeIcon from '../../common/SafeIcon';
-import * as FiIcons from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import * as FiIcons from 'react-icons/fi';
+
+const SafeIcon = ({ icon: Icon, ...props }) => {
+  return Icon ? <Icon {...props} /> : null;
+};
 
 const { FiCheckCircle, FiXCircle, FiShield, FiAlertTriangle, FiPlus, FiTrash2 } = FiIcons;
 
@@ -161,84 +164,73 @@ const EcosystemRegistry = () => {
          </div>
       )}
 
-      <div className="bg-onyx-900 border border-onyx-accent/20 rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-onyx-accent/20">
-          <thead className="bg-onyx-950">
-            <tr>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                App Name
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                Endpoint URL
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                Status
-              </th>
-              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">
-                Action
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-onyx-accent/20">
-            {nodes.length === 0 ? (
-              <tr>
-                <td colSpan="4" className="px-6 py-4 text-center text-slate-400 text-sm">
-                  No nodes found in the registry.
-                </td>
-              </tr>
-            ) : (
-              nodes.map((node) => (
-                <tr key={node.id} className={(node.computedStatus || node.status) === 'offline' ? 'bg-red-900/10' : (node.computedStatus || node.status) === 'degraded' ? 'bg-yellow-900/10' : ''}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
-                    {node.app_name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
-                    {node.health_endpoint_url}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {(node.computedStatus || node.status) === 'operational' ? (
-                      <span className="inline-flex items-center text-green-400 bg-green-400/10 px-2 py-1 rounded-full">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {nodes.length === 0 ? (
+          <div className="col-span-full text-center text-slate-400 text-sm">
+            No nodes found in the registry.
+          </div>
+        ) : (
+          nodes.map((node) => (
+            <div key={node.id} className="rounded-lg p-5 border border-onyx-accent/20 transition-all shadow-lg" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+              <div className="flex justify-between items-start mb-4">
+                <h3 className="text-lg font-medium text-white truncate pr-4">{node.app_name}</h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleToggleStatus(node.id, node.status)}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      node.status === 'operational' ? 'bg-onyx-accent' : 'bg-slate-600'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        node.status === 'operational' ? 'translate-x-4' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                  <button
+                    onClick={() => handleDeleteNode(node.id)}
+                    className="text-red-500 hover:text-red-400 focus:outline-none transition-colors"
+                  >
+                    <SafeIcon icon={FiTrash2} className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <p className="text-xs text-slate-400 truncate mb-1" title={node.health_endpoint_url}>
+                  {node.health_endpoint_url}
+                </p>
+                <div className="flex items-center gap-2 mt-2">
+                   {(node.computedStatus || node.status) === 'operational' ? (
+                      <span className="inline-flex items-center text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-full text-xs font-medium">
                         <SafeIcon icon={FiCheckCircle} className="mr-1 h-3 w-3" />
                         Operational
                       </span>
                     ) : (node.computedStatus || node.status) === 'degraded' ? (
-                      <span className="inline-flex items-center text-yellow-400 bg-yellow-400/10 px-2 py-1 rounded-full">
+                      <span className="inline-flex items-center text-amber-400 bg-amber-400/10 px-2 py-1 rounded-full text-xs font-medium">
                         <SafeIcon icon={FiAlertTriangle} className="mr-1 h-3 w-3" />
                         Degraded
                       </span>
                     ) : (
-                      <span className="inline-flex items-center text-red-400 bg-red-400/10 px-2 py-1 rounded-full">
+                      <span className="inline-flex items-center text-red-400 bg-red-400/10 px-2 py-1 rounded-full text-xs font-medium">
                         <SafeIcon icon={FiAlertTriangle} className="mr-1 h-3 w-3" />
                         Offline
                       </span>
                     )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <button
-                      onClick={() => handleToggleStatus(node.id, node.status)}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        node.status === 'operational' ? 'bg-onyx-accent' : 'bg-slate-600'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          node.status === 'operational' ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
+                </div>
+              </div>
 
-                    <button
-                      onClick={() => handleDeleteNode(node.id)}
-                      className="ml-4 text-red-500 hover:text-red-700 focus:outline-none"
-                    >
-                      <SafeIcon icon={FiTrash2} className="h-5 w-5" />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              <div className="mt-4 pt-4 border-t border-onyx-accent/10 flex justify-between items-center text-xs">
+                 <span className="text-slate-500 font-mono">
+                    {node.last_ping ? `Last seen: ${new Date(node.last_ping).toLocaleTimeString()}` : 'Never seen'}
+                 </span>
+                 <span className="text-slate-400 font-mono flex items-center">
+                    Latency: <span className="ml-1 text-white">{node.ping_ms || 0}ms</span>
+                 </span>
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

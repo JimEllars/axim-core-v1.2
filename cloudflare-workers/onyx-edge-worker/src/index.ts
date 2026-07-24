@@ -2,6 +2,8 @@ interface Env {
   VITE_SUPABASE_URL: string;
   VITE_SUPABASE_ANON_KEY: string;
   ANTHROPIC_API_KEY: string;
+  CLOUDFLARE_ACCOUNT_ID?: string;
+  CLOUDFLARE_GATEWAY_ID?: string;
   AI: any;
 }
 
@@ -162,7 +164,12 @@ export default {
 Analyze the following command and available system context. Execute the task efficiently.
 Context: ${JSON.stringify(context || {})}`;
 
-      const claudeResponse = await fetch("https://api.anthropic.com/v1/messages", {
+      let fetchUrl = "https://api.anthropic.com/v1/messages";
+      if (env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_GATEWAY_ID) {
+        fetchUrl = `https://gateway.ai.cloudflare.com/v1/${env.CLOUDFLARE_ACCOUNT_ID}/${env.CLOUDFLARE_GATEWAY_ID}/anthropic/v1/messages`;
+      }
+
+      const claudeResponse = await fetch(fetchUrl, {
         method: "POST",
         headers: {
           "x-api-key": env.ANTHROPIC_API_KEY,
@@ -187,7 +194,50 @@ Context: ${JSON.stringify(context || {})}`;
         });
       }
 
+      const cfCacheStatus = claudeResponse.headers.get('cf-aig-cache-status');
+      const cfRay = claudeResponse.headers.get('cf-ray');
+      const cfAigStepType = claudeResponse.headers.get('cf-aig-step-type');
+
       const llmData = await claudeResponse.json();
+
+      const inputTokens = llmData.usage?.input_tokens || 0;
+      const outputTokens = llmData.usage?.output_tokens || 0;
+      const totalTokens = inputTokens + outputTokens;
+
+      ctx.waitUntil((async () => {
+        try {
+          const telemetryPayload = {
+            app_id: 'onyx_edge_worker',
+            endpoint: '/chat',
+            method: 'POST',
+            status_code: 200,
+            execution_time_ms: 0,
+            compute_ms: 0,
+            token_count: totalTokens,
+            metadata: {
+              'cf-aig-cache-status': cfCacheStatus,
+              'cf-ray': cfRay,
+              'cf-aig-step-type': cfAigStepType,
+              cf_cache_hit: cfCacheStatus === 'HIT',
+              input_tokens: inputTokens,
+              output_tokens: outputTokens,
+            }
+          };
+
+          await fetch(`${supabaseUrl}/rest/v1/api_usage_logs`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${env.VITE_SUPABASE_ANON_KEY}`,
+              'apikey': supabaseAnonKey,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify(telemetryPayload)
+          });
+        } catch (telemetryErr) {
+          console.error("Telemetry logging failed", telemetryErr);
+        }
+      })());
 
       return new Response(JSON.stringify({
         status: "success",

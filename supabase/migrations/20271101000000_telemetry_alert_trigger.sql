@@ -24,8 +24,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trg_on_telemetry_ingest ON public.telemetry_events;
-CREATE TRIGGER trg_on_telemetry_ingest
-    AFTER INSERT ON public.telemetry_events
-    FOR EACH ROW
-    EXECUTE FUNCTION public.proc_notify_telemetry_breach();
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'telemetry_events') THEN
+        DROP TRIGGER IF EXISTS trg_on_telemetry_ingest ON public.telemetry_events;
+        CREATE TRIGGER trg_on_telemetry_ingest
+            AFTER INSERT ON public.telemetry_events
+            FOR EACH ROW
+            EXECUTE FUNCTION public.proc_notify_telemetry_breach();
+    END IF;
+END $$;

@@ -112,7 +112,7 @@ export const submitMicroAppTelemetry = async (payload) => {
     const sanitized = {
       metadata: typeof p.metadata === 'object' && p.metadata !== null ? {
         ...p.metadata,
-        cached: p.metadata["cf-aig-cache-status"] === "HIT" || p.metadata.cached === true
+        cf_cache_hit: p.metadata["cf-aig-cache-status"] === "HIT" || p.metadata.cf_cache_hit === true || p.metadata.cached === true
       } : {},
 
       app_id: typeof p.app_id === 'string' ? p.app_id.substring(0, 50) : 'unknown',
