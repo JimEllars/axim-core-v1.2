@@ -1,51 +1,48 @@
-# AXiM Core: Wave 54 Upgrade - Enterprise Login Hardening, Full Dashboard Integration, and Telemetry Card Refinement
+# AXiM Core: Wave 68 Upgrade - DLQ Auto-Remediation, Cloudflare AI Gateway Metric Binding & Root Archive Hygiene
 
 ## Workstreams Addressed
 
-### Workstream A — Enterprise Zero-Trust Login Alignment
-Hardened the `AuthContext.jsx` native validations to strip placeholder paths and strictly verify access via live Supabase RLS profiles. Re-built the `Login.jsx` interface with a refined glassmorphic cyber-onyx responsive border frame featuring a subtle neon-saturated grid backdrop and smooth input transitions.
+### Workstream A — DLQ Auto-Remediation & Retry Queue Handling
+Implemented an automated retry loop inside the `dead_letter_jobs` Deno edge function. The function queries `public.satellite_job_queue` for jobs marked as `failed` that have a `retry_count < 3`. Transient failures are securely re-queued by updating their status back to `pending`, while exhausted jobs (`retry_count >= 3`) are routed into `hitl_dead_letter_logs` with a diagnostic payload and telemetry anomalies are broadcast.
 
 **Verification Appendix:**
-- **File:** `src/contexts/AuthContext.jsx`
+- **File:** `supabase/functions/dead_letter_jobs/index.ts` (new)
 - **Change:**
-```javascript
-  const login = async (email, password) => {
-    // Strict internal domain check
-    if (!email.endsWith('@axim.us.com')) {
-      throw new Error('Access Denied. AXiM Internal Systems are for authorized personnel only.');
+```typescript
+    if (newRetryCount >= 3) {
+      await supabase.from("hitl_dead_letter_logs").insert({ ... });
+      await supabase.from("telemetry_events").insert({ ... });
+      await supabase.from("satellite_job_queue").delete().eq("id", job.id);
+    } else {
+      await supabase.from("satellite_job_queue").update({ status: 'pending', retry_count: newRetryCount, updated_at: new Date().toISOString() }).eq("id", job.id);
     }
-    // Fully removed config.isMockLlmEnabled bypass and strictly calling supabase.auth.signInWithPassword
 ```
-- **Proving Test:** `src/components/Login.test.jsx` (ensures layout handles form correctly) and `src/contexts/AuthContext.test.jsx` (mock-mode bypass tests skipped since mock bypass removed).
+- **Proving Test:** `tests/dead-letter-jobs.test.js` verified the requeueing thresholds and terminal exhaustion routes.
 
-### Workstream B — Macro-Ecosystem Dashboard Aggregation & Performance Tuning
-Refactored `DashboardContent.jsx` and `MetricsGrid.jsx` to render high-fidelity metrics grid card monitors linking data streams directly to live components. Embedded the calculating equation `Ecosystem Operational Health (%)` directly into scannable status pills utilizing monospace typography.
+### Workstream B — Cloudflare AI Gateway Cache & Token Metric Binding
+Linked live Cloudflare AI Gateway metrics into `useMetrics.js` by calling `supabase.rpc('micro_app_metrics_rpc')`. Extracted `total_tokens_processed`, `cf_cache_hits`, and `estimated_cost_savings_usd` across the connected telemetry streams. `MetricsGrid.jsx` now prominently renders the "AI Gateway Efficiency" glassmorphic card highlighting the cached hit percentage with monospace subtext detailing savings and tokens.
 
 **Verification Appendix:**
 - **File:** `src/components/dashboard/MetricsGrid.jsx`
 - **Change:**
 ```javascript
-  const systemComponentFaults = metrics.activeEvents || 0;
-  const totalActiveNodes = metrics.activeUsers || 100;
-  const ecosystemHealth = totalActiveNodes > 0
-    ? ((1 - (systemComponentFaults / Math.max(totalActiveNodes, systemComponentFaults + 1))) * 100).toFixed(1)
-    : 100.0;
+    {
+      title: 'AI Gateway Efficiency',
+      value: metrics.aiGatewayMetrics?.total_requests > 0
+        ? ((metrics.aiGatewayMetrics.cf_cache_hits / metrics.aiGatewayMetrics.total_requests) * 100).toFixed(1) + '%'
+        : '0%',
+      icon: FiDatabase,
+      color: 'from-blue-500 to-cyan-600',
+      change: 'Active',
+      changeColor: 'text-cyan-400',
+      tooltip: 'Cloudflare AI Gateway Cache Hit Rate',
+      subtext: `SAVINGS: $${(metrics.aiGatewayMetrics?.estimated_cost_savings_usd || 0).toFixed(2)} | TOKENS: ${(metrics.aiGatewayMetrics?.total_tokens_processed || 0).toLocaleString()}`
+    }
 ```
-- **Proving Test:** `src/components/dashboard/MetricsGrid.test.jsx` and `tests/ui-smoke.test.jsx`.
+- **Proving Test:** `tests/metrics-grid.test.jsx` verified calculated percentage format and dynamic subtext rendering correctly.
 
-### Workstream C — Ledger Ingress Logic for Stateless External Services
-Defined lightweight validation structural checks within `apiProxy.js`'s `submitMicroAppTelemetry` parsing logic. Mapped these tracking log streams to reliably sanitize array payloads natively to `public.api_usage_logs` without creating dependency loops.
-
-**Verification Appendix:**
-- **File:** `src/services/apiProxy.js`
-- **Change:**
-```javascript
-  const validatedPayloads = payloadsToInsert.map(p => {
-    // Sanitize and enforce types
-    const sanitized = {
-      app_id: typeof p.app_id === 'string' ? p.app_id.substring(0, 50) : 'unknown',
-```
-- **Proving Test:** `src/services/apiProxy.test.js` updated to validate sanitized payload schemas securely handling input configurations.
+### Workstream C — Repository Root Patch Archive Hygiene
+Cleaned the central repository root by moving processed updates (`wave47.patch`, `wave49.patch`) and sandbox leftovers (`test_dummy.js`) safely into the `/scripts/archive-hygiene/` directory.
 
 ## Strict Eslint Validations
-Localized inline exclusions applied to persistent legacy `react-hooks/set-state-in-effect` and strict static analysis blocks natively bypassed to guarantee zero console warnings. Test coverage suite strictly 100% green (`npm run test`).
+Zero regressions or new linting errors added. Test coverage suite strictly green with passing validations.

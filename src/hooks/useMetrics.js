@@ -26,16 +26,31 @@ export const useMetrics = () => {
     ? async () => mockMetrics
     : async () => {
 
-        const [dashboardMetrics, rawMicroAppMetrics, supportTickets] = await Promise.all([
+        const [dashboardMetrics, rawMicroAppMetrics, supportTickets, gatewayMetricsRes] = await Promise.all([
           api.getDashboardMetrics(),
           api.getMicroAppMetrics(),
-          api.supabase.from('support_tickets').select('*')
+          api.supabase.from('support_tickets').select('*'),
+          api.supabase.rpc('micro_app_metrics_rpc')
         ]);
 
         const tickets = supportTickets?.data || [];
         // Calculate Ecosystem Alarm Processing Velocity
         // = (Sum Autonomously Spawned Support Tickets) / (delta_t_ingress_window)
         // Let's assume window is 24 hours (1 day) to match other metrics
+        const gatewayMetrics = gatewayMetricsRes?.data || [];
+
+        let total_tokens_processed = 0;
+        let cf_cache_hits = 0;
+        let estimated_cost_savings_usd = 0;
+        let total_requests = 0;
+
+        gatewayMetrics.forEach(metric => {
+          total_tokens_processed += (metric.total_tokens || 0);
+          cf_cache_hits += (metric.cf_cache_hits || 0);
+          estimated_cost_savings_usd += (metric.estimated_cost_savings_usd || 0);
+          total_requests += (metric.total_requests || 0);
+        });
+
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
         const autonomouslySpawnedTickets = tickets.filter(t =>
           new Date(t.created_at) >= oneDayAgo &&
@@ -79,7 +94,13 @@ export const useMetrics = () => {
           ...dashboardMetrics,
           ecosystemAlarmProcessingVelocity,
           autonomouslySpawnedTickets,
-          microAppMetrics: microAppMetrics.length > 0 ? microAppMetrics : dashboardMetrics.microAppMetrics || []
+          microAppMetrics: microAppMetrics.length > 0 ? microAppMetrics : dashboardMetrics.microAppMetrics || [],
+          aiGatewayMetrics: {
+            total_tokens_processed,
+            cf_cache_hits,
+            estimated_cost_savings_usd,
+            total_requests
+          }
         };
       };
 
