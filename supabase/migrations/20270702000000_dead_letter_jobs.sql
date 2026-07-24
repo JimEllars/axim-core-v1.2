@@ -17,7 +17,7 @@ CREATE POLICY "Admin access Dead Letter Jobs" ON public.dead_letter_jobs
     USING (
         EXISTS (
             SELECT 1 FROM public.users
-            WHERE user_id = auth.uid() AND role = 'admin'
+            WHERE id = auth.uid() AND role = 'admin'
         )
     );
 

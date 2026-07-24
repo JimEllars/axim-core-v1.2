@@ -15,6 +15,6 @@ CREATE POLICY "Admin access DLQ" ON public.email_dead_letter_queue
     USING (
         EXISTS (
             SELECT 1 FROM public.users
-            WHERE user_id = auth.uid() AND role = 'admin'
+            WHERE id = auth.uid() AND role = 'admin'
         )
     );
