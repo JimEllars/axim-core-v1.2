@@ -1,3 +1,4 @@
+DROP FUNCTION IF EXISTS get_dashboard_metrics();
 CREATE OR REPLACE FUNCTION get_dashboard_metrics()
 RETURNS TABLE(
   total_contacts BIGINT,
