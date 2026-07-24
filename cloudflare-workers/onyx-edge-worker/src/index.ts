@@ -54,7 +54,7 @@ export default {
                 command_type: 'edge_embedding'
               })
             });
-          } catch (e) {
+          } catch (e: any) {
             console.error("Async embedding failed", e);
             const supabaseUrl = env.VITE_SUPABASE_URL || 'https://pvbcdndqjguzqeafhwhw.supabase.co';
             const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
