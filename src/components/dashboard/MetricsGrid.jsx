@@ -76,6 +76,18 @@ const MetricsGrid = () => {
 
   const metricCards = [
     {
+      title: 'AI Gateway Efficiency',
+      value: metrics.aiGatewayMetrics?.total_requests > 0
+        ? ((metrics.aiGatewayMetrics.cf_cache_hits / metrics.aiGatewayMetrics.total_requests) * 100).toFixed(1) + '%'
+        : '0%',
+      icon: FiDatabase,
+      color: 'from-blue-500 to-cyan-600',
+      change: 'Active',
+      changeColor: 'text-cyan-400',
+      tooltip: 'Cloudflare AI Gateway Cache Hit Rate',
+      subtext: `SAVINGS: ${(metrics.aiGatewayMetrics?.estimated_cost_savings_usd || 0).toFixed(2)} | TOKENS: ${(metrics.aiGatewayMetrics?.total_tokens_processed || 0).toLocaleString()}`
+    },
+    {
       title: 'Cache Savings',
       value: `${metrics.cacheSavings || '0'}%`,
       icon: FiDatabase,
@@ -178,6 +190,11 @@ const MetricsGrid = () => {
                 metric.value
               )}
             </div>
+            {metric.subtext && !loading && (
+              <div className="text-[10px] text-slate-300 mt-2 font-mono tracking-tighter truncate uppercase rounded px-1.5 py-0.5" style={{ backgroundColor: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                {metric.subtext}
+              </div>
+            )}
           </div>
         </motion.div>
       ))}
