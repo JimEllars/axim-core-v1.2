@@ -24,3 +24,28 @@
     }
 ```
 **The Proving Test:** `executes mock calls to Cloudflare AI embedding arrays cleanly` in `tests/api-gateway.test.js`
+
+3. **Target File & Line Range:** `cloudflare-workers/onyx-edge-worker/src/index.ts:168-185`
+**The Exact Change:**
+```typescript
+      let fetchUrl = "https://api.anthropic.com/v1/messages";
+      if (env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_GATEWAY_ID) {
+        fetchUrl = \`https://gateway.ai.cloudflare.com/v1/\${env.CLOUDFLARE_ACCOUNT_ID}/\${env.CLOUDFLARE_GATEWAY_ID}/anthropic/v1/messages\`;
+      }
+
+      const claudeResponse = await fetch(fetchUrl, {
+        method: "POST",
+        headers: {
+          "x-api-key": env.ANTHROPIC_API_KEY,
+          "anthropic-version": "2023-06-01",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model: "claude-3-haiku-20240307",
+          max_tokens: 1024,
+          system: onyxSystemPrompt,
+          messages: [{ role: "user", content: payloadString }]
+        })
+      });
+```
+**The Proving Test:** `should parse cf-aig-cache-status headers and log telemetry correctly via AI Gateway` in `cloudflare-workers/tests/integration.test.js`

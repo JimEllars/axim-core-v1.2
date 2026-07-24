@@ -18,24 +18,63 @@ serve(async (req) => {
       });
     }
 
-    const gateways = [
-      `${supabaseUrl}/functions/v1/universal-dispatcher`,
-      `${supabaseUrl}/functions/v1/onyx-bridge`,
-    ];
+    // Fetch ecosystem nodes from database
+    const nodesRes = await fetch(`${supabaseUrl}/rest/v1/ecosystem_nodes?select=*`, {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!nodesRes.ok) {
+      throw new Error(`Failed to fetch ecosystem nodes: ${await nodesRes.text()}`);
+    }
+    const nodes = await nodesRes.json();
 
     const failures: string[] = [];
 
-    for (const url of gateways) {
+    for (const node of nodes) {
+      const url = node.health_endpoint_url;
+      if (!url) continue;
+
+      const startTime = Date.now();
+      let status = 'operational';
+      let pingMs = 0;
+      let statusCode = null;
+
       try {
-        // OPTIONS request to act as a health check since it bypasses most auth and just returns CORS headers
         const response = await fetch(url, { method: "OPTIONS" });
+        pingMs = Date.now() - startTime;
+        statusCode = response.status;
+
         if (!response.ok) {
+          status = 'offline';
           failures.push(url);
         }
       } catch (err) {
         console.error(`Failed to reach ${url}:`, err);
+        pingMs = Date.now() - startTime;
+        status = 'offline';
         failures.push(url);
       }
+
+      // Update ecosystem node in database
+      await fetch(`${supabaseUrl}/rest/v1/ecosystem_nodes?id=eq.${node.id}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal",
+        },
+        body: JSON.stringify({
+          last_ping: new Date().toISOString(),
+          ping_ms: pingMs,
+          // We only update status if it's not manually overridden. The frontend relies on status field or computes it.
+          // Let's just update ping_ms and last_ping to allow EcosystemRegistry to compute it.
+        }),
+      });
     }
 
     if (failures.length > 0) {
