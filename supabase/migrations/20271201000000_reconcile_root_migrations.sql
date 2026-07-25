@@ -53,6 +53,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Make sure search_chat_history exists
+DROP FUNCTION IF EXISTS public.search_chat_history(TEXT);
 CREATE OR REPLACE FUNCTION public.search_chat_history(query_text TEXT)
 RETURNS TABLE (
     command TEXT,

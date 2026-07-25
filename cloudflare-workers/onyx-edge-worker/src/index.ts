@@ -130,8 +130,6 @@ export default {
 
       let remainingRateLimit = "5";
       if (nodeScope) { remainingRateLimit = Math.max(0, 5 - (windowCache.get(nodeScope) || []).length).toString(); }
-      let remainingRateLimit = "5";
-      if (nodeScope) { remainingRateLimit = Math.max(0, 5 - (windowCache.get(nodeScope) || []).length).toString(); }
       const authHeader = request.headers.get("Authorization");
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return new Response("Unauthorized", { status: 401, headers: corsHeaders });
