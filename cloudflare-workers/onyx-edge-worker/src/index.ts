@@ -253,7 +253,7 @@ Context: ${JSON.stringify(context || {})}`;
     } catch (e: any) {
       const faultPayload = [{ type: 'enrichment_fault', message: e.message }];
       console.error(JSON.stringify(faultPayload));
-      return new Response(JSON.stringify({ error: e.message, telemetry: faultPayload }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json", "X-AXiM-RateLimit-Remaining": typeof remainingRateLimit !== "undefined" ? remainingRateLimit : "5" } });
+      return new Response(JSON.stringify({ error: e.message, telemetry: faultPayload }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json", "X-AXiM-RateLimit-Remaining": "5" } });
     }
   }
 };
