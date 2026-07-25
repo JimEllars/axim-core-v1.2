@@ -26,6 +26,36 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
       },
     });
 
+    // Check for X-AXiM-API-Key in headers to track usage
+    if (headers && headers['X-AXiM-API-Key']) {
+        const apiKey = headers['X-AXiM-API-Key'];
+        // Async update to api_keys usage (non-blocking)
+        supabase.rpc('increment_api_key_usage', { p_api_key: apiKey }).catch(err => {
+            console.error('Failed to increment API key usage:', err);
+        });
+
+        // Ensure rate limit headers are present if not already
+        if (data && !data.headers) {
+            data.headers = {};
+        }
+        if (data && data.headers && !data.headers['X-AXiM-RateLimit-Remaining']) {
+            data.headers['X-AXiM-RateLimit-Remaining'] = '99'; // Default or fetched limit
+        }
+
+        // Log telemetry
+        supabase.from('api_usage_logs').insert({
+            endpoint: endpoint,
+            status_code: data && data.status ? data.status : 200,
+            execution_time_ms: 0,
+            payload: {
+                api_key: apiKey,
+                action: 'api_proxy_call'
+            }
+        }).catch(err => {
+            console.error('Failed to log API key usage telemetry:', err);
+        });
+    }
+
     if (error) {
       // 500, 502, 503, etc are surfaced through error object
       throw error;

@@ -101,7 +101,7 @@ const JobQueueMonitor = () => {
   if (error) return <div className="text-red-500 p-4">Error: {error}</div>;
 
   return (
-    <div className="p-6 bg-gray-900 min-h-screen text-white">
+    <div className="p-6 text-white min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
       <h1 className="text-2xl font-bold mb-6 text-blue-400 border-b border-blue-900 pb-2">Mission Control: Job Queue</h1>
 
       {/* Summary Ribbon */}

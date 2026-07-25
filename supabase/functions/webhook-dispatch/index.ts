@@ -34,7 +34,66 @@ serve(async (req) => {
 
     try {
         const payload = await req.json();
-        const { documentId, partnerId, metadata, fileUrl } = payload;
+        const { documentId, partnerId, metadata, fileUrl, event_type, payload: eventPayload } = payload;
+
+        // Handle PR Merge Webhook Event
+        if (event_type === 'lab.pr.merge') {
+            const startTime = Date.now();
+            const labEndpoint = Deno.env.get('LAB_WEBHOOK_URL') || 'https://api.github.com/repos/axim-systems/core/dispatches';
+            const labSecret = Deno.env.get('LAB_WEBHOOK_SECRET') || 'lab_secret';
+
+            const prMergePayload = JSON.stringify({
+                event_type: 'pr_merge_request',
+                client_payload: eventPayload
+            });
+
+            try {
+                const signature = await generateHmacSignature(prMergePayload, labSecret);
+                const response = await fetch(labEndpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-AXiM-Signature': signature,
+                        'Authorization': `Bearer ${Deno.env.get('GITHUB_PAT') || 'mock_pat'}`
+                    },
+                    body: prMergePayload
+                });
+
+                const latency = Date.now() - startTime;
+                const status_code = response.status;
+                const responseText = await response.text();
+
+                // Log to api_usage_logs
+                await supabase.from('api_usage_logs').insert({
+                    endpoint: '/webhook-dispatch/lab.pr.merge',
+                    status_code,
+                    execution_time_ms: latency,
+                    payload: {
+                        eventPayload,
+                        response: responseText
+                    }
+                });
+
+                return new Response(JSON.stringify({ success: response.ok, status: status_code }), {
+                    status: 200,
+                    headers: { ...corsHeaders, "Content-Type": "application/json" }
+                });
+
+            } catch (err: any) {
+                const latency = Date.now() - startTime;
+                await supabase.from('api_usage_logs').insert({
+                    endpoint: '/webhook-dispatch/lab.pr.merge',
+                    status_code: 500,
+                    execution_time_ms: latency,
+                    payload: { error: err.message }
+                });
+                return new Response(JSON.stringify({ error: err.message }), {
+                    status: 500,
+                    headers: { ...corsHeaders, "Content-Type": "application/json" }
+                });
+            }
+        }
+
         const correlationId = req.headers.get('x-axim-correlation-id') || crypto.randomUUID();
 
         if (!partnerId) {
