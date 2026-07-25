@@ -256,8 +256,7 @@ describe('End-to-End Workflow Validation', () => {
 
   it('should accept a fix in OnyxResolutionGate and insert lab.pr.merge webhook', async () => {
     let insertedWebhook = null;
-    let insertedApiUsage = null;
-    const mockSupabase = {
+        const mockSupabase = {
       from: (table) => ({
         insert: (data) => {
           if (table === 'webhook_events') {
@@ -278,7 +277,7 @@ describe('End-to-End Workflow Validation', () => {
     const commitSha = 'abc123def';
 
     if (prBranch && commitSha) {
-      const { error: webhookError } = await mockSupabase.from('webhook_events').insert({
+      await mockSupabase.from('webhook_events').insert({
         event_type: 'lab.pr.merge',
         payload: {
           ticket_id: ticket.id,
