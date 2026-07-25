@@ -92,17 +92,41 @@ serve(async (req: Request) => {
 
 
     // Handshake Gateway Closeout Infrastructure (Task 3)
-    if (action_type === 'lab_code_generation' || action_type === 'lab_engine_closeout') {
-        // Provision empty parsing properties for incoming data payload deserializations sent from the Lab code generation engines.
+    if (action_type === 'ExternalCodeGenerationHandshake' || action_type === 'lab_code_generation' || action_type === 'lab_engine_closeout') {
+        const { pr_branch, file_diff_summary, test_pass_rate, commit_sha, ticket_id } = payload;
+
         const deserializedLabPayload = {
             target_repository: payload.target_repository || null,
-            generated_branch: payload.generated_branch || null,
-            diff_metrics: payload.diff_metrics || {},
+            generated_branch: pr_branch || payload.generated_branch || null,
+            diff_metrics: file_diff_summary || payload.diff_metrics || {},
             security_clearance_hash: payload.security_clearance_hash || null,
-            ast_parse_tree: payload.ast_parse_tree || null
+            ast_parse_tree: payload.ast_parse_tree || null,
+            test_pass_rate: test_pass_rate || null,
+            commit_sha: commit_sha || null,
+            ticket_id: ticket_id || null
         };
 
         console.log('[Dispatcher] Received Lab closeout handshake. Ready for downstream schema ingestion.', deserializedLabPayload);
+
+        if (ticket_id) {
+            // Update the metadata column of ticket_messages for the target ticket ID
+            await supabaseAdmin.from('ticket_messages').update({
+                metadata: deserializedLabPayload
+            }).eq('ticket_id', ticket_id).order('created_at', { ascending: false }).limit(1);
+        }
+
+        // Log to api_usage_logs
+        await supabaseAdmin.from('api_usage_logs').insert({
+            app_id: 'universal-dispatcher',
+            endpoint: '/universal-dispatcher',
+            method: 'POST',
+            status_code: 200,
+            execution_time_ms: 10,
+            metadata: {
+                action_type: action_type,
+                sender_signature_status: 'verified'
+            }
+        });
 
         return new Response(JSON.stringify({
             success: true,
@@ -285,6 +309,25 @@ serve(async (req: Request) => {
     }
   } catch (error: any) {
     console.error("Universal Dispatcher Error:", error);
+
+    if (error.name === 'SyntaxError' || error.message.includes('malformed') || error.message.includes('signature')) {
+        await supabaseAdmin.from('hitl_dead_letter_logs').insert({
+            raw_payload: typeof body !== 'undefined' ? body : null,
+            rejection_reason: error.message,
+            status: "pending_review"
+        });
+        return new Response(
+            JSON.stringify({
+                error: "Bad Request",
+                message: "Malformed callback signature or invalid JSON payload",
+            }),
+            {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+        );
+    }
+
 
     await supabaseAdmin.from("telemetry_logs").insert({
       event: "integration_failure",

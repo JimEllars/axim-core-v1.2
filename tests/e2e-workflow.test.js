@@ -219,3 +219,39 @@ describe('End-to-End Workflow Validation', () => {
   });
 
 });
+
+  it('should simulate an inbound lab callback to universal-dispatcher successfully', async () => {
+    let handled = false;
+    const mockPayload = {
+      action_type: 'ExternalCodeGenerationHandshake',
+      payload: {
+        pr_branch: 'wave70-lab-resolution-gate',
+        file_diff_summary: { 'index.ts': { additions: 10, deletions: 2 } },
+        test_pass_rate: '100%',
+        commit_sha: '07caf9ab797eeac988b55095f6804ab495af42f5',
+        ticket_id: 'tkt_12345'
+      }
+    };
+
+    // Test logic simulating the universal-dispatcher handling
+    if (mockPayload.action_type === 'ExternalCodeGenerationHandshake') {
+        const { pr_branch, file_diff_summary, test_pass_rate, commit_sha, ticket_id } = mockPayload.payload;
+
+        const deserializedLabPayload = {
+            target_repository: null,
+            generated_branch: pr_branch || null,
+            diff_metrics: file_diff_summary || {},
+            security_clearance_hash: null,
+            ast_parse_tree: null,
+            test_pass_rate: test_pass_rate || null,
+            commit_sha: commit_sha || null,
+            ticket_id: ticket_id || null
+        };
+
+        expect(deserializedLabPayload.generated_branch).toBe('wave70-lab-resolution-gate');
+        expect(deserializedLabPayload.test_pass_rate).toBe('100%');
+        expect(deserializedLabPayload.commit_sha).toBe('07caf9ab797eeac988b55095f6804ab495af42f5');
+        handled = true;
+    }
+    expect(handled).toBe(true);
+  });

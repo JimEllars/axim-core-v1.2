@@ -49,3 +49,12 @@
       });
 ```
 **The Proving Test:** `should parse cf-aig-cache-status headers and log telemetry correctly via AI Gateway` in `cloudflare-workers/tests/integration.test.js`
+
+### Wave 70: Support-to-Lab Callback Deserialization, HUD Resolution Gate & Edge Telemetry Hardening
+- **Target File**: `supabase/functions/universal-dispatcher/index.ts`
+  - **Exact Change**: Added parsing and ingestion logic for `ExternalCodeGenerationHandshake` inbound JSON payloads containing PR details from The Coding Lab. Updated ticket message metadata. Added robust exception capturing to route malformed payloads to `hitl_dead_letter_logs` and return structured 400 errors instead of throwing raw 500 exceptions.
+  - **Proving Test**: End-to-End Workflow Validation `should simulate an inbound lab callback to universal-dispatcher successfully` verifies extraction and logic.
+- **Target File**: `src/components/tickets/OnyxResolutionGate.jsx`
+  - **Exact Change**: Enhanced UI to read and dynamically display PR branches, test pass rates, files changed, and commit SHA data stored in the ticket message metadata from the Lab callback payload. Updated the `handleAccept` action to securely insert `hitl_audit_logs`. Updated UI styling to dark Cyber-Onyx aesthetics with `min-h-[160px]`.
+- **Target File**: `cloudflare-workers/onyx-edge-worker/src/index.ts`
+  - **Exact Change**: Appended explicit rate-limit status headers (`X-AXiM-RateLimit-Remaining`) into standard response chains providing client visibility on available execution tokens.

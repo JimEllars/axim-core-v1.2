@@ -21,6 +21,14 @@ const OnyxResolutionGate = ({ ticket, onResolutionComplete }) => {
 
       if (ticketError) throw ticketError;
 
+      const { error: hitlError } = await supabase.from('hitl_audit_logs').insert({
+          action: 'accept_solution',
+          ticket_id: ticket.id,
+          status: 'approved'
+      });
+      if (hitlError) console.error("HITL Logging error", hitlError);
+
+
       // Log high-confidence match event
       const { error: logError } = await supabase
         .from('api_usage_logs')
@@ -73,11 +81,21 @@ const OnyxResolutionGate = ({ ticket, onResolutionComplete }) => {
   // Find the AI response text
   const aiResponse = ticket.ai_response || ticket.description || "The AI provided a response.";
 
+  // Extract metadata from ticket (either directly on ticket or in a ticket_messages relationship)
+  // We assume the parent component passes the latest message's metadata or it's attached to the ticket
+  const metadata = ticket.metadata || {};
+  const prBranch = metadata.pr_branch || metadata.generated_branch || null;
+  const fileDiffs = metadata.file_diff_summary || metadata.diff_metrics || null;
+  const testPassRate = metadata.test_pass_rate || null;
+  const commitSha = metadata.commit_sha || null;
+
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-slate-800 rounded-lg border border-slate-700 p-6 shadow-lg mt-4"
+      className="rounded-lg border border-slate-700 p-6 shadow-lg mt-4 min-h-[160px] font-mono"
+      style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
     >
       <div className="flex items-start mb-4">
         <div className="bg-purple-900/50 p-2 rounded-full mr-3 text-purple-400">
@@ -90,6 +108,17 @@ const OnyxResolutionGate = ({ ticket, onResolutionComplete }) => {
       </div>
 
       <div className="bg-slate-900 rounded border border-slate-700 p-4 text-slate-300 font-mono text-sm mb-6 whitespace-pre-wrap">
+        {prBranch && (
+          <div className="mb-4 p-3 bg-slate-800/50 rounded border border-slate-700">
+            <h4 className="text-purple-400 font-semibold mb-2">Automated Code Generation Proposal</h4>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div><span className="text-slate-500">Branch:</span> <span className="text-green-400">{prBranch}</span></div>
+              {commitSha && <div><span className="text-slate-500">Commit:</span> <span className="text-blue-400">{commitSha.substring(0, 7)}</span></div>}
+              {testPassRate && <div><span className="text-slate-500">Test Pass Rate:</span> <span className={testPassRate === '100%' ? 'text-green-400' : 'text-yellow-400'}>{testPassRate}</span></div>}
+              {fileDiffs && <div><span className="text-slate-500">Files Changed:</span> <span className="text-slate-300">{Object.keys(fileDiffs).length}</span></div>}
+            </div>
+          </div>
+        )}
         {aiResponse}
       </div>
 

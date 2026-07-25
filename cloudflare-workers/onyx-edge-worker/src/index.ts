@@ -86,7 +86,8 @@ export default {
         const windowTime = 1000; // 1 second window
 
         // Add an optimized low-overhead cache check
-        let timestamps = windowCache.get(nodeScope) || [];
+        let timestamps: number[] = [];
+        timestamps = windowCache.get(nodeScope) || [];
 
         // Safety wrap for state cache retrieval
         try {
@@ -112,7 +113,8 @@ export default {
             headers: {
               ...corsHeaders,
               "Content-Type": "application/json",
-              "X-AXiM-Edge-Throttled": timestamps.length.toString()
+              "X-AXiM-Edge-Throttled": timestamps.length.toString(),
+              "X-AXiM-RateLimit-Remaining": "0"
             }
           });
         }
@@ -126,6 +128,8 @@ export default {
         }
       }
 
+      let remainingRateLimit = "5";
+      if (nodeScope) { remainingRateLimit = Math.max(0, 5 - (windowCache.get(nodeScope) || []).length).toString(); }
       const authHeader = request.headers.get("Authorization");
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return new Response("Unauthorized", { status: 401, headers: corsHeaders });
@@ -146,7 +150,7 @@ export default {
          // Add standard safe check fallbacks to verify the worker safely handles instances where telemetry endpoints return non-200 responses
          const faultPayload = [{ type: 'enrichment_fault', message: 'Authentication service unavailable' }];
          console.error(JSON.stringify(faultPayload));
-         return new Response(JSON.stringify({ error: "Authentication service unavailable", telemetry: faultPayload }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+         return new Response(JSON.stringify({ error: "Authentication service unavailable", telemetry: faultPayload }), { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json", "X-AXiM-RateLimit-Remaining": remainingRateLimit } });
       }
 
       if (!userRes || !userRes.ok) {
@@ -190,7 +194,7 @@ Context: ${JSON.stringify(context || {})}`;
         console.error(JSON.stringify(faultPayload));
         return new Response(JSON.stringify({ error: `Anthropic API error: ${claudeResponse.status} ${errorText}`, telemetry: faultPayload }), {
           status: claudeResponse.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" }
+          headers: { ...corsHeaders, "Content-Type": "application/json", "X-AXiM-RateLimit-Remaining": typeof remainingRateLimit !== "undefined" ? remainingRateLimit : "5" }
         });
       }
 
@@ -244,12 +248,12 @@ Context: ${JSON.stringify(context || {})}`;
         content: llmData.content[0].text,
         response: llmData.content[0].text,
         timestamp: new Date().toISOString()
-      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json", "X-AXiM-RateLimit-Remaining": Math.max(0, 5 - timestamps.length).toString() } });
 
     } catch (e: any) {
       const faultPayload = [{ type: 'enrichment_fault', message: e.message }];
       console.error(JSON.stringify(faultPayload));
-      return new Response(JSON.stringify({ error: e.message, telemetry: faultPayload }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: e.message, telemetry: faultPayload }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json", "X-AXiM-RateLimit-Remaining": "5" } });
     }
   }
 };
