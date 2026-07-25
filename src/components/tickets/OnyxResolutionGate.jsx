@@ -29,6 +29,19 @@ const OnyxResolutionGate = ({ ticket, onResolutionComplete }) => {
       if (hitlError) console.error("HITL Logging error", hitlError);
 
 
+      // Insert outbound webhook event for PR merge if applicable
+      if (prBranch && commitSha) {
+        const { error: webhookError } = await supabase.from('webhook_events').insert({
+          event_type: 'lab.pr.merge',
+          payload: {
+            ticket_id: ticket.id,
+            pr_branch: prBranch,
+            commit_sha: commitSha
+          }
+        });
+        if (webhookError) console.error("Webhook event insert error", webhookError);
+      }
+
       // Log high-confidence match event
       const { error: logError } = await supabase
         .from('api_usage_logs')

@@ -112,7 +112,7 @@ const SystemAutonomyMap = () => {
   }, []);
 
   return (
-    <div className="glass-effect rounded-xl p-6 border border-slate-800 bg-zinc-950/80">
+    <div className="rounded-xl p-6 border border-slate-700 shadow-lg min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-2">
           <SafeIcon icon={FiCpu} className="text-indigo-400 text-xl" />

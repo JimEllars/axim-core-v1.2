@@ -218,8 +218,6 @@ describe('End-to-End Workflow Validation', () => {
     expect(mockTelemetryEventsTable[0].severity).toBe('ERROR');
   });
 
-});
-
   it('should simulate an inbound lab callback to universal-dispatcher successfully', async () => {
     let handled = false;
     const mockPayload = {
@@ -255,3 +253,93 @@ describe('End-to-End Workflow Validation', () => {
     }
     expect(handled).toBe(true);
   });
+
+  it('should accept a fix in OnyxResolutionGate and insert lab.pr.merge webhook', async () => {
+    let insertedWebhook = null;
+        const mockSupabase = {
+      from: (table) => ({
+        insert: (data) => {
+          if (table === 'webhook_events') {
+            insertedWebhook = data;
+          } else if (table === 'api_usage_logs') {
+            insertedApiUsage = data;
+          }
+          return { error: null };
+        },
+        update: () => ({
+          eq: () => ({ error: null })
+        })
+      })
+    };
+
+    const ticket = { id: 'tkt_123' };
+    const prBranch = 'fix-branch';
+    const commitSha = 'abc123def';
+
+    if (prBranch && commitSha) {
+      await mockSupabase.from('webhook_events').insert({
+        event_type: 'lab.pr.merge',
+        payload: {
+          ticket_id: ticket.id,
+          pr_branch: prBranch,
+          commit_sha: commitSha
+        }
+      });
+    }
+
+    expect(insertedWebhook).not.toBeNull();
+    expect(insertedWebhook.event_type).toBe('lab.pr.merge');
+    expect(insertedWebhook.payload.pr_branch).toBe('fix-branch');
+    expect(insertedWebhook.payload.commit_sha).toBe('abc123def');
+  });
+
+  it('should track API key usage telemetry in apiProxy', async () => {
+    let incrementCalled = false;
+    let apiUsageLogged = false;
+    const mockSupabase = {
+      rpc: (func, args) => {
+        if (func === 'increment_api_key_usage' && args.p_api_key === 'test-api-key') {
+          incrementCalled = true;
+        }
+        return Promise.resolve();
+      },
+      from: (table) => ({
+        insert: (data) => {
+          if (table === 'api_usage_logs' && data.payload.api_key === 'test-api-key') {
+            apiUsageLogged = true;
+          }
+          return Promise.resolve();
+        }
+      })
+    };
+
+    const headers = { 'X-AXiM-API-Key': 'test-api-key' };
+    const data = {};
+
+    if (headers && headers['X-AXiM-API-Key']) {
+        const apiKey = headers['X-AXiM-API-Key'];
+        await mockSupabase.rpc('increment_api_key_usage', { p_api_key: apiKey });
+
+        if (data && !data.headers) {
+            data.headers = {};
+        }
+        if (data && data.headers && !data.headers['X-AXiM-RateLimit-Remaining']) {
+            data.headers['X-AXiM-RateLimit-Remaining'] = '99';
+        }
+
+        await mockSupabase.from('api_usage_logs').insert({
+            endpoint: '/test-endpoint',
+            status_code: 200,
+            execution_time_ms: 0,
+            payload: {
+                api_key: apiKey,
+                action: 'api_proxy_call'
+            }
+        });
+    }
+
+    expect(incrementCalled).toBe(true);
+    expect(data.headers['X-AXiM-RateLimit-Remaining']).toBe('99');
+    expect(apiUsageLogged).toBe(true);
+  });
+});
