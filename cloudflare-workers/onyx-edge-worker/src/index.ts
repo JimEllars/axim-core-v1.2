@@ -248,7 +248,7 @@ Context: ${JSON.stringify(context || {})}`;
         content: llmData.content[0].text,
         response: llmData.content[0].text,
         timestamp: new Date().toISOString()
-      }), { headers: { ...corsHeaders, "Content-Type": "application/json", "X-AXiM-RateLimit-Remaining": Math.max(0, 5 - timestamps.length).toString() } });
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json", "X-AXiM-RateLimit-Remaining": remainingRateLimit } });
 
     } catch (e: any) {
       const faultPayload = [{ type: 'enrichment_fault', message: e.message }];
