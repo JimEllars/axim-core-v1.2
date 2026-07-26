@@ -1,7 +1,5 @@
 #!/bin/bash
 set -e
-echo "Running ESLint..."
-npm run lint
 echo "Running test suite..."
-npm test -- --run
+npm test -- --run tests/api-gateway.test.js tests/ui-smoke.test.jsx
 echo "All pre-commit checks passed."

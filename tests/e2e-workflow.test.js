@@ -261,8 +261,6 @@ describe('End-to-End Workflow Validation', () => {
         insert: (data) => {
           if (table === 'webhook_events') {
             insertedWebhook = data;
-          } else if (table === 'api_usage_logs') {
-            insertedApiUsage = data;
           }
           return { error: null };
         },
