@@ -115,7 +115,7 @@ describe('Edge Function Integrity', () => {
     it('validates that predictive-engagement executes cleanly and records telemetry', async () => {
         // Simple validation that the function logic is sound
         const mockSupabaseClient = {
-            from: (table) => ({
+            from: () => ({
                 select: () => ({ limit: () => ({ data: [{ id: '1' }, { id: '2' }], error: null }) }),
                 update: () => ({ eq: () => Promise.resolve() }),
                 insert: (data) => Promise.resolve({ data, error: null })
@@ -149,7 +149,7 @@ describe('Edge Function Integrity', () => {
     it('validates that autonomous-lead-scraper executes cleanly and records telemetry', async () => {
         // Simple validation that the function logic is sound
         const mockSupabaseClient = {
-            from: (table) => ({
+            from: () => ({
                 select: () => ({ eq: () => ({ limit: () => ({ data: [{ id: '1' }], error: null }) }) }),
                 update: () => ({ eq: () => Promise.resolve() }),
                 upsert: () => Promise.resolve(),
