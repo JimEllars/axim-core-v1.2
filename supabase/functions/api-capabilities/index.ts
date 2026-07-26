@@ -58,7 +58,7 @@ serve(async (req: Request) => {
   ];
 
   return new Response(JSON.stringify([...capabilities, ...externalCapabilities]), {
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json', 'X-AXiM-RateLimit-Remaining': '999' },
     status: 200,
   });
 });

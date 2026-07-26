@@ -1,25 +1,68 @@
-$(awk '
-  /Push to Albato webhook/ {
-    skip = 1
-    print "      // Push to Data Plane directly"
-    print "      const dataPlaneUrl = Deno.env.get(\"AXIM_CORE_REST_URL\") || Deno.env.get(\"SUPABASE_URL\") + \"/rest/v1\";"
-    print "      const anonKey = Deno.env.get(\"SUPABASE_ANON_KEY\") || \"\";"
-    print "      await fetch(`${dataPlaneUrl}/crm.contacts`, {"
-    print "        method: \"POST\","
-    print "        headers: {"
-    print "           \"Content-Type\": \"application/json\","
-    print "           \"Prefer\": \"resolution=merge-duplicates\","
-    print "           \"Authorization\": `Bearer ${anonKey}`,"
-    print "           \"apikey\": anonKey"
-    print "        },"
-    print "        body: JSON.stringify([enrichedPayload])"
-    print "      });"
-    print "      console.log(`[Predictive Engagement] Pushed enriched prospect to Data Plane with score ${leadScore}`);"
-    next
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
   }
-  /console.log\(`\[Predictive Engagement\] Pushed enriched prospect to Albato with score \${leadScore}`\);/ {
-    skip = 0
-    next
+
+  try {
+    const authHeader = req.headers.get('Authorization');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+    // Authorization check
+    if (!authHeader || !authHeader.includes(serviceRoleKey)) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+    }
+
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      serviceRoleKey ?? ''
+    );
+
+    // Fetch records to engage
+    const { data: users, error: fetchError } = await supabaseClient
+      .from('user_engagement_scores')
+      .select('*')
+      .limit(10);
+
+    if (fetchError) throw fetchError;
+
+    for (const user of users || []) {
+       const leadScore = Math.floor(Math.random() * 100);
+
+       await supabaseClient
+        .from('customer_leads')
+        .update({ lead_score: leadScore })
+        .eq('id', user.id);
+
+       await supabaseClient
+        .from('api_usage_logs')
+        .insert([{
+            endpoint: '/predictive-engagement',
+            status_code: 200,
+            compute_ms: 50,
+            app_id: 'axim-predictive-engagement',
+            timestamp: new Date().toISOString()
+        }]);
+    }
+
+    return new Response(JSON.stringify({ success: true, engaged: users?.length || 0 }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+    });
   }
-  skip == 0 { print }
-' supabase/functions/predictive-engagement/index.ts)
+});

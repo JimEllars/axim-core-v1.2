@@ -86,7 +86,7 @@ const APICard = ({ integration, onUpdate, onTest, onEdit }) => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-effect rounded-lg p-6 hover:bg-white/10 transition-all duration-300"
+      className="glass-effect rounded-lg p-6 hover:bg-white/10 transition-all duration-300" style={{ background: "rgba(10, 10, 12, 0.45)", backdropFilter: "blur(16px)", minHeight: "160px" }}
     >
       <div className="flex items-start justify-between">
         <div className="flex items-center space-x-4 flex-1">
