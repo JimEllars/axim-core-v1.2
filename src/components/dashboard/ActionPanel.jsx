@@ -33,7 +33,7 @@ const ActionPanel = () => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-effect rounded-xl overflow-hidden"
+      className="glass-effect rounded-xl overflow-hidden min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
     >
       <div
         className="flex items-center justify-between p-6 cursor-pointer hover:bg-white/5 transition-colors"
@@ -125,26 +125,23 @@ const TabButton = ({ label, isActive, onClick }) => (
 const IngestLeadForm = () => {
   const [formData, setFormData] = useState({ name: '', email: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStatus, setSubmitStatus] = useState(null);
-  const { refreshDashboard } = useDashboard();
+    const { refreshDashboard } = useDashboard();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setSubmitStatus(null);
 
     try {
       await api.addContact(formData.name, formData.email, 'manual_dashboard_ingest');
-      setSubmitStatus('success');
+      toast.success("Lead ingested successfully!");
       setFormData({ name: '', email: '' });
       refreshDashboard();
     } catch (error) {
       console.error('Error adding contact:', error);
-      setSubmitStatus('error');
+      toast.error("Failed to ingest lead");
     } finally {
       setIsSubmitting(false);
-      setTimeout(() => setSubmitStatus(null), 3000);
-    }
+          }
   };
 
   const handleInputChange = (field, value) => {
@@ -174,11 +171,8 @@ const IngestLeadForm = () => {
       </div>
       <FormControls
         isSubmitting={isSubmitting}
-        submitStatus={submitStatus}
-        submitLabel="Ingest Lead"
-        successMessage="Lead ingested successfully!"
-        errorMessage="Failed to ingest lead"
-        canSubmit={!!formData.email}
+                submitLabel="Ingest Lead"
+                        canSubmit={!!formData.email}
       />
     </form>
   );
@@ -187,26 +181,23 @@ const IngestLeadForm = () => {
 const CreateProjectForm = () => {
   const [formData, setFormData] = useState({ name: '', description: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStatus, setSubmitStatus] = useState(null);
-  const { refreshDashboard } = useDashboard();
+    const { refreshDashboard } = useDashboard();
   const { user } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setSubmitStatus(null);
-    try {
+        try {
       await api.createProject(formData.name, formData.description, user.id);
-      setSubmitStatus('success');
+      toast.success("Project created successfully!");
       setFormData({ name: '', description: '' });
       refreshDashboard();
     } catch (error) {
       console.error('Error creating project:', error);
-      setSubmitStatus('error');
+      toast.error("Failed to create project");
     } finally {
       setIsSubmitting(false);
-      setTimeout(() => setSubmitStatus(null), 3000);
-    }
+          }
   };
 
   const handleInputChange = (field, value) => {
@@ -234,11 +225,8 @@ const CreateProjectForm = () => {
       </div>
       <FormControls
         isSubmitting={isSubmitting}
-        submitStatus={submitStatus}
-        submitLabel="Create Project"
-        successMessage="Project created successfully!"
-        errorMessage="Failed to create project"
-        canSubmit={!!formData.name}
+                submitLabel="Create Project"
+                        canSubmit={!!formData.name}
       />
     </form>
   );
@@ -259,7 +247,7 @@ const InputField = ({ label, icon, ...props }) => (
   </div>
 );
 
-const FormControls = ({ isSubmitting, submitStatus, submitLabel, successMessage, errorMessage, canSubmit }) => (
+const FormControls = ({ isSubmitting, submitLabel, canSubmit }) => (
   <div className="flex items-center justify-between">
     <motion.button
       type="submit"
@@ -281,25 +269,7 @@ const FormControls = ({ isSubmitting, submitStatus, submitLabel, successMessage,
       )}
     </motion.button>
 
-    <AnimatePresence>
-      {submitStatus && (
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          exit={{ opacity: 0, x: 20 }}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-lg ${
-            submitStatus === 'success'
-              ? 'bg-green-900/30 border border-green-800 text-green-400'
-              : 'bg-red-900/30 border border-red-800 text-red-400'
-          }`}
-        >
-          <SafeIcon icon={submitStatus === 'success' ? FiCheck : FiX} />
-          <span className="text-sm">
-            {submitStatus === 'success' ? successMessage : errorMessage}
-          </span>
-        </motion.div>
-      )}
-    </AnimatePresence>
+
   </div>
 );
 

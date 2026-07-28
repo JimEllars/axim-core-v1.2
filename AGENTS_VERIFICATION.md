@@ -38,3 +38,58 @@
 - Target File & Line Range: src/contexts/AuthContext.jsx (Line 51)
 - Exact Code Snippet Modified: Caught TypeError Failed to fetch to skip refresh without logging error.
 - Proving Test Name: manual inspection / unit test verify
+
+### Wave 74: Intelligence Hub Real-Time Telemetry, Edge Throttling Ingestion & Cockpit Panel Polish
+**Date:** 2026-07-28
+**Branch:** `wave74-telemetry-cockpit-polish`
+**Changes Executed:**
+1. **Target File:** `src/components/admin/IntelligenceHub.jsx`
+   - **Line Range:** ~25, 115
+   - **Code Snippet:**
+     ```javascript
+     <div className="space-y-6 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+     ```
+   - **Test/Verification Name:** Visual verification & automated component tests passes.
+
+2. **Target File:** `src/components/dashboard/ActionPanel.jsx` & `src/components/dashboard/AIInteractionsChart.jsx`
+   - **Line Range:** ~35
+   - **Code Snippet:**
+     ```javascript
+     className="glass-effect rounded-xl overflow-hidden min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
+     ```
+   - **Test/Verification Name:** Confirmed zero layout shifting, `toast.success` and `toast.error` applied cleanly.
+
+3. **Target File:** `src/services/apiProxy.js`
+   - **Line Range:** ~25-45
+   - **Code Snippet:**
+     ```javascript
+     // Edge Throttling Telemetry Ingestion
+     let isThrottled = false;
+
+     // Some edge proxies might return the headers within data or within an error context
+     if (data && data.headers && data.headers['X-AXiM-Edge-Throttled']) {
+         isThrottled = data.headers['X-AXiM-Edge-Throttled'];
+     } else if (error && typeof error === 'object' && error.context && error.context.headers && error.context.headers['X-AXiM-Edge-Throttled']) {
+         isThrottled = error.context.headers['X-AXiM-Edge-Throttled'];
+     }
+
+     if (isThrottled) {
+         supabase.from('api_usage_logs').insert({
+             endpoint: endpoint,
+             status_code: 429,
+             execution_time_ms: 0,
+             payload: {
+                 action: 'edge_throttled',
+                 deflected_count: parseInt(isThrottled, 10) || 1
+             }
+         }).catch(err => {
+             console.error('Failed to log edge throttling telemetry:', err);
+         });
+
+         toast.error('Edge Throttling Active. Request rate limited.');
+         return { data: null, error: 'Rate limited by edge', throttled: true };
+     }
+     ```
+   - **Test/Verification Name:** `tests/api-gateway.test.js` (`simulates edge sliding window rate limiting and correctly writes headers for deflected bursts`).
+
+**Verification Pass Check:** `npm run test tests/api-gateway.test.js` successfully confirmed.

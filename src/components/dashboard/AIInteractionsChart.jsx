@@ -21,7 +21,7 @@ const AIInteractionsChart = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.4 }}
-      className="glass-effect rounded-xl p-6 col-span-1 lg:col-span-2"
+      className="glass-effect rounded-xl p-6 col-span-1 lg:col-span-2 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
     >
       <div className="flex items-center space-x-3 mb-6">
         <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-600 rounded-lg flex items-center justify-center">

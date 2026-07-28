@@ -13,6 +13,7 @@ const IntelligenceHub = () => {
   const { user } = useAuth();
   const { supabase } = useSupabase();
   const [liveStream, setLiveStream] = useState([]);
+  const [isConnecting, setIsConnecting] = useState(true);
 
   useEffect(() => {
     if (!supabase) return;
@@ -31,7 +32,11 @@ const IntelligenceHub = () => {
           setLiveStream((prev) => [newEntry, ...prev].slice(0, 10)); // Keep only the latest 10 items
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          setIsConnecting(false);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -55,7 +60,7 @@ const IntelligenceHub = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -140,17 +145,23 @@ const IntelligenceHub = () => {
           </div>
           <div className="flex items-center space-x-2">
              <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+              {!isConnecting && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>}
+              <span className={`relative inline-flex rounded-full h-3 w-3 ${isConnecting ? 'bg-yellow-500' : 'bg-green-500'}`}></span>
             </span>
-            <span className="text-xs text-green-400 font-medium">Listening</span>
+            {isConnecting ? (
+              <span className="text-xs text-yellow-400 font-medium flex items-center">
+                <SafeIcon icon={FiLoader} className="animate-spin mr-1" size={12} /> Connecting...
+              </span>
+            ) : (
+              <span className="text-xs text-green-400 font-medium">Listening</span>
+            )}
           </div>
         </div>
 
         <div className="bg-onyx-950/50 rounded-lg border border-onyx-accent/20 p-4 h-64 overflow-y-auto">
           {liveStream.length === 0 ? (
             <div className="flex items-center justify-center h-full text-slate-500 text-sm italic">
-              Waiting for new intelligence to be ingested...
+              {isConnecting ? 'Establishing secure connection...' : 'Waiting for new intelligence to be ingested...'}
             </div>
           ) : (
             <div className="space-y-3">
