@@ -19,8 +19,8 @@ serve(async (req) => {
   try {
     // 1. Fetch Pending Jobs (max 10) safely using our RPC function
     const { data: jobs, error: fetchError } = await supabase.rpc(
-      "dequeue_satellite_jobs",
-      { max_jobs: 10 },
+      "dequeue_scheduled_tasks",
+      { max_tasks: 5 },
     );
 
     if (fetchError) {
@@ -42,6 +42,7 @@ serve(async (req) => {
         const { app_id, payload, task_type } = job;
         const jobType = task_type || payload?.job_type;
         const idempotencyKey = payload?.idempotency_key;
+        const startTime = Date.now();
 
         // Enforce Idempotency
         if (idempotencyKey) {
@@ -54,7 +55,7 @@ serve(async (req) => {
           if (existingLog) {
              console.log(`Job ${job.id} skipped. Duplicate idempotency_key: ${idempotencyKey}`);
              await supabase
-               .from("satellite_job_queue")
+               .from("scheduled_tasks")
                .update({ status: "completed", error_log: "Skipped as duplicate (idempotency_key match)" })
                .eq("id", job.id);
              continue;
@@ -252,29 +253,43 @@ serve(async (req) => {
         // Record Idempotency Key if present and successful
         if (idempotencyKey) {
             await supabase.from("api_usage_logs").insert({
-               endpoint: `/satellite_job_queue/${jobType || 'unknown'}`,
+               endpoint: `/scheduled_tasks/${jobType || 'unknown'}`,
                idempotency_key: idempotencyKey
             });
         }
 
         // Mark Job as Completed
         await supabase
-          .from("satellite_job_queue")
+          .from("scheduled_tasks")
           .update({ status: "completed" })
           .eq("id", job.id);
 
+        const endTime = Date.now();
+        await supabase.from("api_usage_logs").insert({
+            endpoint: `/job-processor/${jobType || 'unknown'}`,
+            status_code: 200,
+            compute_ms: endTime - startTime,
+            app_id: 'job-processor'
+        });
         console.log(`Job ${job.id} completed successfully.`);
       } catch (err: any) {
         console.error(`Error processing job ${job.id}:`, err);
-        const newAttempts = job.attempts + 1;
-        const newStatus = newAttempts >= job.max_attempts ? "failed" : "pending";
+        const endTime = Date.now();
+        await supabase.from("api_usage_logs").insert({
+            endpoint: `/job-processor/${jobType || 'unknown'}`,
+            status_code: 500,
+            compute_ms: endTime - startTime,
+            app_id: 'job-processor'
+        });
+        const newAttempts = (job.attempts || 0) + 1;
+        const newStatus = newAttempts >= 3 ? "failed" : "pending";
 
-        const backoffMinutes = Math.pow(5, job.attempts); // attempt 1 -> 5^0 = 1 min, 5^1 = 5 min, 5^2 = 25 min...
+        const backoffMinutes = Math.pow(5, (job.attempts || 0)); // attempt 1 -> 5^0 = 1 min, 5^1 = 5 min, 5^2 = 25 min...
         const nextRunAt = new Date(Date.now() + backoffMinutes * 60000).toISOString();
 
-        if (newAttempts >= job.max_attempts) {
-          // Remove from satellite_job_queue
-          await supabase.from("satellite_job_queue").delete().eq("id", job.id);
+        if (newAttempts >= 3) {
+          // Remove from scheduled_tasks
+          await supabase.from("scheduled_tasks").delete().eq("id", job.id);
 
           // Insert into dead_letter_jobs
           await supabase.from("dead_letter_jobs").insert({
@@ -306,9 +321,9 @@ serve(async (req) => {
             },
           });
         } else {
-          // Update satellite_job_queue
+          // Update scheduled_tasks
           await supabase
-            .from("satellite_job_queue")
+            .from("scheduled_tasks")
             .update({
               status: newStatus,
               attempts: newAttempts,

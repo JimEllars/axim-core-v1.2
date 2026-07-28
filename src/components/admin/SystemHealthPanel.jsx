@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { supabase } from '../../services/supabaseClient';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
+import api from '../../services/onyxAI/api';
 import { useMetrics } from '../../hooks/useMetrics';
 
 const { FiServer, FiActivity, FiGlobe, FiCheckCircle, FiAlertTriangle, FiXCircle, FiTrendingUp } = FiIcons;
@@ -10,6 +11,7 @@ const { FiServer, FiActivity, FiGlobe, FiCheckCircle, FiAlertTriangle, FiXCircle
 const SystemHealthPanel = () => {
   const { metrics } = useMetrics();
 
+  const [cronPulseData, setCronPulseData] = useState([]);
   const [healthData, setHealthData] = useState({
     workerUptime: 'Unknown',
     deflectedStorms: 0,
@@ -19,6 +21,26 @@ const SystemHealthPanel = () => {
   });
 
   const fetchHealth = async () => {
+    try {
+      const { data: crons, error: cronError } = await api.supabase
+        .from('api_usage_logs')
+        .select('endpoint, timestamp')
+        .in('endpoint', ['/onyx-bridge', '/predictive-engagement', '/cognitive-compression', '/job-processor/scheduled_task'])
+        .order('timestamp', { ascending: false })
+        .limit(20);
+
+      if (!cronError && crons) {
+         const latestCrons = {};
+         crons.forEach(c => {
+            if (!latestCrons[c.endpoint]) {
+               latestCrons[c.endpoint] = c.timestamp;
+            }
+         });
+         setCronPulseData(Object.entries(latestCrons).map(([endpoint, timestamp]) => ({ endpoint, timestamp })));
+      }
+    } catch(e) {
+      console.error(e);
+    }
     try {
       const { data, error } = await supabase.functions.invoke('system-status');
       if (error) throw error;
@@ -173,6 +195,32 @@ const SystemHealthPanel = () => {
           <div className="text-2xl font-mono text-indigo-400">
             {metrics?.cacheSavings || 0}%
           </div>
+        </div>
+      </div>
+
+
+      <div className="mt-8">
+        <h3 className="text-slate-400 text-sm font-mono uppercase tracking-wider mb-4 border-b border-slate-800 pb-2 flex items-center">
+          <SafeIcon icon={FiActivity} className="mr-2 text-cyan-400" />
+          Autonomous Cron Pulse
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {cronPulseData.map(cron => {
+            const timeAgo = Math.floor((new Date() - new Date(cron.timestamp)) / 60000);
+            const statusColor = timeAgo < 60 ? 'text-emerald-400' : 'text-amber-400';
+            const statusBg = timeAgo < 60 ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30';
+
+            return (
+            <div key={cron.endpoint} className="p-4 rounded-xl border border-onyx-accent/30 shadow-[0_0_15px_rgba(0,0,0,0.5)] transition-all" style={{ backgroundColor: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+               <div className="flex justify-between items-center mb-2">
+                 <span className="text-cyan-300 font-mono text-xs font-bold uppercase truncate">{cron.endpoint.split('/').pop()}</span>
+                 <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${statusBg} ${statusColor}`}>
+                    {timeAgo < 60 ? 'ACTIVE' : 'DELAYED'}
+                 </span>
+               </div>
+               <div className="text-sm text-slate-400 font-mono">{timeAgo} mins ago</div>
+            </div>
+          )})}
         </div>
       </div>
 
