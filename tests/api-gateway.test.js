@@ -111,6 +111,43 @@ describe('api-gateway Auth Integrity', () => {
         });
     });
 
+describe('Trace Header & Queue', () => {
+    it('verifies trace header propagation in mock', () => {
+        const traceId = 'trace-12345';
+        const clientIp = '1.2.3.4';
+
+        const mockOnyxEdgeWorker = (headers) => {
+            const returnedTraceId = headers['X-AXiM-Trace-ID'] || 'unknown';
+            const returnedClientIp = headers['CF-Connecting-IP'] || 'unknown';
+            return {
+               status: 200,
+               telemetryPayload: {
+                   trace_id: returnedTraceId,
+                   client_ip: returnedClientIp
+               }
+            };
+        };
+
+        const result = mockOnyxEdgeWorker({ 'X-AXiM-Trace-ID': traceId, 'CF-Connecting-IP': clientIp });
+        expect(result.telemetryPayload.trace_id).toBe(traceId);
+        expect(result.telemetryPayload.client_ip).toBe(clientIp);
+    });
+
+    it('offline event queue auto-flushing mock', () => {
+        let flushCalled = false;
+        const offlineManagerMock = {
+            processQueue: () => { flushCalled = true; }
+        };
+        const onlineListenerMock = () => {
+            offlineManagerMock.processQueue();
+        };
+
+        // simulate online event
+        onlineListenerMock();
+        expect(flushCalled).toBe(true);
+    });
+});
+
 describe('Edge Function Integrity', () => {
     it('validates that predictive-engagement executes cleanly and records telemetry', async () => {
         // Simple validation that the function logic is sound

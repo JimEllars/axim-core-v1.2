@@ -65,7 +65,11 @@ export const AuthProvider = ({ children }) => {
         }
       }
     } catch (error) {
-      console.error("Failed to refresh AXiM session token:", error);
+      if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+        console.warn("Network offline. Skipping AXiM session refresh.");
+      } else {
+        console.error("Failed to refresh AXiM session token:", error);
+      }
     }
   }, []);
 
