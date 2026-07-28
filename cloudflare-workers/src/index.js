@@ -74,7 +74,7 @@ export default {
     // Rate Limiting
     const ip = request.headers.get('CF-Connecting-IP');
     if (!checkRateLimit(ip)) {
-      return new Response("Too Many Requests", { status: 429, headers: { ...corsHeaders, 'X-AXiM-Edge-Throttled': rateLimitMap.get(ip)?.count?.toString() || "1" } });
+      return new Response("Too Many Requests", { status: 429, headers: Object.assign({}, corsHeaders, { "X-AXiM-Edge-Throttled": rateLimitMap.has(ip) ? rateLimitMap.get(ip).count.toString() : "1" }) });
     }
 
     // Health Check Endpoint
