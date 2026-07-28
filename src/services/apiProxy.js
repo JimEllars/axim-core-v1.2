@@ -1,4 +1,5 @@
-import { supabase } from './supabaseClient'; // Assuming you have a supabase client export
+import { supabase } from './supabaseClient';
+import toast from 'react-hot-toast';
 import logger from './logging';
 
 /**
@@ -25,6 +26,34 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
         headers,
       },
     });
+
+
+    // Edge Throttling Telemetry Ingestion
+    let isThrottled = false;
+
+    // Some edge proxies might return the headers within data or within an error context
+    if (data && data.headers && data.headers['X-AXiM-Edge-Throttled']) {
+        isThrottled = data.headers['X-AXiM-Edge-Throttled'];
+    } else if (error && typeof error === 'object' && error.context && error.context.headers && error.context.headers['X-AXiM-Edge-Throttled']) {
+        isThrottled = error.context.headers['X-AXiM-Edge-Throttled'];
+    }
+
+    if (isThrottled) {
+        supabase.from('api_usage_logs').insert({
+            endpoint: endpoint,
+            status_code: 429,
+            execution_time_ms: 0,
+            payload: {
+                action: 'edge_throttled',
+                deflected_count: parseInt(isThrottled, 10) || 1
+            }
+        }).catch(err => {
+            console.error('Failed to log edge throttling telemetry:', err);
+        });
+
+        toast.error('Edge Throttling Active. Request rate limited.');
+        return { data: null, error: 'Rate limited by edge', throttled: true };
+    }
 
     // Check for X-AXiM-API-Key in headers to track usage
     if (headers && headers['X-AXiM-API-Key']) {
