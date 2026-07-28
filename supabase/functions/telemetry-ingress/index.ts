@@ -19,6 +19,8 @@ serve(async (req) => {
 
     const rawPayload = await req.json();
     const app_id = rawPayload.app_id || 'unknown_app';
+    const traceId = req.headers.get('X-AXiM-Trace-ID') || rawPayload.metadata?.['X-AXiM-Trace-ID'] || 'no_trace_id';
+    const authHeader = req.headers.get('Authorization') || '';
     const clientIp = req.headers.get('x-forwarded-for') || 'unknown_ip';
 
     // Import sanitization dynamically
@@ -63,11 +65,27 @@ serve(async (req) => {
     if (insertError) throw insertError
 
     // Also log successful usage
-    await supabaseClient.from('api_usage_logs').insert({
-        endpoint: '/telemetry-ingress',
-        status_code: 200,
-        compute_ms: 50
-    })
+    if (app_id === 'onyx_edge_worker') {
+      await supabaseClient.from('api_usage_logs').insert({
+          endpoint: rawPayload.endpoint || '/telemetry-ingress',
+          status_code: rawPayload.status_code || 200,
+          execution_time_ms: rawPayload.execution_time_ms || 0,
+          compute_ms: rawPayload.compute_ms || 50,
+          app_id: app_id,
+          payload: {
+              ...rawPayload.metadata,
+              trace_id: traceId,
+              auth_context: authHeader ? 'bearer_present' : 'none'
+          }
+      })
+    } else {
+      await supabaseClient.from('api_usage_logs').insert({
+          endpoint: '/telemetry-ingress',
+          status_code: 200,
+          compute_ms: 50,
+          payload: { trace_id: traceId, auth_context: authHeader ? 'bearer_present' : 'none' }
+      })
+    }
 
     return new Response(
       JSON.stringify({ success: true }),

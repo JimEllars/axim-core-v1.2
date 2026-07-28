@@ -230,4 +230,9 @@ class OfflineManager {
 }
 
 const offlineManager = new OfflineManager();
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    offlineManager.processQueue();
+  });
+}
 export default offlineManager;

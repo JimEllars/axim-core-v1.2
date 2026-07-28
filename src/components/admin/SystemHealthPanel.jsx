@@ -26,7 +26,7 @@ const SystemHealthPanel = () => {
       // Default fallback if properties are missing
       setHealthData({
         workerUptime: data.workerUptime || '99.9%',
-        gcpLatency: data.gcpLatency || '45ms',
+        gcpLatency: data.avgApiLatency ? data.avgApiLatency + 'ms' : (data.gcpLatency || '45ms'),
         activeConnections: data.activeConnections || 12,
         status: data.status || 'healthy'
       });
@@ -95,7 +95,7 @@ const SystemHealthPanel = () => {
 
   if (healthData.status === 'loading') {
     return (
-      <div className="glass-effect rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] animate-pulse">
+      <div className="glass-effect rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] animate-pulse min-h-[160px]" style={{ background: "rgba(10, 10, 12, 0.45)", backdropFilter: "blur(16px)" }}>
         <div className="h-6 w-1/3 bg-slate-800 rounded mb-6"></div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="h-24 bg-slate-800 rounded-lg"></div>
@@ -109,7 +109,7 @@ const SystemHealthPanel = () => {
   }
 
   return (
-    <div className="glass-effect rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)]">
+    <div className="glass-effect rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] min-h-[160px]" style={{ background: "rgba(10, 10, 12, 0.45)", backdropFilter: "blur(16px)" }}>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-white flex items-center">
           <SafeIcon icon={FiActivity} className="mr-2 text-cyan-400" />
@@ -138,7 +138,7 @@ const SystemHealthPanel = () => {
         <div className="bg-onyx-950/50 p-4 rounded-lg border border-slate-800">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiServer} className="mr-2" />
-            <span className="text-sm uppercase tracking-wider">GCP Latency</span>
+            <span className="text-sm uppercase tracking-wider">API Latency</span>
           </div>
           <div className="text-2xl font-mono text-cyan-400">
             {healthData.gcpLatency}

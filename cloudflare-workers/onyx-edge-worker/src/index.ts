@@ -131,6 +131,8 @@ export default {
       let remainingRateLimit = "5";
       if (nodeScope) { remainingRateLimit = Math.max(0, 5 - (windowCache.get(nodeScope) || []).length).toString(); }
       const authHeader = request.headers.get("Authorization");
+      const clientIp = request.headers.get("CF-Connecting-IP") || "unknown_ip";
+      const traceId = request.headers.get("X-AXiM-Trace-ID") || crypto.randomUUID();
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
         return new Response("Unauthorized", { status: 401, headers: corsHeaders });
       }
@@ -225,16 +227,20 @@ Context: ${JSON.stringify(context || {})}`;
               cf_cache_hit: cfCacheStatus === 'HIT',
               input_tokens: inputTokens,
               output_tokens: outputTokens,
+              'X-AXiM-Trace-ID': traceId,
+              'CF-Connecting-IP': clientIp,
             }
           };
 
-          await fetch(`${supabaseUrl}/rest/v1/api_usage_logs`, {
+          await fetch(`${supabaseUrl}/functions/v1/telemetry-ingress`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${env.VITE_SUPABASE_ANON_KEY}`,
               'apikey': supabaseAnonKey,
               'Content-Type': 'application/json',
-              'Prefer': 'return=minimal'
+              'Prefer': 'return=minimal',
+              'X-AXiM-Trace-ID': traceId,
+              'CF-Connecting-IP': clientIp
             },
             body: JSON.stringify(telemetryPayload)
           });
