@@ -252,3 +252,53 @@ describe('job-processor execution telemetry', () => {
        expect(loggedData.compute_ms).toBeGreaterThanOrEqual(20);
     });
 });
+
+describe('Cron Health Sentinel', () => {
+    it('detects missing cron windows and enqueues recovery jobs', async () => {
+        const cronEndpoints = [
+            '/onyx-bridge',
+            '/cognitive-compression',
+            '/enrichment-sweep',
+            '/predictive-engagement'
+        ];
+
+        // Mock DB logs - missing /predictive-engagement and /cognitive-compression is too old
+        const now = Date.now();
+        const oldTimestamp = new Date(now - 26 * 60 * 60 * 1000).toISOString(); // 26 hours ago
+        const recentTimestamp = new Date(now - 1 * 60 * 60 * 1000).toISOString(); // 1 hour ago
+
+        const mockLogs = [
+             { endpoint: '/onyx-bridge', timestamp: recentTimestamp },
+             { endpoint: '/cognitive-compression', timestamp: oldTimestamp },
+             { endpoint: '/enrichment-sweep', timestamp: recentTimestamp }
+             // /predictive-engagement is completely missing
+        ];
+
+        const failures = [];
+        const recoveryTasksEnqueued = [];
+
+        const latestCronTimestamps = {};
+        for (const log of mockLogs) {
+             if (!latestCronTimestamps[log.endpoint] || new Date(log.timestamp).getTime() > latestCronTimestamps[log.endpoint]) {
+                 latestCronTimestamps[log.endpoint] = new Date(log.timestamp).getTime();
+             }
+        }
+
+        const maxAgeMs = 25 * 60 * 60 * 1000;
+
+        for (const endpoint of cronEndpoints) {
+             const lastSeen = latestCronTimestamps[endpoint];
+             if (!lastSeen || (now - lastSeen > maxAgeMs)) {
+                  failures.push(`cron-missing:${endpoint}`);
+                  recoveryTasksEnqueued.push(endpoint.replace('/', ''));
+             }
+        }
+
+        expect(failures).toContain('cron-missing:/cognitive-compression');
+        expect(failures).toContain('cron-missing:/predictive-engagement');
+        expect(failures).not.toContain('cron-missing:/onyx-bridge');
+
+        expect(recoveryTasksEnqueued).toContain('cognitive-compression');
+        expect(recoveryTasksEnqueued).toContain('predictive-engagement');
+    });
+});

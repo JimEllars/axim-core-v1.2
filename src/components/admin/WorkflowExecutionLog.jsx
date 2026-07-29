@@ -50,7 +50,7 @@ const WorkflowExecutionLog = () => {
   };
 
   return (
-    <div className="glass-effect rounded-xl">
+    <div className="glass-effect rounded-xl min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
       <div className="p-6 border-b border-onyx-accent/20">
         <h2 className="text-xl font-semibold text-white flex items-center">
           <SafeIcon icon={FiZap} className="mr-3 text-yellow-400" />

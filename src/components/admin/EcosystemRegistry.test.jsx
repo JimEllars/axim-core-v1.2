@@ -6,19 +6,29 @@ import { supabase } from '../../services/supabaseClient';
 
 vi.mock('../../services/supabaseClient', () => ({
   supabase: {
-    from: vi.fn(() => ({
+    from: vi.fn((table) => ({
       select: vi.fn(() => ({
-        order: vi.fn().mockResolvedValue({
-          data: [
-            { id: 1, app_name: 'test-app-1', health_endpoint_url: 'http://test1.com', status: 'operational' },
-            { id: 2, app_name: 'test-app-2', health_endpoint_url: 'http://test2.com', status: 'offline' }
-          ],
-          error: null
-        })
+        order: vi.fn(() => ({
+            limit: vi.fn().mockResolvedValue({
+                data: table === 'ecosystem_nodes' ? [
+                  { id: 1, app_name: 'test-app-1', health_endpoint_url: 'http://test1.com', status: 'operational' },
+                  { id: 2, app_name: 'test-app-2', health_endpoint_url: 'http://test2.com', status: 'offline' }
+                ] : [],
+                error: null
+            }),
+            then: (resolve) => resolve({
+              data: table === 'ecosystem_nodes' ? [
+                { id: 1, app_name: 'test-app-1', health_endpoint_url: 'http://test1.com', status: 'operational' },
+                { id: 2, app_name: 'test-app-2', health_endpoint_url: 'http://test2.com', status: 'offline' }
+              ] : [],
+              error: null
+            })
+        }))
       }))
     }))
   }
 }));
+
 
 vi.mock('react-hot-toast', () => ({
   default: {
@@ -49,6 +59,7 @@ describe('EcosystemRegistry Component', () => {
     expect(await screen.findByText('test-app-2')).toBeInTheDocument();
   });
 
+
   it('computes degraded on stale heartbeat', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-06-16T12:00:00Z'));
@@ -56,13 +67,18 @@ describe('EcosystemRegistry Component', () => {
     // 10 minutes ago
     const staleTime = new Date('2026-06-16T11:50:00Z').toISOString();
 
-    supabase.from.mockReturnValue({
+    supabase.from.mockImplementation((table) => ({
       select: vi.fn().mockReturnThis(),
-      order: vi.fn().mockResolvedValue({
-        data: [{ id: 1, app_name: 'Stale App', status: 'operational', last_ping: staleTime }],
-        error: null
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({
+          data: table === 'ecosystem_nodes' ? [{ id: 1, app_name: 'Stale App', status: 'operational', last_ping: staleTime }] : [],
+          error: null
+      }),
+      then: (resolve) => resolve({
+          data: table === 'ecosystem_nodes' ? [{ id: 1, app_name: 'Stale App', status: 'operational', last_ping: staleTime }] : [],
+          error: null
       })
-    });
+    }));
 
     await act(async () => {
       render(<EcosystemRegistry />);

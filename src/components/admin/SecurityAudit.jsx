@@ -71,7 +71,7 @@ const SecurityAudit = () => {
   }
 
   return (
-    <div className="glass-effect rounded-xl p-6">
+    <div className="glass-effect rounded-xl p-6 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
       <div className="flex items-center mb-6">
         <SafeIcon icon={FiShield} className="mr-3 text-2xl text-indigo-400" />
         <div>
@@ -129,7 +129,7 @@ const SecurityAudit = () => {
         </div>
       )}
 
-      <div className="glass-effect rounded-xl p-6 mt-8">
+      <div className="glass-effect rounded-xl p-6 mt-8 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
 
         <div className="flex justify-between items-center mb-6">
           <div className="flex items-center">
