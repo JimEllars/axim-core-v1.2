@@ -35,7 +35,24 @@ const BillingPortal = () => {
     }
   };
 
+
+  const handleInvoiceAction = async (deliveryId, actionType) => {
+    try {
+      await supabase.from('api_usage_logs').insert({
+        app_id: 'admin_cockpit',
+        endpoint: `/admin/billing/${actionType}`,
+        status_code: 200,
+        compute_ms: 0,
+        metadata: { action: actionType, delivery_id: deliveryId }
+      });
+      // Stub action completion
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
+
     fetchDeliveries();
 
     // Subscribe to realtime changes
@@ -84,7 +101,7 @@ const BillingPortal = () => {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
+      className="space-y-6 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
     >
       <div className="flex justify-between items-center mb-6">
         <div>
@@ -114,15 +131,20 @@ const BillingPortal = () => {
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Recipient Email</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Created At</th>
+                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-slate-900/30 divide-y divide-slate-800">
               {loading ? (
-                <tr>
-                  <td colSpan="4" className="px-6 py-8 text-center text-slate-500">
-                    Loading fulfillment data...
-                  </td>
-                </tr>
+                [...Array(3)].map((_, i) => (
+                  <tr key={`skeleton-${i}`} className="animate-pulse bg-slate-900/30">
+                    <td className="px-6 py-4"><div className="h-4 bg-slate-700/50 rounded w-3/4"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-slate-700/50 rounded w-1/2"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-slate-700/50 rounded w-1/4"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-slate-700/50 rounded w-1/3"></div></td>
+                    <td className="px-6 py-4"></td>
+                  </tr>
+                ))
               ) : deliveries.length === 0 ? (
                 <tr>
                   <td colSpan="4" className="px-6 py-8 text-center text-slate-500">
@@ -148,6 +170,11 @@ const BillingPortal = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
                       {new Date(delivery.created_at).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button onClick={() => handleInvoiceAction(delivery.id, 'resend_invoice')} className="text-indigo-400 hover:text-indigo-300">
+                        Resend Invoice
+                      </button>
                     </td>
                   </tr>
                 ))

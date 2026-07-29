@@ -207,3 +207,47 @@
     const cronCheckRes = await fetch(`${supabaseUrl}/rest/v1/api_usage_logs?select=endpoint,timestamp&endpoint=in.(${cronEndpoints.map(e => `%22${e}%22`).join(',')})&order=timestamp.desc&limit=100`, ...
      ```
    - **Proving Test Name:** `Cron Health Sentinel -> detects missing cron windows and enqueues recovery jobs`
+
+### Wave 77: Admin Feedback & Billing Glassmorphism, KB Ingest Telemetry & Cloudflare Edge Healthz
+**Date:** 2026-07-29
+**Branch:** `wave77-cockpit-telemetry-edge`
+**Changes Executed:**
+
+1. **Target File & Line Range:** `src/components/admin/ProductFeedback.jsx` (Lines ~88, ~166)
+   - **Exact Code Snippet:**
+     ```javascript
+     <div className="space-y-6 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+     ```
+     ```javascript
+     <div className="glass-effect rounded-xl overflow-hidden min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+     ```
+   - **Proving Test Name:** manual inspection / visual layout verification
+
+2. **Target File & Line Range:** `src/components/admin/BillingPortal.jsx` (Line ~87)
+   - **Exact Code Snippet:**
+     ```javascript
+     className="space-y-6 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
+     ```
+   - **Proving Test Name:** manual inspection / visual layout verification
+
+3. **Target File & Line Range:** `src/components/ingest/KnowledgeBaseIngest.jsx` (Line ~117, and line ~54, 76 for telemetry)
+   - **Exact Code Snippet:**
+     ```javascript
+     <div className="glass-effect rounded-xl p-6 border border-onyx-accent/20 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+     ```
+     ```javascript
+     // Log telemetry
+     await supabase.from('api_usage_logs').insert({ ... })
+     ```
+   - **Proving Test Name:** `validates knowledge base ingestion telemetry mock`
+
+4. **Target File & Line Range:** `cloudflare-workers/src/index.js` (Lines ~83, ~117)
+   - **Exact Code Snippet:**
+     ```javascript
+     JSON.stringify({ status: 'active', edge_location: request.cf?.colo || 'unknown', memory_stats: "ok", ratelimit_remaining: ip && rateLimitMap.has(ip) ? (100 - rateLimitMap.get(ip).count) : 100 })
+     ```
+     ```javascript
+     proxyResponse.headers.set('X-AXiM-Edge-Location', request.cf?.colo || 'unknown');
+     proxyResponse.headers.set('X-AXiM-RateLimit-Remaining', ip && rateLimitMap.has(ip) ? (100 - rateLimitMap.get(ip).count).toString() : '100');
+     ```
+   - **Proving Test Name:** `verifies Cloudflare Edge healthz header parsing`

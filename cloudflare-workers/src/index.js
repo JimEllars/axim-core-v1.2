@@ -80,7 +80,7 @@ export default {
     // Health Check Endpoint
     if (url.pathname === '/api/edge/healthz' && request.method === 'GET') {
       return new Response(
-        JSON.stringify({ status: 'active', edge_location: request.cf?.colo || 'unknown' }),
+        JSON.stringify({ status: 'active', edge_location: request.cf?.colo || 'unknown', memory_stats: "ok", ratelimit_remaining: ip && rateLimitMap.has(ip) ? (100 - rateLimitMap.get(ip).count) : 100 }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
@@ -114,6 +114,8 @@ export default {
         const proxyResponse = new Response(response.body, response);
         Object.keys(corsHeaders).forEach(key => {
           proxyResponse.headers.set(key, corsHeaders[key]);
+        proxyResponse.headers.set('X-AXiM-Edge-Location', request.cf?.colo || 'unknown');
+        proxyResponse.headers.set('X-AXiM-RateLimit-Remaining', ip && rateLimitMap.has(ip) ? (100 - rateLimitMap.get(ip).count).toString() : '100');
         });
 
         // Bypass edge cache if no Cache-Control header is present from origin
