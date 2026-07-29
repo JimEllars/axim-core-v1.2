@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "wrangler build -c wrangler.toml",
-    "deploy:dry-run": "wrangler deploy --dry-run -c wrangler.toml"
+    "build": "npx wrangler build -c wrangler.toml",
+    "deploy:dry-run": "npx wrangler deploy --dry-run -c wrangler.toml"
   },
   "keywords": [],
   "author": "",
