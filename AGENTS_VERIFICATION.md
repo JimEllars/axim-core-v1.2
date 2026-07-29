@@ -143,3 +143,20 @@
 
 **Proving Test Name:**
 `api-gateway Auth Integrity -> job-processor execution telemetry -> verifies that successful jobs correctly compute durations and log to api_usage_logs`
+
+### Proof-of-Fix: Wave 75 - Cloudflare CI Build Script Fix
+
+**Target File & Line Range:**
+`cloudflare-workers/package.json` (Lines 16-17)
+`cloudflare-workers/onyx-edge-worker/package.json` (Lines 8-9)
+
+**Exact Code Snippet:**
+```json
+"scripts": {
+  "build": "wrangler build -c wrangler.toml",
+  "deploy:dry-run": "wrangler deploy --dry-run -c wrangler.toml"
+}
+```
+
+**Proving Test Name:**
+`npm run build` completed cleanly, executing the intended dry-run compilation without referencing `.wrangler` state up the directory tree or defaulting to an incorrect script string.
