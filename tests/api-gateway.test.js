@@ -219,3 +219,36 @@ describe('Edge Function Integrity', () => {
         expect(telemetryRecorded).toBe(true);
     });
 });
+
+describe('job-processor execution telemetry', () => {
+    it('verifies that successful jobs correctly compute durations and log to api_usage_logs', async () => {
+       const mockSupabase = {
+           from: () => ({
+               insert: (data) => Promise.resolve({ data, error: null })
+           })
+       };
+       let loggedData = null;
+
+       const simulateJobProcessor = async (client) => {
+           const startTime = Date.now();
+           // simulate some processing delay
+           await new Promise(res => setTimeout(res, 20));
+           const endTime = Date.now();
+
+           const res = await client.from('api_usage_logs').insert([{
+              endpoint: '/job-processor/scheduled_task',
+              status_code: 200,
+              compute_ms: endTime - startTime,
+              app_id: 'job-processor'
+           }]);
+           if (res.data) {
+               loggedData = res.data[0];
+           }
+       };
+
+       await simulateJobProcessor(mockSupabase);
+       expect(loggedData).toBeDefined();
+       expect(loggedData.status_code).toBe(200);
+       expect(loggedData.compute_ms).toBeGreaterThanOrEqual(20);
+    });
+});

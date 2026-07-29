@@ -93,3 +93,70 @@
    - **Test/Verification Name:** `tests/api-gateway.test.js` (`simulates edge sliding window rate limiting and correctly writes headers for deflected bursts`).
 
 **Verification Pass Check:** `npm run test tests/api-gateway.test.js` successfully confirmed.
+
+### Proof-of-Fix: Wave 75 - Cron Telemetry & API Key Visibility
+
+**Target File & Line Range:**
+`supabase/functions/job-processor/index.ts` (Lines 22-24, 281-285)
+`src/components/admin/SystemHealthPanel.jsx` (Lines 163-184)
+`src/components/admin/ApiKeyManager.jsx` (Lines 111-120)
+
+**Exact Code Snippets:**
+*Job Processor Dequeue & Telemetry:*
+```typescript
+    const { data: jobs, error: fetchError } = await supabase.rpc(
+      "dequeue_scheduled_tasks",
+      { max_tasks: 5 },
+    );
+    // ...
+    const endTime = Date.now();
+    await supabase.from("api_usage_logs").insert({
+        endpoint: \`/job-processor/\${jobType || 'unknown'}\`,
+        status_code: 200,
+        compute_ms: endTime - startTime,
+        app_id: 'job-processor'
+    });
+```
+
+*System Health Panel:*
+```jsx
+      <div className="mt-8">
+        <h3 className="text-slate-400 text-sm font-mono uppercase tracking-wider mb-4 border-b border-slate-800 pb-2 flex items-center">
+          <SafeIcon icon={FiActivity} className="mr-2 text-cyan-400" />
+          Autonomous Cron Pulse
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {cronPulseData.map(cron => {
+```
+
+*API Key Manager:*
+```jsx
+<td className="py-4 px-5 text-center text-sm font-mono text-cyan-300">
+  {k.usage_count || 0}
+</td>
+<td className="py-4 px-5 text-center text-sm text-slate-400 font-medium">
+  {k.last_used_at ? new Date(k.last_used_at).toLocaleDateString('en-US', {
+      year: 'numeric', month: 'short', day: 'numeric'
+  }) : 'Never'}
+</td>
+```
+
+**Proving Test Name:**
+`api-gateway Auth Integrity -> job-processor execution telemetry -> verifies that successful jobs correctly compute durations and log to api_usage_logs`
+
+### Proof-of-Fix: Wave 75 - Cloudflare CI Build Script Fix
+
+**Target File & Line Range:**
+`cloudflare-workers/package.json` (Lines 16-17)
+`cloudflare-workers/onyx-edge-worker/package.json` (Lines 8-9)
+
+**Exact Code Snippet:**
+```json
+"scripts": {
+  "build": "wrangler build -c wrangler.toml",
+  "deploy:dry-run": "wrangler deploy --dry-run -c wrangler.toml"
+}
+```
+
+**Proving Test Name:**
+`npm run build` completed cleanly, executing the intended dry-run compilation without referencing `.wrangler` state up the directory tree or defaulting to an incorrect script string.

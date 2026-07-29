@@ -130,7 +130,7 @@ const ApiKeyManager = () => {
   };
 
   return (
-    <div className="bg-onyx-950/80 border border-onyx-accent/30 rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] text-slate-200 backdrop-blur-md relative overflow-hidden">
+    <div className="border border-onyx-accent/30 rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] text-slate-200 relative overflow-hidden min-h-[160px]" style={{ background: "rgba(10, 10, 12, 0.45)", backdropFilter: "blur(16px)" }}>
       <div className="flex items-center justify-between mb-8">
         <div>
           <h3 className="text-xl font-semibold text-cyan-50 flex items-center tracking-tight">
@@ -207,7 +207,9 @@ const ApiKeyManager = () => {
               <tr className="bg-slate-900/80 border-b border-slate-800">
                 <th className="py-3 px-5 text-xs font-semibold text-slate-400 uppercase tracking-widest">Secret Token</th>
                 <th className="py-3 px-5 text-xs font-semibold text-slate-400 uppercase tracking-widest">Created / Issued</th>
-                <th className="py-3 px-5 text-xs font-semibold text-slate-400 uppercase tracking-widest text-right">Operations</th>
+                <th className="py-3 px-5 text-xs font-semibold text-slate-400 uppercase tracking-widest text-center">Usage Count</th>
+<th className="py-3 px-5 text-xs font-semibold text-slate-400 uppercase tracking-widest text-center">Last Used</th>
+<th className="py-3 px-5 text-xs font-semibold text-slate-400 uppercase tracking-widest text-right">Operations</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/50 bg-slate-900/20">
@@ -244,7 +246,17 @@ const ApiKeyManager = () => {
                             year: 'numeric', month: 'short', day: 'numeric'
                         })}
                       </td>
+
+                      <td className="py-4 px-5 text-center text-sm font-mono text-cyan-300">
+                        {k.usage_count || 0}
+                      </td>
+                      <td className="py-4 px-5 text-center text-sm text-slate-400 font-medium">
+                        {k.last_used_at ? new Date(k.last_used_at).toLocaleDateString('en-US', {
+                            year: 'numeric', month: 'short', day: 'numeric'
+                        }) : 'Never'}
+                      </td>
                       <td className="py-4 px-5 text-right">
+
                         <div className="flex justify-end space-x-2 opacity-60 group-hover:opacity-100 transition-opacity">
                           <button
                             onClick={() => {

@@ -14,6 +14,19 @@ vi.mock('../../hooks/useMetrics', () => ({
   })
 }));
 
+vi.mock('../../services/onyxAI/api', () => ({
+  default: {
+    supabase: {
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        in: vi.fn().mockReturnThis(),
+        order: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockResolvedValue({ data: [], error: null })
+      }))
+    }
+  }
+}));
+
 vi.mock('../../services/supabaseClient', () => ({
   supabase: {
     from: vi.fn(() => ({
