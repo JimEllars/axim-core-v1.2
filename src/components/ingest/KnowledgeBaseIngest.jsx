@@ -63,6 +63,19 @@ const KnowledgeBaseIngest = () => {
           }
 
           toast.success(`Successfully ingested ${successCount} files into Executive Brain.`, { id: 'ingest' });
+          // Log telemetry
+          await supabase.from('api_usage_logs').insert({
+            app_id: 'knowledge_base_ingest',
+            endpoint: '/ingest/file',
+            status_code: 200,
+            compute_ms: 0,
+            metadata: {
+              title,
+              category: personaTag,
+              partner: affiliatePartner,
+              files: successCount
+            }
+          });
           setTitle('');
           setText('');
           setUrl('');
@@ -83,6 +96,19 @@ const KnowledgeBaseIngest = () => {
       if (error) throw error;
 
       toast.success(`Successfully ingested ${data.processed_chunks} chunks into Executive Brain.`, { id: 'ingest' });
+      // Log telemetry
+      await supabase.from('api_usage_logs').insert({
+        app_id: 'knowledge_base_ingest',
+        endpoint: '/ingest/' + sourceType,
+        status_code: 200,
+        compute_ms: 0,
+        metadata: {
+          title,
+          category: personaTag,
+          partner: affiliatePartner,
+          chunks: data.processed_chunks
+        }
+      });
       setTitle('');
       setText('');
       setUrl('');
@@ -114,7 +140,7 @@ const KnowledgeBaseIngest = () => {
   };
 
   return (
-    <div className="glass-effect rounded-xl p-6 border border-onyx-accent/20">
+    <div className="glass-effect rounded-xl p-6 border border-onyx-accent/20 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
       <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
         <FiBookOpen className="mr-2 text-onyx-accent" />
         Executive Knowledge Base Ingestion

@@ -34,6 +34,14 @@ const ProductFeedback = () => {
           comments: newFeedback,
           diagnostics: diagnostics
         });
+
+      await supabase.from('api_usage_logs').insert({
+          app_id: 'admin_cockpit',
+          endpoint: '/admin/feedback/submit',
+          status_code: 200,
+          compute_ms: 0,
+          metadata: { action: 'feedback_submission', score: satisfactionScore }
+      });
       const error = null;
 
       if (error) throw error;
@@ -85,7 +93,7 @@ const ProductFeedback = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
       <div className="flex justify-between items-center glass-effect rounded-xl p-6">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center">
@@ -163,7 +171,7 @@ const ProductFeedback = () => {
         </button>
       </div>
 
-      <div className="glass-effect rounded-xl overflow-hidden">
+      <div className="glass-effect rounded-xl overflow-hidden min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left text-slate-300">
@@ -179,15 +187,16 @@ const ProductFeedback = () => {
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan="4" className="text-center py-8">
-                    <div className="animate-pulse flex space-x-4 justify-center items-center">
-                      <div className="w-4 h-4 bg-indigo-500 rounded-full"></div>
-                      <div className="w-4 h-4 bg-indigo-500 rounded-full animation-delay-200"></div>
-                      <div className="w-4 h-4 bg-indigo-500 rounded-full animation-delay-400"></div>
-                    </div>
-                  </td>
-                </tr>
+                [...Array(3)].map((_, i) => (
+                  <tr key={`skeleton-${i}`} className="animate-pulse border-b border-onyx-accent/10">
+                    <td className="px-6 py-4"><div className="h-4 bg-slate-700/50 rounded w-24"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-slate-700/50 rounded w-32"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-slate-700/50 rounded w-12"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-slate-700/50 rounded w-20"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-slate-700/50 rounded w-24"></div></td>
+                    <td className="px-6 py-4"><div className="h-4 bg-slate-700/50 rounded w-full"></div></td>
+                  </tr>
+                ))
               ) : feedback.length === 0 ? (
                 <tr>
                   <td colSpan="4" className="text-center py-8 text-slate-500">

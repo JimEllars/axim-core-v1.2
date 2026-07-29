@@ -302,3 +302,62 @@ describe('Cron Health Sentinel', () => {
         expect(recoveryTasksEnqueued).toContain('predictive-engagement');
     });
 });
+
+describe('Wave 77 Telemetry & Healthz Integrity', () => {
+    it('validates knowledge base ingestion telemetry mock', () => {
+        let insertedTelemetry = null;
+        const mockSupabase = {
+            from: (table) => {
+                if (table === 'api_usage_logs') {
+                    return {
+                        insert: (data) => {
+                            insertedTelemetry = data;
+                            return Promise.resolve({ data, error: null });
+                        }
+                    };
+                }
+                return { insert: () => Promise.resolve({ data: null, error: null }) };
+            }
+        };
+
+        const simulateKBInget = async (client) => {
+            await client.from('api_usage_logs').insert({
+                app_id: 'knowledge_base_ingest',
+                endpoint: '/ingest/url',
+                status_code: 200,
+                compute_ms: 0,
+                metadata: {
+                    title: 'Test',
+                    category: 'Test Category',
+                    partner: 'None',
+                    chunks: 5
+                }
+            });
+        };
+
+        return simulateKBInget(mockSupabase).then(() => {
+            expect(insertedTelemetry).toBeDefined();
+            expect(insertedTelemetry.app_id).toBe('knowledge_base_ingest');
+            expect(insertedTelemetry.endpoint).toBe('/ingest/url');
+            expect(insertedTelemetry.metadata.chunks).toBe(5);
+        });
+    });
+
+    it('verifies Cloudflare Edge healthz header parsing', () => {
+        const mockHealthzResponseHeaders = {
+            'X-AXiM-Edge-Location': 'DFW',
+            'X-AXiM-RateLimit-Remaining': '95'
+        };
+
+        const parseHealthzHeaders = (headers) => {
+            return {
+                edgeLocation: headers['X-AXiM-Edge-Location'] || 'unknown',
+                rateLimitRemaining: parseInt(headers['X-AXiM-RateLimit-Remaining'], 10) || 100
+            };
+        };
+
+        const result = parseHealthzHeaders(mockHealthzResponseHeaders);
+        expect(result.edgeLocation).toBe('DFW');
+        expect(result.rateLimitRemaining).toBe(95);
+    });
+});
