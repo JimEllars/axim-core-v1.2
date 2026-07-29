@@ -15,13 +15,7 @@ const EcosystemRegistry = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newNode, setNewNode] = useState({ app_name: '', health_endpoint_url: '' });
 
-  useEffect(() => {
-    fetchNodes();
-    const interval = setInterval(fetchNodes, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchNodes = async () => {
+const fetchNodes = async () => {
     setIsLoading(true);
     try {
       const [nodesRes, logsRes] = await Promise.all([
@@ -73,6 +67,12 @@ const EcosystemRegistry = () => {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchNodes();
+    const interval = setInterval(fetchNodes, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleAddNode = async (e) => {
     e.preventDefault();
