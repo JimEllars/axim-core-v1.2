@@ -32,7 +32,65 @@ serve(async (req) => {
     }
     const nodes = await nodesRes.json();
 
-    const failures: string[] = [];
+const failures: string[] = [];
+
+    // --- Added Cron Health Sentinel Logic ---
+    const cronEndpoints = [
+      '/onyx-bridge',
+      '/cognitive-compression',
+      '/enrichment-sweep',
+      '/predictive-engagement'
+    ];
+
+    // We check api_usage_logs for recent executions of these crons (e.g. within 25 hours to allow 1h drift on daily crons)
+    const cronCheckRes = await fetch(`${supabaseUrl}/rest/v1/api_usage_logs?select=endpoint,timestamp&endpoint=in.(${cronEndpoints.map(e => `%22${e}%22`).join(',')})&order=timestamp.desc&limit=100`, {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (cronCheckRes.ok) {
+        const logs = await cronCheckRes.json();
+        const latestCronTimestamps: Record<string, number> = {};
+        for (const log of logs) {
+             if (!latestCronTimestamps[log.endpoint] || new Date(log.timestamp).getTime() > latestCronTimestamps[log.endpoint]) {
+                 latestCronTimestamps[log.endpoint] = new Date(log.timestamp).getTime();
+             }
+        }
+
+        const nowMs = Date.now();
+        const maxAgeMs = 25 * 60 * 60 * 1000; // 25 hours
+
+        for (const endpoint of cronEndpoints) {
+             const lastSeen = latestCronTimestamps[endpoint];
+             if (!lastSeen || (nowMs - lastSeen > maxAgeMs)) {
+                  console.warn(`Cron sentinel detected missing window for ${endpoint}`);
+                  failures.push(`cron-missing:${endpoint}`);
+
+                  // Insert soft recovery task
+                  const taskName = endpoint.replace('/', '');
+                  await fetch(`${supabaseUrl}/rest/v1/scheduled_tasks`, {
+                      method: "POST",
+                      headers: {
+                        apikey: serviceRoleKey,
+                        Authorization: `Bearer ${serviceRoleKey}`,
+                        "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                          task_type: taskName,
+                          payload: { recovery: true, source: 'gateway-heartbeat' },
+                          scheduled_for: new Date(nowMs + 5 * 60 * 1000).toISOString(), // Schedule in 5 mins
+                          status: 'pending'
+                      })
+                  });
+             }
+        }
+    } else {
+        console.error("Failed to fetch cron logs for sentinel", await cronCheckRes.text());
+    }
+    // ----------------------------------------
 
     for (const node of nodes) {
       const url = node.health_endpoint_url;

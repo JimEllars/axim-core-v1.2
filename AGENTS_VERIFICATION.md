@@ -160,3 +160,50 @@
 
 **Proving Test Name:**
 `npm run build` completed cleanly, executing the intended dry-run compilation without referencing `.wrangler` state up the directory tree or defaulting to an incorrect script string.
+
+### Proof-of-Fix: Wave 76 - Security Cockpit Glassmorphism, Node Telemetry & Cron Health Sentinel
+**Date:** 2026-07-29
+**Branch:** `wave76-security-cron-sentinel`
+**Changes Executed:**
+
+1. **Target File & Line Range:** `src/components/admin/SecurityAudit.jsx` (Lines ~55, ~111)
+   - **Exact Code Snippet:**
+     ```javascript
+     <div className="glass-effect rounded-xl p-6 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+     ```
+   - **Proving Test Name:** visual check / automated component UI layout consistency.
+
+2. **Target File & Line Range:** `src/components/admin/WorkflowExecutionLog.jsx` (Line ~37)
+   - **Exact Code Snippet:**
+     ```javascript
+     <div className="glass-effect rounded-xl min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+     ```
+   - **Proving Test Name:** visual check / layout consistency.
+
+3. **Target File & Line Range:** `src/components/admin/EcosystemRegistry.jsx` (Lines ~18-47, ~137)
+   - **Exact Code Snippet:**
+     ```javascript
+      const [nodesRes, logsRes] = await Promise.all([
+        supabase.from('ecosystem_nodes').select('*').order('created_at', { ascending: false }),
+        supabase.from('api_usage_logs').select('app_id, timestamp').order('timestamp', { ascending: false }).limit(100)
+      ]);
+     ```
+     ```javascript
+     <div className="space-y-6 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+     ```
+   - **Proving Test Name:** `EcosystemRegistry Component -> computes degraded on stale heartbeat`
+
+4. **Target File & Line Range:** `supabase/functions/gateway-heartbeat/index.ts` (Lines ~34-80)
+   - **Exact Code Snippet:**
+     ```typescript
+    const cronEndpoints = [
+      '/onyx-bridge',
+      '/cognitive-compression',
+      '/enrichment-sweep',
+      '/predictive-engagement'
+    ];
+
+    // We check api_usage_logs for recent executions of these crons
+    const cronCheckRes = await fetch(`${supabaseUrl}/rest/v1/api_usage_logs?select=endpoint,timestamp&endpoint=in.(${cronEndpoints.map(e => `%22${e}%22`).join(',')})&order=timestamp.desc&limit=100`, ...
+     ```
+   - **Proving Test Name:** `Cron Health Sentinel -> detects missing cron windows and enqueues recovery jobs`

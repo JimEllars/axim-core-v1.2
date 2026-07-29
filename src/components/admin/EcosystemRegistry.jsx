@@ -15,29 +15,38 @@ const EcosystemRegistry = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newNode, setNewNode] = useState({ app_name: '', health_endpoint_url: '' });
 
-  useEffect(() => {
-    fetchNodes();
-    const interval = setInterval(fetchNodes, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchNodes = async () => {
+const fetchNodes = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('ecosystem_nodes')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const [nodesRes, logsRes] = await Promise.all([
+        supabase.from('ecosystem_nodes').select('*').order('created_at', { ascending: false }),
+        supabase.from('api_usage_logs').select('app_id, timestamp').order('timestamp', { ascending: false }).limit(100)
+      ]);
 
-      if (error) throw error;
+      if (nodesRes.error) throw nodesRes.error;
+
+      const latestHeartbeats = {};
+      (logsRes.data || []).forEach(log => {
+          if (!latestHeartbeats[log.app_id] || new Date(log.timestamp) > new Date(latestHeartbeats[log.app_id])) {
+              latestHeartbeats[log.app_id] = log.timestamp;
+          }
+      });
 
       // Compute status based on heartbeat freshness
       const now = new Date();
-      const computedNodes = (data || []).map(node => {
+      const computedNodes = (nodesRes.data || []).map(node => {
         let computedStatus = node.status;
+        let lastSeen = node.last_ping;
+
+        // Use live heartbeat if newer
+        if (latestHeartbeats[node.app_name] && (!lastSeen || new Date(latestHeartbeats[node.app_name]) > new Date(lastSeen))) {
+            lastSeen = latestHeartbeats[node.app_name];
+            node.last_ping = lastSeen;
+        }
+
         // If manually forced offline, keep it offline
-        if (node.status !== 'offline' && node.last_ping) {
-            const lastPing = new Date(node.last_ping);
+        if (node.status !== 'offline' && lastSeen) {
+            const lastPing = new Date(lastSeen);
             const diffMinutes = (now - lastPing) / (1000 * 60);
             if (diffMinutes > 15) {
                 computedStatus = 'offline';
@@ -58,6 +67,12 @@ const EcosystemRegistry = () => {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchNodes();
+    const interval = setInterval(fetchNodes, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleAddNode = async (e) => {
     e.preventDefault();
@@ -129,7 +144,7 @@ const EcosystemRegistry = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-xl font-semibold text-white flex items-center">
