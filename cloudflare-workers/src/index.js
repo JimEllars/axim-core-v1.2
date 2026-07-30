@@ -79,8 +79,18 @@ export default {
 
     // Health Check Endpoint
     if (url.pathname === '/api/edge/healthz' && request.method === 'GET') {
+      const record = rateLimitMap.get(ip);
+      const limitRemaining = record ? Math.max(0, 100 - record.count) : 100;
+      // memory stats (not fully available in V8 isolates without specific bindings, mock or return limited info)
+      const memoryStats = { usage: 'unknown', available: 'unknown' };
+
       return new Response(
-        JSON.stringify({ status: 'active', edge_location: request.cf?.colo || 'unknown' }),
+        JSON.stringify({
+          status: 'active',
+          edge_location: request.cf?.colo || 'unknown',
+          memory_stats: memoryStats,
+          rate_limit_capacity: limitRemaining
+        }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         }
@@ -115,6 +125,10 @@ export default {
         Object.keys(corsHeaders).forEach(key => {
           proxyResponse.headers.set(key, corsHeaders[key]);
         });
+        proxyResponse.headers.set('X-AXiM-Edge-Location', request.cf?.colo || 'unknown');
+        const record = rateLimitMap.get(ip);
+        const limitRemaining = record ? Math.max(0, 100 - record.count) : 100;
+        proxyResponse.headers.set('X-AXiM-RateLimit-Remaining', limitRemaining.toString());
 
         // Bypass edge cache if no Cache-Control header is present from origin
         if (!proxyResponse.headers.has('Cache-Control')) {
