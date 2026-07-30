@@ -207,3 +207,95 @@
     const cronCheckRes = await fetch(`${supabaseUrl}/rest/v1/api_usage_logs?select=endpoint,timestamp&endpoint=in.(${cronEndpoints.map(e => `%22${e}%22`).join(',')})&order=timestamp.desc&limit=100`, ...
      ```
    - **Proving Test Name:** `Cron Health Sentinel -> detects missing cron windows and enqueues recovery jobs`
+
+### Proof-of-Fix: Wave 78 - Edge Health Node Sync, Security Audit Cockpit Glassmorphism & Telemetry Hardening
+**Date:** 2026-07-30
+**Branch:** `wave78-health-audit-telemetry`
+**Changes Executed:**
+
+1. **Target File & Line Range:** `supabase/functions/gateway-heartbeat/index.ts` (Lines ~109-138)
+   - **Exact Code Snippet:**
+     ```typescript
+        edgeLocation = response.headers.get("X-AXiM-Edge-Location") || 'unknown';
+        rateLimitRemaining = response.headers.get("X-AXiM-RateLimit-Remaining") || 'unknown';
+
+        if (!response.ok || pingMs > 500) {
+          if (!response.ok) {
+             status = 'offline';
+          } else {
+             status = 'degraded';
+          }
+     ```
+   - **Proving Test Name:** `validates gateway-heartbeat telemetry`
+
+2. **Target File & Line Range:** `src/components/admin/SystemHealthPanel.jsx` (Lines ~90-111)
+   - **Exact Code Snippet:**
+     ```jsx
+        <div className="bg-onyx-950/50 p-4 rounded-lg border border-slate-800">
+          <div className="flex items-center text-slate-400 mb-2">
+            <SafeIcon icon={FiGlobe} className="mr-2 text-blue-400" />
+            <span className="text-sm uppercase tracking-wider">Edge Region</span>
+          </div>
+          <div className="text-2xl font-mono text-blue-400 truncate">
+            {healthData.edgeRegion}
+          </div>
+        </div>
+     ```
+   - **Proving Test Name:** manual inspection / unit test verify
+
+3. **Target File & Line Range:** `src/components/admin/SecurityAudit.jsx` (Lines ~55-80)
+   - **Exact Code Snippet:**
+     ```jsx
+                <div key={i} className="animate-pulse flex space-x-4 items-center bg-onyx-950/50 p-4 rounded-lg w-full border border-onyx-accent/10">
+                    <div className="rounded-full bg-slate-800 h-8 w-8"></div>
+                    <div className="flex-1 space-y-2">
+                        <div className="h-2 bg-slate-800 rounded w-1/4"></div>
+                        <div className="h-2 bg-slate-800 rounded w-1/2"></div>
+                    </div>
+                </div>
+     ```
+   - **Proving Test Name:** manual inspection / visual check
+
+4. **Target File & Line Range:** `supabase/functions/audit-export/index.ts` (Lines ~75-85)
+   - **Exact Code Snippet:**
+     ```typescript
+    const computeMs = Date.now() - startTime;
+    await supabaseAdmin.from('api_usage_logs').insert({
+      endpoint: '/audit-export',
+      status_code: 200,
+      compute_ms: computeMs,
+      app_id: 'axim-audit-export',
+      payload: { record_count: logs.length, export_type }
+    });
+     ```
+   - **Proving Test Name:** manual inspection / unit test verify
+
+5. **Target File & Line Range:** `src/services/offline.js` (Lines ~180-200)
+   - **Exact Code Snippet:**
+     ```javascript
+    // Auto-flush dead-letter queue to telemetry
+    if (offlineManager.deadLetterQueue && offlineManager.deadLetterQueue.length > 0) {
+      try {
+         const { supabase } = await import('./supabaseClient');
+         if (supabase) {
+           for (const deadReq of offlineManager.deadLetterQueue) {
+             await supabase.from('api_usage_logs').insert({
+                endpoint: '/offline-sync/dead-letter',
+                status_code: 500,
+                compute_ms: 0,
+                app_id: 'axim-offline-manager',
+                payload: { request: deadReq }
+             });
+           }
+           offlineManager.deadLetterQueue = [];
+     ```
+   - **Proving Test Name:** offline event queue auto-flushing mock
+
+6. **Target File & Line Range:** `src/contexts/AuthContext.jsx` (Lines ~35)
+   - **Exact Code Snippet:**
+     ```javascript
+      } else if (error?.name === 'TypeError' && error?.message === 'Failed to fetch') {
+         console.warn("Network offline. Skipping settings load to preserve session.");
+      } else {
+     ```
+   - **Proving Test Name:** manual inspection / unit test verify

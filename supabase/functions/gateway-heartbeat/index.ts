@@ -101,14 +101,45 @@ const failures: string[] = [];
       let pingMs = 0;
       let statusCode = null;
 
+      let edgeLocation = 'unknown';
+      let rateLimitRemaining = 'unknown';
+
       try {
         const response = await fetch(url, { method: "OPTIONS" });
         pingMs = Date.now() - startTime;
         statusCode = response.status;
 
-        if (!response.ok) {
-          status = 'offline';
+        edgeLocation = response.headers.get("X-AXiM-Edge-Location") || 'unknown';
+        rateLimitRemaining = response.headers.get("X-AXiM-RateLimit-Remaining") || 'unknown';
+
+        if (!response.ok || pingMs > 500) {
+          if (!response.ok) {
+             status = 'offline';
+          } else {
+             status = 'degraded';
+          }
           failures.push(url);
+
+          await fetch(`${supabaseUrl}/rest/v1/telemetry_events`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: serviceRoleKey,
+              Authorization: `Bearer ${serviceRoleKey}`,
+            },
+            body: JSON.stringify({
+              component_id: 'core_api',
+              severity: 'WARN',
+              message: 'edge_node_degraded',
+              payload: {
+                 url,
+                 ping_ms: pingMs,
+                 status_code: statusCode,
+                 edge_location: edgeLocation,
+                 rate_limit_remaining: rateLimitRemaining
+              }
+            }),
+          });
         }
       } catch (err) {
         console.error(`Failed to reach ${url}:`, err);

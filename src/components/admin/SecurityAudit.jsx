@@ -83,7 +83,13 @@ const SecurityAudit = () => {
       {loading ? (
          <div className="space-y-4">
             {[1, 2, 3].map(i => (
-                <div key={i} className="animate-pulse bg-onyx-950/50 h-16 rounded-lg w-full"></div>
+                <div key={i} className="animate-pulse flex space-x-4 items-center bg-onyx-950/50 p-4 rounded-lg w-full border border-onyx-accent/10">
+                    <div className="rounded-full bg-slate-800 h-8 w-8"></div>
+                    <div className="flex-1 space-y-2">
+                        <div className="h-2 bg-slate-800 rounded w-1/4"></div>
+                        <div className="h-2 bg-slate-800 rounded w-1/2"></div>
+                    </div>
+                </div>
             ))}
          </div>
       ) : logs.length === 0 ? (
@@ -167,7 +173,13 @@ const SecurityAudit = () => {
         {loadingTelemetry ? (
           <div className="space-y-4">
             {[1, 2, 3].map(i => (
-                <div key={i} className="animate-pulse bg-onyx-950/50 h-16 rounded-lg w-full"></div>
+                <div key={i} className="animate-pulse flex space-x-4 items-center bg-onyx-950/50 p-4 rounded-lg w-full border border-onyx-accent/10">
+                    <div className="rounded-full bg-slate-800 h-8 w-8"></div>
+                    <div className="flex-1 space-y-2">
+                        <div className="h-2 bg-slate-800 rounded w-1/4"></div>
+                        <div className="h-2 bg-slate-800 rounded w-1/2"></div>
+                    </div>
+                </div>
             ))}
           </div>
         ) : telemetryLogs.length === 0 ? (
