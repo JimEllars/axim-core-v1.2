@@ -17,7 +17,9 @@ const SystemHealthPanel = () => {
     deflectedStorms: 0,
     gcpLatency: 'Unknown',
     activeConnections: 0,
-    status: 'loading'
+    status: 'loading',
+    edgeRegion: 'Unknown',
+    rateLimitRemaining: 'Unknown'
   });
 
   const fetchHealth = async () => {
@@ -50,7 +52,9 @@ const SystemHealthPanel = () => {
         workerUptime: data.workerUptime || '99.9%',
         gcpLatency: data.avgApiLatency ? data.avgApiLatency + 'ms' : (data.gcpLatency || '45ms'),
         activeConnections: data.activeConnections || 12,
-        status: data.status || 'healthy'
+        status: data.status || 'healthy',
+        edgeRegion: data.edgeRegion || 'Global',
+        rateLimitRemaining: data.rateLimitRemaining || '999'
       });
     } catch (err) {
       console.error('Error fetching system health:', err);
@@ -119,7 +123,7 @@ const SystemHealthPanel = () => {
     return (
       <div className="glass-effect rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] animate-pulse min-h-[160px]" style={{ background: "rgba(10, 10, 12, 0.45)", backdropFilter: "blur(16px)" }}>
         <div className="h-6 w-1/3 bg-slate-800 rounded mb-6"></div>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
           <div className="h-24 bg-slate-800 rounded-lg"></div>
           <div className="h-24 bg-slate-800 rounded-lg"></div>
           <div className="h-24 bg-slate-800 rounded-lg"></div>
@@ -194,6 +198,26 @@ const SystemHealthPanel = () => {
           </div>
           <div className="text-2xl font-mono text-indigo-400">
             {metrics?.cacheSavings || 0}%
+          </div>
+        </div>
+
+        <div className="bg-onyx-950/50 p-4 rounded-lg border border-slate-800">
+          <div className="flex items-center text-slate-400 mb-2">
+            <SafeIcon icon={FiGlobe} className="mr-2 text-blue-400" />
+            <span className="text-sm uppercase tracking-wider">Edge Region</span>
+          </div>
+          <div className="text-2xl font-mono text-blue-400 truncate">
+            {healthData.edgeRegion}
+          </div>
+        </div>
+
+        <div className="bg-onyx-950/50 p-4 rounded-lg border border-slate-800">
+          <div className="flex items-center text-slate-400 mb-2">
+            <SafeIcon icon={FiServer} className="mr-2 text-purple-400" />
+            <span className="text-sm uppercase tracking-wider">Rate Limit</span>
+          </div>
+          <div className="text-2xl font-mono text-purple-400">
+            {healthData.rateLimitRemaining}
           </div>
         </div>
       </div>

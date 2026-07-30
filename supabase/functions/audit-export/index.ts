@@ -12,6 +12,7 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
   try {
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -92,6 +93,15 @@ serve(async (req) => {
     if (urlError || !signedUrlData) {
       throw new Error('Failed to generate signed URL');
     }
+
+    const computeMs = Date.now() - startTime;
+    await supabaseAdmin.from('api_usage_logs').insert({
+      endpoint: '/audit-export',
+      status_code: 200,
+      compute_ms: computeMs,
+      app_id: 'axim-audit-export',
+      payload: { record_count: logs.length, export_type }
+    });
 
     return new Response(JSON.stringify({
       success: true,

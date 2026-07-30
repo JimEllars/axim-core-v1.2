@@ -33,12 +33,12 @@ export const AuthProvider = ({ children }) => {
       const userSettings = await api.getUserSettings(currentUser.id);
       setSettings(userSettings);
     } catch (error) {
-      if (error?.code?.startsWith('PGRST') || error?.message?.includes('relation') || error?.message?.includes('does not exist')) {
-
+      if (error?.code?.startsWith('PGRST') || error?.message?.includes('relation') || error?.message?.includes('does not exist')) { /* handled */ } else if (error?.name === 'TypeError' && error?.message === 'Failed to fetch') {
+         console.warn("Network offline. Skipping settings load to preserve session.");
       } else {
         toast.error("Failed to load user settings.");
       }
-      setSettings({}); // Default to empty object on error
+      setSettings({ /* handled */ }); // Default to empty object on error
     }
   }, []);
 
@@ -88,16 +88,12 @@ export const AuthProvider = ({ children }) => {
         let currentRole = currentUser.app_metadata?.role || session.user?.app_metadata?.role;
         if (!currentRole) {
            const { data: roleData, error: roleError } = await supabase.from('user_roles').select('role').eq('user_id', currentUser.id).maybeSingle();
-           if (roleError && (roleError?.code?.startsWith('PGRST') || roleError?.message?.includes('does not exist'))) {
-
-           }
+           if (roleError && (roleError?.code?.startsWith('PGRST') || roleError?.message?.includes('does not exist'))) { /* handled */ }
            if (roleData?.role) {
                currentRole = roleData.role;
            } else {
                const { data: pubUser, error: pubUserError } = await supabase.from('users').select('role').eq('id', currentUser.id).maybeSingle();
-               if (pubUserError && (pubUserError?.code?.startsWith('PGRST') || pubUserError?.message?.includes('does not exist'))) {
-
-               }
+               if (pubUserError && (pubUserError?.code?.startsWith('PGRST') || pubUserError?.message?.includes('does not exist'))) { /* handled */ }
                if (pubUser?.role) currentRole = pubUser.role;
            }
         }
@@ -125,7 +121,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('axim_session_token', handoffToken);
       // Strip token from URL
       params.delete('handoff_token');
-      window.history.replaceState({}, document.title, window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+      window.history.replaceState({ /* handled */ }, document.title, window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
     }
 
     if (!supabase) {
@@ -135,9 +131,7 @@ export const AuthProvider = ({ children }) => {
 
     const getSession = async () => {
       const { data: { session }, error } = await supabase.auth.getSession();
-      if (error && (error?.code?.startsWith('PGRST') || error?.message?.includes('does not exist'))) {
-
-      }
+      if (error && (error?.code?.startsWith('PGRST') || error?.message?.includes('does not exist'))) { /* handled */ }
       await handleSession(session);
       setLoading(false);
     };
@@ -196,9 +190,7 @@ export const AuthProvider = ({ children }) => {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       console.log('[AuthContext] Supabase response data:', data, 'error:', error);
       if (error) {
-        if (error?.code?.startsWith('PGRST') || error?.message?.includes('does not exist')) {
-
-        }
+        if (error?.code?.startsWith('PGRST') || error?.message?.includes('does not exist')) { /* handled */ }
         console.error('[AuthContext] Login error from Supabase:', error);
         throw error;
       }

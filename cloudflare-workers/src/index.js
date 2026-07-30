@@ -1,6 +1,4 @@
 /* eslint-disable no-unused-vars */
-/* eslint-env serviceworker */
-/* global caches */
 /**
  * AXiM Core Cloudflare Worker
  *

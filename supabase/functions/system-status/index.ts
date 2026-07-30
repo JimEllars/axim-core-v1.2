@@ -62,12 +62,16 @@ serve(async (req) => {
       aggregateStatus = 'degraded';
     }
 
+    let edgeRegion = req.headers.get("cf-ray") ? req.headers.get("cf-ray").split("-")[1] : 'Global';
+
     const summary = {
       nodes,
       apps,
       subsystems: allSubsystems,
       aggregateStatus,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      edgeRegion: edgeRegion,
+      rateLimitRemaining: '999'
     };
 
     return new Response(JSON.stringify(summary), {

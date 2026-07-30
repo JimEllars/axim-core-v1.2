@@ -231,8 +231,30 @@ class OfflineManager {
 
 const offlineManager = new OfflineManager();
 if (typeof window !== 'undefined') {
-  window.addEventListener('online', () => {
-    offlineManager.processQueue();
+  window.addEventListener('online', async () => {
+    await offlineManager.processQueue();
+
+    // Auto-flush dead-letter queue to telemetry
+    if (offlineManager.deadLetterQueue && offlineManager.deadLetterQueue.length > 0) {
+      try {
+         const { supabase } = await import('./supabaseClient');
+         if (supabase) {
+           for (const deadReq of offlineManager.deadLetterQueue) {
+             await supabase.from('api_usage_logs').insert({
+                endpoint: '/offline-sync/dead-letter',
+                status_code: 500,
+                compute_ms: 0,
+                app_id: 'axim-offline-manager',
+                payload: { request: deadReq }
+             });
+           }
+           offlineManager.deadLetterQueue = [];
+           offlineManager.saveQueue(DEAD_LETTER_QUEUE_STORAGE_KEY, offlineManager.deadLetterQueue);
+         }
+      } catch (err) {
+         logger.error("Failed to flush dead letter logs to telemetry", err);
+      }
+    }
   });
 }
 export default offlineManager;
