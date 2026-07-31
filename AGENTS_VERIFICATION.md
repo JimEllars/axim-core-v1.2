@@ -299,3 +299,66 @@
       } else {
      ```
    - **Proving Test Name:** manual inspection / unit test verify
+
+## Wave 79 - Integrations & Email Cockpit Parity, Communication Telemetry Hardening
+Date: 2026-08-01
+Branch: wave79-integrations-comm-telemetry
+
+### Changes Executed:
+
+**Target File & Line Range:** `src/components/admin/IntegrationsManager.jsx` (Lines ~37, ~44, ~85)
+**Exact Code Snippet:**
+```javascript
+<div className="bg-onyx-900 border border-onyx-accent/20 rounded-lg p-4 flex items-center justify-between glass-effect" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+<div className="glass-effect rounded-xl overflow-hidden min-h-[160px] border border-onyx-accent/20" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+<div className="animate-pulse flex justify-between items-start bg-onyx-950/50 p-4 rounded-lg border border-onyx-accent/10">
+```
+**Proving Test Name:** visual check / layout consistency.
+
+**Target File & Line Range:** `src/components/admin/EmailConsole.jsx` (Lines ~88, ~148)
+**Exact Code Snippet:**
+```javascript
+<div className="glass-effect rounded-xl p-6 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+<div className="animate-pulse bg-slate-900/50 rounded-md p-4 border border-onyx-accent/10 flex justify-between items-start">
+```
+**Proving Test Name:** visual check / layout consistency.
+
+**Target File & Line Range:** `supabase/functions/communication-gateway/index.ts` (Lines ~19, ~47, ~75, ~93)
+**Exact Code Snippet:**
+```typescript
+    const edgeHeaders = {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "X-AXiM-RateLimit-Remaining": "999",
+        "X-AXiM-Edge-Location": "global-edge"
+    };
+
+      await supabase.from("api_usage_logs").insert({
+        endpoint: "/communication-gateway",
+        status_code: 403,
+        compute_ms: computeMs,
+        app_id: "axim-comm-gateway",
+        payload: { error: "unauthorized_sender", sender: sender }
+      });
+```
+**Proving Test Name:** `communication-gateway executes cleanly and records telemetry`
+
+**Target File & Line Range:** `supabase/functions/send-email/index.ts` (Lines ~42, ~194, ~242)
+**Exact Code Snippet:**
+```typescript
+    const edgeHeaders = {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "X-AXiM-RateLimit-Remaining": "999",
+        "X-AXiM-Edge-Location": "global-edge"
+    };
+
+    await supabaseAdmin.from("api_usage_logs").insert({
+      endpoint: "/send-email",
+      status_code: 200,
+      compute_ms: computeMs,
+      app_id: appSource,
+      payload: { success: true, to: toEmail, subject: emailSubject, id: emailItData.id }
+    });
+```
+**Proving Test Name:** `send-email executes cleanly and records telemetry`

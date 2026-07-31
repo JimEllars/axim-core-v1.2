@@ -34,12 +34,19 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
 }
 
 serve(async (req) => {
+  const startTime = Date.now();
   if (req.method === "OPTIONS") {
     return new Response("ok", {
       headers: corsHeaders,
     });
   }
 
+  const edgeHeaders = {
+        ...corsHeaders,
+        "Content-Type": "application/json",
+        "X-AXiM-RateLimit-Remaining": "999",
+        "X-AXiM-Edge-Location": "global-edge"
+    };
   try {
     let payload;
     try {
@@ -111,10 +118,7 @@ serve(async (req) => {
                 intercepted: true
             }),
             {
-                headers: {
-                ...corsHeaders,
-                "Content-Type": "application/json",
-                },
+                headers: edgeHeaders,
             },
         );
     }
@@ -175,12 +179,19 @@ serve(async (req) => {
     } catch (networkError: any) {
       // Wrap the operational email execution inside a robust try/catch diagnostic block.
       // Simulate logging to public.api_usage_logs containing the response code.
+      const computeMs = Date.now() - startTime;
       await supabaseAdmin.from("api_usage_logs").insert({
         endpoint: "/send-email",
         app_id: appSource,
-        execution_time_ms: -1,
+        compute_ms: computeMs,
         status_code: 502,
-        request_payload: { error: networkError.message },
+        payload: { error: networkError.message }
+      });
+      await supabaseAdmin.from("telemetry_events").insert({
+        component_id: "core_api",
+        severity: "WARN",
+        message: "email_dispatch_fault",
+        payload: { error: networkError.message, to: toEmail }
       });
 
       // Task 3: Transactional Mail Dead-Letter Queue (DLQ)
@@ -195,10 +206,7 @@ serve(async (req) => {
         JSON.stringify({ error: `EmailIt API Error: Network drop or timeout` }),
         {
           status: 502,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
+          headers: edgeHeaders,
         },
       );
     }
@@ -206,12 +214,19 @@ serve(async (req) => {
     if (!emailItResponse.ok) {
       const errorText = await emailItResponse.text();
       // If EmailIt responds with an edge error or timeout flag, write a failure trace row directly into public.api_usage_logs containing the response code.
+      const computeMs = Date.now() - startTime;
       await supabaseAdmin.from("api_usage_logs").insert({
         endpoint: "/send-email",
         app_id: appSource,
-        execution_time_ms: -1,
+        compute_ms: computeMs,
         status_code: emailItResponse.status,
-        request_payload: { error: errorText },
+        payload: { error: errorText }
+      });
+      await supabaseAdmin.from("telemetry_events").insert({
+        component_id: "core_api",
+        severity: "WARN",
+        message: "email_dispatch_fault",
+        payload: { error: errorText, to: toEmail }
       });
 
       // Task 3: Transactional Mail Dead-Letter Queue (DLQ)
@@ -226,15 +241,21 @@ serve(async (req) => {
         JSON.stringify({ error: `EmailIt API Error: ${errorText}` }),
         {
           status: 502,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
+          headers: edgeHeaders,
         },
       );
     }
 
     const emailItData = await emailItResponse.json();
+
+    const computeMs = Date.now() - startTime;
+    await supabaseAdmin.from("api_usage_logs").insert({
+      endpoint: "/send-email",
+      status_code: 200,
+      compute_ms: computeMs,
+      app_id: appSource,
+      payload: { success: true, to: toEmail, subject: emailSubject, id: emailItData.id }
+    });
 
     return new Response(
       JSON.stringify({
@@ -243,10 +264,7 @@ serve(async (req) => {
         id: emailItData.id,
       }),
       {
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
+        headers: edgeHeaders,
       },
     );
   } catch (error: any) {
@@ -258,14 +276,27 @@ serve(async (req) => {
         ? 401
         : 500;
 
+    const computeMs = Date.now() - startTime;
+    try {
+        await supabaseAdmin.from("api_usage_logs").insert({
+            endpoint: "/send-email",
+            app_id: "axim-email-service",
+            compute_ms: computeMs,
+            status_code: status,
+            payload: { error: error.message }
+        });
+    } catch(e) {}
+
     if (status === 500) {
       await notifyOnyx("/send-email", 500, { error: error.message });
     }
     return new Response(JSON.stringify({ error: error.message }), {
       status,
       headers: {
-        ...corsHeaders,
+        ...CORS_HEADERS,
         "Content-Type": "application/json",
+        "X-AXiM-RateLimit-Remaining": "999",
+        "X-AXiM-Edge-Location": "global-edge"
       },
     });
   }

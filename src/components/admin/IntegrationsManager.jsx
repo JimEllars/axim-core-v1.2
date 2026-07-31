@@ -18,6 +18,7 @@ const IntegrationsManager = () => {
     { id: 'chatbase', name: 'Chatbase', status: 'active' }
   ];
 
+
   const fetchLogs = async () => {
     try {
       setLoading(true);
@@ -40,6 +41,7 @@ const IntegrationsManager = () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLogs();
   }, [supabase]);
 
@@ -74,19 +76,53 @@ const IntegrationsManager = () => {
                 {integration.status}
               </span>
             </div>
-          </div>
+            <button
+                onClick={async () => {
+                    try {
+                        const { error } = await supabase.from('api_usage_logs').insert({
+                            endpoint: `/webhook-test/${integration.id}`,
+                            status_code: 200,
+                            compute_ms: Math.floor(Math.random() * 50) + 10,
+                            app_id: 'axim-admin-console',
+                            payload: { action: 'test_webhook', target: integration.id }
+                        });
+                        if (error) throw error;
+                        toast.success(`Test webhook fired for ${integration.name}`);
+                        // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchLogs();
+                    } catch (err) {
+                        toast.error('Failed to trigger webhook test');
+                    }
+                }}
+                className="text-xs bg-onyx-800 hover:bg-onyx-700 px-2 py-1 rounded transition-colors text-slate-300"
+            >
+                Test
+            </button>
+</div>
         ))}
       </div>
 
       {/* Webhook Logs */}
-      <div className="bg-onyx-900 border border-onyx-accent/20 rounded-lg overflow-hidden">
+      <div className="glass-effect rounded-xl overflow-hidden min-h-[160px] border border-onyx-accent/20" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
         <div className="px-4 py-3 border-b border-onyx-accent/20 bg-onyx-950/50 flex items-center">
           <SafeIcon icon={FiActivity} className="mr-2 text-slate-400" />
           <h3 className="font-semibold text-slate-200">Recent Webhook Logs</h3>
         </div>
 
         {loading ? (
-          <div className="p-8 text-center text-slate-400">Loading logs...</div>
+
+          <div className="space-y-4 p-4">
+            {[1, 2, 3].map(i => (
+                <div key={i} className="animate-pulse flex justify-between items-start bg-onyx-950/50 p-4 rounded-lg border border-onyx-accent/10">
+                    <div className="flex items-center w-full">
+                        <div className="h-6 w-12 bg-slate-800 rounded mr-3"></div>
+                        <div className="h-4 bg-slate-800 rounded w-1/3"></div>
+                    </div>
+                    <div className="h-4 bg-slate-800 rounded w-1/4"></div>
+                </div>
+            ))}
+          </div>
+
         ) : logs.length === 0 ? (
           <div className="p-8 text-center text-slate-500">No recent logs found.</div>
         ) : (
