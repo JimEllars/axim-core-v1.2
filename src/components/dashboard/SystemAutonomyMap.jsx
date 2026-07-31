@@ -9,6 +9,7 @@ const { FiActivity, FiCpu, FiDatabase, FiServer, FiCheckCircle, FiAlertTriangle,
 const SystemAutonomyMap = () => {
   const [events, setEvents] = useState([]);
   const [healthStatus, setHealthStatus] = useState('green'); // green, yellow, red
+  const [loading, setLoading] = useState(true);
 
   const fetchEvents = async () => {
     try {
@@ -61,10 +62,12 @@ const SystemAutonomyMap = () => {
       } else {
         setHealthStatus('green');
       }
+      setLoading(false);
 
     } catch (err) {
       console.error('Error fetching autonomy events:', err);
       setHealthStatus('yellow');
+      setLoading(false);
     }
   };
 
@@ -127,7 +130,13 @@ const SystemAutonomyMap = () => {
       </div>
 
       <div className="space-y-3">
-        {events.length === 0 ? (
+        {loading ? (
+          <div className="animate-pulse space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="p-3 rounded border bg-onyx-950/20 border-onyx-accent/20 h-16"></div>
+            ))}
+          </div>
+        ) : events.length === 0 ? (
           <p className="text-slate-400 text-sm">No recent autonomous events.</p>
         ) : (
           events.map((event) => (

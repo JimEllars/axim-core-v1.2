@@ -8,13 +8,31 @@ import * as FiIcons from 'react-icons/fi';
 import { supabase } from '../services/supabaseClient';
 import { useQuery } from '@tanstack/react-query';
 
-const { FiSave, FiUser, FiDownload, FiFileText } = FiIcons;
+const { FiSave, FiUser, FiDownload, FiFileText, FiLink } = FiIcons;
+
+const formatWallet = (address) => {
+  if (!address) return '';
+  return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+};
 
 const UserProfile = () => {
-  const { user, profile, loadUserProfile } = useAuth();
+  const { user, profile, loadUserProfile, walletAddress } = useAuth();
   const [fullName, setFullName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [localWallet, setLocalWallet] = useState(null);
+
+  useEffect(() => {
+    if (walletAddress) {
+      setLocalWallet(walletAddress);
+    }
+  }, [walletAddress]);
+
+  const handleDisconnectWallet = () => {
+    setLocalWallet(null);
+    toast.success('Wallet disconnected (local session)');
+  };
+
 
   useEffect(() => {
     if (profile) {
@@ -193,6 +211,31 @@ const UserProfile = () => {
                 {isLoading ? 'Saving...' : 'Save Profile'}
               </motion.button>
             </div>
+
+
+            {localWallet && (
+              <div className="pt-4 border-t border-onyx-accent/20">
+                <h3 className="text-sm font-medium text-slate-300 mb-2">Web3 Context</h3>
+                <div className="flex items-center justify-between bg-onyx-950/50 p-4 rounded-lg border border-onyx-accent/20">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                      <SafeIcon icon={FiLink} className="text-blue-400" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-white font-mono">{formatWallet(localWallet)}</div>
+                      <div className="text-xs text-slate-500">Connected Wallet</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDisconnectWallet}
+                    className="px-3 py-1 text-xs font-medium text-red-400 hover:bg-red-500/10 rounded transition-colors border border-red-500/20"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className="pt-4 border-t border-onyx-accent/20">
               <h3 className="text-sm font-medium text-slate-300 mb-2">Account Health Index</h3>
