@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { describe, it, expect } from 'vitest';
 
 describe('api-gateway Auth Integrity', () => {
@@ -438,5 +439,46 @@ describe('Communication Telemetry Hardening', () => {
 
         expect(edgeHeaders['X-AXiM-RateLimit-Remaining']).toBe('999');
         expect(edgeHeaders['X-AXiM-Edge-Location']).toBe('global-edge');
+    });
+});
+
+
+describe('apiProxy telemetry wallet appending', () => {
+    it('appends wallet_address to telemetry objects', async () => {
+        const { submitMicroAppTelemetry } = await import('../src/services/apiProxy.js');
+        const { supabase } = await import('../src/services/supabaseClient.js');
+
+        // Mock getSession
+        supabase.auth.getSession = vi.fn().mockResolvedValue({
+            data: {
+                session: {
+                    user: {
+                        user_metadata: {
+                            wallet_address: '0x123abc'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Mock upsert
+        let insertedPayload = null;
+        supabase.from = vi.fn().mockReturnValue({
+            upsert: vi.fn((payload) => {
+                insertedPayload = payload;
+                return {
+                    setHeader: vi.fn().mockResolvedValue({ data: [], error: null })
+                };
+            }),
+            insert: vi.fn()
+        });
+
+        await submitMicroAppTelemetry({
+            app_id: 'test-app',
+            endpoint: '/test'
+        });
+
+        expect(insertedPayload).toBeDefined();
+        expect(insertedPayload[0].wallet_address).toBe('0x123abc');
     });
 });

@@ -2,6 +2,18 @@ import { supabase } from './supabaseClient';
 import toast from 'react-hot-toast';
 import logger from './logging';
 
+const getActiveWalletAddress = async () => {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session && session.user && session.user.user_metadata && session.user.user_metadata.wallet_address) {
+            return session.user.user_metadata.wallet_address;
+        }
+    } catch (e) {
+        // silently ignore
+    }
+    return null;
+};
+
 /**
  * Calls the secure API proxy edge function.
  * @param {string} integrationId - The ID of the API integration to use.
@@ -39,16 +51,19 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
     }
 
     if (isThrottled) {
-        supabase.from('api_usage_logs').insert({
-            endpoint: endpoint,
-            status_code: 429,
-            execution_time_ms: 0,
-            payload: {
-                action: 'edge_throttled',
-                deflected_count: parseInt(isThrottled, 10) || 1
-            }
-        }).catch(err => {
-            console.error('Failed to log edge throttling telemetry:', err);
+        getActiveWalletAddress().then(wallet_address => {
+            supabase.from('api_usage_logs').insert({
+                endpoint: endpoint,
+                status_code: 429,
+                execution_time_ms: 0,
+                payload: {
+                    action: 'edge_throttled',
+                    deflected_count: parseInt(isThrottled, 10) || 1,
+                    wallet_address
+                }
+            }).catch(err => {
+                console.error('Failed to log edge throttling telemetry:', err);
+            });
         });
 
         toast.error('Edge Throttling Active. Request rate limited.');
@@ -72,16 +87,19 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
         }
 
         // Log telemetry
-        supabase.from('api_usage_logs').insert({
-            endpoint: endpoint,
-            status_code: data && data.status ? data.status : 200,
-            execution_time_ms: 0,
-            payload: {
-                api_key: apiKey,
-                action: 'api_proxy_call'
-            }
-        }).catch(err => {
-            console.error('Failed to log API key usage telemetry:', err);
+        getActiveWalletAddress().then(wallet_address => {
+            supabase.from('api_usage_logs').insert({
+                endpoint: endpoint,
+                status_code: data && data.status ? data.status : 200,
+                execution_time_ms: 0,
+                payload: {
+                    api_key: apiKey,
+                    action: 'api_proxy_call',
+                    wallet_address
+                }
+            }).catch(err => {
+                console.error('Failed to log API key usage telemetry:', err);
+            });
         });
     }
 
@@ -165,10 +183,12 @@ export const submitMicroAppTelemetry = async (payload) => {
   // Ensure payload is an array for batch inserts or single object
   const payloadsToInsert = Array.isArray(payload) ? payload : [payload];
 
+  const wallet_address = await getActiveWalletAddress();
   // Lightweight validation structural checks
   const validatedPayloads = payloadsToInsert.map(p => {
     // Sanitize and enforce types
     const sanitized = {
+      ...(wallet_address ? { wallet_address } : {}),
       metadata: typeof p.metadata === 'object' && p.metadata !== null ? {
         ...p.metadata,
         cf_cache_hit: p.metadata["cf-aig-cache-status"] === "HIT" || p.metadata.cf_cache_hit === true || p.metadata.cached === true

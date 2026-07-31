@@ -97,7 +97,19 @@ const JobQueueMonitor = () => {
     failed: jobs.filter(j => j.status === 'failed').length,
   };
 
-  if (loading && jobs.length === 0) return <div className="text-white p-4">Loading Job Queue...</div>;
+  if (loading && jobs.length === 0) {
+    return (
+      <div className="p-6 text-white min-h-[160px] animate-pulse" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+        <div className="h-8 bg-slate-700/50 rounded w-1/3 mb-6"></div>
+        <div className="grid grid-cols-4 gap-4 mb-8">
+          {[1, 2, 3, 4].map(i => (
+             <div key={i} className="p-4 rounded-lg border border-gray-700 bg-gray-800/50 h-24"></div>
+          ))}
+        </div>
+        <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 h-64"></div>
+      </div>
+    );
+  }
   if (error) return <div className="text-red-500 p-4">Error: {error}</div>;
 
   return (

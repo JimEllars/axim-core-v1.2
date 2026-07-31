@@ -420,3 +420,58 @@ Branch: wave79-integrations-comm-telemetry
      className="glass-effect rounded-xl min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
      ```
    - **Proving Test Name:** layout constraints verification.
+
+### Proof-of-Fix: Wave 81 - Token Ingestion, Dashboard Glassmorphism Parity & Web3 Telemetry Sync
+**Date:** $(date +%Y-%m-%d)
+**Branch:** `wave81-auth-handoff-ui-polish`
+
+1. **Target File & Line Range:** `src/contexts/AuthContext.jsx`
+   - **Exact Code Snippet:**
+     ```javascript
+    const getSession = async () => {
+      if (handoffToken) {
+        try {
+          const { data, error } = await supabase.auth.setSession({ access_token: handoffToken, refresh_token: handoffToken });
+          if (!error && data.session) {
+            setAximSessionToken(handoffToken);
+            localStorage.setItem('axim_session_token', handoffToken);
+          }
+        } catch (e) {
+          console.error('Failed to ingest handoff token:', e);
+        }
+        params.delete('handoff_token');
+        window.history.replaceState({}, document.title, window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+      }
+     ```
+   - **Proving Test Name:** visual check / functionality verify.
+
+2. **Target File & Line Range:** `src/components/dashboard/GenerativeAIPanel.jsx`
+   - **Exact Code Snippet:**
+     ```javascript
+    <div className="glass-effect rounded-xl min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+     ```
+   - **Proving Test Name:** visual check / layout consistency.
+
+3. **Target File & Line Range:** `src/components/dashboard/JobQueueMonitor.jsx`
+   - **Exact Code Snippet:**
+     ```javascript
+    <div className="p-6 text-white min-h-[160px] animate-pulse" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+     ```
+   - **Proving Test Name:** visual check / layout consistency.
+
+4. **Target File & Line Range:** `src/services/apiProxy.js`
+   - **Exact Code Snippet:**
+     ```javascript
+const getActiveWalletAddress = async () => {
+    try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session && session.user && session.user.user_metadata && session.user.user_metadata.wallet_address) {
+            return session.user.user_metadata.wallet_address;
+        }
+    } catch (e) {
+        // silently ignore
+    }
+    return null;
+};
+     ```
+   - **Proving Test Name:** `appends wallet_address to telemetry objects`

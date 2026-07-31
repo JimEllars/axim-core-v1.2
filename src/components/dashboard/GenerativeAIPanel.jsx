@@ -45,7 +45,7 @@ const GenerativeAIPanel = () => {
   };
 
   return (
-    <div className="glass-effect rounded-xl">
+    <div className="glass-effect rounded-xl min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
       <div className="p-6 border-b border-onyx-accent/20 flex justify-between items-center">
         <h2 className="text-xl font-semibold text-white flex items-center">
           <SafeIcon icon={FiCpu} className="mr-3 text-purple-400" />
@@ -88,6 +88,17 @@ const GenerativeAIPanel = () => {
             </motion.button>
           </div>
         </form>
+
+        {isLoading && !generatedContent && (
+          <div className="mt-6 animate-pulse">
+            <div className="h-6 bg-slate-700/50 rounded w-1/4 mb-4"></div>
+            <div className="bg-onyx-950/50 p-4 rounded-lg space-y-3">
+              <div className="h-4 bg-slate-700/50 rounded w-3/4"></div>
+              <div className="h-4 bg-slate-700/50 rounded w-full"></div>
+              <div className="h-4 bg-slate-700/50 rounded w-5/6"></div>
+            </div>
+          </div>
+        )}
 
         {generatedContent && (
           <div className="mt-6">
