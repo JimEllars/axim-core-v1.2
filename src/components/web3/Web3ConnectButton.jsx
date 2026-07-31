@@ -6,12 +6,14 @@ import {
   metamaskWallet,
   safeWallet
 } from "@thirdweb-dev/react"; // or equivalent Thirdweb Client SDK version
+import { useAuth } from "../../contexts/AuthContext";
 
 // Network Target Parameters forced by AXiM Infrastructure Strategy
 const ARBITRUM_CHAIN_ID = 42161;
 const AXIM_CORE_TELEMETRY_URL = "https://pvbcdndqjguzqeafhwhw.supabase.co/functions/v1/satellite-telemetry";
 
 export default function Web3ConnectButton({ microAppName = "AXiM-Micro-App-Spoke" }) {
+  const { user, isAuthenticated } = useAuth();
 
   // Captures and pipes client state transitions back to the Core Spine passively
   const handleWalletConnectionTelemetry = async (walletAddress, walletType) => {
@@ -42,6 +44,16 @@ export default function Web3ConnectButton({ microAppName = "AXiM-Micro-App-Spoke
     }
   };
 
+  let buttonText = "Login";
+  if (isAuthenticated && user) {
+    const name = user.user_metadata?.full_name || user.user_metadata?.name;
+    const email = user.email;
+    const wallet = user.user_metadata?.wallet_address;
+
+    const displayIdentifier = name || (email ? email.split('@')[0] : null) || (wallet ? `${wallet.slice(0, 4)}...${wallet.slice(-4)}` : 'User');
+    buttonText = `Hi ${displayIdentifier}`;
+  }
+
   return (
     <ThirdwebProvider
       activeChain="arbitrum" // Strictly locks transaction context to Arbitrum One
@@ -62,7 +74,7 @@ export default function Web3ConnectButton({ microAppName = "AXiM-Micro-App-Spoke
       <div className="axim-web3-button-wrapper">
         <ConnectWallet
           theme="dark"
-          btnTitle="Connect Ecosystem Wallet"
+          btnTitle={buttonText}
           className="axim-core-btn text-sm font-mono tracking-wider transition-all duration-200 uppercase"
           modalTitle="Select AXiM Access Method"
           modalSize="compact"

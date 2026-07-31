@@ -397,7 +397,7 @@ const WorkflowBuilder = () => {
   );
 
   return (
-    <div className="glass-effect rounded-lg p-6 border border-cyan-500/30">
+    <div className="glass-effect rounded-lg p-6 border border-cyan-500/30 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 space-y-4 md:space-y-0">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center">

@@ -43,3 +43,12 @@ export const verifySIWESignatureAndGetJWT = async (message, signature, address) 
       throw err;
   }
 };
+
+
+// Refactor auth-handoff.js to pass unified JWT tokens between axim.us.com and satellite games
+export const generateCrossDomainHandoffUrl = (targetDomain, aximSessionToken) => {
+  if (!aximSessionToken) return targetDomain;
+  const url = new URL(targetDomain);
+  url.searchParams.set('handoff_token', aximSessionToken);
+  return url.toString();
+};

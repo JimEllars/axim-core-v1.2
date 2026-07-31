@@ -23,6 +23,7 @@ export const AuthProvider = ({ children }) => {
   const [role, setRole] = useState(null);
   const [settings, setSettings] = useState(null);
   const [aximSessionToken, setAximSessionToken] = useState(null);
+  const [walletAddress, setWalletAddress] = useState(null);
 
   const loadUserSettings = useCallback(async (currentUser) => {
     if (!currentUser) {
@@ -104,8 +105,11 @@ export const AuthProvider = ({ children }) => {
 
       await loadUserSettings(currentUser);
       await refreshAximSession(session);
+      const wallet = currentUser?.user_metadata?.wallet_address || null;
+      setWalletAddress(wallet);
     } else {
       setRole(null);
+      setWalletAddress(null);
       loadUserSettings(null);
       await refreshAximSession(null);
     }
@@ -207,6 +211,7 @@ export const AuthProvider = ({ children }) => {
     role,
     settings,
     aximSessionToken,
+    walletAddress,
     loadUserSettings,
     login,
     logout,
