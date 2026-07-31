@@ -137,7 +137,7 @@ const UserManagement = ({ currentUser }) => {
   }, [searchTerm]);
 
   return (
-    <div className="glass-effect rounded-xl">
+    <div className="glass-effect rounded-xl min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
       <div className="p-6 border-b border-onyx-accent/20 flex flex-col sm:flex-row justify-between items-center gap-4">
         <h2 className="text-xl font-semibold text-white flex items-center">
           <SafeIcon icon={FiUsers} className="mr-3 text-blue-400" />
@@ -181,8 +181,11 @@ const UserManagement = ({ currentUser }) => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="5" className="text-center p-8">
-                  <p>Loading users...</p>
+                <td colSpan="5" className="p-8">
+                  <div className="animate-pulse flex flex-col space-y-4">
+                    <div className="h-4 bg-slate-800 rounded w-3/4 mx-auto"></div>
+                    <div className="h-4 bg-slate-800 rounded w-1/2 mx-auto"></div>
+                  </div>
                 </td>
               </tr>
             ) : (

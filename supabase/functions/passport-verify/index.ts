@@ -49,11 +49,21 @@ serve(async (req) => {
 
     const role = user.user_metadata?.role || 'user'; // fetch standard access level
 
+    // Ensure in-game NFT asset queries route safely, returning empty arrays for Web2 users
+    const walletAddress = user.user_metadata?.wallet_address;
+    let nft_assets = [];
+    if (walletAddress) {
+        // Mocking NFT retrieval logic or leaving it empty to safely return empty arrays
+        // We will just let the endpoint return empty arrays for all safely or actual assets if integrated
+        nft_assets = [];
+    }
+
     const aximSessionToken = await generateAximSessionJwt({
         sub: user.id,
         email: user.email,
         health_index: healthIndex,
-        role: role
+        role: role,
+        wallet_address: walletAddress || null
     });
 
     return new Response(JSON.stringify({
@@ -62,7 +72,8 @@ serve(async (req) => {
       health_index: healthIndex,
       role: role,
       verified: true,
-      axim_session_token: aximSessionToken
+      axim_session_token: aximSessionToken,
+      nft_assets: nft_assets
     }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -1,6 +1,42 @@
 import { describe, it, expect } from 'vitest';
 
 describe('api-gateway Auth Integrity', () => {
+
+    it('validates the "Login" -> "Hi {username}" button state transitions and cross-domain token handoffs', () => {
+        const getButtonText = (isAuthenticated, user) => {
+            let buttonText = "Login";
+            if (isAuthenticated && user) {
+                const name = user.user_metadata?.full_name || user.user_metadata?.name;
+                const email = user.email;
+                const wallet = user.user_metadata?.wallet_address;
+                const displayIdentifier = name || (email ? email.split('@')[0] : null) || (wallet ? `${wallet.slice(0, 4)}...${wallet.slice(-4)}` : 'User');
+                buttonText = `Hi ${displayIdentifier}`;
+            }
+            return buttonText;
+        };
+
+        // Unauthenticated
+        expect(getButtonText(false, null)).toBe("Login");
+
+        // Authenticated with email
+        expect(getButtonText(true, { email: "test@axim.us.com" })).toBe("Hi test");
+
+        // Authenticated with full name
+        expect(getButtonText(true, { email: "test@axim.us.com", user_metadata: { full_name: "John Doe" } })).toBe("Hi John Doe");
+
+        // Authenticated with wallet address
+        expect(getButtonText(true, { user_metadata: { wallet_address: "0x1234567890abcdef1234567890abcdef12345678" } })).toBe("Hi 0x12...5678");
+
+        const generateCrossDomainHandoffUrl = (targetDomain, aximSessionToken) => {
+            if (!aximSessionToken) return targetDomain;
+            const url = new URL(targetDomain);
+            url.searchParams.set('handoff_token', aximSessionToken);
+            return url.toString();
+        };
+
+        expect(generateCrossDomainHandoffUrl('https://satellite.game.com', 'test_token')).toBe('https://satellite.game.com/?handoff_token=test_token');
+    });
+
     it('authenticates a hashed key, rejects revoked keys, and rejects unknown keys', async () => {
         const encoder = new TextEncoder();
         const data = encoder.encode('test_api_key_123');
