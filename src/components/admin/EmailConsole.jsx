@@ -16,10 +16,6 @@ const EmailConsole = () => {
   const [dlqItems, setDlqItems] = useState([]);
   const [isLoadingDlq, setIsLoadingDlq] = useState(true);
 
-  useEffect(() => {
-    fetchDlqItems();
-  }, []);
-
   const fetchDlqItems = async () => {
     setIsLoadingDlq(true);
     try {
@@ -41,6 +37,12 @@ const EmailConsole = () => {
     }
   };
 
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchDlqItems();
+  }, []);
+
+
   const handleSendPing = async () => {
     setIsSending(true);
     setStatusMsg(null);
@@ -59,7 +61,24 @@ const EmailConsole = () => {
         })
       });
 
+      // eslint-disable-next-line react-hooks/purity
+        const startTime = Date.now();
       const result = await response.json();
+      const endTime = Date.now();
+
+      try {
+        await supabase.from('api_usage_logs').insert({
+            endpoint: '/send-email/test-ping',
+            status_code: response.ok ? 200 : response.status,
+            compute_ms: endTime - startTime,
+            app_id: 'axim-admin-console',
+            payload: { subject, type: 'operator-ping' }
+        });
+      } catch (logErr) {
+        console.error("Telemetry logging failed", logErr);
+      }
+
+
       if (response.ok) {
         setStatusMsg({ type: 'success', text: 'Ping sent successfully to jrellars@gmail.com!' });
       } else {
@@ -75,6 +94,9 @@ const EmailConsole = () => {
   const handleReplayTransaction = async (item) => {
     // Send email again
     try {
+        // eslint-disable-next-line react-hooks/purity
+        const startTime = Date.now();
+
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
             method: 'POST',
             headers: {
@@ -89,10 +111,25 @@ const EmailConsole = () => {
             })
         });
 
+        // eslint-disable-next-line react-hooks/purity
+        const replayEndTime = Date.now();
+        try {
+            await supabase.from('api_usage_logs').insert({
+                endpoint: '/send-email/dlq-replay',
+                status_code: response.ok ? 200 : response.status,
+                compute_ms: replayEndTime - startTime,
+                app_id: 'axim-admin-console',
+                payload: { replay_item_id: item.id }
+            });
+        } catch (logErr) {
+            console.error("Telemetry logging failed", logErr);
+        }
+
         if (response.ok) {
             // Remove from DLQ
             await supabase.from('email_dead_letter_queue').delete().eq('id', item.id);
-            fetchDlqItems();
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchDlqItems();
         } else {
             alert("Replay Transaction failed again. Please check logs.");
         }
@@ -103,7 +140,7 @@ const EmailConsole = () => {
 
   return (
     <div className="space-y-6">
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+      <div className="glass-effect rounded-xl p-6 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
         <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
           <FiMail className="mr-2 text-blue-400" />
           Direct Operator Ping
@@ -152,7 +189,7 @@ const EmailConsole = () => {
         </div>
       </div>
 
-      <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+      <div className="glass-effect rounded-xl p-6 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold text-white flex items-center">
             <FiAlertCircle className="mr-2 text-orange-400" />
@@ -168,7 +205,20 @@ const EmailConsole = () => {
         </div>
 
         {isLoadingDlq ? (
-          <div className="text-center py-8 text-slate-400">Loading DLQ items...</div>
+
+          <div className="space-y-3 py-4">
+            {[1, 2].map(i => (
+                <div key={i} className="animate-pulse bg-slate-900/50 rounded-md p-4 border border-onyx-accent/10 flex justify-between items-start">
+                    <div className="space-y-2 flex-1 mr-4">
+                        <div className="h-4 bg-slate-800 rounded w-1/3"></div>
+                        <div className="h-3 bg-slate-800 rounded w-1/4"></div>
+                        <div className="h-3 bg-slate-800 rounded w-1/2"></div>
+                    </div>
+                    <div className="h-8 w-32 bg-slate-800 rounded"></div>
+                </div>
+            ))}
+          </div>
+
         ) : dlqItems.length === 0 ? (
           <div className="text-center py-8 text-slate-400 border border-slate-700 border-dashed rounded-lg bg-slate-900/50">
             Queue is empty. All messages delivered.

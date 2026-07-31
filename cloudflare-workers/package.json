@@ -15,7 +15,7 @@
     "check": "npm run test && npm run dry-run && npm run dry-run:onyx",
     "tail": "wrangler tail",
     "test:integration": "vitest run tests/integration.test.js",
-    "build": "npx wrangler build -c wrangler.toml",
+    "build": "npx wrangler deploy --dry-run -c wrangler.toml",
     "test": "npm run test:integration",
     "deploy:dry-run": "npx wrangler deploy --dry-run -c wrangler.toml"
   },
