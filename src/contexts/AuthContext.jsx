@@ -119,21 +119,27 @@ export const AuthProvider = ({ children }) => {
         // Check for handoff_token
     const params = new URLSearchParams(window.location.search);
     const handoffToken = params.get('handoff_token');
-    if (handoffToken) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAximSessionToken(handoffToken);
-      localStorage.setItem('axim_session_token', handoffToken);
-      // Strip token from URL
-      params.delete('handoff_token');
-      window.history.replaceState({ /* handled */ }, document.title, window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
-    }
 
     if (!supabase) {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 0);
       return;
-    };
+    }
 
     const getSession = async () => {
+      if (handoffToken) {
+        try {
+          const { data, error } = await supabase.auth.setSession({ access_token: handoffToken, refresh_token: handoffToken });
+          if (!error && data.session) {
+            setAximSessionToken(handoffToken);
+            localStorage.setItem('axim_session_token', handoffToken);
+          }
+        } catch (e) {
+          console.error('Failed to ingest handoff token:', e);
+        }
+        params.delete('handoff_token');
+        window.history.replaceState({}, document.title, window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+      }
+
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error && (error?.code?.startsWith('PGRST') || error?.message?.includes('does not exist'))) { /* handled */ }
       await handleSession(session);
