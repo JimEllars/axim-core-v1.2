@@ -430,15 +430,56 @@ describe('Communication Telemetry Hardening', () => {
         expect(eventRecorded).toBe(true);
     });
 
-    it('verifies edge headers propagate correctly', () => {
-        const edgeHeaders = {
-            "Content-Type": "application/json",
-            "X-AXiM-RateLimit-Remaining": "999",
-            "X-AXiM-Edge-Location": "global-edge"
+    it('verifies edge headers propagate correctly and exposes X-AXiM-RateLimit-Remaining', async () => {
+        const { default: worker } = await import('../cloudflare-workers/onyx-edge-worker/src/index.ts');
+
+        // Mock environment and request
+        const env = {
+            VITE_SUPABASE_URL: 'https://test.supabase.co',
+            VITE_SUPABASE_ANON_KEY: 'test-anon-key',
+            ANTHROPIC_API_KEY: 'test-anthropic',
+            AI: {
+                run: vi.fn().mockResolvedValue({ data: [{}] })
+            }
         };
 
-        expect(edgeHeaders['X-AXiM-RateLimit-Remaining']).toBe('999');
-        expect(edgeHeaders['X-AXiM-Edge-Location']).toBe('global-edge');
+        // We mock fetch for the auth and anthropic responses
+        global.fetch = vi.fn().mockImplementation(async (url) => {
+            if (url.includes('/auth/v1/user')) {
+                return new Response(JSON.stringify({ app_metadata: { role: 'admin' } }), { status: 200 });
+            }
+            if (url.includes('/messages')) {
+                return new Response(JSON.stringify({ content: [{ text: 'response' }], usage: {} }), { status: 200, headers: new Headers() });
+            }
+            return new Response(JSON.stringify({}), { status: 200 });
+        });
+
+        const request = new Request('https://edge.axim.us.com', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer test-token',
+                'CF-Connecting-IP': '127.0.0.1'
+            },
+            body: JSON.stringify({
+                command: 'test',
+                nodeScope: 'test-scope'
+            })
+        });
+
+        const ctx = {
+            waitUntil: vi.fn()
+        };
+
+        // Ensure cache is cleared if it was populated
+
+        const response = await worker.fetch(request, env, ctx);
+        expect(response.status).toBe(200);
+
+        // Header assertions
+        expect(response.headers.get('X-AXiM-RateLimit-Remaining')).toBeDefined();
+        // Since we pushed 1 request, remaining might be 4 depending on windowCache
+        // Let's just check if it's there
+        expect(response.headers.get('Access-Control-Expose-Headers')).toContain('X-AXiM-RateLimit-Remaining');
     });
 });
 

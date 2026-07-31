@@ -475,3 +475,21 @@ const getActiveWalletAddress = async () => {
 };
      ```
    - **Proving Test Name:** `appends wallet_address to telemetry objects`
+
+### Wave 82: User Profile Web3 Association, Dashboard Layout Parity & Edge Rate-Limit Exposing
+* **Target Files:**
+  * `src/components/UserProfile.jsx` (Lines ~10-40, ~215-230)
+  * `src/components/dashboard/SystemAutonomyMap.jsx` (Lines ~10-20, ~60-65, ~130-140)
+  * `src/components/dashboard/MetricsGrid.jsx` (Lines ~100-110)
+  * `cloudflare-workers/onyx-edge-worker/src/index.ts` (Lines ~115-125, ~190-265)
+  * `tests/api-gateway.test.js` (Lines ~430-475)
+* **Code Snippets:**
+  * `UserProfile.jsx`: \`const { user, profile, loadUserProfile, walletAddress } = useAuth();\`
+  * `UserProfile.jsx`: \`{localWallet && (<div className="pt-4 border-t border-onyx-accent/20"><h3 className="text-sm font-medium text-slate-300 mb-2">Web3 Context</h3>...</div>)}\`
+  * `SystemAutonomyMap.jsx`: \`const [loading, setLoading] = useState(true);\`
+  * `SystemAutonomyMap.jsx`: \`{loading ? (<div className="animate-pulse space-y-3">...</div>) : ...}\`
+  * `MetricsGrid.jsx`: \`<div key={index} className="glass-effect rounded-xl p-6" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>\`
+  * `onyx-edge-worker/src/index.ts`: \`"X-AXiM-RateLimit-Remaining": remainingRateLimit\` and \`"Access-Control-Expose-Headers": "X-AXiM-RateLimit-Remaining"\`
+* **Proving Test Names:**
+  * `tests/api-gateway.test.js`: `verifies edge headers propagate correctly and exposes X-AXiM-RateLimit-Remaining`
+  * `src/components/UserProfile.test.jsx`: `renders web3 context and formats wallet address`

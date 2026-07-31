@@ -15,6 +15,7 @@ export default {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization, CF-Connecting-IP, X-AXiM-Trace-ID",
+      "Access-Control-Expose-Headers": "X-AXiM-RateLimit-Remaining",
     };
 
     if (request.method === "OPTIONS") {
@@ -196,7 +197,7 @@ Context: ${JSON.stringify(context || {})}`;
         console.error(JSON.stringify(faultPayload));
         return new Response(JSON.stringify({ error: `Anthropic API error: ${claudeResponse.status} ${errorText}`, telemetry: faultPayload }), {
           status: claudeResponse.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json", "X-AXiM-RateLimit-Remaining": typeof remainingRateLimit !== "undefined" ? remainingRateLimit : "5" }
+          headers: { ...corsHeaders, "Content-Type": "application/json", "X-AXiM-RateLimit-Remaining": remainingRateLimit }
         });
       }
 
