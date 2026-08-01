@@ -14,7 +14,7 @@ const RecentWorkflows = () => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-effect p-6 rounded-xl"
+      className="glass-effect p-6 rounded-xl min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
     >
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-xl font-bold text-white">Recent Workflows</h3>
@@ -22,7 +22,17 @@ const RecentWorkflows = () => {
       </div>
       <div className="space-y-4">
         {loading ? (
-          <p className="text-slate-400">Loading workflows...</p>
+          <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="animate-pulse flex items-center justify-between p-3 bg-onyx-950/50 rounded-lg">
+                <div className="flex flex-col space-y-2">
+                  <div className="h-4 bg-onyx-800 rounded w-32"></div>
+                  <div className="h-3 bg-onyx-800 rounded w-24"></div>
+                </div>
+                <div className="h-4 bg-onyx-800 rounded w-16"></div>
+              </div>
+            ))}
+          </div>
         ) : workflows.length === 0 ? (
           <p className="text-slate-400">No recent workflow executions found.</p>
         ) : (
