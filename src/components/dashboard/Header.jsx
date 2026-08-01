@@ -1,13 +1,15 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
+import { useConnectivity } from '../../contexts/ConnectivityContext';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 
-const { FiLogOut, FiActivity, FiShield } = FiIcons;
+const { FiLogOut, FiActivity, FiShield, FiCpu } = FiIcons;
 
 const Header = () => {
   const { logout } = useAuth();
+  const { edgeCapacity } = useConnectivity();
 
   const handleLogout = () => {
     logout();
@@ -38,6 +40,18 @@ const Header = () => {
               <SafeIcon icon={FiActivity} className="animate-pulse" />
               <span className="text-sm font-medium">System Online</span>
             </div>
+            {edgeCapacity && (
+              <div className="flex items-center space-x-2 text-blue-400 bg-blue-900/20 px-3 py-1 rounded-full">
+                <SafeIcon icon={FiCpu} />
+                <span className="text-xs font-medium">Edge Capacity: {edgeCapacity}</span>
+              </div>
+            )}
+            {edgeCapacity && (
+              <div className="flex items-center space-x-2 text-blue-400 bg-blue-900/20 px-3 py-1 rounded-full">
+                <SafeIcon icon={FiCpu} />
+                <span className="text-xs font-medium">Edge Capacity: {edgeCapacity}</span>
+              </div>
+            )}
             
             <motion.button
               whileHover={{ scale: 1.05 }}

@@ -174,8 +174,22 @@ export const AuthProvider = ({ children }) => {
 
 
   const logout = useCallback(async () => {
-    await supabase.auth.signOut();
-  }, []);
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error('Error during Supabase sign out:', e);
+    } finally {
+      setAximSessionToken(null);
+      setWalletAddress(null);
+      setUser(null);
+      setIsAuthenticated(false);
+      setRole(null);
+      setSettings(null);
+      localStorage.removeItem('axim_session_token');
+      // clear any potential handoff tokens or cross-domain remnants
+      localStorage.removeItem('supabase.auth.token');
+    }
+  }, [supabase]);
 
   useEffect(() => {
     const handleUnauthorized = () => {

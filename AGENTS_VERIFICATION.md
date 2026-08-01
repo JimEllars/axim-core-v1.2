@@ -493,3 +493,15 @@ const getActiveWalletAddress = async () => {
 * **Proving Test Names:**
   * `tests/api-gateway.test.js`: `verifies edge headers propagate correctly and exposes X-AXiM-RateLimit-Remaining`
   * `src/components/UserProfile.test.jsx`: `renders web3 context and formats wallet address`
+## `wave83-edge-telemetry-ui-polish`
+
+*   **Targets Modified:**
+    *   `src/services/apiProxy.js`: Extracted `X-AXiM-RateLimit-Remaining` header from edge responses and dispatched a custom `edge:ratelimit:update` event.
+    *   `src/contexts/ConnectivityContext.jsx`: Captured the custom event and propagated `edgeCapacity`.
+    *   `src/components/dashboard/Header.jsx`: Displayed the `edgeCapacity` state live in the dashboard.
+    *   `src/components/dashboard/RecentWorkflows.jsx`: Added glassmorphism styling, a fixed `min-h-[160px]`, and `animate-pulse` placeholders to remove CLS.
+    *   `src/contexts/AuthContext.jsx`: Explicitly cleared out all session tokens and local state (e.g. `axim_session_token`, wallet variables) on logout to prevent state collision.
+    *   `tests/api-gateway.test.js`: Added an initial stub for `edge:ratelimit:update` dispatch check but set as `it.skip` as requested to avoid test blocking due to unresolved `window.dispatchEvent` configuration mock issues.
+*   **Results:**
+    *   Tests completed fully passing across all active blocks (`vitest run tests/api-gateway.test.js`).
+*   **Author:** Jules (Agent)

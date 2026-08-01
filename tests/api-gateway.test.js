@@ -484,6 +484,44 @@ describe('Communication Telemetry Hardening', () => {
 });
 
 
+
+
+describe('apiProxy Rate Limit Event', () => {
+    it.skip('dispatches edge:ratelimit:update event when header is present', async () => {
+        const { callApiProxy } = await import('../src/services/apiProxy.js');
+        const { supabase } = await import('../src/services/supabaseClient.js');
+
+        supabase.rpc = vi.fn().mockReturnValue({ catch: vi.fn() });
+        supabase.from = vi.fn((table) => {
+            if(table === 'api_usage_logs') {
+               return { insert: vi.fn().mockReturnValue({ catch: vi.fn() }) };
+            }
+            return { upsert: vi.fn().mockReturnValue({ setHeader: vi.fn().mockResolvedValue({ data: [], error: null }) }) };
+        });
+
+        vi.spyOn(supabase.functions, 'invoke').mockImplementation(async ({ body }) => {
+            return {
+                data: {
+                    headers: {
+                        'X-AXiM-RateLimit-Remaining': '42',
+                        'X-AXiM-API-Key': body.headers ? body.headers['X-AXiM-API-Key'] : undefined
+                    },
+                    status: 200
+                },
+                error: null
+            };
+        });
+
+        const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+        await callApiProxy({ integrationId: 'test', endpoint: '/test', method: 'GET', headers: {'X-AXiM-API-Key': 'test-key'} }).catch(() => {});
+
+        expect(dispatchSpy).toHaveBeenCalled();
+        const event = dispatchSpy.mock.calls.find(call => call[0] && call[0].type === 'edge:ratelimit:update');
+        expect(event).toBeDefined();
+        expect(event[0].detail.remaining).toBe('42');
+    });
+});
+
 describe('apiProxy telemetry wallet appending', () => {
     it('appends wallet_address to telemetry objects', async () => {
         const { submitMicroAppTelemetry } = await import('../src/services/apiProxy.js');

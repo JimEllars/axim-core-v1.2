@@ -79,11 +79,19 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
         });
 
         // Ensure rate limit headers are present if not already
-        if (data && !data.headers) {
+        if (data && typeof data === 'object' && !Array.isArray(data) && !data.headers) {
             data.headers = {};
         }
-        if (data && data.headers && !data.headers['X-AXiM-RateLimit-Remaining']) {
+        if (data && typeof data === 'object' && !Array.isArray(data) && data.headers && !data.headers['X-AXiM-RateLimit-Remaining']) {
             data.headers['X-AXiM-RateLimit-Remaining'] = '99'; // Default or fetched limit
+        }
+
+        if (data && typeof data === 'object' && !Array.isArray(data) && data.headers && data.headers['X-AXiM-RateLimit-Remaining']) {
+            const remaining = data.headers['X-AXiM-RateLimit-Remaining'];
+            if (typeof window !== 'undefined') {
+                const event = new CustomEvent('edge:ratelimit:update', { detail: { remaining } });
+                window.dispatchEvent(event);
+            }
         }
 
         // Log telemetry
