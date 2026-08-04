@@ -484,44 +484,6 @@ describe('Communication Telemetry Hardening', () => {
 });
 
 
-
-
-describe('apiProxy Rate Limit Event', () => {
-    it.skip('dispatches edge:ratelimit:update event when header is present', async () => {
-        const { callApiProxy } = await import('../src/services/apiProxy.js');
-        const { supabase } = await import('../src/services/supabaseClient.js');
-
-        supabase.rpc = vi.fn().mockReturnValue({ catch: vi.fn() });
-        supabase.from = vi.fn((table) => {
-            if(table === 'api_usage_logs') {
-               return { insert: vi.fn().mockReturnValue({ catch: vi.fn() }) };
-            }
-            return { upsert: vi.fn().mockReturnValue({ setHeader: vi.fn().mockResolvedValue({ data: [], error: null }) }) };
-        });
-
-        vi.spyOn(supabase.functions, 'invoke').mockImplementation(async ({ body }) => {
-            return {
-                data: {
-                    headers: {
-                        'X-AXiM-RateLimit-Remaining': '42',
-                        'X-AXiM-API-Key': body.headers ? body.headers['X-AXiM-API-Key'] : undefined
-                    },
-                    status: 200
-                },
-                error: null
-            };
-        });
-
-        const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
-        await callApiProxy({ integrationId: 'test', endpoint: '/test', method: 'GET', headers: {'X-AXiM-API-Key': 'test-key'} }).catch(() => {});
-
-        expect(dispatchSpy).toHaveBeenCalled();
-        const event = dispatchSpy.mock.calls.find(call => call[0] && call[0].type === 'edge:ratelimit:update');
-        expect(event).toBeDefined();
-        expect(event[0].detail.remaining).toBe('42');
-    });
-});
-
 describe('apiProxy telemetry wallet appending', () => {
     it('appends wallet_address to telemetry objects', async () => {
         const { submitMicroAppTelemetry } = await import('../src/services/apiProxy.js');
@@ -559,5 +521,173 @@ describe('apiProxy telemetry wallet appending', () => {
 
         expect(insertedPayload).toBeDefined();
         expect(insertedPayload[0].wallet_address).toBe('0x123abc');
+    });
+});
+
+
+describe('Cloudflare Edge Degradation Resilience', () => {
+    it('dispatches edge:degraded event and returns fallback object on 502/503/504 errors', async () => {
+        vi.resetModules();
+
+        // 1. Mock supabaseClient to simulate a 502 error from supabase.functions.invoke
+        vi.doMock('../src/services/supabaseClient.js', () => {
+            const createChainablePromise = (value) => {
+                const promise = Promise.resolve(value);
+                promise.catch = vi.fn().mockReturnValue(promise);
+                return promise;
+            };
+
+            return {
+                supabase: {
+                    auth: {
+                        getSession: vi.fn().mockReturnValue(createChainablePromise({ data: { session: null } }))
+                    },
+                    rpc: vi.fn().mockReturnValue(createChainablePromise({ data: null, error: null })),
+                    from: vi.fn().mockReturnValue({
+                        insert: vi.fn().mockReturnValue(createChainablePromise({ data: [], error: null })),
+                        upsert: vi.fn().mockReturnValue({ setHeader: vi.fn().mockResolvedValue({ data: [], error: null }) })
+                    }),
+                    functions: {
+                        // Simulate an edge failure
+                        invoke: vi.fn().mockRejectedValue(new Error('502 Bad Gateway from Edge'))
+                    }
+                }
+            };
+        });
+
+        const { callApiProxy } = await import('../src/services/apiProxy.js');
+
+        let dispatchCalled = false;
+
+        const originalDispatch = global.window.dispatchEvent;
+        global.window.dispatchEvent = vi.fn().mockImplementation((event) => {
+            if (event.type === 'edge:degraded') {
+                dispatchCalled = true;
+            }
+        });
+
+        if (typeof global.CustomEvent !== 'function') {
+            global.CustomEvent = class CustomEvent {
+                constructor(type, options) {
+                    this.type = type;
+                    this.detail = options ? options.detail : null;
+                }
+            };
+        }
+
+        const eventsDispatched = [];
+        const listener = (e) => {
+            eventsDispatched.push(e);
+            dispatchCalled = true;
+        };
+        global.window.addEventListener('edge:degraded', listener);
+
+        const result = await callApiProxy({
+            integrationId: 'test',
+            endpoint: '/test',
+            method: 'GET'
+        });
+
+        expect(dispatchCalled).toBe(true);
+        expect(result).toEqual({ error: true, message: "Edge service degraded", fallback: true });
+
+        global.window.dispatchEvent = originalDispatch;
+        global.window.removeEventListener('edge:degraded', listener);
+
+        vi.resetModules();
+    });
+});
+
+describe('apiProxy Rate Limit Event', () => {
+    it('dispatches edge:ratelimit:update event when header is present', async () => {
+        vi.resetModules();
+
+        // Completely mock supabaseClient internally
+        vi.doMock('../src/services/supabaseClient.js', () => {
+            const createChainablePromise = (value) => {
+                const promise = Promise.resolve(value);
+                promise.catch = vi.fn().mockReturnValue(promise);
+                return promise;
+            };
+
+            return {
+                supabase: {
+                    auth: {
+                        getSession: vi.fn().mockReturnValue(createChainablePromise({ data: { session: null } }))
+                    },
+                    rpc: vi.fn().mockReturnValue(createChainablePromise({ data: null, error: null })),
+                    from: vi.fn().mockReturnValue({
+                        insert: vi.fn().mockReturnValue(createChainablePromise({ data: [], error: null })),
+                        upsert: vi.fn().mockReturnValue({ setHeader: vi.fn().mockResolvedValue({ data: [], error: null }) })
+                    }),
+                    functions: {
+                        invoke: vi.fn().mockImplementation(async () => {
+                            return {
+                                data: {
+                                    headers: {
+                                        'X-AXiM-RateLimit-Remaining': '42',
+                                        'X-AXiM-API-Key': 'test-key'
+                                    },
+                                    status: 200
+                                },
+                                error: null
+                            };
+                        })
+                    }
+                }
+            };
+        });
+
+        const { callApiProxy } = await import('../src/services/apiProxy.js');
+
+        let capturedDetail = null;
+        let dispatchCalled = false;
+
+        const originalDispatch = global.window.dispatchEvent;
+        global.window.dispatchEvent = vi.fn().mockImplementation((event) => {
+            if (event.type === 'edge:ratelimit:update') {
+                dispatchCalled = true;
+                capturedDetail = event.detail;
+            }
+        });
+
+        if (typeof global.CustomEvent !== 'function') {
+            global.CustomEvent = class CustomEvent {
+                constructor(type, options) {
+                    this.type = type;
+                    this.detail = options ? options.detail : null;
+                }
+            };
+        }
+
+        const eventsDispatched = [];
+        const listener = (e) => {
+            eventsDispatched.push(e);
+            capturedDetail = e.detail;
+            dispatchCalled = true;
+        };
+        global.window.addEventListener('edge:ratelimit:update', listener);
+
+        try {
+            await callApiProxy({
+                integrationId: 'test',
+                endpoint: '/test',
+                method: 'GET',
+                headers: { 'X-AXiM-API-Key': 'test-key' }
+            });
+        } catch (e) {
+            console.error("API PROXY ERROR:", e);
+        }
+
+        await new Promise(r => setTimeout(r, 10));
+
+        expect(dispatchCalled).toBe(true);
+        expect(capturedDetail).not.toBeNull();
+        expect(capturedDetail.remaining).toBe('42');
+
+        global.window.dispatchEvent = originalDispatch;
+        global.window.removeEventListener('edge:ratelimit:update', listener);
+
+        vi.resetModules();
     });
 });

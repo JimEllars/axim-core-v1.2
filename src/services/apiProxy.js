@@ -71,6 +71,8 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
     }
 
     // Check for X-AXiM-API-Key in headers to track usage
+    console.log("ARE WE IN API-PROXY:", headers);
+    console.log("API PROXY DATA IS", data);
     if (headers && headers['X-AXiM-API-Key']) {
         const apiKey = headers['X-AXiM-API-Key'];
         // Async update to api_keys usage (non-blocking)
@@ -89,8 +91,12 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
         if (data && typeof data === 'object' && !Array.isArray(data) && data.headers && data.headers['X-AXiM-RateLimit-Remaining']) {
             const remaining = data.headers['X-AXiM-RateLimit-Remaining'];
             if (typeof window !== 'undefined') {
-                const event = new CustomEvent('edge:ratelimit:update', { detail: { remaining } });
-                window.dispatchEvent(event);
+                try {
+                    const event = new CustomEvent('edge:ratelimit:update', { detail: { remaining } });
+                    window.dispatchEvent(event);
+                } catch(e) {
+                    console.error("FAILED TO DISPATCH", e);
+                }
             }
         }
 
@@ -123,6 +129,39 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
 
     return data;
   } catch (error) {
+    const isEdgeFault =
+      error.message?.includes('502') ||
+      error.message?.includes('503') ||
+      error.message?.includes('504') ||
+      error.message?.includes('Failed to fetch') ||
+      error.status === 502 ||
+      error.status === 503 ||
+      error.status === 504;
+
+    if (isEdgeFault) {
+        logger.error(`Cloudflare Edge Degradation detected: ${error.message}`);
+
+        if (typeof window !== 'undefined') {
+            try {
+                const event = new CustomEvent('edge:degraded', {
+                    detail: {
+                        error: error.message,
+                        timestamp: new Date().toISOString()
+                    }
+                });
+                window.dispatchEvent(event);
+            } catch(e) {
+                console.error("FAILED TO DISPATCH edge:degraded", e);
+            }
+        }
+
+        return {
+            error: true,
+            message: "Edge service degraded",
+            fallback: true
+        };
+    }
+
     logger.error(`API Proxy Error: ${error.message}`);
     throw new Error(`API Proxy Error: ${error.message}`);
   }
