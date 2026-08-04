@@ -16,7 +16,7 @@ const formatWallet = (address) => {
 };
 
 const UserProfile = () => {
-  const { user, profile, loadUserProfile, walletAddress } = useAuth();
+  const { user, profile, loadUserProfile, walletAddress, disconnectWallet } = useAuth();
   const [fullName, setFullName] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -28,9 +28,16 @@ const UserProfile = () => {
     }
   }, [walletAddress]);
 
-  const handleDisconnectWallet = () => {
-    setLocalWallet(null);
-    toast.success('Wallet disconnected (local session)');
+  const handleDisconnectWallet = async () => {
+    try {
+      if (disconnectWallet) {
+        await disconnectWallet();
+      }
+      setLocalWallet(null);
+      toast.success("Web3 Wallet disconnected");
+    } catch(e) {
+      toast.error("Failed to disconnect wallet");
+    }
   };
 
 

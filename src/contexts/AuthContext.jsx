@@ -225,6 +225,18 @@ export const AuthProvider = ({ children }) => {
   };
 
 
+  const disconnectWallet = useCallback(async () => {
+    try {
+      // If we have any thirdweb or wallet connection logic, clear it here.
+      // For now, just clear local state and cache.
+      setWalletAddress(null);
+      localStorage.removeItem('axim_wallet_session');
+      // If user metadata holds it, optionally update user in Supabase (not requested).
+    } catch(e) {
+      console.error('Error disconnecting wallet', e);
+    }
+  }, []);
+
   const value = {
     user,
     isAuthenticated,
@@ -235,6 +247,7 @@ export const AuthProvider = ({ children }) => {
     loadUserSettings,
     login,
     logout,
+    disconnectWallet,
     loading
   };
 

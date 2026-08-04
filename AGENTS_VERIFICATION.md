@@ -505,3 +505,31 @@ const getActiveWalletAddress = async () => {
 *   **Results:**
     *   Tests completed fully passing across all active blocks (`vitest run tests/api-gateway.test.js`).
 *   **Author:** Jules (Agent)
+
+
+## Wave 84: Un-skip Edge Event Test, Complete Web3 Wallet Disconnect & Edge Fallback Resilience
+
+### Tasks Completed:
+
+1. **Un-skip & Fix Event Dispatch Test (Task 1)**
+   - Addressed module caching issues in Vitest.
+   - Successfully used `vi.doMock` within a `vi.resetModules()` wrapper to dynamically shape the `supabase` client mocked values correctly so that the internal calls within `callApiProxy` wouldn't throw a `TypeError` (cannot read catch of undefined).
+   - Re-enabled `dispatches edge:ratelimit:update event when header is present` in `tests/api-gateway.test.js`.
+
+2. **Web3 Wallet Disconnect Utility (Task 2)**
+   - Implemented `disconnectWallet` routine within `src/contexts/AuthContext.jsx`, designed to clear active wallet caches locally.
+   - Hooked `disconnectWallet` into `src/components/UserProfile.jsx`. Gracefully disconnects by running `setLocalWallet(null)` and fires a success toast without forcing full page reload.
+
+3. **Cloudflare Edge Degradation Resilience (Task 3)**
+   - Enhanced `callApiProxy` inside `src/services/apiProxy.js` with a catch-block to gracefully trap 502/503/504 errors along with failing fetch processes (often encountered with Cloudflare Workers degradation).
+   - The application now returns an object mapping for the frontend to render graceful fallbacks `{ error: true, message: "Edge service degraded", fallback: true }`.
+
+4. **Verification Pass & Quality Gate (Task 4)**
+   - Added a new testing module to validate that Cloudflare edge degradation correctly triggers the payload inside `tests/api-gateway.test.js`.
+   - Test passing at 100% capacity: `Cloudflare Edge Degradation Resilience > dispatches edge:degraded event and returns fallback object on 502/503/504 errors`.
+
+### Files Modified:
+- `tests/api-gateway.test.js`
+- `src/services/apiProxy.js`
+- `src/contexts/AuthContext.jsx`
+- `src/components/UserProfile.jsx`
