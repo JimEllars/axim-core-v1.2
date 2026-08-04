@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "axim-core-dashboard",
+  "name": "axim-core-worker",
   "compatibility_date": "2026-07-09",
   "assets": {
     "directory": "./dist",

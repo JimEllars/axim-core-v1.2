@@ -5,11 +5,11 @@ import { useConnectivity } from '../../contexts/ConnectivityContext';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 
-const { FiLogOut, FiActivity, FiShield, FiCpu } = FiIcons;
+const { FiLogOut, FiActivity, FiShield, FiCpu, FiAlertTriangle } = FiIcons;
 
 const Header = () => {
   const { logout } = useAuth();
-  const { edgeCapacity } = useConnectivity();
+  const { edgeCapacity, edgeDegraded } = useConnectivity();
 
   const handleLogout = () => {
     logout();
@@ -46,10 +46,10 @@ const Header = () => {
                 <span className="text-xs font-medium">Edge Capacity: {edgeCapacity}</span>
               </div>
             )}
-            {edgeCapacity && (
-              <div className="flex items-center space-x-2 text-blue-400 bg-blue-900/20 px-3 py-1 rounded-full">
-                <SafeIcon icon={FiCpu} />
-                <span className="text-xs font-medium">Edge Capacity: {edgeCapacity}</span>
+            {edgeDegraded && (
+              <div className="flex items-center space-x-2 text-amber-400 bg-amber-900/20 px-3 py-1 rounded-full border border-amber-500/30">
+                <SafeIcon icon={FiAlertTriangle} className="animate-pulse" />
+                <span className="text-xs font-medium">Edge Degraded - Active Fallbacks</span>
               </div>
             )}
             
