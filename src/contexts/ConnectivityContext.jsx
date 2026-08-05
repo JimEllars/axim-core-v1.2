@@ -42,11 +42,15 @@ export const ConnectivityProvider = ({ children }) => {
     const handleEdgeDegraded = () => setEdgeDegraded(true);
     window.addEventListener('edge:degraded', handleEdgeDegraded);
 
+    const handleEdgeHealthy = () => setEdgeDegraded(false);
+    window.addEventListener('edge:healthy', handleEdgeHealthy);
+
     const unsubscribe = connectivityManager.subscribe(setIsOnline);
     return () => {
       unsubscribe();
       window.removeEventListener('edge:ratelimit:update', handleEdgeCapacityUpdate);
       window.removeEventListener('edge:degraded', handleEdgeDegraded);
+      window.removeEventListener('edge:healthy', handleEdgeHealthy);
     };
   }, []);
 

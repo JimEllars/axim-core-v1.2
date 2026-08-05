@@ -584,3 +584,98 @@ const getActiveWalletAddress = async () => {
      "test": "NODE_OPTIONS=\"--max-old-space-size=4096\" vitest run --coverage",
      ```
    - **Proving Test Name:** script execution memory profile verification.
+
+### Proof-of-Fix: Wave 86 - Edge Health Auto-Recovery Event, Live Telemetry UI Parity & Cache Control Hardening
+**Date:** $(date +%Y-%m-%d)
+**Branch:** `wave86-edge-recovery-ui-parity`
+
+1. **Target File & Line Range:** `src/services/apiProxy.js` (Lines ~163-172)
+   - **Exact Code Snippet:**
+     ```javascript
+    if (typeof window !== 'undefined') {
+      try {
+        const event = new CustomEvent('edge:healthy', {
+          detail: { timestamp: new Date().toISOString() }
+        });
+        window.dispatchEvent(event);
+      } catch (e) {
+        console.error("FAILED TO DISPATCH edge:healthy", e);
+      }
+    }
+     ```
+   - **Proving Test Name:** `apiProxy Healthy Event > dispatches edge:healthy event on successful HTTP 200 response`
+
+2. **Target File & Line Range:** `src/contexts/ConnectivityContext.jsx` (Lines ~37-41)
+   - **Exact Code Snippet:**
+     ```javascript
+    const handleEdgeHealthy = () => setEdgeDegraded(false);
+    window.addEventListener('edge:healthy', handleEdgeHealthy);
+     ```
+   - **Proving Test Name:** Event registration visual check.
+
+3. **Target File & Line Range:** `src/components/command/SystemStatus.jsx` (Lines ~75-92)
+   - **Exact Code Snippet:**
+     ```javascript
+        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-onyx-accent/20">
+          <div>
+            <p className="text-xs text-slate-400">Edge Capacity</p>
+            <div className="flex items-center space-x-2 mt-1">
+              <SafeIcon icon={FiCloud} className="text-blue-400" />
+              <p className="text-lg font-bold text-white">
+                {edgeCapacity ? \`\${edgeCapacity} req/m\` : 'N/A'}
+              </p>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">Edge Status</p>
+            <div className="flex items-center space-x-2 mt-1">
+              {edgeDegraded ? (
+                <>
+                  <SafeIcon icon={FiAlertTriangle} className="text-red-500 animate-pulse" />
+                  <p className="text-sm font-bold text-red-400">Degraded</p>
+                </>
+              ) : (
+                <>
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <p className="text-sm font-bold text-green-400">Healthy</p>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+     ```
+   - **Proving Test Name:** layout parity verification.
+
+4. **Target File & Line Range:** `src/components/commandhub/CommandHubHeader.jsx` (Lines ~16-29)
+   - **Exact Code Snippet:**
+     ```javascript
+      <div className="flex flex-col items-end gap-2">
+        {edgeDegraded && (
+          <div className="flex items-center space-x-2 text-red-500 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
+            <SafeIcon icon={FiAlertTriangle} className="animate-pulse" />
+            <span className="text-sm font-semibold">Edge Degraded - Active Fallbacks</span>
+          </div>
+        )}
+        {edgeCapacity && (
+           <div className="flex items-center space-x-2 text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">
+             <SafeIcon icon={FiCloud} />
+             <span className="text-sm font-semibold">{edgeCapacity} req/m</span>
+           </div>
+        )}
+      </div>
+     ```
+   - **Proving Test Name:** layout parity verification.
+
+5. **Target File & Line Range:** `public/_headers` (Lines 1-8)
+   - **Exact Code Snippet:**
+     ```http
+     /*
+       X-Frame-Options: DENY
+       X-Content-Type-Options: nosniff
+       Referrer-Policy: strict-origin-when-cross-origin
+       Cache-Control: no-cache, no-store, must-revalidate
+
+     /assets/*
+       Cache-Control: public, max-age=31536000, immutable
+     ```
+   - **Proving Test Name:** Visual check / Header hardening verification.
