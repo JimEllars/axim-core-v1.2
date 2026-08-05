@@ -533,3 +533,54 @@ const getActiveWalletAddress = async () => {
 - `src/services/apiProxy.js`
 - `src/contexts/AuthContext.jsx`
 - `src/components/UserProfile.jsx`
+
+### Proof-of-Fix: Wave 85 - Cloudflare Worker Deployment Fix, Edge Capacity UI Integration & Heap Memory Optimization
+**Date:** $(date +%Y-%m-%d)
+**Branch:** `wave85-cf-worker-deploy-fix`
+
+1. **Target File & Line Range:** `public/_redirects`, `wrangler.jsonc`
+   - **Exact Code Snippet:** `public/_redirects` deleted.
+     ```jsonc
+     "name": "axim-core-worker",
+     "assets": {
+       "directory": "./dist",
+       "not_found_handling": "single-page-application"
+     },
+     ```
+   - **Proving Test Name:** visual check / deployment configuration verification.
+
+2. **Target File & Line Range:** `src/contexts/ConnectivityContext.jsx` (Lines ~16-43)
+   - **Exact Code Snippet:**
+     ```javascript
+     const [edgeDegraded, setEdgeDegraded] = useState(false);
+     ...
+     const handleEdgeCapacityUpdate = (event) => {
+       if (event.detail && event.detail.remaining) {
+         setEdgeCapacity(event.detail.remaining);
+         setEdgeDegraded(false);
+       }
+     };
+     ...
+     const handleEdgeDegraded = () => setEdgeDegraded(true);
+     window.addEventListener('edge:degraded', handleEdgeDegraded);
+     ```
+   - **Proving Test Name:** manual context check.
+
+3. **Target File & Line Range:** `src/components/dashboard/Header.jsx` (Lines ~48-53)
+   - **Exact Code Snippet:**
+     ```javascript
+     {edgeDegraded && (
+       <div className="flex items-center space-x-2 text-amber-400 bg-amber-900/20 px-3 py-1 rounded-full border border-amber-500/30">
+         <SafeIcon icon={FiAlertTriangle} className="animate-pulse" />
+         <span className="text-xs font-medium">Edge Degraded - Active Fallbacks</span>
+       </div>
+     )}
+     ```
+   - **Proving Test Name:** manual component trace verification.
+
+4. **Target File & Line Range:** `package.json` (Line ~16)
+   - **Exact Code Snippet:**
+     ```json
+     "test": "NODE_OPTIONS=\"--max-old-space-size=4096\" vitest run --coverage",
+     ```
+   - **Proving Test Name:** script execution memory profile verification.
