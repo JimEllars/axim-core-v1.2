@@ -6,6 +6,7 @@ import api from '../../services/onyxAI/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
 import { useDashboard } from '../../contexts/DashboardContext';
+import { invalidateCache } from '../../hooks/useSupabaseQuery';
 
 const { FiPlus, FiUser, FiMail, FiSend, FiCheck, FiX, FiChevronDown, FiBriefcase, FiRefreshCw } = FiIcons;
 
@@ -135,6 +136,7 @@ const IngestLeadForm = () => {
       await api.addContact(formData.name, formData.email, 'manual_dashboard_ingest');
       toast.success("Lead ingested successfully!");
       setFormData({ name: '', email: '' });
+      invalidateCache('get_recent_contacts');
       refreshDashboard();
     } catch (error) {
       console.error('Error adding contact:', error);

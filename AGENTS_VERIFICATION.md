@@ -39,3 +39,37 @@ Wave 87 tasks successfully implemented according to constraints and user directi
 * **Files Modified**: `vitest.config.js`
 * **Fix**: Added explicit exclusion strings `exclude: ['dist/**', 'cloudflare-workers/**', 'satellite/**']` to the `coverage` block so that the Vitest reports focus purely on React DOM components.
 * **Test Verification**: Ran `npm run test tests/api-gateway.test.js` with the modified `vitest.config.js` and confirmed that output cleanly omits those excluded backend directories.
+
+### Wave 89: Background Sync UI, Queue Arithmetic Hardening & Mutation Invalidation
+
+**Summary of Fixes:**
+- Exposed `isRefetching` indicator in `useSupabaseQuery` hook.
+- Added `invalidateCache` to explicitely evict keys from `useSupabaseQuery` cache.
+- Integrated spinning refetch icon into `RecentWorkflows` UI.
+- Hardened job progress formula in `JobQueueMonitor` to avoid exceeding 100% and avoid non-integers.
+- Updated `ActionPanel` "Ingest Lead" action to trigger cache invalidation for `get_recent_contacts` so Contact Manager is properly refreshed.
+
+**Files modified:**
+- `src/hooks/useSupabaseQuery.js`
+- `src/components/dashboard/RecentWorkflows.jsx`
+- `src/components/dashboard/JobQueueMonitor.jsx`
+- `src/components/dashboard/ActionPanel.jsx`
+
+**Code Snippet of `useSupabaseQuery` (invalidateCache):**
+```javascript
+export const invalidateCache = (rpcName) => {
+  queryCache.delete(rpcName);
+};
+```
+
+**Code Snippet of `JobQueueMonitor` (progress bar calculation):**
+```javascript
+<div
+  className="bg-blue-500 h-4 rounded-full transition-all duration-500"
+  style={{ width: \`\${jobs.length > 0 ? Math.min(100, Math.max(0, Math.round((summary.completed / jobs.length) * 100))) : 0}%\` }}
+></div>
+```
+
+**Tests run:**
+- Tests in `ui-smoke.test.jsx` passed.
+- Tests in `api-gateway.test.js` passed.
