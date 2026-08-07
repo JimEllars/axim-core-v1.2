@@ -7,5 +7,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.js'],
     globals: true,
+    coverage: {
+      exclude: ['dist/**', 'cloudflare-workers/**', 'satellite/**']
+    }
   },
 })

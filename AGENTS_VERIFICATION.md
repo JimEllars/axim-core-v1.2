@@ -22,3 +22,20 @@
 
 ### Conclusion
 Wave 87 tasks successfully implemented according to constraints and user directives, retaining 100% test passing accuracy across the verified components.
+
+## Wave 88: Supabase Hook Revalidation, Contact Manager Empty States & Vitest Coverage Constraints
+
+### Supabase Query Hook "Stale-While-Revalidate" Pattern
+* **Files Modified**: `src/hooks/useSupabaseQuery.js`
+* **Fix**: Implemented a global `queryCache` using a `Map()`. The hook now initializes its `data` state with `queryCache.get(rpcName) || []` and sets `loading` to `false` initially if the data is present in the cache, avoiding UI flicker. Data fetch runs seamlessly in the background and updates the cache (`queryCache.set`) and state immediately upon resolution.
+* **Test Verification**: Checked with linting.
+
+### Contact Manager Empty State UX
+* **Files Modified**: `src/components/dashboard/ContactManager.jsx`
+* **Fix**: Replaced the basic "No contacts found." text row with a detailed Cyber-Onyx styled container component (`glass-effect p-8 rounded-xl border border-dashed border-onyx-accent/40 text-center flex flex-col items-center justify-center`). Added the `FiUsers` icon and an explicit call-to-action message to ingest leads via the Action Panel.
+* **Test Verification**: Verified changes are saved and linting successfully passes.
+
+### Vitest Coverage Exclusions
+* **Files Modified**: `vitest.config.js`
+* **Fix**: Added explicit exclusion strings `exclude: ['dist/**', 'cloudflare-workers/**', 'satellite/**']` to the `coverage` block so that the Vitest reports focus purely on React DOM components.
+* **Test Verification**: Ran `npm run test tests/api-gateway.test.js` with the modified `vitest.config.js` and confirmed that output cleanly omits those excluded backend directories.
