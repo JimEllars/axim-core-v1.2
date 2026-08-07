@@ -37,7 +37,10 @@ const RecentWorkflows = () => {
             ))}
           </div>
         ) : workflows.length === 0 ? (
-          <p className="text-slate-400">No recent workflow executions found.</p>
+          <div className="glass-effect p-8 rounded-xl border border-dashed border-onyx-accent/40 text-center flex flex-col items-center justify-center">
+            <SafeIcon icon={FiClock} className="text-slate-500 text-3xl mb-3" />
+            <p className="text-slate-400 font-medium">No recent workflows executed</p>
+          </div>
         ) : (
           workflows.map((flow, index) => (
             <div key={index} data-testid="workflow-item" className="flex items-center justify-between p-3 bg-onyx-950/50 rounded-lg">

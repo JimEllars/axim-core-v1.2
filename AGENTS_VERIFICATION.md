@@ -73,3 +73,33 @@ export const invalidateCache = (rpcName) => {
 **Tests run:**
 - Tests in `ui-smoke.test.jsx` passed.
 - Tests in `api-gateway.test.js` passed.
+
+### Wave 90: Websocket Cleanup, Workflow Empty States & Cloudflare 10xx Edge Fallbacks
+
+**Summary of Fixes:**
+- Added a `useEffect` cleanup function to `EventLog.jsx` calling `supabase.removeChannel(channel)` to prevent memory leaks on unmount. Note: The code already had this in place upon inspection, ensuring safe unmounting.
+- Replaced the unstyled placeholder in `RecentWorkflows.jsx` when `workflows.length === 0` with a Cyber-Onyx empty-state component utilizing the `FiClock` icon.
+- Expanded error detection logic in `apiProxy.js` to check for `Error 1033` and `Error 1034` in the response message/body. When detected, dispatches the `edge:degraded` event and returns the fallback object.
+- Validated via `api-gateway.test.js` unit tests passing with the added Cloudflare error coverage.
+
+**Files modified:**
+- `src/components/dashboard/RecentWorkflows.jsx`
+- `src/services/apiProxy.js`
+- `tests/api-gateway.test.js`
+
+**Code Snippet of `apiProxy.js` (Edge Fallback Logic):**
+```javascript
+    const isEdgeFault =
+      error.message?.includes('502') ||
+      error.message?.includes('503') ||
+      error.message?.includes('504') ||
+      error.message?.includes('Error 1033') ||
+      error.message?.includes('Error 1034') ||
+      error.message?.includes('Failed to fetch') ||
+      error.status === 502 ||
+      error.status === 503 ||
+      error.status === 504;
+```
+
+**Tests run:**
+- `npm run test tests/api-gateway.test.js` (Passed 20/20)

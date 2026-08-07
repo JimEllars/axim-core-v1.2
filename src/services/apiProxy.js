@@ -144,6 +144,8 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
       error.message?.includes('502') ||
       error.message?.includes('503') ||
       error.message?.includes('504') ||
+      error.message?.includes('Error 1033') ||
+      error.message?.includes('Error 1034') ||
       error.message?.includes('Failed to fetch') ||
       error.status === 502 ||
       error.status === 503 ||
