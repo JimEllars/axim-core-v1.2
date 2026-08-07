@@ -691,3 +691,87 @@ describe('apiProxy Rate Limit Event', () => {
         vi.resetModules();
     });
 });
+
+describe('apiProxy Healthy Event', () => {
+    it('dispatches edge:healthy event on successful HTTP 200 response', async () => {
+        vi.resetModules();
+
+        // Completely mock supabaseClient internally
+        vi.doMock('../src/services/supabaseClient.js', () => {
+            const createChainablePromise = (value) => {
+                const promise = Promise.resolve(value);
+                promise.catch = vi.fn().mockReturnValue(promise);
+                return promise;
+            };
+
+            return {
+                supabase: {
+                    auth: {
+                        getSession: vi.fn().mockReturnValue(createChainablePromise({ data: { session: null } }))
+                    },
+                    rpc: vi.fn().mockReturnValue(createChainablePromise({ data: null, error: null })),
+                    from: vi.fn().mockReturnValue({
+                        insert: vi.fn().mockReturnValue(createChainablePromise({ data: [], error: null })),
+                        upsert: vi.fn().mockReturnValue({ setHeader: vi.fn().mockResolvedValue({ data: [], error: null }) })
+                    }),
+                    functions: {
+                        invoke: vi.fn().mockImplementation(async () => {
+                            return {
+                                data: {
+                                    status: 200
+                                },
+                                error: null
+                            };
+                        })
+                    }
+                }
+            };
+        });
+
+        const { callApiProxy } = await import('../src/services/apiProxy.js');
+
+        let dispatchCalled = false;
+
+        const originalDispatch = global.window.dispatchEvent;
+        global.window.dispatchEvent = vi.fn().mockImplementation((event) => {
+            if (event.type === 'edge:healthy') {
+                dispatchCalled = true;
+            }
+        });
+
+        if (typeof global.CustomEvent !== 'function') {
+            global.CustomEvent = class CustomEvent {
+                constructor(type, options) {
+                    this.type = type;
+                    this.detail = options ? options.detail : null;
+                }
+            };
+        }
+
+        const eventsDispatched = [];
+        const listener = (e) => {
+            eventsDispatched.push(e);
+            dispatchCalled = true;
+        };
+        global.window.addEventListener('edge:healthy', listener);
+
+        try {
+            await callApiProxy({
+                integrationId: 'test',
+                endpoint: '/test',
+                method: 'GET'
+            });
+        } catch (e) {
+            console.error("API PROXY ERROR:", e);
+        }
+
+        await new Promise(r => setTimeout(r, 10));
+
+        expect(dispatchCalled).toBe(true);
+
+        global.window.dispatchEvent = originalDispatch;
+        global.window.removeEventListener('edge:healthy', listener);
+
+        vi.resetModules();
+    });
+});

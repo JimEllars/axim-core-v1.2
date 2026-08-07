@@ -3,10 +3,12 @@ import { supabase } from '../../services/supabaseClient';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
+import { useConnectivity } from '../../contexts/ConnectivityContext';
 
-const { FiActivity } = FiIcons;
+const { FiActivity, FiAlertTriangle, FiCloud } = FiIcons;
 
 const SystemStatus = ({ stats = {} }) => {
+  const { edgeCapacity, edgeDegraded } = useConnectivity();
   const [fleetHealth, setFleetHealth] = useState({ status: 'loading', failedApps: [] });
 
   useEffect(() => {
@@ -80,6 +82,35 @@ const SystemStatus = ({ stats = {} }) => {
           <div>
             <p className="text-xs text-slate-400">Live Connections</p>
             <p className="text-lg font-bold text-blue-400">{activeConnections}</p>
+          </div>
+        </div>
+
+
+        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-onyx-accent/20">
+          <div>
+            <p className="text-xs text-slate-400">Edge Capacity</p>
+            <div className="flex items-center space-x-2 mt-1">
+              <SafeIcon icon={FiCloud} className="text-blue-400" />
+              <p className="text-lg font-bold text-white">
+                {edgeCapacity ? `${edgeCapacity} req/m` : 'N/A'}
+              </p>
+            </div>
+          </div>
+          <div>
+            <p className="text-xs text-slate-400">Edge Status</p>
+            <div className="flex items-center space-x-2 mt-1">
+              {edgeDegraded ? (
+                <>
+                  <SafeIcon icon={FiAlertTriangle} className="text-red-500 animate-pulse" />
+                  <p className="text-sm font-bold text-red-400">Degraded</p>
+                </>
+              ) : (
+                <>
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <p className="text-sm font-bold text-green-400">Healthy</p>
+                </>
+              )}
+            </div>
           </div>
         </div>
 

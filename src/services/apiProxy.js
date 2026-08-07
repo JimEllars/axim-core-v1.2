@@ -127,6 +127,17 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
       throw new Error(`API Error: ${data.error}`);
     }
 
+    if (typeof window !== 'undefined') {
+      try {
+        const event = new CustomEvent('edge:healthy', {
+          detail: { timestamp: new Date().toISOString() }
+        });
+        window.dispatchEvent(event);
+      } catch (e) {
+        console.error("FAILED TO DISPATCH edge:healthy", e);
+      }
+    }
+
     return data;
   } catch (error) {
     const isEdgeFault =
