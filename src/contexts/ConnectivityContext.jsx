@@ -1,6 +1,7 @@
 // src/contexts/ConnectivityContext.jsx
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import connectivityManager from '../services/connectivityManager';
+import offlineManager from '../services/offline';
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const ConnectivityContext = createContext({
@@ -23,13 +24,13 @@ export const ConnectivityProvider = ({ children }) => {
   const [edgeDegraded, setEdgeDegraded] = useState(false);
   const [offlineTelemetryCache, setOfflineTelemetryCache] = useState([]);
 
-  const addOfflineTelemetry = (telemetryData) => {
+  const addOfflineTelemetry = useCallback((telemetryData) => {
     setOfflineTelemetryCache(prev => [...prev, telemetryData]);
-  };
+  }, []);
 
-  const clearOfflineTelemetry = () => {
+  const clearOfflineTelemetry = useCallback(() => {
     setOfflineTelemetryCache([]);
-  };
+  }, []);
 
   useEffect(() => {
     const handleEdgeCapacityUpdate = (event) => {
@@ -53,6 +54,18 @@ export const ConnectivityProvider = ({ children }) => {
       window.removeEventListener('edge:healthy', handleEdgeHealthy);
     };
   }, []);
+
+  // Process queued items and clear telemetry cache when online
+  useEffect(() => {
+    let mounted = true;
+    if (isOnline && mounted) {
+      offlineManager.processQueue().then(() => {
+        if (mounted) clearOfflineTelemetry();
+      });
+    }
+    return () => { mounted = false; };
+  }, [isOnline, clearOfflineTelemetry]);
+
 
   return (
     <ConnectivityContext.Provider value={{

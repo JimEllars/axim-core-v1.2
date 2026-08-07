@@ -90,9 +90,18 @@ const PredictiveInsights = ({ supabase }) => {
   );
 };
 
-
-const KPICard = ({ title, value, change, icon: Icon, color, info }) => (
-  <div className="glass-effect rounded-xl p-6 border border-onyx-accent/20 flex flex-col justify-between hover:border-onyx-accent/50 transition-colors min-h-[160px]" style={{ background: "rgba(10, 10, 12, 0.45)", backdropFilter: "blur(16px)" }}>
+const KPICard = ({ title, value, change, icon: Icon, color, info, loading }) => {
+  if (loading) {
+    return (
+      <div className="glass-effect rounded-xl p-6 border border-onyx-accent/20 flex flex-col justify-between transition-colors min-h-[160px] animate-pulse" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+        <div className="h-4 bg-slate-800 rounded w-1/2 mb-4"></div>
+        <div className="h-8 bg-slate-800 rounded w-3/4 mb-2"></div>
+        <div className="h-4 bg-slate-800 rounded w-1/3"></div>
+      </div>
+    );
+  }
+  return (
+  <div className="glass-effect rounded-xl p-6 border border-onyx-accent/20 flex flex-col justify-between hover:border-onyx-accent/50 transition-colors min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
     <div className="flex justify-between items-start">
       <div>
         <h3 className="text-slate-400 text-sm font-medium">{title}</h3>
