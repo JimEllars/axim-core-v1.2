@@ -8,7 +8,7 @@ import OfflineIndicator from '../OfflineIndicator';
 describe('OfflineIndicator', () => {
   it('should not render when the user is online', () => {
     render(
-      <ConnectivityContext.Provider value={true}>
+      <ConnectivityContext.Provider value={{ isOnline: true }}>
         <OfflineIndicator />
       </ConnectivityContext.Provider>
     );
@@ -17,7 +17,7 @@ describe('OfflineIndicator', () => {
 
   it('should render when the user is offline', () => {
     render(
-      <ConnectivityContext.Provider value={false}>
+      <ConnectivityContext.Provider value={{ isOnline: false }}>
         <OfflineIndicator />
       </ConnectivityContext.Provider>
     );

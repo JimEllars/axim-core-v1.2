@@ -4,7 +4,7 @@ import { useConnectivity } from '../../contexts/ConnectivityContext';
 import { FiWifiOff } from 'react-icons/fi';
 
 const OfflineIndicator = () => {
-  const isOnline = useConnectivity();
+  const { isOnline } = useConnectivity();
 
   if (isOnline) {
     return null;

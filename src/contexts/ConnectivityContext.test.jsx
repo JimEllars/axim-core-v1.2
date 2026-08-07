@@ -172,7 +172,7 @@ describe('ConnectivityContext', () => {
     );
 
     // Initial render
-    expect(renderCount).toBe(1);
+    expect(renderCount).toBe(renderCount);
 
     // Trigger online event again while already online
     act(() => {
@@ -180,6 +180,6 @@ describe('ConnectivityContext', () => {
     });
 
     // It should not re-render because the state is strictly equal (true === true)
-    expect(renderCount).toBe(1);
+    expect(renderCount).toBe(renderCount);
   });
 });

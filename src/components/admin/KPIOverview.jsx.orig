@@ -121,8 +121,7 @@ const KPICard = ({ title, value, change, icon: Icon, color, info, loading }) => 
       {info && <span className="text-xs text-slate-500 mt-1">{info}</span>}
     </div>
   </div>
-  );
-};
+);
 
 const KPIOverview = () => {
   const { supabase } = useSupabase();
