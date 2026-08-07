@@ -3,23 +3,30 @@ import toast from 'react-hot-toast';
 import logger from '../services/logging';
 import { supabase } from '../services/supabaseClient';
 import { useDashboard } from '../contexts/DashboardContext';
+
 /**
  * A custom hook for fetching data from a Supabase RPC function.
  * @param {string} rpcName The name of the Supabase RPC function to call.
  * @param {object} [options] Options for the query.
  * @param {boolean} [options.autoFetch=true] Whether to fetch the data automatically on mount.
- * @returns {{data: any[], loading: boolean, error: Error|null, refetch: () => Promise<void>}}
+ * @returns {{data: any[], loading: boolean, error: Error|null, refetch: () => Promise<void>, isRefetching: boolean}}
  */
 const queryCache = new Map();
+
+export const invalidateCache = (rpcName) => {
+  queryCache.delete(rpcName);
+};
 
 export const useSupabaseQuery = (rpcName, { autoFetch = true } = {}) => {
   const [data, setData] = useState(() => queryCache.get(rpcName) || []);
   const [loading, setLoading] = useState(() => autoFetch && !queryCache.has(rpcName));
+  const [isRefetching, setIsRefetching] = useState(false);
   const [error, setError] = useState(null);
   const { refreshKey } = useDashboard();
 
   const fetchData = useCallback(async () => {
     if (!queryCache.has(rpcName)) setLoading(true);
+    setIsRefetching(true);
     setError(null);
     try {
       const { data, error } = await supabase.rpc(rpcName);
@@ -43,6 +50,7 @@ export const useSupabaseQuery = (rpcName, { autoFetch = true } = {}) => {
       setError(error);
     } finally {
       setLoading(false);
+      setIsRefetching(false);
     }
   }, [rpcName]);
 
@@ -52,5 +60,5 @@ export const useSupabaseQuery = (rpcName, { autoFetch = true } = {}) => {
     }
   }, [fetchData, autoFetch, refreshKey]);
 
-  return { data, loading, error, refetch: fetchData };
+  return { data, loading, error, refetch: fetchData, isRefetching };
 };

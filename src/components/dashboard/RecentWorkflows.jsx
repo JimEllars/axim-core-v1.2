@@ -5,10 +5,10 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
 import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 
-const { FiZap, FiCheckCircle, FiXCircle, FiClock } = FiIcons;
+const { FiZap, FiCheckCircle, FiXCircle, FiClock, FiRefreshCw } = FiIcons;
 
 const RecentWorkflows = () => {
-  const { data: workflows, loading } = useSupabaseQuery('get_recent_workflow_runs');
+  const { data: workflows, loading, isRefetching } = useSupabaseQuery('get_recent_workflow_runs');
 
   return (
     <motion.div
@@ -17,7 +17,10 @@ const RecentWorkflows = () => {
       className="glass-effect p-6 rounded-xl min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
     >
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-xl font-bold text-white">Recent Workflows</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-xl font-bold text-white">Recent Workflows</h3>
+          {isRefetching && <SafeIcon icon={FiRefreshCw} className="animate-spin text-slate-400" />}
+        </div>
         <SafeIcon icon={FiZap} className="text-yellow-400" />
       </div>
       <div className="space-y-4">

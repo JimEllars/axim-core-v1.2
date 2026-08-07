@@ -136,6 +136,21 @@ const JobQueueMonitor = () => {
         ))}
       </div>
 
+
+      {/* Overall Progress */}
+      <div className="mb-8">
+        <h3 className="text-sm text-gray-400 uppercase tracking-wider mb-2 flex justify-between">
+            <span>Queue Progress</span>
+            <span>{jobs.length > 0 ? Math.min(100, Math.max(0, Math.round((summary.completed / jobs.length) * 100))) : 0}%</span>
+        </h3>
+        <div className="w-full bg-gray-700 rounded-full h-4">
+          <div
+            className="bg-blue-500 h-4 rounded-full transition-all duration-500"
+            style={{ width: `${jobs.length > 0 ? Math.min(100, Math.max(0, Math.round((summary.completed / jobs.length) * 100))) : 0}%` }}
+          ></div>
+        </div>
+      </div>
+
       {/* Data Table */}
       <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
         <table className="w-full text-left text-sm">
