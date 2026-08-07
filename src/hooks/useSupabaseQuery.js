@@ -10,14 +10,16 @@ import { useDashboard } from '../contexts/DashboardContext';
  * @param {boolean} [options.autoFetch=true] Whether to fetch the data automatically on mount.
  * @returns {{data: any[], loading: boolean, error: Error|null, refetch: () => Promise<void>}}
  */
+const queryCache = new Map();
+
 export const useSupabaseQuery = (rpcName, { autoFetch = true } = {}) => {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(autoFetch);
+  const [data, setData] = useState(() => queryCache.get(rpcName) || []);
+  const [loading, setLoading] = useState(() => autoFetch && !queryCache.has(rpcName));
   const [error, setError] = useState(null);
   const { refreshKey } = useDashboard();
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
+    if (!queryCache.has(rpcName)) setLoading(true);
     setError(null);
     try {
       const { data, error } = await supabase.rpc(rpcName);
@@ -33,6 +35,7 @@ export const useSupabaseQuery = (rpcName, { autoFetch = true } = {}) => {
         toast.error(`No data returned from ${rpcName}. Check permissions.`, { id: 'rls-warning' });
       }
 
+      queryCache.set(rpcName, data);
       setData(data);
     } catch (error) {
       toast.error(`Error fetching data from ${rpcName}`);

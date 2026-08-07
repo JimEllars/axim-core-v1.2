@@ -130,8 +130,14 @@ const ContactManager = () => {
               </tr>
             ) : currentItems.length === 0 ? (
                 <tr>
-                    <td colSpan="5" className="text-center p-8 text-slate-500">
-                        No contacts found.
+                    <td colSpan="5" className="p-8">
+                        <div className="glass-effect p-8 rounded-xl border border-dashed border-onyx-accent/40 text-center flex flex-col items-center justify-center">
+                            <SafeIcon icon={FiUsers} className="text-slate-500 text-4xl mb-4" />
+                            <h3 className="text-lg font-semibold text-slate-300 mb-2">No Contacts Found</h3>
+                            <p className="text-sm text-slate-500">
+                                Ingest leads via the Action Panel to populate your Contact Relationship Manager.
+                            </p>
+                        </div>
                     </td>
                 </tr>
             ) : currentItems.map((contact) => (
