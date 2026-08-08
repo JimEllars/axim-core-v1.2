@@ -1,11 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useJulesSession } from '../../hooks/useJulesSession';
 import { julesApi } from '../../services/jules/julesApi';
 import toast from 'react-hot-toast';
-import { FiCpu, FiCheckCircle, FiLoader, FiAlertTriangle, FiGithub } from 'react-icons/fi';
+import { FiCpu, FiCheckCircle, FiLoader, FiAlertTriangle, FiGithub, FiSend } from 'react-icons/fi';
 
 const JulesStatusPanel = ({ activeSessionId }) => {
-  const { session, state, error } = useJulesSession(activeSessionId);
+  const { session, state, error, activities } = useJulesSession(activeSessionId);
+  const [replyPrompt, setReplyPrompt] = useState('');
+  const [isSending, setIsSending] = useState(false);
 
   const handleApprove = async () => {
     const success = await julesApi.approvePlan(activeSessionId);
@@ -13,6 +15,20 @@ const JulesStatusPanel = ({ activeSessionId }) => {
       toast.success("Jules Plan Approved");
     } else {
       toast.error("Failed to approve Jules plan");
+    }
+  };
+
+  const handleSendReply = async () => {
+    if (!replyPrompt.trim()) return;
+    setIsSending(true);
+    try {
+      await julesApi.sendMessage(activeSessionId, replyPrompt);
+      toast.success("Message sent to Jules");
+      setReplyPrompt('');
+    } catch (err) {
+      toast.error("Failed to send message to Jules");
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -32,6 +48,7 @@ const JulesStatusPanel = ({ activeSessionId }) => {
       case 'IN_PROGRESS':
         return 'text-blue-400';
       case 'AWAITING_PLAN_APPROVAL':
+      case 'AWAITING_USER_FEEDBACK':
         return 'text-amber-400';
       case 'COMPLETED':
         return 'text-emerald-400';
@@ -49,6 +66,7 @@ const JulesStatusPanel = ({ activeSessionId }) => {
       case 'IN_PROGRESS':
         return <FiLoader className="w-5 h-5 animate-spin" />;
       case 'AWAITING_PLAN_APPROVAL':
+      case 'AWAITING_USER_FEEDBACK':
         return <FiAlertTriangle className="w-5 h-5 animate-pulse" />;
       case 'COMPLETED':
         return <FiCheckCircle className="w-5 h-5" />;
@@ -86,20 +104,35 @@ const JulesStatusPanel = ({ activeSessionId }) => {
           <p className="text-xs opacity-70 mt-1">{error.message}</p>
         </div>
       ) : session ? (
-        <div className="flex-grow flex flex-col space-y-4">
+        <div className="flex-grow flex flex-col space-y-4 max-h-full overflow-hidden">
           <div>
             <h4 className="text-xs text-slate-400 font-mono tracking-wider uppercase mb-1">Title</h4>
-            <p className="text-white text-sm font-medium">{session.title || 'Untitled Session'}</p>
+            <p className="text-white text-sm font-medium truncate">{session.title || 'Untitled Session'}</p>
           </div>
 
-          <div>
-            <h4 className="text-xs text-slate-400 font-mono tracking-wider uppercase mb-1">Prompt</h4>
-            <div className="bg-black/30 p-3 rounded-lg border border-white/5 text-sm text-slate-300 max-h-24 overflow-y-auto">
-              {session.prompt || 'No prompt provided.'}
+          <div className="flex-grow flex flex-col overflow-hidden">
+            <h4 className="text-xs text-slate-400 font-mono tracking-wider uppercase mb-1">Activity Log</h4>
+            <div className="flex-grow bg-black/30 p-3 rounded-lg border border-white/5 overflow-y-auto space-y-2">
+              {activities && activities.length > 0 ? (
+                activities.map((activity, index) => (
+                  <div key={index} className="text-sm border-b border-white/5 pb-2 last:border-0 last:pb-0">
+                    <span className="text-blue-400 font-mono mr-2">
+                      [{new Date(activity.createTime).toLocaleTimeString()}]
+                    </span>
+                    <span className="text-slate-300">
+                      {activity.planGenerated ? 'Plan Generated' :
+                       activity.progressUpdated ? 'Progress Updated' :
+                       activity.agentMessaged ? 'Agent Messaged' : 'Activity'}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="text-sm text-slate-500 italic">No activities yet.</div>
+              )}
             </div>
           </div>
 
-          <div className="mt-auto pt-4 space-y-3">
+          <div className="pt-2 space-y-3 shrink-0">
             {state === 'AWAITING_PLAN_APPROVAL' && (
               <button
                 onClick={handleApprove}
@@ -109,6 +142,23 @@ const JulesStatusPanel = ({ activeSessionId }) => {
                 Approve Plan
               </button>
             )}
+
+            <div className={`flex flex-col gap-2 p-3 rounded-lg border ${state === 'AWAITING_USER_FEEDBACK' ? 'bg-amber-500/10 border-amber-500/30' : 'bg-black/20 border-white/10'}`}>
+              <textarea
+                value={replyPrompt}
+                onChange={(e) => setReplyPrompt(e.target.value)}
+                placeholder="Send a message to Jules..."
+                className="w-full bg-transparent border-0 text-sm text-white focus:ring-0 resize-none h-16 p-0"
+              />
+              <button
+                onClick={handleSendReply}
+                disabled={isSending || !replyPrompt.trim()}
+                className="self-end flex items-center justify-center gap-2 px-4 py-2 rounded bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-all font-mono text-xs font-bold uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSending ? <FiLoader className="animate-spin" /> : <FiSend />}
+                Send Reply
+              </button>
+            </div>
 
             {session.outputs && session.outputs.pullRequest && (
               <a

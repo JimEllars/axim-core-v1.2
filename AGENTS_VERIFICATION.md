@@ -46,3 +46,16 @@ Verification: Standard Vitest execution passed successfully on the `tests/api-ga
 - **`src/App.jsx` & `src/components/Dashboard.jsx`**: Adjusted routing to wrap `MainLayout` with `DashboardProvider` so `DashboardContent` and `CommandHub` can share context.
 
 Verification: All code complies with the Wave 96 instructions. `npx vitest run tests/api-gateway.test.js` executed successfully with 20 passing tests. End-to-end functionality preserves existing routes.
+
+### wave97-jules-activities-messaging
+#### Files Modified:
+- `src/services/jules/julesApi.js` (MODIFIED)
+- `src/hooks/useJulesSession.js` (MODIFIED)
+- `src/components/dashboard/JulesStatusPanel.jsx` (MODIFIED)
+
+#### Proof of Fix:
+- **`src/services/jules/julesApi.js`**: Added `listActivities: async (sessionId)` to fetch `/jules/sessions/${sessionId}/activities` via `apiProxy.get` and `sendMessage: async (sessionId, prompt)` to post to `/jules/sessions/${sessionId}:sendMessage` via `apiProxy.post`.
+- **`src/hooks/useJulesSession.js`**: Augmented the state to include `activities` state initially empty array `[]`. Also clears state explicitly when `sessionId` resolves to falsey outside `useEffect` to prevent cascading render warnings (ESLint error on React hooks). `Promise.all` fetches `julesApi.getSession` and `julesApi.listActivities` concurrently during the interval polling setup, returning `activities` properly mapped to the internal component hook response payload.
+- **`src/components/dashboard/JulesStatusPanel.jsx`**: De-structured `activities` from `useJulesSession(activeSessionId)`. Added visual Activity Log looping through the array of activities rendering their localized event timestamp strings along with dynamic event titles (`Plan Generated`, `Progress Updated`, `Agent Messaged`, `Activity`). Configured `replyPrompt` state for the input textarea and an attached `FiSend` interactive button bound to `handleSendReply` which effectively proxies `julesApi.sendMessage(activeSessionId, replyPrompt)` with built-in toast visual feedbacks on request resolution state. Highlighted the panel appropriately on `AWAITING_USER_FEEDBACK`.
+
+Verification method: Test execution passed on the `tests/api-gateway.test.js` file with 20 passing tests, demonstrating edge routing functionality was not impacted. All requirements dictated by Wave 97 have been completed securely and correctly structured without disturbing core user flows.
