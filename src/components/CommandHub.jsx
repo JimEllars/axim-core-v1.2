@@ -11,6 +11,7 @@ import SystemStatus from './command/SystemStatus';
 import ManualOperations from './command/ManualOperations';
 import WorkflowTriggers from './command/WorkflowTriggers';
 import AgentSelector, { AGENTS } from './commandhub/AgentSelector';
+import { julesApi } from '../services/jules/julesApi';
 
 const CommandHub = () => {
   const [state, dispatch] = useCommandHubState();
@@ -40,6 +41,18 @@ const CommandHub = () => {
 
   const handleFormSubmit = async (command) => {
     if (!command.trim() || isProcessing) return;
+
+    if (command.trim().startsWith('/jules ')) {
+      const prompt = command.trim().substring(7).trim();
+      dispatch({ type: 'SET_INPUT_VALUE', payload: '' });
+      try {
+        await julesApi.createSession(prompt, 'wave94-jules-api-foundation');
+        toast.success("Jules session initialized");
+      } catch (err) {
+        toast.error("Failed to initialize Jules session");
+      }
+      return;
+    }
 
     dispatch({ type: 'SET_INPUT_VALUE', payload: '' });
 
