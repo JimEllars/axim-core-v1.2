@@ -93,9 +93,25 @@ const SecurityAudit = () => {
             ))}
          </div>
       ) : logs.length === 0 ? (
-         <div className="text-center p-8 text-slate-500 border border-dashed border-onyx-accent/20 rounded-lg">
-            No Human-in-the-Loop actions recorded yet.
-         </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+             <thead>
+                <tr className="border-b border-onyx-accent/20 text-xs uppercase tracking-wider text-slate-400">
+                   <th className="p-3">Timestamp</th>
+                   <th className="p-3">Admin</th>
+                   <th className="p-3">Action</th>
+                   <th className="p-3">Tool Called</th>
+                </tr>
+             </thead>
+             <tbody>
+                <tr>
+                  <td colSpan="4" className="text-center text-slate-400 py-8 border-b border-onyx-accent/10">
+                    No security events logged.
+                  </td>
+                </tr>
+             </tbody>
+          </table>
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -183,8 +199,25 @@ const SecurityAudit = () => {
             ))}
           </div>
         ) : telemetryLogs.length === 0 ? (
-          <div className="text-center p-8 text-slate-500 border border-dashed border-onyx-accent/20 rounded-lg">
-            No security anomalies recorded in the last 24 hours.
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-onyx-accent/20 text-xs uppercase tracking-wider text-slate-400">
+                  <th className="p-3">Timestamp</th>
+                  <th className="p-3">IP Address</th>
+                  <th className="p-3">Endpoint</th>
+                  <th className="p-3">Reason</th>
+                  <th className="p-3">Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td colSpan="5" className="text-center text-slate-400 py-8 border-b border-onyx-accent/10">
+                    No security events logged.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         ) : (
           <div className="overflow-x-auto">

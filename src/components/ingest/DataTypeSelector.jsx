@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
+import toast from 'react-hot-toast';
 
 const { FiUser, FiBriefcase, FiCheckSquare } = FiIcons;
 
@@ -12,6 +13,19 @@ const dataTypes = [
 ];
 
 const DataTypeSelector = ({ onSelect, selectedType }) => {
+  const handleFileUpload = async (e) => {
+    try {
+      if (onSelect) {
+         onSelect(e.target.files[0]);
+      }
+    } catch (error) {
+      const errMsg = error?.message || '';
+      if (errMsg.toLowerCase().includes('timeout') || errMsg.toLowerCase().includes('524') || errMsg.toLowerCase().includes('network')) {
+        toast.error('Ingestion timeout. The file is too large for the edge parser. Please break it into smaller chunks.');
+      }
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}

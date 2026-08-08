@@ -86,9 +86,17 @@ const KnowledgeBaseIngest = () => {
       setTitle('');
       setText('');
       setUrl('');
+      setPersonaTag('');
+      setAffiliatePartner('None');
+      setFilesToUpload([]);
     } catch (err) {
       console.error(err);
-      toast.error(`Failed to ingest: ${err.message}`, { id: 'ingest' });
+      const errMsg = err.message?.toLowerCase() || '';
+      if (errMsg.includes('timeout') || errMsg.includes('524') || errMsg.includes('network') || errMsg.includes('edge:degraded')) {
+          toast.error('Ingestion timeout. The file is too large for the edge parser. Please break it into smaller chunks.', { id: 'ingest' });
+      } else {
+          toast.error(`Failed to ingest: ${err.message}`, { id: 'ingest' });
+      }
     } finally {
       setLoading(false);
     }
