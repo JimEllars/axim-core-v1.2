@@ -5,12 +5,18 @@ export const useJulesSession = (sessionId) => {
   const [session, setSession] = useState(null);
   const [state, setState] = useState(null);
   const [error, setError] = useState(null);
+  const [activities, setActivities] = useState([]);
+
+  // Clear state when session ID changes to null, but outside useEffect
+  if (!sessionId && (session !== null || state !== null || error !== null || activities.length !== 0)) {
+    setSession(null);
+    setState(null);
+    setError(null);
+    setActivities([]);
+  }
 
   useEffect(() => {
     if (!sessionId) {
-      setSession(null);
-      setState(null);
-      setError(null);
       return;
     }
 
@@ -19,10 +25,18 @@ export const useJulesSession = (sessionId) => {
 
     const pollSession = async () => {
       try {
-        const data = await julesApi.getSession(sessionId);
+        const [data, activitiesData] = await Promise.all([
+          julesApi.getSession(sessionId),
+          julesApi.listActivities(sessionId).catch(err => {
+             console.error("Failed to fetch activities", err);
+             return { activities: [] };
+          })
+        ]);
+
         if (isMounted) {
           setSession(data);
           setState(data.state || data.status);
+          setActivities(activitiesData.activities || []);
 
           if (data.state === 'COMPLETED' || data.state === 'FAILED' || data.status === 'COMPLETED' || data.status === 'FAILED') {
             if (intervalId) {
@@ -53,5 +67,5 @@ export const useJulesSession = (sessionId) => {
     };
   }, [sessionId]);
 
-  return { session, state, error };
+  return { session, state, error, activities };
 };
