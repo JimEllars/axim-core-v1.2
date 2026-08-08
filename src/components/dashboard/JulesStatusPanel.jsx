@@ -1,10 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useJulesSession } from '../../hooks/useJulesSession';
 import { julesApi } from '../../services/jules/julesApi';
 import toast from 'react-hot-toast';
-import { FiCpu, FiCheckCircle, FiLoader, FiAlertTriangle, FiGithub, FiSend } from 'react-icons/fi';
+import { FiCpu, FiCheckCircle, FiLoader, FiAlertTriangle, FiGithub, FiSend, FiChevronDown } from 'react-icons/fi';
+import JulesActivityDetailModal from './JulesActivityDetailModal';
+import { useDashboard } from '../../contexts/DashboardContext';
 
 const JulesStatusPanel = ({ activeSessionId }) => {
+  const { setActiveJulesSessionId } = useDashboard();
+  const [selectedActivity, setSelectedActivity] = useState(null);
+  const [recentSessions, setRecentSessions] = useState([]);
+
+  useEffect(() => {
+    const fetchSessions = async () => {
+      try {
+        const sessions = await julesApi.listSessions();
+        setRecentSessions(sessions);
+      } catch (err) {
+        console.error("Failed to fetch Jules sessions", err);
+      }
+    };
+    fetchSessions();
+  }, []);
   const { session, state, error, activities } = useJulesSession(activeSessionId);
   const [replyPrompt, setReplyPrompt] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -34,8 +51,26 @@ const JulesStatusPanel = ({ activeSessionId }) => {
 
   if (!activeSessionId) {
     return (
-      <div className="glass-effect rounded-xl p-6 border border-onyx-accent/20 h-full flex flex-col items-center justify-center text-slate-400">
-        <FiCpu className="w-12 h-12 mb-4 opacity-50" />
+      <div className="glass-effect rounded-xl p-6 border border-onyx-accent/20 h-full flex flex-col items-center justify-center text-slate-400 relative">
+        <div className="absolute top-4 left-4 right-4 flex justify-between items-center">
+            <h3 className="text-sm font-bold text-white/50">Jules Sessions</h3>
+            <div className="relative group">
+              <select
+                className="appearance-none bg-black/40 border border-white/10 text-xs text-slate-400 font-mono tracking-wider uppercase rounded px-2 py-1 pr-6 cursor-pointer hover:border-white/20 hover:text-white transition-colors outline-none max-w-[200px] truncate"
+                value=""
+                onChange={(e) => setActiveJulesSessionId(e.target.value)}
+              >
+                <option value="" disabled>Select Session</option>
+                {recentSessions.map(sess => (
+                  <option key={sess.name} value={sess.name.split('/').pop()}>
+                     {sess.name.split('/').pop().substring(0, 8)}... - {sess.title || 'Untitled'}
+                  </option>
+                ))}
+              </select>
+              <FiChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none w-3 h-3 group-hover:text-white" />
+            </div>
+        </div>
+        <FiCpu className="w-12 h-12 mb-4 opacity-50 mt-8" />
         <p className="font-mono text-sm uppercase tracking-wider">No active Jules coding sessions</p>
       </div>
     );
@@ -86,7 +121,21 @@ const JulesStatusPanel = ({ activeSessionId }) => {
           </div>
           <div>
             <h3 className="text-lg font-bold text-white">Jules Session Tracker</h3>
-            <p className="text-xs text-slate-400 font-mono tracking-wider uppercase">Active Context</p>
+            <div className="relative group mt-1">
+              <select
+                className="appearance-none bg-black/40 border border-white/10 text-xs text-slate-400 font-mono tracking-wider uppercase rounded px-2 py-1 pr-6 cursor-pointer hover:border-white/20 hover:text-white transition-colors outline-none max-w-[200px] truncate"
+                value={activeSessionId || ''}
+                onChange={(e) => setActiveJulesSessionId(e.target.value)}
+              >
+                <option value="" disabled>Select Session</option>
+                {recentSessions.map(sess => (
+                  <option key={sess.name} value={sess.name.split('/').pop()}>
+                    {sess.name.split('/').pop().substring(0, 8)}... - {sess.title || 'Untitled'}
+                  </option>
+                ))}
+              </select>
+              <FiChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none w-3 h-3 group-hover:text-white" />
+            </div>
           </div>
         </div>
 
@@ -115,7 +164,7 @@ const JulesStatusPanel = ({ activeSessionId }) => {
             <div className="flex-grow bg-black/30 p-3 rounded-lg border border-white/5 overflow-y-auto space-y-2">
               {activities && activities.length > 0 ? (
                 activities.map((activity, index) => (
-                  <div key={index} className="text-sm border-b border-white/5 pb-2 last:border-0 last:pb-0">
+                  <div key={index} onClick={() => setSelectedActivity(activity)} className="text-sm border-b border-white/5 pb-2 last:border-0 last:pb-0 cursor-pointer hover:bg-white/5 rounded px-2 py-1 -mx-2 transition-colors">
                     <span className="text-blue-400 font-mono mr-2">
                       [{new Date(activity.createTime).toLocaleTimeString()}]
                     </span>
@@ -178,6 +227,11 @@ const JulesStatusPanel = ({ activeSessionId }) => {
           <FiLoader className="w-8 h-8 animate-spin opacity-50" />
         </div>
       )}
+
+      <JulesActivityDetailModal
+        activity={selectedActivity}
+        onClose={() => setSelectedActivity(null)}
+      />
     </div>
   );
 };
