@@ -123,6 +123,29 @@ const UserProfile = () => {
   };
 
   const [activeTab, setActiveTab] = useState('profile');
+  const [showKey, setShowKey] = useState(false);
+
+  const { data: userApiKey, isLoading: isLoadingApiKey } = useQuery({
+    queryKey: ['user_api_key', user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('api_keys')
+        .select('api_key')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.api_key || null;
+    },
+    enabled: !!user
+  });
+
+  const renderMaskedKey = (key) => {
+    if (!key) return 'No API Key Generated';
+    if (showKey) return key;
+    if (key.length <= 8) return '••••••••••••';
+    return `${key.substring(0, 4)}••••••••••••${key.substring(key.length - 4)}`;
+  };
 
   return (
     <div className="p-8">
@@ -219,6 +242,33 @@ const UserProfile = () => {
               </motion.button>
             </div>
 
+
+                        <div className="pt-4 border-t border-onyx-accent/20">
+              <h3 className="text-sm font-medium text-slate-300 mb-2">API Access Token</h3>
+              <div className="flex items-center justify-between bg-onyx-950/50 p-4 rounded-lg border border-onyx-accent/20">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                    <SafeIcon icon={FiIcons.FiKey} className="text-blue-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-white font-mono">
+                      {isLoadingApiKey ? 'Loading...' : renderMaskedKey(userApiKey)}
+                    </div>
+                    <div className="text-xs text-slate-500">Primary API Key</div>
+                  </div>
+                </div>
+                {userApiKey && (
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="p-2 text-slate-400 hover:text-white transition-colors border border-transparent hover:border-slate-500/30 rounded"
+                    title={showKey ? "Hide API Key" : "Reveal API Key"}
+                  >
+                    <SafeIcon icon={showKey ? FiIcons.FiEyeOff : FiIcons.FiEye} />
+                  </button>
+                )}
+              </div>
+            </div>
 
             {localWallet && (
               <div className="pt-4 border-t border-onyx-accent/20">

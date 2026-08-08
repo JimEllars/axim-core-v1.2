@@ -4,16 +4,23 @@ import { useVectorSearch } from '../../hooks/useVectorSearch';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSupabase } from '../../contexts/SupabaseContext';
 import SafeIcon from '../../common/SafeIcon';
-import { FiSearch, FiMessageSquare, FiLoader, FiZap, FiActivity } from 'react-icons/fi';
+import { FiSearch, FiMessageSquare, FiLoader, FiZap, FiActivity, FiSettings } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const IntelligenceHub = () => {
   const [query, setQuery] = useState('');
   const { searchMemory, isSearching, results, error } = useVectorSearch();
-  const { user } = useAuth();
+  const { user, settings: userConfig } = useAuth();
   const { supabase } = useSupabase();
   const [liveStream, setLiveStream] = useState([]);
   const [isConnecting, setIsConnecting] = useState(true);
+  const [selectedModel, setSelectedModel] = useState('claude-3-haiku-20240307');
+
+  useEffect(() => {
+    if (userConfig?.default_model) {
+      setSelectedModel(userConfig.default_model);
+    }
+  }, [userConfig]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -66,12 +73,27 @@ const IntelligenceHub = () => {
         animate={{ opacity: 1, y: 0 }}
         className="glass-effect rounded-xl p-6"
       >
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-white flex items-center">
-            <SafeIcon icon={FiZap} className="mr-2 text-indigo-400" />
-            Vector Intelligence Hub
-          </h2>
-          <p className="text-sm text-slate-400">Semantic search through ecosystem Memory.</p>
+                <div className="mb-6 flex justify-between items-start">
+          <div>
+            <h2 className="text-xl font-bold text-white flex items-center">
+              <SafeIcon icon={FiZap} className="mr-2 text-indigo-400" />
+              Vector Intelligence Hub
+            </h2>
+            <p className="text-sm text-slate-400">Semantic search through ecosystem Memory.</p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <SafeIcon icon={FiSettings} className="text-slate-500" />
+            <select
+              value={selectedModel}
+              onChange={(e) => setSelectedModel(e.target.value)}
+              className="bg-onyx-950 border border-onyx-accent/20 rounded-md px-3 py-1.5 text-sm text-white focus:outline-none focus:border-indigo-500"
+            >
+              <option value="claude-3-haiku-20240307">Claude 3 Haiku</option>
+              <option value="claude-3-sonnet-20240229">Claude 3 Sonnet</option>
+              <option value="gpt-4o">GPT-4o</option>
+              <option value="gpt-4o-mini">GPT-4o-mini</option>
+            </select>
+          </div>
         </div>
 
         <form onSubmit={handleSearch} className="mb-6">
