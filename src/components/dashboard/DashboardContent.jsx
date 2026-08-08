@@ -10,12 +10,14 @@ import GenerativeAIPanel from './GenerativeAIPanel';
 import AIInteractionsChart from './AIInteractionsChart';
 import FleetStatusMap from './FleetStatusMap';
 import SystemAutonomyMap from './SystemAutonomyMap';
+import JulesStatusPanel from './JulesStatusPanel';
+
 import { useDashboard } from '../../contexts/DashboardContext';
 import { FiRefreshCw, FiTerminal } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const DashboardContent = () => {
-  const { refreshDashboard } = useDashboard();
+  const { refreshDashboard, activeJulesSessionId } = useDashboard();
 
   const handleRefresh = () => {
     refreshDashboard();
@@ -56,6 +58,12 @@ const DashboardContent = () => {
         {/* Fleet Map Overview */}
         <div className="lg:col-span-2">
           <FleetStatusMap />
+        </div>
+
+
+        {/* Jules Status Panel */}
+        <div className="lg:col-span-1">
+          <JulesStatusPanel activeSessionId={activeJulesSessionId} />
         </div>
 
         {/* System Autonomy Map */}
