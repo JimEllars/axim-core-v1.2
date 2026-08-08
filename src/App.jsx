@@ -113,7 +113,7 @@ function AppContent() {
           path="/"
           element={
             <ProtectedRoute>
-              <MainLayout />
+              <DashboardProvider><MainLayout /></DashboardProvider>
             </ProtectedRoute>
           }
         >
@@ -166,11 +166,11 @@ function App() {
           <AuthProvider>
             <ConnectivityProvider>
               <ApiProvider>
-                <DashboardProvider>
+
                 <RealtimeProvider>
                   <AppContent />
                 </RealtimeProvider>
-              </DashboardProvider>
+
               </ApiProvider>
               <Toaster
                 position="top-right"

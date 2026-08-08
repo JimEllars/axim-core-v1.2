@@ -28,5 +28,15 @@ export const julesApi = {
       console.error('Error fetching Jules session:', error);
       throw error;
     }
+  },
+
+  approvePlan: async (sessionId) => {
+    try {
+      const response = await apiProxy.post(`/jules/sessions/${sessionId}:approvePlan`, {});
+      return true;
+    } catch (error) {
+      console.error('Error approving Jules plan:', error);
+      return false;
+    }
   }
 };

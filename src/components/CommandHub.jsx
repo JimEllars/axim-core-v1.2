@@ -12,6 +12,7 @@ import ManualOperations from './command/ManualOperations';
 import WorkflowTriggers from './command/WorkflowTriggers';
 import AgentSelector, { AGENTS } from './commandhub/AgentSelector';
 import { julesApi } from '../services/jules/julesApi';
+import { useDashboard } from '../contexts/DashboardContext';
 
 const CommandHub = () => {
   const [state, dispatch] = useCommandHubState();
@@ -22,6 +23,7 @@ const CommandHub = () => {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const { supabase } = useSupabase();
+  const { setActiveJulesSessionId } = useDashboard();
 
   useSystemStats(supabase, dispatch);
 
@@ -50,6 +52,7 @@ const CommandHub = () => {
         const sessionId = response?.data?.id || response?.id;
         console.log("Jules Session Started:", sessionId);
         toast.success("Jules session initialized");
+        setActiveJulesSessionId(sessionId);
       } catch (err) {
         toast.error("Failed to initialize Jules session");
       }

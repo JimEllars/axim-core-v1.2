@@ -20,6 +20,7 @@ export const DashboardProvider = ({ children }) => {
   }, []);
 
   const [refreshKey, setRefreshKey] = useState(0);
+  const [activeJulesSessionId, setActiveJulesSessionId] = useState(null);
 
   const refreshDashboard = useCallback(() => {
     setRefreshKey(prevKey => prevKey + 1);
@@ -36,6 +37,8 @@ export const DashboardProvider = ({ children }) => {
     closeDrawer,
     refreshKey,
     refreshDashboard,
+    activeJulesSessionId,
+    setActiveJulesSessionId,
   }), [
     activeTab,
     isDrawerOpen,
@@ -43,7 +46,8 @@ export const DashboardProvider = ({ children }) => {
     openDrawer,
     closeDrawer,
     refreshKey,
-    refreshDashboard
+    refreshDashboard,
+    activeJulesSessionId
   ]);
 
   return (
