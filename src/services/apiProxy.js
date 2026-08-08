@@ -29,15 +29,41 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
   }
 
   try {
-    const { data, error } = await supabase.functions.invoke('api-proxy', {
-      body: {
-        integrationId,
-        endpoint,
-        method,
-        body,
-        headers,
-      },
-    });
+    let data, error;
+    if (endpoint && endpoint.startsWith('/jules/')) {
+      const targetUrl = `https://jules.googleapis.com/v1alpha/${endpoint.replace('/jules/', '')}`;
+      try {
+        const response = await fetch(targetUrl, {
+          method: method || 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(headers || {})
+          },
+          body: body ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined
+        });
+
+        if (!response.ok) {
+          error = new Error(`Failed to fetch: ${response.statusText}`);
+          error.status = response.status;
+        } else {
+          data = await response.json();
+        }
+      } catch (err) {
+        error = err;
+      }
+    } else {
+      const result = await supabase.functions.invoke('api-proxy', {
+        body: {
+          integrationId,
+          endpoint,
+          method,
+          body,
+          headers,
+        },
+      });
+      data = result.data;
+      error = result.error;
+    }
 
 
     // Edge Throttling Telemetry Ingestion
@@ -330,4 +356,9 @@ export const requestMicroAppDocument = async (appId, requestPayload) => {
     logger.error(`Failed to execute bi-directional request to ${appId}: ${error.message}`);
     throw error;
   }
+};
+
+export const apiProxy = {
+  get: (endpoint, headers) => callApiProxy({ endpoint, method: 'GET', headers }),
+  post: (endpoint, body, headers) => callApiProxy({ endpoint, method: 'POST', body, headers }),
 };
