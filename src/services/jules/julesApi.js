@@ -58,5 +58,15 @@ export const julesApi = {
       console.error('Error sending message to Jules:', error);
       throw error;
     }
+  },
+
+  listSessions: async (pageSize = 30) => {
+    try {
+      const response = await apiProxy.get(`/jules/sessions?pageSize=${pageSize}`);
+      return response.sessions || [];
+    } catch (error) {
+      console.error('Error fetching Jules sessions:', error);
+      return [];
+    }
   }
 };

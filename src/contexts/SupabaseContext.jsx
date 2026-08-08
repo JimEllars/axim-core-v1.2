@@ -32,6 +32,18 @@ export const SupabaseProvider = ({ children, client = null }) => {
            toast.error('Ecosystem Data Schema Cache Mismatch. Please execute schema reload sequence.', { duration: Infinity, id: 'schema-mismatch' });
            // we don't throw so it doesn't hard block, just shows banner
         }
+        // Telemetry Ping
+        try {
+           await supabaseClient.from('events_ax2024').insert({
+              type: 'system_heartbeat',
+              source: 'AXiM Core System',
+              data: { event: 'Database Uplink Active' },
+              user_id: '00000000-0000-0000-0000-000000000000'
+           });
+        } catch (telemetryError) {
+           console.warn("Telemetry uplink failed but connection is active", telemetryError);
+        }
+
         setTimeout(() => setConnectionError(null), 0);
       } catch (error) {
         console.error("API initialization error or network issue caught in SupabaseContext:", error);
