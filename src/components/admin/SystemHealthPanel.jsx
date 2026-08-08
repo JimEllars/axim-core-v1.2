@@ -49,7 +49,7 @@ const SystemHealthPanel = () => {
 
       // Default fallback if properties are missing
       setHealthData({
-        workerUptime: data.workerUptime || '99.9%',
+        workerUptime: data.workerUptime ? (isNaN(parseFloat(data.workerUptime)) ? data.workerUptime : `${parseFloat(data.workerUptime).toFixed(1)}% Uptime`) : '99.9% Uptime',
         gcpLatency: data.avgApiLatency ? data.avgApiLatency + 'ms' : (data.gcpLatency || '45ms'),
         activeConnections: data.activeConnections || 12,
         status: data.status || 'healthy',
