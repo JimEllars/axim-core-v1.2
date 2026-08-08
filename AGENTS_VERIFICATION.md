@@ -136,3 +136,15 @@ export const invalidateCache = (rpcName) => {
         <h2 className="text-2xl font-semibold text-slate-200 mb-4">Application Error: Please check console or refresh.</h2>
   ```
 - **Proving Test:** Checked `cat src/components/ErrorBoundary.jsx` and verified `FiAlertTriangle` import as well as proper render return structure.
+
+### Wave 92: API Key Masking, Memory Bank & AI Model Persistence
+**Timestamp:** $(date)
+
+**1. Modifications:**
+- \`src/components/UserProfile.jsx\`: Introduced local state \`showKey\` to toggle API key visibility. Added \`renderMaskedKey\` and a styled \`API Access Token\` section reflecting standard security UX.
+- \`src/components/admin/MemoryBank.jsx\`: Added an empty state within the \`memory_banks\` active tab when there are no active memory matrices, styled with the \`FiDatabase\` icon.
+- \`src/components/admin/IntelligenceHub.jsx\`: Introduced \`selectedModel\` state to the dropdown mapping the user's \`config.default_model\` from \`userConfig\` upon initial component load.
+
+**2. Test Status (Bypassed due to NPM 429 Registry Error):**
+- Local Vitest execution for components was skipped per user instructions to avoid repeatedly hammering the NPM registry with 429 rate limit exceptions.
+- Static verification has been performed directly on the code logic to ensure states, dependencies, rendering boundaries, and hooks are accurately implemented.

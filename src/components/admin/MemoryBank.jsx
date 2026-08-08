@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useVectorSearch } from '../../hooks/useVectorSearch';
 import { useSupabase } from '../../contexts/SupabaseContext';
 import SafeIcon from '../../common/SafeIcon';
-import { FiSearch, FiMessageSquare, FiCalendar, FiLoader, FiZap, FiEdit2, FiTrash2, FiSave, FiX, FiFilter } from 'react-icons/fi';
+import { FiSearch, FiMessageSquare, FiCalendar, FiLoader, FiDatabase, FiZap, FiEdit2, FiTrash2, FiSave, FiX, FiFilter } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -432,7 +432,16 @@ const MemoryBank = () => {
               </div>
             ) : (
                <div className="text-center p-8 text-slate-400 bg-onyx-900/20 rounded-lg border border-onyx-accent/10">
-                  {activeTab === 'ai_memory_banks' ? 'No records found.' : activeTab === 'memory_banks' ? 'No memory banks compiled yet. The cognitive compressor runs nightly.' : 'No knowledge base entries found.'}
+                  {activeTab === 'memory_banks' ? (
+                     <div className="glass-effect p-8 rounded-xl border border-dashed border-onyx-accent/40 text-center">
+                        <SafeIcon icon={FiDatabase} className="text-slate-500 text-3xl mx-auto mb-4" />
+                        <p>No active memory matrices. Initialize your first memory bank to begin RAG processing.</p>
+                     </div>
+                  ) : activeTab === 'ai_memory_banks' ? (
+                     'No records found.'
+                  ) : (
+                     'No knowledge base entries found.'
+                  )}
                </div>
             )}
           </div>
