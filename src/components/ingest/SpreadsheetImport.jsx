@@ -209,7 +209,12 @@ const SpreadsheetImport = () => {
         setColumnMap(newColumnMap);
 
       } catch (err) {
-        toast.error(`Error processing file: ${err.message}`);
+        const errMsg = err.message?.toLowerCase() || '';
+        if (errMsg.includes('timeout') || errMsg.includes('524') || errMsg.includes('network')) {
+          toast.error('Ingestion timeout. The file is too large for the edge parser. Please break it into smaller chunks.');
+        } else {
+          toast.error(`Error processing file: ${err.message}`);
+        }
         setFileName('');
       } finally {
         setIsParsing(false);
@@ -217,7 +222,7 @@ const SpreadsheetImport = () => {
     };
 
     reader.onerror = () => {
-        toast.error('Failed to read file.');
+        toast.error('Failed to read file. If this was a network issue, please try again.');
         setIsParsing(false);
     };
 
@@ -261,7 +266,12 @@ const SpreadsheetImport = () => {
 
     } catch (error) {
       toast.dismiss();
-      toast.error(`Import failed: ${error.message}`);
+      const errMsg = error.message?.toLowerCase() || '';
+      if (errMsg.includes('timeout') || errMsg.includes('524') || errMsg.includes('network')) {
+        toast.error('Ingestion timeout. The file is too large for the edge parser. Please break it into smaller chunks.');
+      } else {
+        toast.error(`Import failed: ${error.message}`);
+      }
     } finally {
       setIsImporting(false);
     }

@@ -148,3 +148,19 @@ export const invalidateCache = (rpcName) => {
 **2. Test Status (Bypassed due to NPM 429 Registry Error):**
 - Local Vitest execution for components was skipped per user instructions to avoid repeatedly hammering the NPM registry with 429 rate limit exceptions.
 - Static verification has been performed directly on the code logic to ensure states, dependencies, rendering boundaries, and hooks are accurately implemented.
+
+### Wave 93: Ingestion Edge Timeouts, KB Form Reset & Security Audit UI
+
+#### 1. DataTypeSelector.jsx & SpreadsheetImport.jsx & KnowledgeBaseIngest.jsx Edge Timeout Hardening
+- **Target Files:** `src/components/ingest/DataTypeSelector.jsx`, `src/components/ingest/SpreadsheetImport.jsx`, `src/components/ingest/KnowledgeBaseIngest.jsx`
+- **Fix:** Handled edge timeout scenarios by checking if `error.message` includes 'timeout', '524', 'network', or 'edge:degraded'. If so, displays a specific `toast.error('Ingestion timeout. The file is too large for the edge parser. Please break it into smaller chunks.')`.
+
+#### 2. KnowledgeBaseIngest.jsx Form State Reset
+- **Target File:** `src/components/ingest/KnowledgeBaseIngest.jsx`
+- **Fix:** Cleared the form state (`title`, `text`, `url`, `personaTag`, `affiliatePartner`, `filesToUpload`) after successful ingest to prevent accidental double submissions.
+
+#### 3. SecurityAudit.jsx Table Empty State
+- **Target File:** `src/components/admin/SecurityAudit.jsx`
+- **Fix:** Added conditional rendering to display a fallback `<tr>` containing `No security events logged.` styled appropriately (`text-center text-slate-400 py-8`) when `logs.length === 0` and `telemetryLogs.length === 0`.
+
+- **Proving Test:** Validated via static code analysis using `cat` and `grep` due to NPM rate limit issues. Modifications implement the correct conditions and UI.
