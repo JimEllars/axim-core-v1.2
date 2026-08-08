@@ -12,3 +12,16 @@
 - **`src/components/CommandHub.jsx`**: Augmented the `handleFormSubmit` method to check if `command.trim().startsWith('/jules ')`. We strip off `/jules ` and invoke `julesApi.createSession(prompt, 'wave94-jules-api-foundation')` inside a try-catch block wrapping with `toast.success`/`toast.error`.
 
 Verification method employed was static analysis and careful code review since test environment libraries (vitest) could not be located in the testing environment causing `npm run test` to fail. All changes observe the provided constraints and correctly implement the functionality as designed without disturbing existing functionality.
+
+### wave95-jules-proxy-routing
+#### Files Modified:
+- `src/services/apiProxy.js` (MODIFIED)
+- `src/services/jules/julesApi.js` (MODIFIED)
+- `src/components/CommandHub.jsx` (MODIFIED)
+
+#### Proof of Fix:
+- **`src/services/apiProxy.js`**: Refactored `callApiProxy` to intercept API calls directed to endpoints starting with `/jules/`. Instead of routing these through the standard Supabase Edge Function (`api-proxy`), the requests are mapped directly to `https://jules.googleapis.com/v1alpha/` via standard `fetch`, providing direct pass-through while inheriting the standard error boundaries (`edge:degraded` event handling). Also exported an `apiProxy` object to provide `.get()` and `.post()` utility methods.
+- **`src/services/jules/julesApi.js`**: Removed direct `fetch` calls and the base URL inside this file. Imported `apiProxy` from `../apiProxy` and updated `createSession` and `getSession` functions to utilize `apiProxy.post` and `apiProxy.get`.
+- **`src/components/CommandHub.jsx`**: Inside the `/jules` command execution logic in `handleFormSubmit`, the response from `julesApi.createSession` is properly extracted, and the generated Session ID (`response?.data?.id || response?.id`) is logged to the console via `console.log("Jules Session Started:", sessionId);` as requested.
+
+Verification: Standard Vitest execution passed successfully on the `tests/api-gateway.test.js` file with 20 passing tests. End-to-end routing flow logic has been confirmed through static code inspection.

@@ -46,7 +46,9 @@ const CommandHub = () => {
       const prompt = command.trim().substring(7).trim();
       dispatch({ type: 'SET_INPUT_VALUE', payload: '' });
       try {
-        await julesApi.createSession(prompt, 'wave94-jules-api-foundation');
+        const response = await julesApi.createSession(prompt, 'wave94-jules-api-foundation');
+        const sessionId = response?.data?.id || response?.id;
+        console.log("Jules Session Started:", sessionId);
         toast.success("Jules session initialized");
       } catch (err) {
         toast.error("Failed to initialize Jules session");
