@@ -11,6 +11,7 @@ import AIInteractionsChart from './AIInteractionsChart';
 import FleetStatusMap from './FleetStatusMap';
 import SystemAutonomyMap from './SystemAutonomyMap';
 import JulesStatusPanel from './JulesStatusPanel';
+import CloudflareEdgeHealth from './CloudflareEdgeHealth';
 
 import { useDashboard } from '../../contexts/DashboardContext';
 import { FiRefreshCw, FiTerminal } from 'react-icons/fi';
@@ -60,6 +61,11 @@ const DashboardContent = () => {
           <FleetStatusMap />
         </div>
 
+
+        {/* Cloudflare Edge Health */}
+        <div className="lg:col-span-1">
+          <CloudflareEdgeHealth />
+        </div>
 
         {/* Jules Status Panel */}
         <div className="lg:col-span-1">

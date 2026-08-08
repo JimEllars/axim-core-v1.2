@@ -23,7 +23,7 @@ const CommandHub = () => {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const { supabase } = useSupabase();
-  const { setActiveJulesSessionId } = useDashboard();
+  const { setActiveJulesSessionId, activeJulesSessionId } = useDashboard();
 
   useSystemStats(supabase, dispatch);
 
@@ -47,14 +47,100 @@ const CommandHub = () => {
     if (command.trim().startsWith('/jules ')) {
       const prompt = command.trim().substring(7).trim();
       dispatch({ type: 'SET_INPUT_VALUE', payload: '' });
+
+      const addAssistantMessage = (content) => {
+        dispatch({
+          type: 'ADD_MESSAGE',
+          payload: {
+            id: crypto.randomUUID(),
+            timestamp: new Date(),
+            content,
+            type: 'assistant',
+            agentName: 'Jules'
+          }
+        });
+      };
+
+      const addUserMessage = (content) => {
+        dispatch({
+          type: 'ADD_MESSAGE',
+          payload: {
+            id: crypto.randomUUID(),
+            timestamp: new Date(),
+            content,
+            type: 'user'
+          }
+        });
+      };
+
+      addUserMessage(command.trim());
+
+      if (prompt === 'list') {
+        try {
+          const sessions = await julesApi.listSessions();
+          let listStr = "Active Jules Sessions:\n";
+          sessions.forEach(s => {
+             listStr += `- ${s.name.split('/').pop().substring(0, 8)}... - ${s.title || 'Untitled'}\n`;
+          });
+          toast.success("Fetched Jules Sessions");
+          addAssistantMessage(listStr);
+        } catch(e) {
+          toast.error("Failed to list sessions");
+          addAssistantMessage("Failed to list Jules sessions.");
+        }
+        return;
+      }
+
+      if (prompt === 'status') {
+         if (!activeJulesSessionId) {
+            toast.error("No active Jules session to check status");
+            addAssistantMessage("No active Jules session to check status.");
+            return;
+         }
+         try {
+            const sess = await julesApi.getSession(activeJulesSessionId);
+            const prLink = sess.outputs?.pullRequest ? `\nPR Link: ${sess.outputs.pullRequest}` : '';
+            toast.success(`Session Status: ${sess.state}`);
+            addAssistantMessage(`Session Status: ${sess.state}\nTitle: ${sess.title || 'Untitled'}${prLink}`);
+         } catch(e) {
+            toast.error("Failed to get session status");
+            addAssistantMessage("Failed to get session status.");
+         }
+         return;
+      }
+
+      if (prompt === 'approve') {
+         if (!activeJulesSessionId) {
+            toast.error("No active Jules session to approve");
+            addAssistantMessage("No active Jules session to approve.");
+            return;
+         }
+         try {
+            const success = await julesApi.approvePlan(activeJulesSessionId);
+            if (success) {
+               toast.success("Jules Plan Approved");
+               addAssistantMessage("Jules Plan Approved successfully.");
+            } else {
+               toast.error("Failed to approve Jules plan");
+               addAssistantMessage("Failed to approve Jules plan.");
+            }
+         } catch (e) {
+            toast.error("Failed to approve Jules plan");
+            addAssistantMessage("Failed to approve Jules plan.");
+         }
+         return;
+      }
+
       try {
         const response = await julesApi.createSession(prompt, 'wave94-jules-api-foundation');
         const sessionId = response?.data?.id || response?.id;
         console.log("Jules Session Started:", sessionId);
         toast.success("Jules session initialized");
         setActiveJulesSessionId(sessionId);
+        addAssistantMessage(`Jules session initialized. Session ID: ${sessionId}`);
       } catch (err) {
         toast.error("Failed to initialize Jules session");
+        addAssistantMessage("Failed to initialize Jules session.");
       }
       return;
     }
