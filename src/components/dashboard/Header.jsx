@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSupabase } from '../../contexts/SupabaseContext';
 import { useConnectivity } from '../../contexts/ConnectivityContext';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
@@ -10,6 +11,14 @@ const { FiLogOut, FiActivity, FiShield, FiCpu, FiAlertTriangle } = FiIcons;
 const Header = () => {
   const { logout } = useAuth();
   const { edgeCapacity, edgeDegraded } = useConnectivity();
+  const { connectionError } = useSupabase();
+
+  let globalHealth = 'OPERATIONAL';
+  if (connectionError) {
+    globalHealth = 'OFFLINE';
+  } else if (edgeDegraded) {
+    globalHealth = 'DEGRADED';
+  }
 
   const handleLogout = () => {
     logout();
@@ -36,22 +45,32 @@ const Header = () => {
           </div>
 
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2 text-green-400">
-              <SafeIcon icon={FiActivity} className="animate-pulse" />
-              <span className="text-sm font-medium">System Online</span>
-            </div>
+
+            {globalHealth === 'OPERATIONAL' && (
+              <div className="flex items-center space-x-2 text-emerald-400 bg-emerald-900/20 px-3 py-1 rounded-full border border-emerald-500/30">
+                <SafeIcon icon={FiActivity} className="animate-pulse" />
+                <span className="text-xs font-mono font-bold tracking-wider">ALL SYSTEMS OPERATIONAL</span>
+              </div>
+            )}
+            {globalHealth === 'DEGRADED' && (
+              <div className="flex items-center space-x-2 text-amber-400 bg-amber-900/20 px-3 py-1 rounded-full border border-amber-500/30">
+                <SafeIcon icon={FiAlertTriangle} className="animate-pulse" />
+                <span className="text-xs font-mono font-bold tracking-wider">EDGE DEGRADED</span>
+              </div>
+            )}
+            {globalHealth === 'OFFLINE' && (
+              <div className="flex items-center space-x-2 text-rose-400 bg-rose-900/20 px-3 py-1 rounded-full border border-rose-500/30">
+                <SafeIcon icon={FiAlertTriangle} className="animate-pulse" />
+                <span className="text-xs font-mono font-bold tracking-wider">DATABASE DEGRADED</span>
+              </div>
+            )}
             {edgeCapacity && (
               <div className="flex items-center space-x-2 text-blue-400 bg-blue-900/20 px-3 py-1 rounded-full">
                 <SafeIcon icon={FiCpu} />
                 <span className="text-xs font-medium">Edge Capacity: {edgeCapacity}</span>
               </div>
             )}
-            {edgeDegraded && (
-              <div className="flex items-center space-x-2 text-amber-400 bg-amber-900/20 px-3 py-1 rounded-full border border-amber-500/30">
-                <SafeIcon icon={FiAlertTriangle} className="animate-pulse" />
-                <span className="text-xs font-medium">Edge Degraded - Active Fallbacks</span>
-              </div>
-            )}
+
             
             <motion.button
               whileHover={{ scale: 1.05 }}

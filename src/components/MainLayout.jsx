@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useState } from 'react';
 import Sidebar from './Sidebar';
+import DegradedModeAlert from './common/DegradedModeAlert';
 import OfflineIndicator from './common/OfflineIndicator';
 import CommandBar from './layout/CommandBar';
 import WidgetDrawer from './layout/WidgetDrawer';
@@ -107,6 +108,7 @@ function MainLayout() {
         </div>
         <WidgetDrawer />
       </main>
+      <DegradedModeAlert />
       <OfflineIndicator />
       <IntelligenceSearchModal
         isOpen={isSearchOpen}
