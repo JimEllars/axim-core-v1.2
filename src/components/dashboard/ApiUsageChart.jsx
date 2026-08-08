@@ -353,7 +353,7 @@ const ApiUsageChart = () => {
             <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
             <XAxis dataKey="date" stroke="#9CA3AF" fontSize={12} />
             <Legend wrapperStyle={{ paddingTop: '20px' }} />
-            <YAxis stroke="#9CA3AF" fontSize={12} />
+            <YAxis stroke="#9CA3AF" fontSize={12} allowDecimals={false} domain={[0, 'dataMax + 10']} />
             <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '8px', color: '#F9FAFB' }} />
             <Bar dataKey="successCount" name="Requests Made" fill="#2DD4BF" radius={[4, 4, 0, 0]} />
             <Bar dataKey="errorCount" name="Errors" fill="#EF4444" radius={[4, 4, 0, 0]} />
