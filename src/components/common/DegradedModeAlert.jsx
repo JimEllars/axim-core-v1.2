@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiAlertTriangle, FiRefreshCw, FiX } from 'react-icons/fi';
 import { apiProxy } from '../../services/apiProxy';
+import toast from 'react-hot-toast';
 
 const DegradedModeAlert = () => {
   const [isVisible, setIsVisible] = useState(false);
@@ -9,7 +10,14 @@ const DegradedModeAlert = () => {
 
   useEffect(() => {
     const handleDegraded = () => setIsVisible(true);
-    const handleHealthy = () => setIsVisible(false);
+    const handleHealthy = () => {
+      setIsVisible((prev) => {
+        if (prev) {
+          toast.success("Cloudflare Edge Connection Restored");
+        }
+        return false;
+      });
+    };
 
     window.addEventListener('edge:degraded', handleDegraded);
     window.addEventListener('edge:healthy', handleHealthy);

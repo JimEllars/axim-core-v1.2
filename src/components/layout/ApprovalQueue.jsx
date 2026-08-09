@@ -166,21 +166,52 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
                          />
                       </div>
                     )}
-                    <div className="flex justify-end space-x-2">
-                      <button
-                        onClick={() => handleReject(log.id)}
-                        className="px-3 py-1 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors"
-                      >
-                        Reject
-                      </button>
-                      <button
-                        onClick={() => handleApprove(log.id, parsedPayload)}
-                        className="flex items-center px-3 py-1 bg-onyx-accent/20 text-onyx-accent border border-onyx-accent/50 hover:bg-onyx-accent hover:text-onyx-950 rounded text-xs transition-colors"
-                      >
-                        <SafeIcon icon={FiCheckCircle} className="mr-1" />
-                        Approve
-                      </button>
-                    </div>
+                    {log.action === 'jules_user_feedback' ? (
+                      <div className="mt-2 space-y-2">
+                        <textarea
+                          className="w-full bg-onyx-900 border border-onyx-accent/30 rounded p-2 text-slate-300 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 text-xs"
+                          rows={2}
+                          placeholder="Type your feedback to Jules here..."
+                          value={editedPayloads[log.id] !== undefined ? editedPayloads[log.id] : ""}
+                          onChange={(e) => setEditedPayloads(prev => ({ ...prev, [log.id]: e.target.value }))}
+                        />
+                        <div className="flex justify-end">
+                          <button
+                            onClick={async () => {
+                              try {
+                                setPendingLogs((prev) => prev.filter((l) => l.id !== log.id));
+                                await api.resolveHitlAction(log.id, 'Resolved', { user_message: editedPayloads[log.id] || "" });
+                                toast.success('Message sent to Jules.');
+                              } catch (err) {
+                                toast.error(`Failed to send message: ${err.message}`);
+                                const data = await api.getHitlAuditLog(log.id);
+                                if (data) setPendingLogs((prev) => [data, ...prev]);
+                              }
+                            }}
+                            className="flex items-center px-3 py-1 bg-onyx-accent/20 text-onyx-accent border border-onyx-accent/50 hover:bg-onyx-accent hover:text-onyx-950 rounded text-xs transition-colors"
+                          >
+                            <SafeIcon icon={FiCheckCircle} className="mr-1" />
+                            Send Message to Jules
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end space-x-2">
+                        <button
+                          onClick={() => handleReject(log.id)}
+                          className="px-3 py-1 text-xs text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors"
+                        >
+                          Reject
+                        </button>
+                        <button
+                          onClick={() => handleApprove(log.id, parsedPayload)}
+                          className="flex items-center px-3 py-1 bg-onyx-accent/20 text-onyx-accent border border-onyx-accent/50 hover:bg-onyx-accent hover:text-onyx-950 rounded text-xs transition-colors"
+                        >
+                          <SafeIcon icon={FiCheckCircle} className="mr-1" />
+                          Approve
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })
