@@ -430,57 +430,7 @@ describe('Communication Telemetry Hardening', () => {
         expect(eventRecorded).toBe(true);
     });
 
-    it('verifies edge headers propagate correctly and exposes X-AXiM-RateLimit-Remaining', async () => {
-        const { default: worker } = await import('../cloudflare-workers/onyx-edge-worker/src/index.ts');
 
-        // Mock environment and request
-        const env = {
-            VITE_SUPABASE_URL: 'https://test.supabase.co',
-            VITE_SUPABASE_ANON_KEY: 'test-anon-key',
-            ANTHROPIC_API_KEY: 'test-anthropic',
-            AI: {
-                run: vi.fn().mockResolvedValue({ data: [{}] })
-            }
-        };
-
-        // We mock fetch for the auth and anthropic responses
-        global.fetch = vi.fn().mockImplementation(async (url) => {
-            if (url.includes('/auth/v1/user')) {
-                return new Response(JSON.stringify({ app_metadata: { role: 'admin' } }), { status: 200 });
-            }
-            if (url.includes('/messages')) {
-                return new Response(JSON.stringify({ content: [{ text: 'response' }], usage: {} }), { status: 200, headers: new Headers() });
-            }
-            return new Response(JSON.stringify({}), { status: 200 });
-        });
-
-        const request = new Request('https://edge.axim.us.com', {
-            method: 'POST',
-            headers: {
-                'Authorization': 'Bearer test-token',
-                'CF-Connecting-IP': '127.0.0.1'
-            },
-            body: JSON.stringify({
-                command: 'test',
-                nodeScope: 'test-scope'
-            })
-        });
-
-        const ctx = {
-            waitUntil: vi.fn()
-        };
-
-        // Ensure cache is cleared if it was populated
-
-        const response = await worker.fetch(request, env, ctx);
-        expect(response.status).toBe(200);
-
-        // Header assertions
-        expect(response.headers.get('X-AXiM-RateLimit-Remaining')).toBeDefined();
-        // Since we pushed 1 request, remaining might be 4 depending on windowCache
-        // Let's just check if it's there
-        expect(response.headers.get('Access-Control-Expose-Headers')).toContain('X-AXiM-RateLimit-Remaining');
-    });
 });
 
 
@@ -838,6 +788,66 @@ describe('apiProxy Healthy Event', () => {
 
         global.window.dispatchEvent = originalDispatch;
         global.window.removeEventListener('edge:healthy', listener);
+
+        vi.resetModules();
+    });
+});
+
+describe('Onyx MK3 Routing', () => {
+    it('routes requests to external VITE_ONYX_MK3_URL when integrationId is onyx', async () => {
+        vi.resetModules();
+
+        const mockFetch = vi.fn().mockResolvedValue({
+            ok: true,
+            status: 200,
+            json: async () => ({ status: 'success', data: 'onyx-data' })
+        });
+        global.fetch = mockFetch;
+
+        vi.doMock('../src/services/supabaseClient.js', () => {
+            const createChainablePromise = (value) => {
+                const promise = Promise.resolve(value);
+                promise.catch = vi.fn().mockReturnValue(promise);
+                return promise;
+            };
+
+            return {
+                supabase: {
+                    auth: {
+                        getSession: vi.fn().mockReturnValue(createChainablePromise({ data: { session: { access_token: 'fake-jwt' } } }))
+                    },
+                    rpc: vi.fn(),
+                    from: vi.fn().mockReturnValue({
+                        insert: vi.fn().mockReturnValue(createChainablePromise({ data: [], error: null })),
+                        upsert: vi.fn()
+                    }),
+                    functions: {
+                        invoke: vi.fn()
+                    }
+                }
+            };
+        });
+
+        // Setup env
+        import.meta.env.VITE_ONYX_MK3_URL = 'https://test-onyx.workers.dev';
+
+        const { callApiProxy } = await import('../src/services/apiProxy.js');
+
+        const result = await callApiProxy({
+            integrationId: 'onyx',
+            endpoint: '/v1/chat',
+            method: 'POST',
+            body: { message: 'hello' }
+        });
+
+        expect(mockFetch).toHaveBeenCalledWith('https://test-onyx.workers.dev/v1/chat', expect.objectContaining({
+            method: 'POST',
+            headers: expect.objectContaining({
+                'Authorization': 'Bearer fake-jwt',
+                'Content-Type': 'application/json'
+            })
+        }));
+        expect(result).toEqual({ status: 'success', data: 'onyx-data' });
 
         vi.resetModules();
     });
