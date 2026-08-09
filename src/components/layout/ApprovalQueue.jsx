@@ -5,6 +5,7 @@ import * as FiIcons from 'react-icons/fi';
 import { supabase } from '../../services/supabaseClient';
 import api from '../../services/onyxAI/api';
 import toast from 'react-hot-toast';
+import { julesApi } from '../../services/jules/julesApi';
 
 const { FiX, FiCheckCircle, FiClock } = FiIcons;
 
@@ -52,6 +53,21 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
     const handleApprove = async (logId, actionPayload) => {
       const finalPayload = editedPayloads[logId] !== undefined ? { ...actionPayload, html_content: editedPayloads[logId] } : actionPayload;
     try {
+      const log = pendingLogs.find(l => l.id === logId);
+      if (log && log.action === 'jules_plan_approval') {
+        // Optimistic update
+        setPendingLogs((prev) => prev.filter((l) => l.id !== logId));
+        await julesApi.approvePlan(log.session_id);
+
+        await supabase
+          .from('hitl_audit_logs')
+          .update({ status: 'approved' })
+          .eq('id', logId);
+
+        toast.success('Jules plan approved.');
+        return;
+      }
+
       // Optimistic update
       setPendingLogs((prev) => prev.filter((log) => log.id !== logId));
 

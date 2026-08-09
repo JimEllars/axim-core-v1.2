@@ -23,6 +23,8 @@ const getActiveWalletAddress = async () => {
  * @param {object} [headers] - Additional headers for the request.
  * @returns {Promise<any>} - The response data from the API.
  */
+export let isPollingEdgeHealth = false;
+
 export const callApiProxy = async ({ integrationId, endpoint, method, body, headers }) => {
   if (!supabase) {
     throw new Error("Supabase client is not initialized.");
@@ -191,6 +193,26 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
                 window.dispatchEvent(event);
             } catch(e) {
                 console.error("FAILED TO DISPATCH edge:degraded", e);
+            }
+
+            if (!isPollingEdgeHealth) {
+                isPollingEdgeHealth = true;
+                const intervalId = setInterval(async () => {
+                    try {
+                        const { data } = await supabase.functions.invoke('health_ping');
+                        if (data && data.status === 'ok') {
+                            clearInterval(intervalId);
+                            isPollingEdgeHealth = false;
+
+                            const healthyEvent = new CustomEvent('edge:healthy', {
+                              detail: { timestamp: new Date().toISOString() }
+                            });
+                            window.dispatchEvent(healthyEvent);
+                        }
+                    } catch (e) {
+                        // ignore and keep polling
+                    }
+                }, 30000);
             }
         }
 

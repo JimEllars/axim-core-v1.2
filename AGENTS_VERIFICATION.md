@@ -14,3 +14,20 @@ Ecosystem Telemetry Harmonization & Global Health Header. Unify telemetry feeds 
 - Visual components verify with correctly named variables and valid React hooks. Event listeners correctly mapped to `apiProxy.js` emitted custom events.
 
 All tasks for Wave 100 complete.
+
+
+## Verification of Wave 101
+
+## Goal
+Business Development Governance & Edge Auto-Recovery. Bridge Jules Session Approvals to HITL Audit Logs, Wire ApprovalQueue to Jules API, and implement Background Auto-Retry in `apiProxy.js`.
+
+## Changes
+- `src/hooks/useJulesSession.js`: Inserted pending records into `hitl_audit_logs` for `jules_plan_approval` upon entering `AWAITING_PLAN_APPROVAL` or `AWAITING_USER_FEEDBACK` states.
+- `src/components/layout/ApprovalQueue.jsx`: Modified `handleApprove` to handle `jules_plan_approval`, utilizing `julesApi.approvePlan(log.session_id)` and updating the log status.
+- `src/services/apiProxy.js`: Added an auto-retry interval for degraded edge health that self-clears upon recovery, and exported `callApiProxy`.
+
+## Verification
+- Tests completed by executing `npx vitest run tests/api-gateway.test.js`.
+- Verified 20/20 test cases passing.
+
+All tasks for Wave 101 complete.
