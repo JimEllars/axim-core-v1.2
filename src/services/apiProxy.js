@@ -295,9 +295,11 @@ export const validatePartnershipPaymentLedger = (ledgerEntry) => {
 };
 
 export const submitMicroAppTelemetry = async (payload) => {
-  if (!supabase) {
-    throw new Error("Supabase client is not initialized.");
-  }
+  try {
+    if (!supabase) {
+      logger.warn("Supabase client is not initialized. Telemetry dropped.");
+      return;
+    }
 
   // Contract validation fields using decentralized ledger schemas
   if (!validateDecentralizedLedgerPayload(payload)) {
@@ -352,7 +354,6 @@ export const submitMicroAppTelemetry = async (payload) => {
     return sanitized;
   });
 
-  try {
     // Route these incoming transaction arrays straight to the central public.api_usage_logs table
     // Maintain strict infrastructure isolation, routing payload strings to perform conflict-resolved bulk writes
     const { data, error } = await supabase.from('api_usage_logs').upsert(validatedPayloads, {
@@ -366,7 +367,8 @@ export const submitMicroAppTelemetry = async (payload) => {
     return data;
   } catch (error) {
     logger.error(`Failed to submit micro-app telemetry: ${error.message}`);
-    // Don't throw for telemetry failure
+    // Graceful degradation: don't throw, just log.
+    return null;
   }
 };
 
