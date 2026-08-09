@@ -1,24 +1,16 @@
-# Wave 99: Cloudflare Edge Telemetry & CommandHub Slash-Command Shortcuts
+# Verification of Wave 100
 
-## 1. CloudflareEdgeHealth.jsx Component
-**File:** `src/components/dashboard/CloudflareEdgeHealth.jsx`
-**Action:** Created component to render Edge Gateway telemetry.
-**Proof:** Listens for `edge:healthy` and `edge:degraded` window events (dispatched from `apiProxy.js`). Uses a ping routine over `julesApi.listSessions({pageSize: 1})` to estimate ingress latency and mock the cache hit ratio UI for the executive telemetry grid.
+## Goal
+Ecosystem Telemetry Harmonization & Global Health Header. Unify telemetry feeds into a Global Ecosystem Health Header, harden edge degraded error boundaries, and polish visual styling.
 
-## 2. Dashboard Content Mount
-**File:** `src/components/dashboard/DashboardContent.jsx`
-**Action:** Inserted `<CloudflareEdgeHealth />` in the dashboard layout.
-**Proof:** Now renders alongside `JulesStatusPanel` in the `<div className="lg:col-span-1">` stack.
+## Changes
+- `src/components/dashboard/Header.jsx`: Imported `useSupabase` and `useConnectivity`. Added logic for `globalHealth` (OPERATIONAL, DEGRADED, OFFLINE) and visually rendered the appropriate pill badge using glassmorphism.
+- `src/components/common/DegradedModeAlert.jsx`: Created a global event listener component for `edge:degraded` and `edge:healthy` to render a top banner when active fallback routes trigger. Includes a retry button.
+- `src/components/MainLayout.jsx`: Imported and rendered `<DegradedModeAlert />` alongside `<OfflineIndicator />`.
+- `src/components/dashboard/CloudflareEdgeHealth.jsx`, `src/components/dashboard/SystemAutonomyMap.jsx`, `src/components/dashboard/JulesStatusPanel.jsx`: Harmonized the panels to feature glassmorphism (`glass-effect rounded-xl p-6 border border-onyx-accent/20 h-full flex flex-col`) and consistent status colors (`emerald-400`, `amber-400`, `rose-400`).
 
-## 3. CommandHub Slash Shortcuts
-**File:** `src/components/CommandHub.jsx`
-**Action:** Enhanced slash command interception block (`if (command.trim().startsWith('/jules '))`).
-**Proof:**
-- `/jules list` triggers `julesApi.listSessions()` and formats results into the chat UI.
-- `/jules status` fetches the session state and PR link, rendering them into the chat UI.
-- `/jules approve` sends an approval trigger to the active session and outputs a success/error message to the chat UI.
-- Regular `/jules <prompt>` continues to instantiate a new session and outputs the session ID to the chat UI.
+## Verification
+- Passed `npx vitest run tests/api-gateway.test.js` successfully with 20 passing tests.
+- Visual components verify with correctly named variables and valid React hooks. Event listeners correctly mapped to `apiProxy.js` emitted custom events.
 
-## 4. Verification Pass & Quality Gate
-**Action:** Ran vitest checks for api-gateway
-**Proof:** The `tests/api-gateway.test.js` file passes all 20 tests.
+All tasks for Wave 100 complete.

@@ -115,7 +115,7 @@ const SystemAutonomyMap = () => {
   }, []);
 
   return (
-    <div className="rounded-xl p-6 border border-slate-700 shadow-lg min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+    <div className="glass-effect rounded-xl p-6 border border-onyx-accent/20 h-full flex flex-col min-h-[160px]">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center space-x-2">
           <SafeIcon icon={FiCpu} className="text-indigo-400 text-xl" />
@@ -123,9 +123,9 @@ const SystemAutonomyMap = () => {
         </div>
         <div className="flex items-center space-x-2">
           <span className="text-sm text-slate-400">Fleet Health:</span>
-          {healthStatus === 'green' && <SafeIcon icon={FiCheckCircle} className="text-green-500 text-xl animate-pulse" />}
-          {healthStatus === 'yellow' && <SafeIcon icon={FiAlertTriangle} className="text-yellow-500 text-xl animate-pulse" />}
-          {healthStatus === 'red' && <SafeIcon icon={FiXCircle} className="text-red-500 text-xl animate-pulse" />}
+          {healthStatus === 'green' && <SafeIcon icon={FiCheckCircle} className="text-emerald-400 text-xl animate-pulse" />}
+          {healthStatus === 'yellow' && <SafeIcon icon={FiAlertTriangle} className="text-amber-400 text-xl animate-pulse" />}
+          {healthStatus === 'red' && <SafeIcon icon={FiXCircle} className="text-rose-400 text-xl animate-pulse" />}
         </div>
       </div>
 
@@ -144,7 +144,7 @@ const SystemAutonomyMap = () => {
               key={event.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`p-3 rounded border ${event.status === 'success' ? 'bg-green-900/10 border-green-500/20' : event.status === 'error' ? 'bg-red-900/10 border-red-500/20' : 'bg-yellow-900/10 border-yellow-500/20'}`}
+              className={`p-3 rounded border ${event.status === 'success' ? 'bg-emerald-900/10 border-emerald-500/20 text-emerald-400' : event.status === 'error' ? 'bg-rose-900/10 border-rose-500/20 text-rose-400' : 'bg-amber-900/10 border-amber-500/20 text-amber-400'}`}
             >
               <div className="flex items-start justify-between">
                 <div>
