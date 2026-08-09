@@ -23,8 +23,11 @@
     "electron:build:linux": "npm run build && electron-builder --linux --publish never",
     "electron:build:win": "npm run build && electron-builder --win --publish never",
     "electron:build:mac": "npm run build && electron-builder --mac --publish never",
-    "deploy": "npm run build && cd cloudflare-workers && npm run deploy",
-    "dry-run": "npm run build && cd cloudflare-workers && npm run dry-run",
+    "deploy:dashboard": "npm run build && npx wrangler deploy -c wrangler.jsonc",
+    "deploy:edge": "cd cloudflare-workers && npm run deploy",
+    "deploy:onyx": "cd cloudflare-workers && npm run deploy:onyx",
+    "deploy": "npm run deploy:dashboard && npm run deploy:edge && npm run deploy:onyx",
+    "dry-run": "npm run build && npx wrangler deploy --dry-run -c wrangler.jsonc && cd cloudflare-workers && npm run dry-run && npm run dry-run:onyx",
     "test:functions": "node scripts/smoke-test-functions.js"
   },
   "dependencies": {

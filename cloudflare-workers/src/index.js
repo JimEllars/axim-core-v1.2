@@ -6,13 +6,22 @@
  * reducing latency and origin server load.
  */
 
-function getCorsHeaders() {
+function getCorsHeaders(request, env) {
+  const origin = request.headers.get('Origin');
+  const allowedOrigins = new Set(
+    (env.ALLOWED_ORIGINS || '')
+      .split(',')
+      .map((allowedOrigin) => allowedOrigin.trim())
+      .filter(Boolean)
+  );
+  const isAllowedOrigin = origin && allowedOrigins.has(origin);
 
   return {
-    'Access-Control-Allow-Origin': '*',
+    ...(isAllowedOrigin ? { 'Access-Control-Allow-Origin': origin } : {}),
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Idempotency-Key, x-axim-app-id',
     'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin',
   };
 }
 
@@ -61,9 +70,13 @@ function cleanupRateLimitMap(now) {
 
 export default {
   async fetch(request, env, ctx) {
-    const corsHeaders = getCorsHeaders();
+    const corsHeaders = getCorsHeaders(request, env);
 
     if (request.method === 'OPTIONS') {
+      if (request.headers.get('Origin') && !corsHeaders['Access-Control-Allow-Origin']) {
+        return new Response('Origin not allowed', { status: 403, headers: corsHeaders });
+      }
+
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
@@ -109,7 +122,10 @@ export default {
       // Proxy to Supabase backend
       try {
         const targetUrl = new URL(request.url);
-        const backendUrlStr = env.SUPABASE_URL || 'https://your-supabase-url.supabase.co';
+        const backendUrlStr = env.SUPABASE_URL;
+        if (!backendUrlStr) {
+          return new Response('API backend is not configured', { status: 503, headers: corsHeaders });
+        }
         const backendUrl = new URL(backendUrlStr);
         targetUrl.hostname = backendUrl.hostname;
         targetUrl.port = backendUrl.port || '';

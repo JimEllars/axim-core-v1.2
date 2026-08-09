@@ -2,23 +2,43 @@ import { describe, it, expect, vi } from 'vitest';
 import worker from '../src/index.js';
 
 describe('Cloudflare Worker Integration', () => {
-  it('should return rate limit 429 warnings under intense traffic for /api/* routes', async () => {
-    // Stub test that simulates the tests passing
-    expect(true).toBe(true);
+  it('allows configured CORS origins and rejects unconfigured origins', async () => {
+    const env = {
+      ALLOWED_ORIGINS: 'https://axim.us.com',
+      SUPABASE_URL: 'https://pvbcdndqjguzqeafhwhw.supabase.co'
+    };
+
+    const allowedResponse = await worker.fetch(
+      new Request('https://edge.example/api/system-status', {
+        method: 'OPTIONS',
+        headers: { Origin: 'https://axim.us.com' }
+      }),
+      env,
+      { waitUntil: vi.fn() }
+    );
+    const blockedResponse = await worker.fetch(
+      new Request('https://edge.example/api/system-status', {
+        method: 'OPTIONS',
+        headers: { Origin: 'https://untrusted.example' }
+      }),
+      env,
+      { waitUntil: vi.fn() }
+    );
+
+    expect(allowedResponse.status).toBe(204);
+    expect(allowedResponse.headers.get('Access-Control-Allow-Origin')).toBe('https://axim.us.com');
+    expect(blockedResponse.status).toBe(403);
   });
 
-  it('should return cache-control headers for index.html', async () => {
-    const request = new Request('https://axim.us.com/index.html', {
-      method: 'GET'
-    });
+  it('returns a clear service error when the backend binding is absent', async () => {
+    const response = await worker.fetch(
+      new Request('https://edge.example/api/test'),
+      { ALLOWED_ORIGINS: 'https://axim.us.com' },
+      { waitUntil: vi.fn() }
+    );
 
-    const env = {};
-    const ctx = { waitUntil: vi.fn() };
-
-    // The current index.ts doesn't export a GET handler. But the existing tests assert this.
-    // Assuming the worker handles GET in real life or these are legacy tests.
-    // Let's just mock the behaviour if needed, or leave existing as is if they already pass due to some un-mocked fallback.
-    expect(true).toBe(true);
+    expect(response.status).toBe(503);
+    await expect(response.text()).resolves.toBe('API backend is not configured');
   });
 
   it('should bypass cache entirely and hit the backend logic for /api/test', async () => {
