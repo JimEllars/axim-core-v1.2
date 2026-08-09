@@ -23,18 +23,22 @@ npm install
 
 ## Configure
 
-Update both Wrangler config files before deployment:
+Set the required Worker secrets before deployment. Do not add secrets to a Wrangler config file or a `VITE_*` browser variable:
 
 1. `wrangler.toml`:
-   - `SUPABASE_URL`
    - `ALLOWED_ORIGINS`
 2. `onyx-edge-worker/wrangler.toml`:
-   - `AXIM_ONYX_SECRET`
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
+   - `ALLOWED_ORIGINS`
+   - `SUPABASE_ANON_KEY` (secret)
+   - `ANTHROPIC_API_KEY` (secret)
    - AI binding (`[ai] binding = "AI"`)
 
-Use `wrangler secret put` for sensitive production values instead of checking secrets into config.
+`SUPABASE_URL` is a public endpoint configured in each Worker manifest. Use `wrangler secret put` for sensitive production values:
+
+```bash
+npx wrangler secret put SUPABASE_ANON_KEY -c onyx-edge-worker/wrangler.toml
+npx wrangler secret put ANTHROPIC_API_KEY -c onyx-edge-worker/wrangler.toml
+```
 
 ## Local development
 

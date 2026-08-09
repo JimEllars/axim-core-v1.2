@@ -551,21 +551,20 @@ class ApiService {
 
   async sendToOnyxWorker(payload) {
     const workerUrl = import.meta.env.VITE_ONYX_WORKER_URL;
-    const secureKey = import.meta.env.VITE_ONYX_SECURE_KEY;
-
     if (!workerUrl) {
       throw new Error('Onyx Edge Worker URL is not configured.');
     }
 
-    // Get the current user's session token to append
     const { data: { session } } = await this.supabase.auth.getSession();
-    const token = secureKey;
+    if (!session?.access_token) {
+      throw new Error('An authenticated Supabase session is required to use the Onyx Edge Worker.');
+    }
 
     const response = await fetch(`${workerUrl}/api/v1/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + token
+        'Authorization': 'Bearer ' + session.access_token
       },
       body: JSON.stringify(payload)
     });

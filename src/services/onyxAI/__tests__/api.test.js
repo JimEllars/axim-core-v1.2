@@ -374,6 +374,47 @@ describe('ApiService Facade', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  describe('Onyx Edge Worker requests', () => {
+    it('uses the authenticated Supabase access token rather than a browser environment secret', async () => {
+      vi.stubEnv('VITE_ONYX_WORKER_URL', 'https://onyx.example');
+      api.supabase = {
+        auth: {
+          getSession: vi.fn().mockResolvedValue({
+            data: { session: { access_token: 'user-access-token' } }
+          })
+        }
+      };
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ status: 'success' }), { status: 200 })
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      await api.sendToOnyxWorker({ command: 'status' });
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        'https://onyx.example/api/v1/chat',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer user-access-token'
+          })
+        })
+      );
+    });
+
+    it('rejects an Onyx Edge Worker request without an authenticated session', async () => {
+      vi.stubEnv('VITE_ONYX_WORKER_URL', 'https://onyx.example');
+      api.supabase = {
+        auth: {
+          getSession: vi.fn().mockResolvedValue({ data: { session: null } })
+        }
+      };
+
+      await expect(api.sendToOnyxWorker({ command: 'status' }))
+        .rejects.toThrow('An authenticated Supabase session is required');
+    });
   });
 
   describe('AI Interaction Logging Resilience', () => {

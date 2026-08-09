@@ -1,7 +1,8 @@
 interface Env {
-  VITE_SUPABASE_URL: string;
-  VITE_SUPABASE_ANON_KEY: string;
+  SUPABASE_URL: string;
+  SUPABASE_ANON_KEY: string;
   ANTHROPIC_API_KEY: string;
+  ALLOWED_ORIGINS: string;
   CLOUDFLARE_ACCOUNT_ID?: string;
   CLOUDFLARE_GATEWAY_ID?: string;
   AI: any;
@@ -9,16 +10,29 @@ interface Env {
 
 const windowCache = new Map<string, number[]>();
 
+function getCorsHeaders(request: Request, env: Env): Record<string, string> {
+  const origin = request.headers.get("Origin");
+  const allowedOrigins = new Set(
+    env.ALLOWED_ORIGINS.split(",").map((allowedOrigin) => allowedOrigin.trim()).filter(Boolean)
+  );
+
+  return {
+    ...(origin && allowedOrigins.has(origin) ? { "Access-Control-Allow-Origin": origin } : {}),
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, CF-Connecting-IP, X-AXiM-Trace-ID",
+    "Access-Control-Expose-Headers": "X-AXiM-RateLimit-Remaining",
+    "Vary": "Origin",
+  };
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: any) {
-    const corsHeaders = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization, CF-Connecting-IP, X-AXiM-Trace-ID",
-      "Access-Control-Expose-Headers": "X-AXiM-RateLimit-Remaining",
-    };
+    const corsHeaders = getCorsHeaders(request, env);
 
     if (request.method === "OPTIONS") {
+      if (request.headers.get("Origin") && !corsHeaders["Access-Control-Allow-Origin"]) {
+        return new Response("Origin not allowed", { status: 403, headers: corsHeaders });
+      }
       return new Response("OK", { headers: corsHeaders });
     }
 
@@ -40,8 +54,8 @@ export default {
             });
             const embedding = aiResponse.data[0];
 
-            const supabaseUrl = env.VITE_SUPABASE_URL || 'https://pvbcdndqjguzqeafhwhw.supabase.co';
-            const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
+            const supabaseUrl = env.SUPABASE_URL;
+            const supabaseAnonKey = env.SUPABASE_ANON_KEY;
 
             await fetch(`${supabaseUrl}/rest/v1/ai_interactions_ax2024`, {
               method: 'POST',
@@ -59,8 +73,8 @@ export default {
             });
           } catch (e: any) {
             console.error("Async embedding failed", e);
-            const supabaseUrl = env.VITE_SUPABASE_URL || 'https://pvbcdndqjguzqeafhwhw.supabase.co';
-            const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
+            const supabaseUrl = env.SUPABASE_URL;
+            const supabaseAnonKey = env.SUPABASE_ANON_KEY;
 
             await fetch(`${supabaseUrl}/rest/v1/telemetry_events`, {
               method: 'POST',
@@ -139,8 +153,8 @@ export default {
       }
       const token = authHeader.split('Bearer ')[1];
 
-      const supabaseUrl = env.VITE_SUPABASE_URL || 'https://pvbcdndqjguzqeafhwhw.supabase.co';
-      const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY;
+      const supabaseUrl = env.SUPABASE_URL;
+      const supabaseAnonKey = env.SUPABASE_ANON_KEY;
       let userRes;
       try {
         userRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
