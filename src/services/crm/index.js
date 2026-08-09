@@ -1,6 +1,7 @@
 import GenericCrm from './genericCrm';
 import SalesforceCrm from './salesforceCrm';
 import SuitedashCrm from './suitedashCrm';
+import DeskeraCrm from './deskeraCrm';
 
 // In the future, you could import other CRM services here
 
@@ -12,6 +13,8 @@ export const getCrmService = (integration) => {
       return new SalesforceCrm(integration);
     case 'suitedash':
       return new SuitedashCrm(integration);
+    case 'deskera':
+      return new DeskeraCrm(integration);
     case 'hubspot':
       throw new Error('HubSpot CRM integration is not yet supported.');
     case 'generic':

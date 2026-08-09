@@ -332,7 +332,10 @@ export const submitMicroAppTelemetry = async (payload) => {
       ...(wallet_address ? { wallet_address } : {}),
       metadata: typeof p.metadata === 'object' && p.metadata !== null ? {
         ...p.metadata,
-        cf_cache_hit: p.metadata["cf-aig-cache-status"] === "HIT" || p.metadata.cf_cache_hit === true || p.metadata.cached === true
+        cf_cache_hit: p.metadata["cf-aig-cache-status"] === "HIT" || p.metadata.cf_cache_hit === true || p.metadata.cached === true,
+        "CF-IPCountry": p.metadata["CF-IPCountry"] || p.metadata["cf-ipcountry"] || null,
+        "CF-Ray": p.metadata["CF-Ray"] || p.metadata["cf-ray"] || null,
+        "CF-Connecting-IP": p.metadata["CF-Connecting-IP"] || p.metadata["cf-connecting-ip"] || null
       } : {},
 
       app_id: typeof p.app_id === 'string' ? p.app_id.substring(0, 50) : 'unknown',

@@ -140,6 +140,28 @@ serve(async (req) => {
     }
 
     try {
+        if (req.method === 'POST') {
+            const bodyText = await req.text();
+            if (bodyText) {
+                try {
+                    const payload = JSON.parse(bodyText);
+                    if (payload.action === "extract_contact_info" && payload.target_url) {
+                        return new Response(JSON.stringify({
+                            status: "success",
+                            data: {
+                                url: payload.target_url,
+                                email: "pending@example.com",
+                                phone: "pending"
+                            }
+                        }), {
+                            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                        });
+                    }
+                } catch (e) {
+                    // ignore JSON parse error, fall through to default behavior
+                }
+            }
+        }
         console.log("Starting OSINT Scraper polling...");
 
         for (const entity of TARGET_ENTITIES) {

@@ -108,3 +108,16 @@ All tasks for Wave 101 complete.
 
 **Verification Results**:
 All tests passed successfully, edge degraded recovery test works locally. `submitMicroAppTelemetry` test correctly processes invalid properties. No regressions in any test suites.
+
+## Verification of Wave 103
+
+## Goal
+AXiM Business Development — Geo-Enrichment & OSINT Scraper Foundation. Introduce automatic geo-spatial enrichment for telemetry ingress and build the foundation for our autonomous osint-scraper edge function.
+
+## Changes
+- `src/services/apiProxy.js`: Updated `submitMicroAppTelemetry` to extract `CF-IPCountry`, `CF-Ray`, and `CF-Connecting-IP` from incoming headers/metadata and add them to the sanitized payload.
+- `supabase/functions/osint-scraper/index.ts`: Built out the edge function routing to accept a generic `{ target_url, action: "extract_contact_info" }` payload. It returns a mock JSON response with status success.
+- `src/services/crm/deskeraCrm.js` and `src/services/crm/index.js`: Implemented a foundation for the CRM adapter by adding `DeskeraCrm.js` to push enriched prospects directly into Deskera with a mock `pushLead` function. Exported it in the index file.
+
+## Verification
+- Passed `npx vitest run tests/api-gateway.test.js` successfully.
