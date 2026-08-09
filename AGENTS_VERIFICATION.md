@@ -31,3 +31,5 @@ Business Development Governance & Edge Auto-Recovery. Bridge Jules Session Appro
 - Verified 20/20 test cases passing.
 
 All tasks for Wave 101 complete.
+
+- [x] External Onyx MK3 Edge Worker Routing: `callApiProxy` was updated to intercept requests flagged for the Onyx layer (`integrationId === 'onyx'` or `endpoint` starting with `/onyx/`), and correctly redirects them using `fetch()` to `VITE_ONYX_MK3_URL`. The local `onyx-edge-worker` directory was removed.

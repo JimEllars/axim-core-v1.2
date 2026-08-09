@@ -32,7 +32,38 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
 
   try {
     let data, error;
-    if (endpoint && endpoint.startsWith('/jules/')) {
+    if (integrationId === 'onyx' || (endpoint && endpoint.startsWith('/onyx/'))) {
+      const targetUrl = `${import.meta.env.VITE_ONYX_MK3_URL}${endpoint.startsWith('/onyx/') ? endpoint.replace('/onyx', '') : endpoint}`;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        const fetchHeaders = {
+          'Content-Type': 'application/json',
+          ...(headers || {})
+        };
+
+        if (session && session.access_token && !fetchHeaders['Authorization']) {
+          fetchHeaders['Authorization'] = `Bearer ${session.access_token}`;
+        }
+
+        // Ensure X-AXiM-API-Key is handled if passed in headers, it's already done via spread above
+
+        const response = await fetch(targetUrl, {
+          method: method || 'GET',
+          headers: fetchHeaders,
+          body: body ? (typeof body === 'string' ? body : JSON.stringify(body)) : undefined
+        });
+
+        if (!response.ok) {
+          error = new Error(`Failed to fetch: ${response.statusText}`);
+          error.status = response.status;
+        } else {
+          data = await response.json();
+        }
+      } catch (err) {
+        error = err;
+      }
+    } else if (endpoint && endpoint.startsWith('/jules/')) {
       const targetUrl = `https://jules.googleapis.com/v1alpha/${endpoint.replace('/jules/', '')}`;
       try {
         const response = await fetch(targetUrl, {
