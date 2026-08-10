@@ -5,6 +5,7 @@ import SafeIcon from '../../common/SafeIcon';
 import toast from 'react-hot-toast';
 import ContactNotesModal from './ContactNotesModal';
 import { useContacts } from '../../hooks/useContacts';
+import { useSupabase } from '../../contexts/SupabaseContext';
 
 const { FiUsers, FiSearch, FiEdit, FiTrash2, FiMessageSquare, FiRefreshCw } = FiIcons;
 
@@ -89,6 +90,61 @@ const ContactManager = () => {
             <button onClick={fetchContacts} className="p-2 bg-onyx-950/50 hover:bg-onyx-accent/20 rounded-lg transition-colors border border-onyx-accent/20 shadow-sm" aria-label="Refresh Contacts">
                 <SafeIcon icon={FiRefreshCw} className={`text-slate-300 ${loading ? 'animate-spin' : ''}`} />
             </button>
+        </div>
+      </div>
+
+
+      {/* Telemetry Leads Table */}
+      <div className="mb-8">
+        <h3 className="text-md font-semibold text-white mb-4">Recent Telemetry Leads (Nexus CRM)</h3>
+        <div className="overflow-x-auto rounded-lg border border-onyx-accent/20 bg-onyx-950/30">
+          <table className="w-full text-sm text-left text-slate-300">
+            <thead className="text-xs text-slate-400 uppercase bg-onyx-950 border-b border-onyx-accent/20">
+              <tr>
+                <th scope="col" className="px-6 py-4 font-semibold tracking-wider">ID / Event</th>
+                <th scope="col" className="px-6 py-4 font-semibold tracking-wider">Payload Details</th>
+                <th scope="col" className="px-6 py-4 font-semibold tracking-wider">Created</th>
+                <th scope="col" className="px-6 py-4 font-semibold tracking-wider text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-700/50">
+              {loadingLeads ? (
+                <tr>
+                  <td colSpan="4" className="text-center p-8 text-slate-500">
+                    <SafeIcon icon={FiRefreshCw} className="animate-spin text-2xl mb-2 text-blue-500 inline" />
+                    Loading telemetry leads...
+                  </td>
+                </tr>
+              ) : telemetryLeads.length === 0 ? (
+                <tr>
+                  <td colSpan="4" className="p-8 text-center text-slate-500">
+                    No recent telemetry leads found.
+                  </td>
+                </tr>
+              ) : telemetryLeads.map((lead) => (
+                <tr key={lead.id} className="hover:bg-onyx-accent/20 transition-colors">
+                  <td className="px-6 py-4 font-medium text-slate-200">
+                    {lead.id?.substring(0, 8)}...<br/>
+                    <span className="text-xs text-slate-400">{lead.endpoint || 'N/A'}</span>
+                  </td>
+                  <td className="px-6 py-4 text-slate-400">
+                    <pre className="text-xs max-w-xs overflow-x-auto">{JSON.stringify(lead.payload || {}, null, 2)}</pre>
+                  </td>
+                  <td className="px-6 py-4 text-slate-500 whitespace-nowrap">
+                    {new Date(lead.created_at).toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      onClick={() => handleOsintScan(lead)}
+                      className="px-3 py-1.5 bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 hover:text-blue-300 rounded text-xs font-medium transition-colors border border-blue-700/50"
+                    >
+                      OSINT Scan
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
 
