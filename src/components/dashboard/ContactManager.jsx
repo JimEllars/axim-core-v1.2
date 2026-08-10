@@ -6,6 +6,7 @@ import toast from 'react-hot-toast';
 import ContactNotesModal from './ContactNotesModal';
 import { useContacts } from '../../hooks/useContacts';
 import { useSupabase } from '../../contexts/SupabaseContext';
+import { supabase } from '../../services/supabaseClient';
 
 const { FiUsers, FiSearch, FiEdit, FiTrash2, FiMessageSquare, FiRefreshCw } = FiIcons;
 
@@ -23,6 +24,30 @@ const ContactManager = () => {
   const [isEditing, setIsEditing] = useState(null);
   const [editFormData, setEditFormData] = useState({ name: '', email: '' });
   const [selectedContactForNotes, setSelectedContactForNotes] = useState(null);
+
+  const [telemetryLeads, setTelemetryLeads] = useState([]);
+  const [loadingLeads, setLoadingLeads] = useState(true);
+
+  React.useEffect(() => {
+    const fetchLeads = async () => {
+      setLoadingLeads(true);
+      const { data } = await supabase.from('api_usage_logs').select('*').order('created_at', { ascending: false }).limit(10);
+      if (data) setTelemetryLeads(data);
+      setLoadingLeads(false);
+    };
+    fetchLeads();
+  }, []);
+
+  const handleOsintScan = async (lead) => {
+    toast.success('Initiating OSINT scan...');
+    try {
+      const url = lead.payload?.target_url || 'https://example.com';
+      await supabase.functions.invoke('osint-scraper', { body: { action: 'extract_contact_info', target_url: url } });
+      toast.success('OSINT scan dispatched.');
+    } catch (e) {
+      toast.error('OSINT scan failed to launch.');
+    }
+  };
 
   const handleDelete = async (contactId) => {
     if (window.confirm('Are you sure you want to delete this contact?')) {
