@@ -79,3 +79,16 @@
 * The API gateway context tests were re-run with `npx vitest run tests/api-gateway.test.js` and successfully passed (20/20).
 * File contents check for `20280101000000_crm_campaign_sequences.sql` confirms presence of correct tables, constraints, and RLS policies.
 * File contents check for `campaign-processor/index.ts` confirms successful extraction of enrollments and `supabaseAdmin.functions.invoke` integration.
+
+### Wave 109 CRM Campaign UI & Lead Enrollment
+- **Objective:** Add frontend controls for the BD team to enroll leads into sequences in `ContactManager.jsx`.
+- **Changes made:**
+  - `src/components/dashboard/ContactManager.jsx`:
+    - Imported dependencies for managing sequence fetching.
+    - Updated lead fetching logic to also fetch `availableSequences` from `crm_sequences` and fetch current enrollment statuses from `crm_sequence_enrollments` where status is `active`.
+    - Added an "Enroll" button in the Action column that opens an inline dropdown to select a sequence for the targeted lead.
+    - Added `handleEnrollLead` logic to insert a new row into `crm_sequence_enrollments` via Supabase and display standard `toast.promise` notifications for success/error.
+    - Added visual indicators ("Active Sequence" pills) in the table next to the contact's name for those enrolled.
+- **Verification:**
+  - Executed `tests/api-gateway.test.js` successfully and confirmed the UI tests pass.
+  - Manual code review ensured that we handled Supabase mutations with `try/catch` and that standard React/UI functionalities remain unbroken.

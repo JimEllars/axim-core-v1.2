@@ -27,12 +27,25 @@ const ContactManager = () => {
 
   const [telemetryLeads, setTelemetryLeads] = useState([]);
   const [loadingLeads, setLoadingLeads] = useState(true);
+  const [availableSequences, setAvailableSequences] = useState([]);
+  const [enrollmentTarget, setEnrollmentTarget] = useState(null);
+  const [enrollmentStatuses, setEnrollmentStatuses] = useState({});
 
   React.useEffect(() => {
     const fetchLeads = async () => {
       setLoadingLeads(true);
       const { data } = await supabase.from('api_usage_logs').select('*').order('created_at', { ascending: false }).limit(10);
       if (data) setTelemetryLeads(data);
+
+      const { data: seqData } = await supabase.from('crm_sequences').select('id, name');
+      if (seqData) setAvailableSequences(seqData);
+
+      const { data: enrollmentData } = await supabase.from('crm_sequence_enrollments').select('lead_id, status').eq('status', 'active');
+      if (enrollmentData) {
+        const statuses = {};
+        enrollmentData.forEach(e => { statuses[e.lead_id] = e.status; });
+        setEnrollmentStatuses(statuses);
+      }
       setLoadingLeads(false);
     };
     fetchLeads();
@@ -60,6 +73,27 @@ const ContactManager = () => {
     } catch (e) {
       toast.error('OSINT scan failed to launch.');
     }
+  };
+
+
+  const handleEnrollLead = async (leadId, sequenceId) => {
+    if (!sequenceId) return;
+
+    const enrollPromise = supabase
+      .from('crm_sequence_enrollments')
+      .insert([{ lead_id: leadId, sequence_id: sequenceId, status: 'active', current_step: 0 }]);
+
+    toast.promise(enrollPromise, {
+      loading: 'Enrolling lead...',
+      success: 'Lead successfully enrolled in sequence!',
+      error: 'Failed to enroll lead.'
+    }).then(() => {
+      setEnrollmentTarget(null);
+      // Refresh local statuses
+      setEnrollmentStatuses(prev => ({ ...prev, [leadId]: 'active' }));
+    }).catch((e) => {
+      console.error(e);
+    });
   };
 
   const handleDelete = async (contactId) => {
@@ -279,7 +313,16 @@ const ContactManager = () => {
                   </>
                 ) : (
                   <>
-                    <td className="px-6 py-4 font-medium text-slate-200">{contact.name}</td>
+                    <td className="px-6 py-4 font-medium text-slate-200">
+                        <div className="flex items-center space-x-2">
+                            <span>{contact.name}</span>
+                            {enrollmentStatuses[contact.id] === 'active' && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-blue-900/50 text-blue-400 border border-blue-700/50">
+                                    Active Sequence
+                                </span>
+                            )}
+                        </div>
+                    </td>
                     <td className="px-6 py-4 text-slate-400">{contact.email}</td>
                     <td className="px-6 py-4">
                         <div className="flex flex-col">
@@ -298,6 +341,21 @@ const ContactManager = () => {
                     <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button aria-label={`AI Qualify ${contact.name}`} onClick={() => handleAIQualify(contact)} className="px-2 py-1 text-xs bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 hover:text-purple-300 rounded transition-colors border border-purple-700/50" title="AI Qualify">AI Qualify</button>
+                            <div className="relative">
+                                <button aria-label={`Enroll ${contact.name}`} onClick={() => setEnrollmentTarget(enrollmentTarget === contact.id ? null : contact.id)} className="px-2 py-1 text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 hover:text-blue-300 rounded transition-colors border border-blue-700/50" title="Enroll">Enroll</button>
+                                {enrollmentTarget === contact.id && (
+                                    <div className="absolute right-0 mt-2 w-48 bg-onyx-900 border border-onyx-accent/20 rounded-md shadow-xl z-50">
+                                        <div className="p-2 border-b border-onyx-accent/20 text-xs font-semibold text-slate-300">Select Sequence</div>
+                                        <div className="max-h-40 overflow-y-auto">
+                                            {availableSequences.length > 0 ? availableSequences.map(seq => (
+                                                <button key={seq.id} onClick={() => handleEnrollLead(contact.id, seq.id)} className="w-full text-left px-3 py-2 text-sm text-slate-400 hover:bg-onyx-accent/20 hover:text-white transition-colors">
+                                                    {seq.name}
+                                                </button>
+                                            )) : <div className="p-3 text-xs text-slate-500">No sequences available</div>}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
 
                             <button aria-label={`View notes for ${contact.name}`} onClick={() => setSelectedContactForNotes(contact)} className="p-2 text-slate-400 hover:text-yellow-400 hover:bg-onyx-accent/20 rounded transition-colors" title="Notes">
                                 <SafeIcon icon={FiMessageSquare} />
