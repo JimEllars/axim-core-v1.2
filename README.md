@@ -1,1 +1,1 @@
-You can submit your changes using `submit` tool
+# AXiM Core Dashboard
