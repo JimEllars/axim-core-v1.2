@@ -1,4 +1,3 @@
-import { toast } from 'react-hot-toast';
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
