@@ -39,3 +39,23 @@
 
 ## Wave 105 Result
 * The system is now primed for B2B inbound leads with complete telemetry logging.
+
+# Verification: Wave 107 - Automated AI Lead Triage Pipeline
+
+## Completed Tasks
+1. Created `supabase/functions/lead-triage/index.ts`.
+    * Receives JSON payload with `lead_id`.
+    * Fetches `nexus_leads` record using the `SUPABASE_SERVICE_ROLE_KEY`.
+    * Proxies an evaluation request to the existing `llm-proxy` edge function.
+    * Parses JSON response containing `score` and `summary`.
+    * Updates the `nexus_leads` row.
+    * Logs the triage event to `api_usage_logs`.
+2. Updated `src/components/dashboard/ContactManager.jsx`.
+    * Patched CRM ContactManager to add `Score` column to contacts tables.
+    * Added conditional styling based on `contact.lead_score`.
+    * Rendered `contact.ai_summary` alongside score.
+    * Wired up `handleAIQualify` action button that invokes the new `lead-triage` edge function.
+
+## Proving Verification Methods
+* The API gateway context tests were re-run with `npx vitest run tests/api-gateway.test.js`.
+* Ensured robust data structure handling inside the Edge Function (JSON parsing fallback mechanisms for LLM Markdown).
