@@ -1,3 +1,4 @@
+import { toast } from 'react-hot-toast';
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
@@ -37,6 +38,19 @@ const ContactManager = () => {
     };
     fetchLeads();
   }, []);
+
+  const handleAIQualify = async (lead) => {
+         toast.success('Initiating AI Qualification...');
+         try {
+           const response = await supabase.functions.invoke('lead-triage', { body: { lead_id: lead.id } });
+           if(response.error) throw new Error(response.error.message || 'Error from edge function');
+           toast.success('Lead scored successfully.');
+           fetchContacts(); // or refresh the local lead state
+         } catch (e) {
+           toast.error('AI Qualification failed.');
+           console.error(e);
+         }
+       };
 
   const handleOsintScan = async (lead) => {
     toast.success('Initiating OSINT scan...');
@@ -160,6 +174,12 @@ const ContactManager = () => {
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button
+                      onClick={() => handleAIQualify(lead)}
+                      className="px-3 py-1.5 bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 hover:text-purple-300 rounded text-xs font-medium transition-colors border border-purple-700/50 mr-2"
+                    >
+                      AI Qualify
+                    </button>
+<button
                       onClick={() => handleOsintScan(lead)}
                       className="px-3 py-1.5 bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 hover:text-blue-300 rounded text-xs font-medium transition-colors border border-blue-700/50"
                     >
@@ -194,6 +214,7 @@ const ContactManager = () => {
             <tr>
               <th scope="col" className="px-6 py-4 font-semibold tracking-wider">Name</th>
               <th scope="col" className="px-6 py-4 font-semibold tracking-wider">Email</th>
+              <th scope="col" className="px-6 py-4 font-semibold tracking-wider">Score</th>
               <th scope="col" className="px-6 py-4 font-semibold tracking-wider">Source</th>
               <th scope="col" className="px-6 py-4 font-semibold tracking-wider">Created</th>
               <th scope="col" className="px-6 py-4 font-semibold tracking-wider text-right">Actions</th>
@@ -202,7 +223,7 @@ const ContactManager = () => {
           <tbody className="divide-y divide-slate-700/50">
             {loading ? (
               <tr>
-                <td colSpan="5" className="text-center p-8">
+                <td colSpan="6" className="text-center p-8">
                   <div className="flex flex-col items-center justify-center text-slate-500">
                       <SafeIcon icon={FiRefreshCw} className="animate-spin text-2xl mb-2 text-blue-500" />
                       Loading contacts...
@@ -211,7 +232,7 @@ const ContactManager = () => {
               </tr>
             ) : currentItems.length === 0 ? (
                 <tr>
-                    <td colSpan="5" className="p-8">
+                    <td colSpan="6" className="p-8">
                         <div className="glass-effect p-8 rounded-xl border border-dashed border-onyx-accent/40 text-center flex flex-col items-center justify-center">
                             <SafeIcon icon={FiUsers} className="text-slate-500 text-4xl mb-4" />
                             <h3 className="text-lg font-semibold text-slate-300 mb-2">No Contacts Found</h3>
@@ -233,6 +254,7 @@ const ContactManager = () => {
                         className="w-full bg-onyx-950 border border-onyx-accent/20 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-3 py-1.5 text-white transition-all outline-none"
                       />
                     </td>
+                    <td className="px-6 py-3"></td>
                     <td className="px-6 py-3">
                       <input
                         type="email"
@@ -261,6 +283,14 @@ const ContactManager = () => {
                     <td className="px-6 py-4 font-medium text-slate-200">{contact.name}</td>
                     <td className="px-6 py-4 text-slate-400">{contact.email}</td>
                     <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                            <span className={`font-semibold ${contact.lead_score >= 80 ? "text-green-400" : contact.lead_score >= 50 ? "text-yellow-400" : "text-slate-400"}`}>
+                                {contact.lead_score !== null && contact.lead_score !== undefined ? contact.lead_score : "-"}
+                            </span>
+                            {contact.ai_summary && <span className="text-xs text-slate-500 max-w-[200px] truncate" title={contact.ai_summary}>{contact.ai_summary}</span>}
+                        </div>
+                    </td>
+                    <td className="px-6 py-4">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-onyx-950 text-slate-400 border border-onyx-accent/20">
                             {contact.source}
                         </span>
@@ -268,6 +298,8 @@ const ContactManager = () => {
                     <td className="px-6 py-4 text-slate-500 whitespace-nowrap">{new Date(contact.created_at).toLocaleDateString()}</td>
                     <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button aria-label={`AI Qualify ${contact.name}`} onClick={() => handleAIQualify(contact)} className="px-2 py-1 text-xs bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 hover:text-purple-300 rounded transition-colors border border-purple-700/50" title="AI Qualify">AI Qualify</button>
+
                             <button aria-label={`View notes for ${contact.name}`} onClick={() => setSelectedContactForNotes(contact)} className="p-2 text-slate-400 hover:text-yellow-400 hover:bg-onyx-accent/20 rounded transition-colors" title="Notes">
                                 <SafeIcon icon={FiMessageSquare} />
                             </button>
