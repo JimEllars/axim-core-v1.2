@@ -11,23 +11,6 @@ const corsOrigin = Deno.env.get('CORS_ORIGIN');
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-const RATE_LIMIT_WINDOW = 60 * 1000;
-const MAX_REQUESTS = 100;
-const ipRequestCounts = new Map<string, { count: number; resetTime: number }>();
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const record = ipRequestCounts.get(ip);
-  if (!record || now > record.resetTime) {
-    ipRequestCounts.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW });
-    return true;
-  }
-  if (record.count >= MAX_REQUESTS) {
-    return false;
-  }
-  record.count++;
-  return true;
-}
 
 async function logSecurityAnomaly(reason: string, metadata: any = {}) {
     console.warn(`[Security Anomaly] ${reason}`, metadata);
@@ -107,39 +90,76 @@ serve(async (req) => {
 
     let partnerId: string | null = null;
     let apiKeyId: string | null = null;
+    let apiKeyData: any = null;
 
-    if (!isInternal && ip !== 'unknown') {
-      if (!checkRateLimit(ip)) {
-        await logSecurityAnomaly('Rate Limit Exceeded', { limit: MAX_REQUESTS, window: RATE_LIMIT_WINDOW });
+    if (!isInternal) {
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const apiKey = authHeader.split(' ')[1];
+        const hashedIncoming = await hashApiKey(apiKey);
+
+        // Validate the key against the api_keys table
+        const { data: apiData, error: apiKeyError } = await supabaseAdmin
+          .from('api_keys')
+          .select('id, user_id, service, scopes, status')
+          .eq('api_key', hashedIncoming)
+          .single();
+
+        apiKeyData = apiData;
+        if (apiKeyError || !apiKeyData || apiKeyData.status === 'revoked') {
+          await logSecurityAnomaly('Unauthorized: Invalid API Key');
+          return new Response(JSON.stringify({ error: 'Unauthorized: Invalid API Key' }), {
+            status: 401,
+            headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+
+        apiKeyId = apiKeyData.id;
+        partnerId = apiKeyData.user_id;
+      }
+
+      // Check DB rate limiting
+      const oneMinuteAgo = new Date(Date.now() - 60000).toISOString();
+      const limitThreshold = apiKeyId ? 100 : 5;
+
+      let query = supabaseAdmin
+        .from('api_usage_logs')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', oneMinuteAgo);
+
+      if (apiKeyId) {
+        query = query.eq('api_key_id', apiKeyId);
+      } else {
+        query = query.eq('ip_address', ip);
+      }
+
+      const { count } = await query;
+
+      if (count !== null && count >= limitThreshold) {
+        if (typeof EdgeRuntime !== 'undefined') {
+          EdgeRuntime.waitUntil(
+            supabaseAdmin.from('api_usage_logs').insert({
+            api_key_id: apiKeyId,
+            partner_id: partnerId,
+            endpoint: endpoint,
+            status_code: 429,
+            ip_address: ip,
+              payload: { event: 'rate_limit_exceeded', limit: limitThreshold }
+            })
+          );
+        }
+        await logSecurityAnomaly('Rate Limit Exceeded', { limit: limitThreshold, window: 60000, ip });
         return new Response(JSON.stringify({ error: 'Too Many Requests' }), {
           status: 429,
           headers: { ...securityHeaders, 'Content-Type': 'application/json' }
         });
       }
-    }
 
-    if (!isInternal) {
+      // If Public Tier (No API Key), reject normal routes (unless it's an explicitly allowed public route if any)
+      // Actually, if there's no authHeader, we should return 401 AFTER the rate limit check
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        // Log the 401 as rate limit compliant but unauthorized
         await logSecurityAnomaly('Unauthorized: Missing or invalid Authorization header');
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-          status: 401,
-          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
-        });
-      }
-
-      const apiKey = authHeader.split(' ')[1];
-      const hashedIncoming = await hashApiKey(apiKey);
-
-      // Validate the key against the api_keys table
-      const { data: apiKeyData, error: apiKeyError } = await supabaseAdmin
-        .from('api_keys')
-        .select('id, user_id, service, scopes, status')
-        .eq('api_key', hashedIncoming)
-        .single();
-
-      if (apiKeyError || !apiKeyData || apiKeyData.status === 'revoked') {
-        await logSecurityAnomaly('Unauthorized: Invalid API Key');
-        return new Response(JSON.stringify({ error: 'Unauthorized: Invalid API Key' }), {
           status: 401,
           headers: { ...securityHeaders, 'Content-Type': 'application/json' }
         });
@@ -190,9 +210,6 @@ serve(async (req) => {
           }
       }
 
-      partnerId = apiKeyData.user_id;
-      apiKeyId = apiKeyData.id;
-
       // Log the request to api_usage_logs
       if (typeof EdgeRuntime !== 'undefined') {
         EdgeRuntime.waitUntil(
@@ -200,6 +217,7 @@ serve(async (req) => {
             api_key_id: apiKeyId,
             partner_id: partnerId,
             endpoint: endpoint,
+            ip_address: ip,
             created_at: new Date().toISOString()
           })
         );
@@ -336,9 +354,10 @@ serve(async (req) => {
       if (body.error || body.status === 'failed') {
           EdgeRuntime.waitUntil(
             supabaseAdmin.from('api_usage_logs').insert({
-                api_key_id: apiKeyId,
-                partner_id: partnerId,
-                endpoint: endpoint,
+            api_key_id: apiKeyId,
+            partner_id: partnerId,
+            endpoint: endpoint,
+            ip_address: ip,
                 status_code: 500,
                 compute_ms: -1, // trigger quarantine
                 created_at: new Date().toISOString()
@@ -439,9 +458,10 @@ serve(async (req) => {
        if (typeof EdgeRuntime !== 'undefined') {
          EdgeRuntime.waitUntil(
            supabaseAdmin.from('api_usage_logs').insert({
-             api_key_id: apiKeyId,
-             partner_id: partnerId,
-             endpoint: endpoint,
+            api_key_id: apiKeyId,
+            partner_id: partnerId,
+            endpoint: endpoint,
+            ip_address: ip,
              status_code: 200,
              created_at: new Date().toISOString()
            })
@@ -488,9 +508,10 @@ serve(async (req) => {
        if (typeof EdgeRuntime !== 'undefined') {
          EdgeRuntime.waitUntil(
            supabaseAdmin.from('api_usage_logs').insert({
-             api_key_id: apiKeyId,
-             partner_id: partnerId,
-             endpoint: endpoint,
+            api_key_id: apiKeyId,
+            partner_id: partnerId,
+            endpoint: endpoint,
+            ip_address: ip,
              status_code: 200,
              payment_method: 'arbitrum_stablecoin',
              created_at: new Date().toISOString()
@@ -671,6 +692,7 @@ serve(async (req) => {
         status_code: 500,
         execution_time_ms: -1,
         partner_id: 'internal',
+        ip_address: ip,
         payload: {
           shadow_telemetry: true,
           severity: 'critical',
