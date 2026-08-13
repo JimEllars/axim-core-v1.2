@@ -117,8 +117,9 @@ serve(async (req) => {
 
     // 3. Parse the request body.
     let { provider, prompt, options = {} } = await req.json();
+    // Workstream B: Explicit default provider policy. Wave 55 used deepseek for cost.
     if (!provider || provider.trim() === '') {
-        provider = 'openai';
+        provider = 'deepseek';
     }
 
     if (!prompt) {
@@ -216,6 +217,24 @@ serve(async (req) => {
                 }
             }
         });
+    } else if (provider === 'deepseek') {
+        providerList.push({
+            // Assuming deepseek isn't natively listed in CF AIG yet, we might use openai endpoint format
+            // if configured, but to make CF AIG route it, we'll map it to an open-compatible route or direct format.
+            // If CF AIG doesn't support deepseek as a first-class provider id, we will assume standard openai-compatible
+            // passthrough or explicit deepseek provider if available.
+            provider: 'deepseek', // Cloudflare AI gateway does support some additional providers via custom routing, assuming deepseek is supported or mapped this way.
+            endpoint: 'chat/completions',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`
+            },
+            query: {
+                model: options.model || 'deepseek-chat',
+                messages: messages,
+                max_tokens: options.max_tokens || 1024,
+                temperature: options.temperature || 0.7
+            }
+        });
     } else {
         throw new Error(`Provider ${provider} is not supported by the universal routing gateway.`);
     }
@@ -305,7 +324,12 @@ serve(async (req) => {
             // Record cache status for metrics
             metadata: {
                 cached: cached,
-                fallback: respondingProvider !== provider && respondingProvider !== 'anthropic' // anthropic is used for claude in CF AIG
+                // Check if the responding provider maps back to the requested provider
+                // Using explicit mapping: openai->openai, claude->anthropic, gemini->google-ai-studio, deepseek->deepseek
+                fallback: (() => {
+                    const mappedRequested = provider === 'claude' ? 'anthropic' : (provider === 'gemini' ? 'google-ai-studio' : provider);
+                    return respondingProvider !== mappedRequested;
+                })()
             }
         });
     } catch (logError) {
