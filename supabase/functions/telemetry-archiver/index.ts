@@ -21,23 +21,16 @@ serve(async (req) => {
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
         const cutoffDate = ninetyDaysAgo.toISOString();
 
-        // 1. Archive Telemetry Logs
-        const { data: logsToArchive, error: fetchError } = await supabase
-            .from("telemetry_logs")
-            .select("*")
-            .lt("created_at", cutoffDate);
-
-        // 2. Archive API Usage Logs
-        const { data: apiLogsToArchive, error: apiFetchError } = await supabase
-            .from("api_usage_logs")
-            .select("*")
-            .lt("timestamp", cutoffDate);
-
-        // 3. Archive Satellite Pulses
-        const { data: satelliteLogsToArchive, error: satelliteFetchError } = await supabase
-            .from("satellite_pulses")
-            .select("*")
-            .lt("timestamp", cutoffDate);
+        // Use Promise.all to fetch logs concurrently
+        const [
+            { data: logsToArchive, error: fetchError },
+            { data: apiLogsToArchive, error: apiFetchError },
+            { data: satelliteLogsToArchive, error: satelliteFetchError }
+        ] = await Promise.all([
+            supabase.from("telemetry_logs").select("*").lt("created_at", cutoffDate),
+            supabase.from("api_usage_logs").select("*").lt("timestamp", cutoffDate),
+            supabase.from("satellite_pulses").select("*").lt("timestamp", cutoffDate)
+        ]);
 
         if (fetchError || apiFetchError || satelliteFetchError) {
             console.error(`[CID: ${correlationId}] Error fetching logs for archiving`);
@@ -160,21 +153,25 @@ serve(async (req) => {
              });
         }
 
-        // Delete the archived logs
+        // Delete the archived logs concurrently
+        const deletePromises = [];
+
         if (logsToArchive && logsToArchive.length > 0) {
             const logIds = logsToArchive.map((log: any) => log.id);
-            await supabase.from("telemetry_logs").delete().in("id", logIds);
+            deletePromises.push(supabase.from("telemetry_logs").delete().in("id", logIds));
         }
 
         if (apiLogsToArchive && apiLogsToArchive.length > 0) {
             const apiLogIds = apiLogsToArchive.map((log: any) => log.id);
-            await supabase.from("api_usage_logs").delete().in("id", apiLogIds);
+            deletePromises.push(supabase.from("api_usage_logs").delete().in("id", apiLogIds));
         }
 
         if (satelliteLogsToArchive && satelliteLogsToArchive.length > 0) {
             const satelliteLogIds = satelliteLogsToArchive.map((log: any) => log.id);
-            await supabase.from("satellite_pulses").delete().in("id", satelliteLogIds);
+            deletePromises.push(supabase.from("satellite_pulses").delete().in("id", satelliteLogIds));
         }
+
+        await Promise.all(deletePromises);
 
         return new Response(JSON.stringify({ message: `Successfully archived ${totalToArchive} logs.`, correlationId }), {
             status: 200,
