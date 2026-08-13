@@ -119,3 +119,21 @@
 ## Proving Verification Methods
 * The API gateway context tests were re-run with `npx vitest run tests/api-gateway.test.js` and successfully passed (20/20).
 * Manual source code analysis confirms replacement of edge sliding-window logic with a rigorous database-backed lookup via Supabase, satisfying all security mandates.
+
+# Verification: Wave 112 - CRM Campaign Unenrollment UI
+
+## Completed Tasks
+1. Implemented Unenrollment Logic and UI in `src/components/dashboard/ContactManager.jsx`:
+    * Added `handleStopSequence(leadId)` async function.
+    * Uses `supabase.from('crm_sequence_enrollments').update({ status: 'paused' }).eq('lead_id', leadId).eq('status', 'active')` to update sequence state.
+    * Uses `toast.promise` to display loading/success/error states during sequence unenrollment.
+    * Refreshes UI automatically by updating local `enrollmentStatuses` and calling `fetchContacts()`.
+    * Renders a red "Stop Sequence" button replacing the "Enroll" dropdown when a lead is enrolled.
+2. Implemented Telemetry Logging for Unenrollment Actions:
+    * `handleStopSequence` inserts telemetry via `supabase.from('api_usage_logs').insert([{ action: 'sequence_manually_stopped', payload: { lead_id: leadId } }])`.
+
+## Proving Verification Methods
+* Manual code review verifies UI implementation matches the specification, and Supabase client updates use correct tables and properties.
+
+## Wave 112 Result
+* Business Development users can now explicitly halt an active email sequence, offering real-time control over lead outreach pipelines while recording complete telemetry.
