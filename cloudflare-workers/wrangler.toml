@@ -6,3 +6,11 @@ compatibility_flags = ["nodejs_compat"]
 [vars]
 SUPABASE_URL = "https://pvbcdndqjguzqeafhwhw.supabase.co"
 ALLOWED_ORIGINS = "https://axim.us.com,http://localhost:5173"
+
+
+[[kv_namespaces]]
+binding = "RATE_LIMIT_KV"
+id = "mock_kv_id"
+
+[observability]
+enabled = true

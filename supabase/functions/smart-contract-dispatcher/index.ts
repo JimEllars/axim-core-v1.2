@@ -90,28 +90,90 @@ serve(async (req) => {
       safeAddress
     });
 
+    // Workstream A: Check Safe threshold configuration
+    const safeInfo = await protocolKit.getSafeInfo();
+    const threshold = safeInfo.threshold;
+    console.log(`Safe Threshold configured as ${threshold}`);
+
     console.log(`Creating Safe transaction...`);
     const safeTransaction = await protocolKit.createTransaction({
       transactions: [safeTransactionData]
     });
 
-    console.log(`Broadcasting Safe transaction to Arbitrum network via Relayer. Amount: ${amount} USDC`);
-
     let txHash;
-    try {
-        const txResponse = await protocolKit.executeTransaction(safeTransaction);
-        console.log(`Transaction sent. Hash: ${txResponse.hash}`);
+    if (threshold === 1) {
+        // Warning: 1-of-1 threshold offers no real multisig protection.
+        console.warn(`SECURITY WARNING: GNOSIS_SAFE_ADDRESS ${safeAddress} is configured with a 1-of-1 threshold. This provides no real multisig treasury protection.`);
+        console.log(`Broadcasting Safe transaction directly to Arbitrum network. Amount: ${amount} USDC`);
 
-        // Wait for 1 confirmation
-        const receipt = await provider.waitForTransaction(txResponse.hash, 1);
-        if (receipt && receipt.status !== 1) {
-            throw new Error("Transaction execution reverted on-chain.");
+        try {
+            const txResponse = await protocolKit.executeTransaction(safeTransaction);
+            console.log(`Transaction sent. Hash: ${txResponse.hash}`);
+
+            // Wait for 1 confirmation
+            const receipt = await provider.waitForTransaction(txResponse.hash, 1);
+            if (receipt && receipt.status !== 1) {
+                throw new Error("Transaction execution reverted on-chain.");
+            }
+            txHash = txResponse.hash;
+            console.log(`Transaction confirmed in block ${receipt?.blockNumber}`);
+        } catch (txError: any) {
+            console.error("On-chain transaction failed:", txError);
+            throw new Error(`Engine Fault: Transaction failed during gas estimation or execution: ${txError.message || 'Unknown error'}`);
         }
-        txHash = txResponse.hash;
-        console.log(`Transaction confirmed in block ${receipt?.blockNumber}`);
-    } catch (txError: any) {
-        console.error("On-chain transaction failed:", txError);
-        throw new Error(`Engine Fault: Transaction failed during gas estimation or execution: ${txError.message || 'Unknown error'}`);
+    } else {
+        // Threshold > 1: We must propose the transaction for other signers to confirm.
+        console.log(`Proposing Safe transaction for threshold ${threshold} approval. Amount: ${amount} USDC`);
+        try {
+            // We need to propose the transaction to the Safe Transaction Service.
+            // Since this is a serverless function, we generate the transaction hash and sign it,
+            // then we'd normally submit it to the Safe API Kit.
+            const safeTxHash = await protocolKit.getTransactionHash(safeTransaction);
+            const signature = await protocolKit.signHash(safeTxHash);
+
+            // In this setup, we rely on the Safe API Kit to propose the transaction.
+            const apiKit = new SafeApiKit.default({ chainId: 42161n }); // Arbitrum One
+            await apiKit.proposeTransaction({
+                safeAddress,
+                safeTransactionData: safeTransaction.data,
+                safeTxHash,
+                senderAddress: await wallet.getAddress(),
+                senderSignature: signature.data,
+            });
+
+            console.log(`Transaction ${safeTxHash} proposed successfully.`);
+
+            // We log the proposal hash instead of an execution hash, and set status to pending_treasury_approval
+            txHash = safeTxHash;
+
+            const { data: record, error: dbError } = await supabase
+                .from("blockchain_transactions")
+                .insert({
+                    partner_id: partner_id,
+                    wallet_address: wallet_address,
+                    amount: amount,
+                    currency: "USDC",
+                    status: "pending_treasury_approval",
+                    transaction_hash: txHash,
+                    smart_contract_address: USDC_ADDRESS
+                })
+                .select()
+                .single();
+
+            if (dbError) {
+                console.error("Failed to log transaction proposal to database", dbError);
+                throw new Error(`Engine Fault: Transaction proposed (${txHash}), but failed to persist to database: ${dbError.message}`);
+            }
+
+            return new Response(JSON.stringify({ success: true, transaction: record, status: "proposed" }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+              status: 200,
+            });
+
+        } catch (txError: any) {
+             console.error("Proposing transaction failed:", txError);
+             throw new Error(`Engine Fault: Failed to propose multisig transaction: ${txError.message || 'Unknown error'}`);
+        }
     }
 
     // Remove local fallback, explicitly use the provided partner_id

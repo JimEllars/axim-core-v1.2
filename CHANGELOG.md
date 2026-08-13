@@ -1,3 +1,10 @@
+## Wave 114: Reissuing Unlanded Correctness Fixes (#344)
+
+Reissued unlanded fixes, added KV activation, updated CHANGELOG automation, and added BD/CRM tests.
+
+## Waves 57 - 113 (Backfill)
+Various updates and feature implementations including business development/CRM automation (lead triage, campaign sequencing, OSINT enrichment, email reply parsing).
+
 # AXiM Core Dashboard Changelog
 
 ## [Wave 56] - 2026-06-25
