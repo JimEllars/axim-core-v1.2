@@ -96,6 +96,31 @@ const ContactManager = () => {
     });
   };
 
+
+  const handleStopSequence = async (leadId) => {
+    try {
+      const stopPromise = supabase
+        .from('crm_sequence_enrollments')
+        .update({ status: 'paused' })
+        .eq('lead_id', leadId)
+        .eq('status', 'active');
+
+      await toast.promise(stopPromise, {
+        loading: 'Stopping sequence...',
+        success: 'Sequence stopped successfully!',
+        error: 'Failed to stop sequence.'
+      });
+
+      await supabase.from('api_usage_logs').insert([{ action: 'sequence_manually_stopped', payload: { lead_id: leadId } }]);
+
+      setEnrollmentStatuses(prev => ({ ...prev, [leadId]: 'paused' }));
+      fetchContacts();
+    } catch (e) {
+      console.error(e);
+      toast.error('An error occurred while stopping sequence.');
+    }
+  };
+
   const handleDelete = async (contactId) => {
     if (window.confirm('Are you sure you want to delete this contact?')) {
       await deleteContact(contactId);
@@ -342,18 +367,26 @@ const ContactManager = () => {
                         <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button aria-label={`AI Qualify ${contact.name}`} onClick={() => handleAIQualify(contact)} className="px-2 py-1 text-xs bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 hover:text-purple-300 rounded transition-colors border border-purple-700/50" title="AI Qualify">AI Qualify</button>
                             <div className="relative">
-                                <button aria-label={`Enroll ${contact.name}`} onClick={() => setEnrollmentTarget(enrollmentTarget === contact.id ? null : contact.id)} className="px-2 py-1 text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 hover:text-blue-300 rounded transition-colors border border-blue-700/50" title="Enroll">Enroll</button>
-                                {enrollmentTarget === contact.id && (
-                                    <div className="absolute right-0 mt-2 w-48 bg-onyx-900 border border-onyx-accent/20 rounded-md shadow-xl z-50">
-                                        <div className="p-2 border-b border-onyx-accent/20 text-xs font-semibold text-slate-300">Select Sequence</div>
-                                        <div className="max-h-40 overflow-y-auto">
-                                            {availableSequences.length > 0 ? availableSequences.map(seq => (
-                                                <button key={seq.id} onClick={() => handleEnrollLead(contact.id, seq.id)} className="w-full text-left px-3 py-2 text-sm text-slate-400 hover:bg-onyx-accent/20 hover:text-white transition-colors">
-                                                    {seq.name}
-                                                </button>
-                                            )) : <div className="p-3 text-xs text-slate-500">No sequences available</div>}
-                                        </div>
-                                    </div>
+                                {enrollmentStatuses[contact.id] === 'active' ? (
+                                    <button aria-label={`Stop Sequence ${contact.name}`} onClick={() => handleStopSequence(contact.id)} className="px-2 py-1 text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 hover:text-red-300 rounded transition-colors border border-red-700/50" title="Stop Sequence">
+                                        Stop Sequence
+                                    </button>
+                                ) : (
+                                    <>
+                                        <button aria-label={`Enroll ${contact.name}`} onClick={() => setEnrollmentTarget(enrollmentTarget === contact.id ? null : contact.id)} className="px-2 py-1 text-xs bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 hover:text-blue-300 rounded transition-colors border border-blue-700/50" title="Enroll">Enroll</button>
+                                        {enrollmentTarget === contact.id && (
+                                            <div className="absolute right-0 mt-2 w-48 bg-onyx-900 border border-onyx-accent/20 rounded-md shadow-xl z-50">
+                                                <div className="p-2 border-b border-onyx-accent/20 text-xs font-semibold text-slate-300">Select Sequence</div>
+                                                <div className="max-h-40 overflow-y-auto">
+                                                    {availableSequences.length > 0 ? availableSequences.map(seq => (
+                                                        <button key={seq.id} onClick={() => handleEnrollLead(contact.id, seq.id)} className="w-full text-left px-3 py-2 text-sm text-slate-400 hover:bg-onyx-accent/20 hover:text-white transition-colors">
+                                                            {seq.name}
+                                                        </button>
+                                                    )) : <div className="p-3 text-xs text-slate-500">No sequences available</div>}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
 
