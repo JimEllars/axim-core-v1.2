@@ -3,8 +3,39 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-axim-trace-id',
 }
+
+function truncateString(str: string, maxLength: number): string {
+    if (typeof str !== 'string') return str;
+    return str.length > maxLength ? str.substring(0, maxLength) + '... [TRUNCATED]' : str;
+}
+
+function limitPayloadSize(payload: any, maxStringLength: number = 2000): any {
+    if (!payload) return payload;
+
+    if (typeof payload === 'string') {
+        return truncateString(payload, maxStringLength);
+    }
+
+    if (typeof payload === 'object') {
+        if (Array.isArray(payload)) {
+            return payload.map(item => limitPayloadSize(item, maxStringLength));
+        }
+
+        const limited = { ...payload };
+        for (const key in limited) {
+            if (Object.prototype.hasOwnProperty.call(limited, key)) {
+                limited[key] = limitPayloadSize(limited[key], maxStringLength);
+            }
+        }
+        return limited;
+    }
+
+    return payload;
+}
+
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -18,77 +49,103 @@ serve(async (req) => {
     )
 
     const rawPayload = await req.json();
-    const app_id = rawPayload.app_id || 'unknown_app';
-    const traceId = req.headers.get('X-AXiM-Trace-ID') || rawPayload.metadata?.['X-AXiM-Trace-ID'] || 'no_trace_id';
-    const authHeader = req.headers.get('Authorization') || '';
-    const clientIp = req.headers.get('x-forwarded-for') || 'unknown_ip';
 
-    // Import sanitization dynamically
-    const { sanitizePayload } = await import('../telemetry-archiver/sanitization.ts');
-    const sanitizedPayload = sanitizePayload(rawPayload);
-
-    const oneMinuteAgo = new Date(Date.now() - 60000).toISOString()
-
-    // Check request count for this specific IP within the last minute
-    const { count, error: countError } = await supabaseClient
-      .from('telemetry_logs')
-      .select('*', { count: 'exact', head: true })
-      .eq('app_type', app_id)
-      .eq('ip_address', clientIp)
-      .gte('timestamp', oneMinuteAgo)
-
-    if (countError) throw countError
-
-    if (count !== null && count >= 10) {
-      // Log the violation in api_usage_logs
-      await supabaseClient.from('api_usage_logs').insert({
-        endpoint: '/telemetry-ingress',
-        status_code: 429,
-        // Using -1 to indicate an anomaly/violation
-        compute_ms: -1
-      })
-
-      return new Response(
-        JSON.stringify({ error: 'Too Many Requests' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 }
-      )
+    // Ensure we are working with an object or array
+    let processedPayload = rawPayload;
+    if (typeof rawPayload === 'string') {
+      try {
+        processedPayload = JSON.parse(rawPayload);
+      } catch (e) {
+        // If it's just a string, wrap it in an object
+        processedPayload = { message: rawPayload };
+      }
     }
 
-    // Insert the telemetry log
-    const { error: insertError } = await supabaseClient.from('events_ax2024').insert({
-        type: sanitizedPayload.event || 'generic_telemetry',
-        source: app_id,
-        data: sanitizedPayload.details || sanitizedPayload,
-        created_at: new Date().toISOString()
-    })
+    // Handle arrays (e.g. bulk telemetry)
+    const isArray = Array.isArray(processedPayload);
+    const payloadsToProcess = isArray ? processedPayload : [processedPayload];
 
-    if (insertError) throw insertError
+    const clientIp = req.headers.get('x-forwarded-for') || 'unknown_ip';
+    const authHeader = req.headers.get('Authorization') || '';
+    const traceId = req.headers.get('X-AXiM-Trace-ID') || 'no_trace_id';
 
-    // Also log successful usage
-    if (app_id === 'onyx_edge_worker') {
-      await supabaseClient.from('api_usage_logs').insert({
-          endpoint: rawPayload.endpoint || '/telemetry-ingress',
-          status_code: rawPayload.status_code || 200,
-          execution_time_ms: rawPayload.execution_time_ms || 0,
-          compute_ms: rawPayload.compute_ms || 50,
-          app_id: app_id,
-          payload: {
-              ...rawPayload.metadata,
-              trace_id: traceId,
-              auth_context: authHeader ? 'bearer_present' : 'none'
-          }
-      })
-    } else {
-      await supabaseClient.from('api_usage_logs').insert({
-          endpoint: '/telemetry-ingress',
-          status_code: 200,
-          compute_ms: 50,
-          payload: { trace_id: traceId, auth_context: authHeader ? 'bearer_present' : 'none' }
-      })
+    // Process each payload
+    for (const p of payloadsToProcess) {
+        const app_id = p.app_id || 'unknown_app';
+        const currentTraceId = p.metadata?.['X-AXiM-Trace-ID'] || traceId;
+
+        // Import sanitization dynamically
+        const { sanitizePayload } = await import('../telemetry-archiver/sanitization.ts');
+
+        // 1. Sanitize
+        const sanitizedPayload = sanitizePayload(p);
+
+        // 2. Limit size to prevent database bloat
+        const limitedPayload = limitPayloadSize(sanitizedPayload);
+
+        const oneMinuteAgo = new Date(Date.now() - 60000).toISOString()
+
+        // Check request count for this specific IP within the last minute
+        const { count, error: countError } = await supabaseClient
+          .from('telemetry_logs')
+          .select('*', { count: 'exact', head: true })
+          .eq('app_type', app_id)
+          .eq('ip_address', clientIp)
+          .gte('timestamp', oneMinuteAgo)
+
+        if (countError) throw countError
+
+        if (count !== null && count >= 10) {
+          // Log the violation in api_usage_logs
+          await supabaseClient.from('api_usage_logs').insert({
+            endpoint: '/telemetry-ingress',
+            status_code: 429,
+            // Using -1 to indicate an anomaly/violation
+            compute_ms: -1
+          })
+
+          return new Response(
+            JSON.stringify({ error: 'Too Many Requests' }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 }
+          )
+        }
+
+        // Insert the telemetry log
+        const { error: insertError } = await supabaseClient.from('events_ax2024').insert({
+            type: limitedPayload.event || 'generic_telemetry',
+            source: app_id,
+            data: limitedPayload.details || limitedPayload,
+            created_at: new Date().toISOString()
+        })
+
+        if (insertError) throw insertError
+
+        // Also log successful usage
+        if (app_id === 'onyx_edge_worker') {
+          await supabaseClient.from('api_usage_logs').insert({
+              endpoint: limitedPayload.endpoint || '/telemetry-ingress',
+              status_code: limitedPayload.status_code || 200,
+              execution_time_ms: limitedPayload.execution_time_ms || 0,
+              compute_ms: limitedPayload.compute_ms || 50,
+              app_id: app_id,
+              payload: {
+                  ...limitedPayload.metadata,
+                  trace_id: currentTraceId,
+                  auth_context: authHeader ? 'bearer_present' : 'none'
+              }
+          })
+        } else {
+          await supabaseClient.from('api_usage_logs').insert({
+              endpoint: '/telemetry-ingress',
+              status_code: 200,
+              compute_ms: 50,
+              payload: { trace_id: currentTraceId, auth_context: authHeader ? 'bearer_present' : 'none' }
+          })
+        }
     }
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, processed: payloadsToProcess.length }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
 
