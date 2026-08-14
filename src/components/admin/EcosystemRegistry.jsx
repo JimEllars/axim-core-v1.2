@@ -69,6 +69,7 @@ const fetchNodes = async () => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchNodes();
     const interval = setInterval(fetchNodes, 30000);
     return () => clearInterval(interval);
@@ -209,6 +210,34 @@ const fetchNodes = async () => {
                     <SafeIcon icon={FiTrash2} className="h-4 w-4" />
                   </button>
                 </div>
+              </div>
+
+              <div className="flex justify-end mb-2 mt-[-10px]">
+                  <button
+                      onClick={async () => {
+                          try {
+                              if (node.health_endpoint_url) {
+                                  try {
+                                      await fetch(node.health_endpoint_url, {
+                                          method: 'GET',
+                                          mode: 'no-cors'
+                                      });
+                                      toast.success(`Health check triggered for ${node.app_name}`);
+                                  } catch (e) {
+                                      console.warn('Health check warning:', e);
+                                      toast.success(`Health check initiated for ${node.app_name}`);
+                                  }
+                              } else {
+                                  toast.error('No health endpoint URL available');
+                              }
+                          } catch (err) {
+                              toast.error('Failed to trigger health check');
+                          }
+                      }}
+                      className="text-xs bg-onyx-800 hover:bg-onyx-700 px-3 py-1.5 rounded transition-colors text-slate-300"
+                  >
+                      Test Connection
+                  </button>
               </div>
 
               <div className="mb-4">

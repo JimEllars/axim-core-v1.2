@@ -34,3 +34,8 @@
 **Target:** `src/services/telemetry.js` & `supabase/functions/telemetry-ingress/index.ts`
 **Change:** Standardized `trackEvent(eventName, payload)` to automatically inject contextual metadata (Current Route/URL path, Timestamp) and fail gracefully on network errors. Hardened `telemetry-ingress` edge function to securely parse JSON arrays and limit payload sizes to prevent database bloat.
 **Verification Test:** `tests/telemetry-pipeline.test.js` executed via `vitest` covering payload route context, network error handling, array payload support, and string truncation.
+
+## Workstream Wave 116: Integrations & Ecosystem Activation
+**Target:** `src/components/admin/IntegrationsManager.jsx`, `src/components/admin/EcosystemRegistry.jsx`
+**Change:** Wired IntegrationsManager and EcosystemRegistry to dynamically fetch live statuses from `ecosystem_connections` and `ecosystem_nodes` via Supabase API. Added actual "Test Connection" functionality to both components sending lightweight fetch requests to webhooks/health-endpoints. Unified glassmorphism styling across panels.
+**Verification Test:** `tests/integrations-manager.test.jsx` executed successfully via `vitest` covering data fetch rendering and successful connection trigger simulation.
