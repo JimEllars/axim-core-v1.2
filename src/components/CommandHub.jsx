@@ -13,6 +13,7 @@ import WorkflowTriggers from './command/WorkflowTriggers';
 import AgentSelector, { AGENTS } from './commandhub/AgentSelector';
 import { julesApi } from '../services/jules/julesApi';
 import { useDashboard } from '../contexts/DashboardContext';
+import { motion } from 'framer-motion';
 
 const CommandHub = () => {
   const [state, dispatch] = useCommandHubState();
@@ -172,38 +173,44 @@ const CommandHub = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-[calc(100vh-80px)] bg-onyx-950 p-6 sm:p-8 w-full flex justify-center">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="w-full max-w-[1600px] flex flex-col gap-6"
+      >
         <CommandHubHeader />
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          <div className="lg:col-span-3">
+        <div className="grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-12 gap-6 xl:gap-8 flex-grow">
+          <div className="lg:col-span-3 xl:col-span-9 flex flex-col gap-4">
             <AgentSelector
               selectedAgentId={selectedAgent.id}
               onSelect={setSelectedAgent}
             />
-            <ChatInterface
-              state={{ messages, agentName: selectedAgent?.name }}
-              handlers={{ onCopyContent: handleCopyContent, onClearChat: handleClearChat }}
-              messagesEndRef={messagesEndRef}
-            />
-            <InputForm
-              inputValue={inputValue}
-              isProcessing={isProcessing}
-              onInputValueChange={(e) => dispatch({ type: 'SET_INPUT_VALUE', payload: e.target.value })}
-              onCommand={handleFormSubmit}
-              inputRef={inputRef}
-              recentCommands={recentCommands}
-            />
+            <div className="flex-grow flex flex-col min-h-[60vh]">
+               <ChatInterface
+                 state={{ messages, agentName: selectedAgent?.name }}
+                 handlers={{ onCopyContent: handleCopyContent, onClearChat: handleClearChat }}
+                 messagesEndRef={messagesEndRef}
+               />
+               <InputForm
+                 inputValue={inputValue}
+                 isProcessing={isProcessing}
+                 onInputValueChange={(e) => dispatch({ type: 'SET_INPUT_VALUE', payload: e.target.value })}
+                 onCommand={handleFormSubmit}
+                 inputRef={inputRef}
+                 recentCommands={recentCommands}
+               />
+            </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 lg:col-span-1 xl:col-span-3">
             <SystemStatus stats={systemStats} />
             <ManualOperations onCommand={handleFormSubmit} />
             <WorkflowTriggers onSetInput={(value) => dispatch({ type: 'SET_INPUT_VALUE', payload: value })} />
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

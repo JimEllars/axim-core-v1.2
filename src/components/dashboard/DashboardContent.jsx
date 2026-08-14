@@ -26,17 +26,17 @@ const DashboardContent = () => {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-6 sm:p-8 w-full max-w-[1600px] mx-auto min-h-[calc(100vh-80px)]">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="grid grid-cols-1 lg:grid-cols-3 gap-8"
+        className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8"
       >
         {/* Header */}
-        <div className="lg:col-span-3 mb-4 flex justify-between items-center">
+        <div className="lg:col-span-3 mb-2 flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3 tracking-tight">
               <FiTerminal className="text-blue-500" />
               Unified Command Terminal
             </h1>
@@ -44,10 +44,10 @@ const DashboardContent = () => {
           </div>
           <button
             onClick={handleRefresh}
-            className="glass-effect p-2 rounded-full text-slate-300 hover:text-white hover:bg-onyx-accent/20 transition-colors"
+            className="glass-effect p-2 md:p-3 rounded-full text-slate-300 hover:text-white hover:bg-onyx-accent/20 transition-all hover:scale-105 active:scale-95 border border-onyx-accent/20 shadow-[0_0_15px_rgba(0,0,0,0.3)]"
             aria-label="Refresh Dashboard"
           >
-            <FiRefreshCw className="w-6 h-6" />
+            <FiRefreshCw className="w-5 h-5 md:w-6 md:h-6" />
           </button>
         </div>
 
@@ -78,14 +78,14 @@ const DashboardContent = () => {
         </div>
 
         {/* Left Column */}
-        <div className="lg:col-span-2 space-y-8">
+        <div className="lg:col-span-2 space-y-6 lg:space-y-8">
           <ActionPanel />
           <VisualizationPanel />
           <ContactManager />
         </div>
 
         {/* Right Column */}
-        <div className="lg:col-span-1 space-y-8">
+        <div className="lg:col-span-1 space-y-6 lg:space-y-8">
           <RecentWorkflows />
           <GenerativeAIPanel />
           <EventLog />
