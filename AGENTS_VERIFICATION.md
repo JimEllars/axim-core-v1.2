@@ -29,3 +29,8 @@
 **Target:** Root dir & `src/components/dashboard/ContactManager.jsx`
 **Change:** Extracted raw bash scripts to `scripts/archive-hygiene`, applied proper tailwind Glassmorphism UI properties identical to billing/feedback portals.
 **Verification Test:** Build output + manual evaluation of matching styles.
+
+## Workstream Wave 115: Telemetry Pipeline Validation
+**Target:** `src/services/telemetry.js` & `supabase/functions/telemetry-ingress/index.ts`
+**Change:** Standardized `trackEvent(eventName, payload)` to automatically inject contextual metadata (Current Route/URL path, Timestamp) and fail gracefully on network errors. Hardened `telemetry-ingress` edge function to securely parse JSON arrays and limit payload sizes to prevent database bloat.
+**Verification Test:** `tests/telemetry-pipeline.test.js` executed via `vitest` covering payload route context, network error handling, array payload support, and string truncation.
