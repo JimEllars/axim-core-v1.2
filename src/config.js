@@ -18,6 +18,9 @@ const config = {
 
   // Stripe Configuration
   stripePriceId: import.meta.env.VITE_STRIPE_PRICE_ID_PRO,
+
+  // Thirdweb Configuration
+  thirdwebClientId: import.meta.env.VITE_THIRDWEB_CLIENT_ID,
 };
 
 const validateConfig = () => {

@@ -151,42 +151,49 @@ function AppContent() {
 }
 
 function App() {
+  const clientId = import.meta.env.VITE_THIRDWEB_CLIENT_ID;
+  const appTree = (
+    <HashRouter>
+      <SupabaseProvider>
+        <AuthProvider>
+          <ConnectivityProvider>
+            <ApiProvider>
+              <RealtimeProvider>
+                <AppContent />
+              </RealtimeProvider>
+            </ApiProvider>
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                style: {
+                  borderRadius: '10px',
+                  background: '#1e293b',
+                  color: '#e2e8f0',
+                  border: '1px solid #334155',
+                },
+              }}
+            />
+          </ConnectivityProvider>
+        </AuthProvider>
+      </SupabaseProvider>
+    </HashRouter>
+  );
+
+  if (!clientId) {
+    return appTree;
+  }
+
   return (
     <ThirdwebProvider
       activeChain="arbitrum"
-      clientId={import.meta.env.VITE_THIRDWEB_CLIENT_ID}
+      clientId={clientId}
       supportedWallets={[
         embeddedWallet({ auth: { options: ["google", "apple", "email"] } }),
         metamaskWallet(),
         safeWallet(),
       ]}
     >
-      <HashRouter>
-        <SupabaseProvider>
-          <AuthProvider>
-            <ConnectivityProvider>
-              <ApiProvider>
-
-                <RealtimeProvider>
-                  <AppContent />
-                </RealtimeProvider>
-
-              </ApiProvider>
-              <Toaster
-                position="top-right"
-                toastOptions={{
-                  style: {
-                    borderRadius: '10px',
-                    background: '#1e293b', // slate-800
-                    color: '#e2e8f0', // slate-200
-                    border: '1px solid #334155', // slate-700
-                  },
-                }}
-              />
-            </ConnectivityProvider>
-          </AuthProvider>
-        </SupabaseProvider>
-      </HashRouter>
+      {appTree}
     </ThirdwebProvider>
   );
 }
