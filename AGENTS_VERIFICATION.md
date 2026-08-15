@@ -39,3 +39,8 @@
 **Target:** `src/components/admin/IntegrationsManager.jsx`, `src/components/admin/EcosystemRegistry.jsx`
 **Change:** Wired IntegrationsManager and EcosystemRegistry to dynamically fetch live statuses from `ecosystem_connections` and `ecosystem_nodes` via Supabase API. Added actual "Test Connection" functionality to both components sending lightweight fetch requests to webhooks/health-endpoints. Unified glassmorphism styling across panels.
 **Verification Test:** `tests/integrations-manager.test.jsx` executed successfully via `vitest` covering data fetch rendering and successful connection trigger simulation.
+
+## Workstream Wave 117: Circuit Breakers & Quality Gate
+**Target:** `supabase/functions/generic-axim-service-proxy/index.ts`
+**Change:** Wrapped external API `fetch()` inside a `Promise.race()` to enforce a strict 5000ms timeout circuit breaker. When the timeout is hit, it logs a telemetry event to `api_usage_logs` via the `logTelemetry` utility (action: 'integration_timeout') and cleanly returns a `504 Gateway Timeout` instead of allowing the edge function to hang.
+**Verification Test:** `tests/integration-proxy.test.js` executed via `vitest`, proving the circuit breaker properly intercepts delayed promises (>5000ms) and returns the correct error message.
