@@ -11,3 +11,13 @@
 **Change:** Replaced KV-based map rate limiting with a native Cloudflare Rate Limiting binding (`RATE_LIMITER`). Protects backend routes by returning `429 Too Many Requests` when limits are exceeded (100 requests per 60 seconds per IP).
 **Verification Test:** `tests/edge-worker.test.js` updated to verify behavior based on the new `RATE_LIMITER` binding's responses (`success: false`).
 
+
+### Wave 126: Intelligence Hub & RAG Activation
+- **Date**: $(date)
+- **Engineer**: Jules
+- **Summary of Fix**:
+  - Augmented `supabase/functions/document-qa/index.ts` to process interactive RAG queries (`query` payload parameter) while preserving its original `trace_id` logic.
+  - Wired vector `memory-retrieval` to combine chat logs, strategic memory, and the knowledge base, returning the top matches as context.
+  - Handled upstream AI errors (e.g. `502 Bad Gateway`) gracefully, utilizing our `logTelemetry` utility to log failures via the `rag_query_failed` action.
+  - Activated `src/components/admin/IntelligenceHub.jsx` to direct user inputs to the updated `document-qa` endpoint and dynamically stream/render the AI's answer alongside the source references (documents used for context generation).
+  - Designed Vitest suites (`src/components/admin/IntelligenceHub.test.jsx`) to confirm the component properly renders mocked success and error states.
