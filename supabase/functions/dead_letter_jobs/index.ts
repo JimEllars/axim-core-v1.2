@@ -63,7 +63,8 @@ serve(async (req) => {
         // Let's delete it or just leave it since the prompt didn't say, wait the prompt says:
         // "route the failed record to public.hitl_dead_letter_logs with a structured error diagnostic payload and emit an anomaly event to telemetry_events."
         // We should probably delete it from satellite_job_queue since it's routed.
-        await supabase.from('satellite_job_queue').delete().eq('id', job.id);
+        // mark it permanently failed
+        await supabase.from('satellite_job_queue').update({ status: 'Failed', updated_at: new Date().toISOString() }).eq('id', job.id);
       } else {
         // 2. For qualifying records, reset status = 'pending', increment retry_count = retry_count + 1,
         // and update updated_at timestamps to allow job-processor to re-evaluate them cleanly.
