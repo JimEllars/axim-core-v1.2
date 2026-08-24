@@ -2,13 +2,31 @@ import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { logTelemetry } from "../_shared/telemetry.ts";
 import { corsHeaders } from '../_shared/cors.ts';
 
+// Helper function to generate SHA-256 hash
+async function generateCacheKey(query: string, userId: string = 'anonymous', provider: string = 'claude'): Promise<string> {
+    const data = new TextEncoder().encode(`${query}|${userId}|${provider}`);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return `https://axim.us.com/rag-cache/${hashHex}`; // Simulated URL for cache key
+}
+
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders });
     }
 
     try {
-        const payload = await req.json();
+        // Clone request if we need to read body multiple times
+        let payload;
+        try {
+            payload = await req.json();
+        } catch (e) {
+            return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" }
+            });
+        }
 
         // Handle existing trace_id logic
         const record = payload.record || payload;
@@ -54,11 +72,44 @@ serve(async (req) => {
         }
 
         // Handle RAG Query logic
-        const { query, user_id, provider = 'claude' } = payload;
+        const { query, user_id, provider = 'claude', bypass_cache = false } = payload;
 
         if (query) {
             const supabaseUrl = Deno.env.get('SUPABASE_URL');
             const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+            // --- CACHING LOGIC ---
+            let cache: Cache | null = null;
+            let cacheKeyRequest: Request | null = null;
+
+            // Check if caches API is available (it is in Deno/Cloudflare workers)
+            if (typeof caches !== 'undefined' && !bypass_cache) {
+                try {
+                    cache = await caches.open('rag-query-cache');
+                    const cacheKeyUrl = await generateCacheKey(query, user_id, provider);
+                    cacheKeyRequest = new Request(cacheKeyUrl, { method: 'GET' });
+
+                    const cachedResponse = await cache.match(cacheKeyRequest);
+
+                    if (cachedResponse) {
+                        // Return cached response
+                        const cachedData = await cachedResponse.json();
+                        await logTelemetry('document-qa', 200, { action: 'rag_query_executed', provider, cache: 'HIT' });
+
+                        return new Response(JSON.stringify(cachedData), {
+                            status: 200,
+                            headers: {
+                                ...corsHeaders,
+                                "Content-Type": "application/json",
+                                "X-AXiM-Cache": "HIT"
+                            }
+                        });
+                    }
+                } catch (cacheErr) {
+                    console.warn("Cache matching failed:", cacheErr);
+                }
+            }
+            // --- END CACHING LOGIC ---
 
             // 1. Fetch context from memory-retrieval
             let contextText = "";
@@ -87,7 +138,7 @@ serve(async (req) => {
                          similarity: c.similarity
                     }));
 
-                    contextText = sources.map((s: any, idx: number) => `[Source ${idx + 1}]: ${s.content}`).join("\\n\\n");
+                    contextText = sources.map((s: any, idx: number) => `[Source ${idx + 1}]: ${s.content}`).join("\n\n");
                 }
             } catch (err) {
                 console.warn("Failed to fetch memory context", err);
@@ -119,15 +170,38 @@ serve(async (req) => {
 
                 const llmData = await llmResponse.json();
 
-                await logTelemetry('document-qa', 200, { action: 'rag_query_executed', provider });
-
-                return new Response(JSON.stringify({
+                const responseData = {
                     answer: llmData.content,
                     sources,
                     respondingProvider: llmData.respondingProvider
-                }), {
+                };
+
+                // --- CACHING LOGIC: SAVE TO CACHE ---
+                if (cache && cacheKeyRequest) {
+                    try {
+                        const responseToCache = new Response(JSON.stringify(responseData), {
+                            status: 200,
+                            headers: {
+                                "Content-Type": "application/json",
+                                "Cache-Control": "public, max-age=86400" // 24 hours TTL
+                            }
+                        });
+                        await cache.put(cacheKeyRequest, responseToCache);
+                    } catch (cachePutErr) {
+                        console.warn("Failed to put in cache:", cachePutErr);
+                    }
+                }
+                // --- END CACHING LOGIC ---
+
+                await logTelemetry('document-qa', 200, { action: 'rag_query_executed', provider, cache: 'MISS' });
+
+                return new Response(JSON.stringify(responseData), {
                     status: 200,
-                    headers: { ...corsHeaders, "Content-Type": "application/json" }
+                    headers: {
+                        ...corsHeaders,
+                        "Content-Type": "application/json",
+                        "X-AXiM-Cache": "MISS"
+                    }
                 });
 
             } catch (llmError: any) {

@@ -8,7 +8,7 @@ import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 const { FiCpu, FiAlertTriangle } = FiIcons;
 
 const AIInteractionsChart = () => {
-  const { data, loading, error } = useSupabaseQuery('get_ai_interactions_over_time');
+  const { data, loading, error } = useSupabaseQuery('get_rag_telemetry_over_time');
 
   const averageInteractions = useMemo(() => {
     if (!data || data.length === 0) return 0;
@@ -28,8 +28,8 @@ const AIInteractionsChart = () => {
           <SafeIcon icon={FiCpu} className="text-white" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">AI Interactions Over Time</h3>
-          <p className="text-sm text-slate-400">Daily command usage</p>
+          <h3 className="text-lg font-semibold text-white">AI Usage Over Time</h3>
+          <p className="text-sm text-slate-400">RAG telemetry (Last 7 days)</p>
         </div>
       </div>
 
@@ -47,7 +47,14 @@ const AIInteractionsChart = () => {
         </div>
       )}
 
-      {!loading && !error && (
+      {!loading && !error && (!data || data.length === 0) && (
+        <div className="h-64 flex flex-col items-center justify-center text-slate-400">
+          <p className="font-semibold">No telemetry data available.</p>
+          <p className="text-sm text-slate-500 mt-1">AI interactions will appear here once recorded.</p>
+        </div>
+      )}
+
+      {!loading && !error && data && data.length > 0 && (
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={data}>
              <defs>
