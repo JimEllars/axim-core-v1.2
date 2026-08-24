@@ -44,3 +44,11 @@
 **Target:** `supabase/functions/generic-axim-service-proxy/index.ts`
 **Change:** Wrapped external API `fetch()` inside a `Promise.race()` to enforce a strict 5000ms timeout circuit breaker. When the timeout is hit, it logs a telemetry event to `api_usage_logs` via the `logTelemetry` utility (action: 'integration_timeout') and cleanly returns a `504 Gateway Timeout` instead of allowing the edge function to hang.
 **Verification Test:** `tests/integration-proxy.test.js` executed via `vitest`, proving the circuit breaker properly intercepts delayed promises (>5000ms) and returns the correct error message.
+
+### Wave 119: Background Job Resilience & DLQ Activation (Proof-of-Fix Protocol)
+- **Problem**: Need to harden the backend Dead Letter Queue to prevent infinite loops by permanently failing jobs that exceed the retry limit, and need to standardize `JobQueueMonitor` using the `useSupabaseQuery` hook.
+- **Verification**:
+  - Modified `supabase/functions/dead_letter_jobs/index.ts` to check if `retry_count >= 3`. If so, instead of attempting to delete the job from the queue (which may break historical logs), the status is permanently updated to 'Failed'.
+  - Refactored `src/components/dashboard/JobQueueMonitor.jsx` to fetch queue data via `useSupabaseQuery('get_satellite_job_queue')`, alongside introducing the `get_satellite_job_queue` RPC in `setup.sql` to support seamless database interaction and real-time frontend updates.
+  - Asserted failure conditions logically through `tests/dead-letter-jobs.test.js`.
+- **Rollback Plan**: Execute a git revert targeting the `wave119-dlq-activation` commits if any unintended side-effects impact background processing execution or UI rendering.

@@ -1,44 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
+import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 import { motion } from 'framer-motion';
 
 const JobQueueMonitor = () => {
+  const { data: fetchedJobs = [], loading, error, refetch: fetchJobs } = useSupabaseQuery('get_satellite_job_queue', { autoFetch: true });
+  // We keep a local state to allow optimistic updates (e.g. handleForceRetry)
   const [jobs, setJobs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const fetchJobs = async () => {
-    setLoading(true);
-    try {
-      const { data, error: fetchError } = await supabase
-        .from('satellite_job_queue')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (fetchError) throw fetchError;
-      setJobs(data || []);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      fetchJobs();
+    setJobs(fetchedJobs);
+  }, [fetchedJobs]);
 
+  useEffect(() => {
     // Optional: Set up real-time subscription
     const channel = supabase
       .channel('public:satellite_job_queue')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'satellite_job_queue' }, fetchJobs)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'satellite_job_queue' }, () => {
+         fetchJobs();
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchJobs]);
 
   const handleForceRetry = async (jobId) => {
     try {
