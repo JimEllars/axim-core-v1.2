@@ -7,10 +7,15 @@ compatibility_flags = ["nodejs_compat"]
 SUPABASE_URL = "https://pvbcdndqjguzqeafhwhw.supabase.co"
 ALLOWED_ORIGINS = "https://axim.us.com,http://localhost:5173"
 
-
 [[kv_namespaces]]
 binding = "RATE_LIMIT_KV"
 id = "mock_kv_id"
+
+[[unsafe.bindings]]
+name = "RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 100, period = 60 }
 
 [observability]
 enabled = true
