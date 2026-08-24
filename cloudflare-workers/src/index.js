@@ -25,39 +25,6 @@ function getCorsHeaders(request, env) {
   };
 }
 
-// Global rate limit constants
-const WINDOW_MS = 60 * 1000;
-const MAX_REQUESTS = 100;
-
-// Replaced local map with KV logic
-async function checkRateLimit(ip, env) {
-  if (!ip || !env.RATE_LIMIT_KV) return { allowed: true, count: 1 };
-
-  const kvKey = `rate_limit:${ip}`;
-
-  let recordStr = await env.RATE_LIMIT_KV.get(kvKey);
-  let record = recordStr ? JSON.parse(recordStr) : null;
-
-  const now = Date.now();
-
-  if (!record || now > record.resetAt) {
-    record = { count: 1, resetAt: now + WINDOW_MS };
-  } else {
-    record.count++;
-  }
-
-  // We write it back to KV. Using expirationTtl allows Cloudflare to handle cleanup naturally
-  await env.RATE_LIMIT_KV.put(kvKey, JSON.stringify(record), {
-    expirationTtl: Math.ceil(WINDOW_MS / 1000)
-  });
-
-  if (record.count > MAX_REQUESTS) {
-    return { allowed: false, count: record.count };
-  }
-
-  return { allowed: true, count: record.count };
-}
-
 export default {
   async fetch(request, env, ctx) {
     const corsHeaders = getCorsHeaders(request, env);
@@ -72,17 +39,24 @@ export default {
 
     const url = new URL(request.url);
 
-    // Rate Limiting
-    const ip = request.headers.get('CF-Connecting-IP');
-    const limitResult = await checkRateLimit(ip, env);
-    if (!limitResult.allowed) {
-      return new Response("Too Many Requests", { status: 429, headers: Object.assign({}, corsHeaders, { "X-AXiM-Edge-Throttled": limitResult.count.toString() }) });
+    // Rate Limiting using Cloudflare Rate Limiting binding
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+
+    if (env.RATE_LIMITER) {
+      const { success } = await env.RATE_LIMITER.limit({ key: ip });
+      if (!success) {
+        return new Response(JSON.stringify({ error: "Too Many Requests", message: "Rate limit exceeded." }), {
+          status: 429,
+          headers: Object.assign({}, corsHeaders, {
+            "Content-Type": "application/json",
+            "X-AXiM-Edge-Throttled": "true"
+          })
+        });
+      }
     }
 
     // Health Check Endpoint
     if (url.pathname === '/api/edge/healthz' && request.method === 'GET') {
-      // For healthz we just reuse the limitResult from earlier
-      const limitRemaining = Math.max(0, MAX_REQUESTS - limitResult.count);
       // memory stats (not fully available in V8 isolates without specific bindings, mock or return limited info)
       const memoryStats = { usage: 'unknown', available: 'unknown' };
 
@@ -91,7 +65,6 @@ export default {
           status: 'active',
           edge_location: request.cf?.colo || 'unknown',
           memory_stats: memoryStats,
-          rate_limit_capacity: limitRemaining
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -131,8 +104,6 @@ export default {
           proxyResponse.headers.set(key, corsHeaders[key]);
         });
         proxyResponse.headers.set('X-AXiM-Edge-Location', request.cf?.colo || 'unknown');
-        const limitRemaining = Math.max(0, MAX_REQUESTS - limitResult.count);
-        proxyResponse.headers.set('X-AXiM-RateLimit-Remaining', limitRemaining.toString());
 
         // Bypass edge cache if no Cache-Control header is present from origin
         if (!proxyResponse.headers.has('Cache-Control')) {

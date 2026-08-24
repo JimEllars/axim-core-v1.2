@@ -7,25 +7,42 @@ import * as FiIcons from 'react-icons/fi';
 import { useAuth } from '../../contexts/AuthContext';
 import DeviceManager from './DeviceManager';
 import UpdateManager from './UpdateManager';
+import { useSupabaseQuery, invalidateCache } from '../../hooks/useSupabaseQuery';
 
 const { FiSave, FiSettings, FiCpu, FiShare2 } = FiIcons;
 
 const Settings = () => {
-  const { user, settings, loadUserSettings } = useAuth();
+  const { user } = useAuth();
+
+  // Use standardized useSupabaseQuery hook
+  const { data: userSettingsData, loading: settingsLoading, refetch } = useSupabaseQuery('get_user_settings', { autoFetch: !!user });
+
   const [aiSettings, setAiSettings] = useState({ model: 'gpt-4', temperature: 0.7 });
   const [connections, setConnections] = useState({ primaryCrm: 'salesforce' });
   const [theme, setTheme] = useState('dark');
   const [isLoading, setIsLoading] = useState(false);
 
-
   useEffect(() => {
-    if (settings) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAiSettings(settings.ai || { model: 'gpt-4', temperature: 0.7 });
-      setConnections(settings.connections || { primaryCrm: 'salesforce' });
-      setTheme(settings.theme || 'dark');
+    if (userSettingsData) {
+      const defaultSettings = {
+        ai: { model: 'gpt-4', temperature: 0.7 },
+        connections: { primaryCrm: 'salesforce' },
+        theme: 'dark'
+      };
+      // Handle both cases: returned as an object directly, or as an array from Postgres
+      let parsedSettings = defaultSettings;
+
+      if (Array.isArray(userSettingsData) && userSettingsData.length > 0) {
+        parsedSettings = userSettingsData[0]?.settings || userSettingsData[0] || defaultSettings;
+      } else if (userSettingsData && !Array.isArray(userSettingsData) && Object.keys(userSettingsData).length > 0) {
+        parsedSettings = userSettingsData.settings || userSettingsData;
+      }
+
+      setAiSettings(parsedSettings.ai || defaultSettings.ai);
+      setConnections(parsedSettings.connections || defaultSettings.connections);
+      setTheme(parsedSettings.theme || defaultSettings.theme);
     }
-  }, [settings]);
+  }, [userSettingsData]);
 
   const handleSave = async () => {
     setIsLoading(true);
@@ -34,9 +51,9 @@ const Settings = () => {
     const newSettings = { ai: aiSettings, connections, theme };
 
     try {
-      // This function needs to be created in api.js
       await api.saveUserSettings(user.id, newSettings);
-      await loadUserSettings(user); // Refresh settings in context
+      invalidateCache('get_user_settings');
+      await refetch();
       toast.dismiss();
       toast.success('Settings saved successfully!');
     } catch (error) {
@@ -77,6 +94,7 @@ const Settings = () => {
                 onChange={(e) =>
       setAiSettings({ ...aiSettings, model: e.target.value })}
                 className="w-full pl-3 pr-10 py-2 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg text-white"
+                disabled={settingsLoading}
               >
                 <option>gpt-4</option>
                 <option>gpt-3.5-turbo</option>
@@ -95,6 +113,7 @@ const Settings = () => {
                 onChange={(e) =>
       setAiSettings({ ...aiSettings, temperature: parseFloat(e.target.value) })}
                 className="w-full h-2 bg-onyx-950 rounded-lg appearance-none cursor-pointer"
+                disabled={settingsLoading}
               />
               <div className="text-right text-sm text-slate-400 mt-1">{aiSettings.temperature}</div>
             </div>
@@ -116,6 +135,7 @@ const Settings = () => {
               value={theme}
               onChange={(e) => setTheme(e.target.value)}
               className="w-full pl-3 pr-10 py-2 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg text-white"
+              disabled={settingsLoading}
             >
               <option>dark</option>
               <option>light</option>
@@ -138,6 +158,7 @@ const Settings = () => {
               value={connections.primaryCrm}
               onChange={(e) => setConnections({ ...connections, primaryCrm: e.target.value })}
               className="w-full pl-3 pr-10 py-2 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg text-white"
+              disabled={settingsLoading}
             >
               <option>salesforce</option>
               <option>hubspot</option>
@@ -151,7 +172,7 @@ const Settings = () => {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={handleSave}
-            disabled={isLoading}
+            disabled={isLoading || settingsLoading}
             className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white font-semibold rounded-lg shadow-lg disabled:opacity-50"
           >
             <SafeIcon icon={FiSave} className="mr-2" />
