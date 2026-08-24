@@ -21,3 +21,14 @@
   - Handled upstream AI errors (e.g. `502 Bad Gateway`) gracefully, utilizing our `logTelemetry` utility to log failures via the `rag_query_failed` action.
   - Activated `src/components/admin/IntelligenceHub.jsx` to direct user inputs to the updated `document-qa` endpoint and dynamically stream/render the AI's answer alongside the source references (documents used for context generation).
   - Designed Vitest suites (`src/components/admin/IntelligenceHub.test.jsx`) to confirm the component properly renders mocked success and error states.
+
+### Wave 127: Edge Caching & Telemetry Visualization
+- **Date:** 2024-10-25
+- **Objective:** Add Deno Cache API to `document-qa` for RAG responses, and activate `AIInteractionsChart` telemetry.
+- **Verification Steps:**
+  1. Checked `document-qa` and successfully injected cache key generation (`crypto.subtle.digest`) and standard `caches.open()` / `.match()` / `.put()` checks, wrapping the LLM proxy call.
+  2. A response cache miss logs `cache: 'MISS'` via telemetry. Subsequent requests match the identical query/user/provider and return `X-AXiM-Cache: HIT`.
+  3. Created `20280103000001_rag_telemetry_rpc.sql` migration to fetch aggregated 'rag_query_executed' events from `api_usage_logs`.
+  4. Updated `AIInteractionsChart.jsx` to fetch telemetry dynamically via the new RPC, and properly handle empty states gracefully (displaying "No telemetry data available" instead of crashing).
+  5. Implemented `tests/document-qa.test.js` to assert the mock cache logic effectively triggers a hit on sequential identical payload calls.
+- **Outcome:** Edge caching deployed effectively for LLM calls with a 24h TTL, bypassing redundant processing. Telemetry chart visualizes actual usage.
