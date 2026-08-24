@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { trackEvent } from '../services/telemetry';
 
 // 1. Construct a clean cryptographic SIWE handshake within our gateway layers.
 export const generateSIWEMessage = (domain, address, statement, uri, version, chainId, nonce, issuedAt) => {
@@ -36,10 +37,12 @@ export const verifySIWESignatureAndGetJWT = async (message, signature, address) 
     }
 
     const data = await response.json();
+    trackEvent('sso_handoff_success', { address });
     return data;
 
   } catch (err) {
       console.error("[SIWE Verification] Error:", err);
+      trackEvent('sso_handoff_failure', { address, error: err.message });
       throw err;
   }
 };

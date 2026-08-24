@@ -52,3 +52,10 @@
   - Refactored `src/components/dashboard/JobQueueMonitor.jsx` to fetch queue data via `useSupabaseQuery('get_satellite_job_queue')`, alongside introducing the `get_satellite_job_queue` RPC in `setup.sql` to support seamless database interaction and real-time frontend updates.
   - Asserted failure conditions logically through `tests/dead-letter-jobs.test.js`.
 - **Rollback Plan**: Execute a git revert targeting the `wave119-dlq-activation` commits if any unintended side-effects impact background processing execution or UI rendering.
+
+### Wave 124: Legacy Authentication Deprecation & Telemetry Enforcement
+- **Problem**: Need to remove legacy login components, route unauthenticated states directly to AXiM Passport Hub, and enforce SSO handoff telemetry across the shell.
+- **Verification**:
+  - Removed `src/components/Login.jsx` and `src/components/Login.test.jsx`.
+  - Updated `src/App.jsx` and `src/components/ProtectedRoute.jsx` to replace local login paths with direct redirects to `https://passport.axim.us.com`.
+  - Injected telemetry dispatch points via `src/services/telemetry.js` into `src/lib/auth-handoff.js` and `src/components/PassportListener.jsx` to log `sso_handoff_success` and `sso_handoff_failure` events properly.

@@ -9,7 +9,6 @@ import { ConnectivityProvider } from './contexts/ConnectivityContext.jsx';
 import { ApiProvider } from './contexts/ApiContext.jsx';
 import { RealtimeProvider } from './contexts/RealtimeContext.jsx';
 import { DashboardProvider } from './contexts/DashboardContext.jsx';
-import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 const CommandHub = React.lazy(() => import('./components/CommandHub'));
 const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard'));
@@ -107,7 +106,7 @@ function AppContent() {
       <AnimatePresence mode="wait">
         <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-onyx-950 via-purple-900 to-onyx-950 flex items-center justify-center"><div className="text-white text-xl flex items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mr-4"></div>Loading View...</div></div>}>
         <Routes location={location} key={location.pathname}>
-          <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} />
+          <Route path="/login" element={<Navigate to="https://passport.axim.us.com" replace />} />
 
         <Route
           path="/"
@@ -142,7 +141,7 @@ function AppContent() {
           />
         </Route>
 
-        <Route path="*" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
+        <Route path="*" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="https://passport.axim.us.com" replace />} />
         </Routes>
         </Suspense>
       </AnimatePresence>
