@@ -1,0 +1,4 @@
+Wave 125: Cloudflare Edge Security & Settings Resilience
+
+- Graceful handling of empty or 406 user settings responses in UserProfile to prevent console warnings on initial load.
+- Replaced local JS map in Cloudflare worker with KV namespace mapping for rate limits.

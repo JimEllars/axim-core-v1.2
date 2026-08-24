@@ -3,6 +3,7 @@ import { supabase } from '../services/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
+import { trackEvent } from '../services/telemetry';
 
 const { FiShield, FiCheckCircle, FiXCircle, FiClock } = FiIcons;
 
@@ -23,6 +24,11 @@ const PassportListener = () => {
           },
           ...currentEvents,
         ].slice(0, 10));
+        if (payload.payload.status === 'verified') {
+          trackEvent('sso_handoff_success', { user_id: payload.payload.user_id });
+        } else if (payload.payload.status === 'failed') {
+          trackEvent('sso_handoff_failure', { user_id: payload.payload.user_id });
+        }
       })
       .subscribe();
 
