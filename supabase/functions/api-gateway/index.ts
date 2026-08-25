@@ -278,22 +278,30 @@ serve(async (req) => {
     }
 
     if (req.method === 'POST' && endpoint === '/api/v1/micro-app/ingress') {
-      // Lightweight structural multi-tenant validation filter
+      // Lightweight structural multi-tenant validation filter with fallback assignment
       if (Array.isArray(body)) {
         for (const item of body) {
           if (!item.tenant_id && !item.partner_id && !item.organization_id) {
-            return new Response(JSON.stringify({ error: 'Validation Error: Missing structural multi-tenant identifier in array payload' }), {
-              status: 400,
-              headers: { ...securityHeaders, 'Content-Type': 'application/json' }
-            });
+            if (partnerId) {
+              item.partner_id = partnerId;
+            } else {
+              return new Response(JSON.stringify({ error: 'Validation Error: Missing structural multi-tenant identifier in array payload' }), {
+                status: 400,
+                headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+              });
+            }
           }
         }
       } else if (body && typeof body === 'object') {
-        if (!body.tenant_id && !body.partner_id && !body.organization_id && !partnerId) {
+        if (!body.tenant_id && !body.partner_id && !body.organization_id) {
+          if (partnerId) {
+            body.partner_id = partnerId;
+          } else {
             return new Response(JSON.stringify({ error: 'Validation Error: Missing structural multi-tenant identifier in payload' }), {
               status: 400,
               headers: { ...securityHeaders, 'Content-Type': 'application/json' }
             });
+          }
         }
       }
 
@@ -304,7 +312,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`
         },
-        body: JSON.stringify({ ...body, partner_id: partnerId, api_key_id: apiKeyId, source: 'micro-app-ingress' })
+        body: JSON.stringify(Array.isArray(body) ? body.map(item => ({...item, api_key_id: apiKeyId, source: 'micro-app-ingress'})) : { ...body, partner_id: body.partner_id || partnerId, api_key_id: apiKeyId, source: 'micro-app-ingress' })
       });
 
       const dispatchData = await dispatchRes.text();
@@ -494,8 +502,35 @@ serve(async (req) => {
            });
        }
 
-       // Simulated Arbitrum JSON-RPC Check (in production this calls an actual RPC endpoint)
-       const isTransactionValid = true; // Simulating valid stablecoin (USDC/USDT) deposit
+       const rpcUrl = Deno.env.get("ARBITRUM_RPC_URL");
+       if (!rpcUrl) {
+           console.error("Missing ARBITRUM_RPC_URL environment variable.");
+           return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+               status: 500,
+               headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+           });
+       }
+
+       let isTransactionValid = false;
+       try {
+           const rpcRes = await fetch(rpcUrl, {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({
+                   jsonrpc: "2.0",
+                   method: "eth_getTransactionReceipt",
+                   params: [body.transaction_hash],
+                   id: 1
+               })
+           });
+           const rpcData = await rpcRes.json();
+
+           if (rpcData.result && rpcData.result.status === "0x1") {
+               isTransactionValid = true;
+           }
+       } catch (err) {
+           console.error("RPC fetch failed:", err);
+       }
 
        if (!isTransactionValid) {
            return new Response(JSON.stringify({ error: 'Blockchain transaction verification failed' }), {
