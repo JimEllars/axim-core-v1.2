@@ -43,7 +43,7 @@ const MetricsGrid = () => {
 
   if (error) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-6 min-h-[160px]">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 min-h-[160px]">
         <div className="col-span-full glass-effect rounded-xl p-6 flex items-center justify-center text-red-400">
           <SafeIcon icon={FiAlertTriangle} className="mr-2" />
           {error}
@@ -54,7 +54,7 @@ const MetricsGrid = () => {
 
   if (loading || !metrics) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-6 min-h-[160px]">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 min-h-[160px]">
         {Array.from({ length: 7 }).map((_, index) => (
           <div key={index} className="glass-effect rounded-xl p-6" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
             <div data-testid="loading-skeleton" className="animate-pulse flex flex-col">
@@ -154,7 +154,7 @@ const MetricsGrid = () => {
 
   return (
     <div className="flex flex-col w-full">
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-6 min-h-[160px]">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 min-h-[160px]">
         {metricCards.map((metric, index) => (
         <motion.div
           key={metric.title}

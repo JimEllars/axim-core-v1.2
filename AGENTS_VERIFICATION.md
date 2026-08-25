@@ -44,3 +44,14 @@
   5. Interfaced `ChatInterface.jsx` with `onyx-agent-status` events to render loading and dispatch statuses.
   6. Wrote comprehensive Vitest suite in `tests/command-hub.test.jsx` verifying slash command vs. standard text routing without edge case UI crashes.
 - **Outcome:** Dispatch routing mechanism fully integrated, allowing for advanced workflow initiation via Command Hub.
+
+### Wave 129: Production Telemetry & Dashboard Tuning
+- **Date:** $(date)
+- **Objective:** Fix edge stream cache locks, optimize telemetry inserts, and perfect dashboard grid sizing.
+- **Verification Steps:**
+  1. Updated `telemetry-ingress` function to map payloads concurrently via `Promise.all` instead of sequential `await` loop.
+  2. Fixed `cloudflare-workers/src/index.js` Cache API `body stream is locked` bug by utilizing `proxyResponse.clone()` before `caches.default.put()`.
+  3. Optimized grid layout CSS in `MetricsGrid.jsx` and `SystemHealthPanel.jsx` to gracefully accommodate metrics cards across multiple breakpoints (using `grid-cols-4` instead of 5/7 to handle 8/7 items).
+  4. Verified `AuthContext.jsx` auth handler and `ProtectedRoute.jsx` for zero-downtime safety.
+  5. Swept tests with `npm run test` for telemetry pipeline validation and UI smoke checking.
+- **Outcome:** Dashboard grids display effectively, telemetry functions scale to high concurrency gracefully, and edge cache handles duplicate streams securely without crashing.
