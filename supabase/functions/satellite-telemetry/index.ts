@@ -32,7 +32,9 @@ serve(async (req) => {
       });
     }
 
-    const supabaseAdmin = createClient(
+    const processSatelliteTelemetry = async () => {
+      try {
+        const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
@@ -49,14 +51,24 @@ serve(async (req) => {
         },
       });
 
-    if (error) throw error;
+        if (error) throw error;
+      } catch (err) {
+        console.error("Satellite telemetry processing error:", err);
+      }
+    };
 
-    return new Response(JSON.stringify({ success: true }), {
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      EdgeRuntime.waitUntil(processSatelliteTelemetry());
+    } else {
+      processSatelliteTelemetry();
+    }
+
+    return new Response(JSON.stringify({ success: true, edge_queued: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
+      status: 202,
     });
   } catch (error) {
-    console.error('Error processing telemetry:', error);
+    console.error('Error in telemetry handler:', error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
