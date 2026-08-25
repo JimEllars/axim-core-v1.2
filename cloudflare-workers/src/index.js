@@ -113,13 +113,13 @@ export default {
         // Edge Caching Storage
         if (request.method === 'GET' && cacheableEndpoints.includes(url.pathname)) {
            // We clone it to put in cache
-           const responseToCache = new Response(proxyResponse.body, proxyResponse);
+           const responseToCache = proxyResponse.clone();
            if (url.pathname === '/api/system-status') {
              responseToCache.headers.set('Cache-Control', 'max-age=15');
            } else {
              responseToCache.headers.set('Cache-Control', 'max-age=60');
            }
-           ctx.waitUntil(caches.default.put(request, responseToCache.clone()));
+           ctx.waitUntil(caches.default.put(request, responseToCache));
         }
 
         return proxyResponse;
