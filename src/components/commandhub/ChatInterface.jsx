@@ -197,6 +197,31 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
     window.addEventListener('onyx-stream-response', handleStreamResponse);
     window.addEventListener('onyx-stream-error', handleStreamError);
 
+    const handleAgentStatus = (e) => {
+      const { status, isTyping, isError } = e.detail;
+      setLocalMessages(prev => {
+         const newMsgs = [...prev];
+         const lastMsg = newMsgs[newMsgs.length - 1];
+         if (lastMsg && lastMsg.agentName === 'System Dispatcher' && lastMsg.isTyping) {
+             lastMsg.content = status;
+             lastMsg.isTyping = isTyping;
+             lastMsg.type = isError ? 'error' : 'assistant';
+             return newMsgs;
+         } else {
+             return [...prev, {
+                id: crypto.randomUUID(),
+                timestamp: new Date(),
+                content: status,
+                type: isError ? 'error' : 'assistant',
+                agentName: 'System Dispatcher',
+                isTyping
+             }];
+         }
+      });
+    };
+    window.addEventListener('onyx-agent-status', handleAgentStatus);
+
+
     const handleActionApproval = async (e) => {
       const { approved, toolCall } = e.detail;
       const logAction = async () => {
@@ -321,6 +346,7 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
       window.removeEventListener('onyx-user-message', handleUserMessage);
       window.removeEventListener('onyx-stream-response', handleStreamResponse);
       window.removeEventListener('onyx-stream-error', handleStreamError);
+window.removeEventListener('onyx-agent-status', handleAgentStatus);
       window.removeEventListener('onyx-action-approval', handleActionApproval);
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;

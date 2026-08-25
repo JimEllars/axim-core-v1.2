@@ -122,3 +122,7 @@ export const commitMicroAppState = async (payload) => {
 export const replayDeadLetter = async (jobId, queueType) => {
   return callCloudApi('api/v1/dlq/replay', { jobId, queueType });
 };
+
+export const dispatchCommand = async (payload) => {
+  return callCloudApi('supabase/functions/v1/universal-dispatcher', payload);
+};

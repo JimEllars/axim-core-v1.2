@@ -32,3 +32,15 @@
   4. Updated `AIInteractionsChart.jsx` to fetch telemetry dynamically via the new RPC, and properly handle empty states gracefully (displaying "No telemetry data available" instead of crashing).
   5. Implemented `tests/document-qa.test.js` to assert the mock cache logic effectively triggers a hit on sequential identical payload calls.
 - **Outcome:** Edge caching deployed effectively for LLM calls with a 24h TTL, bypassing redundant processing. Telemetry chart visualizes actual usage.
+
+### Wave 128: Command Hub & Agentic Dispatch Activation
+- **Date:** 2024-10-25
+- **Objective:** Enable slash command parsing in `InputForm.jsx` and dispatch to `universal-dispatcher`.
+- **Verification Steps:**
+  1. Updated `InputForm.jsx` to intercept inputs starting with a slash (`/`).
+  2. Slash commands extract the `intent` (command) and `parameters` (remaining string) using regex `/^\\/(\\w+)(?:\\s+(.*))?$/`.
+  3. Commands dispatch to `dispatchCommand` mapped to `/functions/v1/universal-dispatcher`.
+  4. Standard inputs continue to dispatch to `onyx-bridge` for RAG responses.
+  5. Interfaced `ChatInterface.jsx` with `onyx-agent-status` events to render loading and dispatch statuses.
+  6. Wrote comprehensive Vitest suite in `tests/command-hub.test.jsx` verifying slash command vs. standard text routing without edge case UI crashes.
+- **Outcome:** Dispatch routing mechanism fully integrated, allowing for advanced workflow initiation via Command Hub.
