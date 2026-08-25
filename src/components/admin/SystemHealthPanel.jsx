@@ -121,7 +121,7 @@ const SystemHealthPanel = () => {
 
   if (healthData.status === 'loading') {
     return (
-      <div className="glass-effect rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] animate-pulse min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+      <div className="glass-effect rounded-2xl p-6 sm:p-8 shadow-[0_0_25px_rgba(0,0,0,0.5)] animate-pulse min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
         <div className="h-6 w-1/3 bg-slate-800 rounded mb-6"></div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="h-24 bg-slate-800 rounded-lg"></div>
@@ -135,9 +135,9 @@ const SystemHealthPanel = () => {
   }
 
   return (
-    <div className="glass-effect rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+    <div className="glass-effect rounded-2xl p-6 sm:p-8 shadow-[0_0_25px_rgba(0,0,0,0.5)] min-h-[160px] transition-all duration-300" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-bold text-white flex items-center">
+        <h2 className="text-2xl font-bold tracking-tight text-white flex items-center">
           <SafeIcon icon={FiActivity} className="mr-2 text-cyan-400" />
           System Health
         </h2>
@@ -224,7 +224,7 @@ const SystemHealthPanel = () => {
 
 
       <div className="mt-8">
-        <h3 className="text-slate-400 text-sm font-mono uppercase tracking-wider mb-4 border-b border-slate-800 pb-2 flex items-center">
+        <h3 className="text-slate-300 text-sm font-mono font-semibold uppercase tracking-wider mb-4 border-b border-slate-800 pb-2 flex items-center">
           <SafeIcon icon={FiActivity} className="mr-2 text-cyan-400" />
           Autonomous Cron Pulse
         </h3>
@@ -235,7 +235,7 @@ const SystemHealthPanel = () => {
             const statusBg = timeAgo < 60 ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30';
 
             return (
-            <div key={cron.endpoint} className="p-4 rounded-xl border border-onyx-accent/30 shadow-[0_0_15px_rgba(0,0,0,0.5)] transition-all" style={{ backgroundColor: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+            <div key={cron.endpoint} className="p-4 rounded-2xl border border-onyx-accent/30 shadow-[0_0_15px_rgba(0,0,0,0.5)] transition-all" style={{ backgroundColor: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
                <div className="flex justify-between items-center mb-2">
                  <span className="text-cyan-300 font-mono text-xs font-bold uppercase truncate">{cron.endpoint.split('/').pop()}</span>
                  <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${statusBg} ${statusColor}`}>
@@ -250,7 +250,7 @@ const SystemHealthPanel = () => {
 
       {metrics?.microAppMetrics && metrics.microAppMetrics.length > 0 && (
         <div className="mt-8">
-          <h3 className="text-slate-400 text-sm font-mono uppercase tracking-wider mb-4 border-b border-slate-800 pb-2 flex items-center">
+          <h3 className="text-slate-300 text-sm font-mono font-semibold uppercase tracking-wider mb-4 border-b border-slate-800 pb-2 flex items-center">
             <SafeIcon icon={FiActivity} className="mr-2 text-indigo-400" />
             Segmented Micro-App Telemetry & Analytics
           </h3>
@@ -258,7 +258,7 @@ const SystemHealthPanel = () => {
             {metrics.microAppMetrics.filter(app => app.app_id !== 'unknown').map(app => (
               <div
                 key={app.app_id}
-                className="p-5 rounded-xl border border-onyx-accent/30 shadow-[0_0_15px_rgba(0,0,0,0.5)] transition-all hover:border-cyan-500/50"
+                className="p-5 rounded-2xl border border-onyx-accent/30 shadow-[0_0_15px_rgba(0,0,0,0.5)] transition-all hover:border-cyan-500/50"
                 style={{ backgroundColor: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}
               >
                 <div className="flex justify-between items-center mb-4">

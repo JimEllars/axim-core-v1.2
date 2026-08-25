@@ -56,7 +56,7 @@ const MetricsGrid = () => {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 min-h-[160px]">
         {Array.from({ length: 7 }).map((_, index) => (
-          <div key={index} className="glass-effect rounded-xl p-6" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+          <div key={index} className="glass-effect rounded-2xl p-6" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
             <div data-testid="loading-skeleton" className="animate-pulse flex flex-col">
               <div className="h-12 w-12 glass-effect rounded-lg mb-4"></div>
               <div className="h-4 glass-effect rounded w-3/4 mb-2"></div>
@@ -161,7 +161,7 @@ const MetricsGrid = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.1 }}
-          className="glass-effect rounded-xl p-6 hover:bg-white/10 transition-all duration-300 relative group border border-onyx-accent/20" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
+          className="glass-effect rounded-2xl p-6 hover:bg-white/10 transition-all duration-300 relative group hover:shadow-[0_0_25px_rgba(0,0,0,0.5)] border border-onyx-accent/20" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
         >
           {/* Tooltip */}
           <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-full mb-2 hidden group-hover:block z-10 w-48 p-2 glass-effect border border-onyx-accent/20 text-slate-300 text-xs rounded shadow-xl text-center font-mono">
@@ -207,7 +207,7 @@ const MetricsGrid = () => {
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {metrics.microAppMetrics.filter(app => app.app_id !== 'unknown').map(app => (
-              <div key={app.app_id} className="glass-effect rounded-xl p-4 border border-onyx-accent/20">
+              <div key={app.app_id} className="glass-effect rounded-2xl p-4 border border-onyx-accent/20">
                 <div className="flex justify-between items-center mb-3">
                   <span className="text-cyan-400 font-mono text-sm font-bold uppercase tracking-wider truncate" title={app.app_id}>
                     {app.app_id.replace(/_/g, ' ')}

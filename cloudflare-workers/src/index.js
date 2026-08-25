@@ -56,6 +56,38 @@ export default {
     }
 
     // Health Check Endpoint
+
+    // Instant Telemetry Acknowledgment
+    if (url.pathname.endsWith('/telemetry-ingress') || url.pathname.endsWith('/satellite-telemetry')) {
+      try {
+        const targetUrl = new URL(request.url);
+        const backendUrlStr = env.SUPABASE_URL;
+        if (!backendUrlStr) {
+          return new Response('API backend is not configured', { status: 503, headers: corsHeaders });
+        }
+
+        const backendUrl = new URL(backendUrlStr);
+        targetUrl.hostname = backendUrl.hostname;
+        targetUrl.port = backendUrl.port || '';
+        targetUrl.protocol = backendUrl.protocol;
+
+        const modifiedRequest = new Request(targetUrl, request.clone());
+        modifiedRequest.headers.set('x-forwarded-host', request.headers.get('host') || '');
+
+        // Push the processing to the background
+        ctx.waitUntil(fetch(modifiedRequest).catch(err => console.error("Telemetry forward failed:", err)));
+
+        // Instantly return 202 Accepted to prevent UI blocking
+        return new Response(JSON.stringify({ success: true, edge_queued: true }), {
+          status: 202,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (e) {
+        // Fallback gracefully
+        console.error("Failed to queue telemetry at edge", e);
+      }
+    }
+
     if (url.pathname === '/api/edge/healthz' && request.method === 'GET') {
       // memory stats (not fully available in V8 isolates without specific bindings, mock or return limited info)
       const memoryStats = { usage: 'unknown', available: 'unknown' };

@@ -69,8 +69,10 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization') || '';
     const traceId = req.headers.get('X-AXiM-Trace-ID') || 'no_trace_id';
 
-    // Process each payload
-    for (const p of payloadsToProcess) {
+    // Process each payload in the background
+    const processTelemetry = async () => {
+      try {
+        for (const p of payloadsToProcess) {
         const app_id = p.app_id || 'unknown_app';
         const currentTraceId = p.metadata?.['X-AXiM-Trace-ID'] || traceId;
 
@@ -104,10 +106,7 @@ serve(async (req) => {
             compute_ms: -1
           })
 
-          return new Response(
-            JSON.stringify({ error: 'Too Many Requests' }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 429 }
-          )
+          continue; // Skip processing this payload
         }
 
         // Insert the telemetry log
@@ -144,9 +143,23 @@ serve(async (req) => {
         }
     }
 
+        }
+      } catch (err) {
+        console.error("Background telemetry processing error:", err);
+      }
+    };
+
+    // Use EdgeRuntime.waitUntil if available (Supabase/Deno environment), otherwise just run it
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      EdgeRuntime.waitUntil(processTelemetry());
+    } else {
+      // Fallback for environments without EdgeRuntime
+      processTelemetry();
+    }
+
     return new Response(
-      JSON.stringify({ success: true, processed: payloadsToProcess.length }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      JSON.stringify({ success: true, edge_queued: true, processed: payloadsToProcess.length }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 202 }
     )
 
   } catch (error) {

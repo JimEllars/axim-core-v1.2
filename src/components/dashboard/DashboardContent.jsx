@@ -26,15 +26,15 @@ const DashboardContent = () => {
   };
 
   return (
-    <div className="p-6 sm:p-8 w-full max-w-[1600px] mx-auto min-h-[calc(100vh-80px)]">
+    <div className="p-4 sm:p-8 w-full max-w-[1600px] mx-auto min-h-[calc(100vh-80px)]">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8"
+        className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8"
       >
         {/* Header */}
-        <div className="lg:col-span-3 mb-2 flex justify-between items-center">
+        <div className="lg:col-span-3 mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0">
           <div>
             <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3 tracking-tight">
               <FiTerminal className="text-blue-500" />
@@ -44,7 +44,7 @@ const DashboardContent = () => {
           </div>
           <button
             onClick={handleRefresh}
-            className="glass-effect p-2 md:p-3 rounded-full text-slate-300 hover:text-white hover:bg-onyx-accent/20 transition-all hover:scale-105 active:scale-95 border border-onyx-accent/20 shadow-[0_0_15px_rgba(0,0,0,0.3)]"
+            className="glass-effect p-2 md:p-3 rounded-full text-slate-300 hover:text-white hover:bg-onyx-accent/20 transition-all duration-300 hover:scale-105 active:scale-95 border border-onyx-accent/20 shadow-[0_0_15px_rgba(0,0,0,0.3)]"
             aria-label="Refresh Dashboard"
           >
             <FiRefreshCw className="w-5 h-5 md:w-6 md:h-6" />
