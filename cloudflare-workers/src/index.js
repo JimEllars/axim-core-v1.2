@@ -19,7 +19,7 @@ function getCorsHeaders(request, env) {
   return {
     ...(isAllowedOrigin ? { 'Access-Control-Allow-Origin': origin } : {}),
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Idempotency-Key, x-axim-app-id',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Idempotency-Key, x-axim-app-id, X-Emailit-Signature',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
   };
@@ -57,8 +57,8 @@ export default {
 
     // Health Check Endpoint
 
-    // Instant Telemetry Acknowledgment
-    if (url.pathname.endsWith('/telemetry-ingress') || url.pathname.endsWith('/satellite-telemetry')) {
+    // Instant Telemetry Acknowledgment and Webhooks
+    if (url.pathname.endsWith('/telemetry-ingress') || url.pathname.endsWith('/satellite-telemetry') || url.pathname.endsWith('/email-tracking-webhook')) {
       try {
         const targetUrl = new URL(request.url);
         const backendUrlStr = env.SUPABASE_URL;
@@ -75,7 +75,7 @@ export default {
         modifiedRequest.headers.set('x-forwarded-host', request.headers.get('host') || '');
 
         // Push the processing to the background
-        ctx.waitUntil(fetch(modifiedRequest).catch(err => console.error("Telemetry forward failed:", err)));
+        ctx.waitUntil(fetch(modifiedRequest).catch(err => console.error("Telemetry/Webhook forward failed:", err)));
 
         // Instantly return 202 Accepted to prevent UI blocking
         return new Response(JSON.stringify({ success: true, edge_queued: true }), {
@@ -84,7 +84,7 @@ export default {
         });
       } catch (e) {
         // Fallback gracefully
-        console.error("Failed to queue telemetry at edge", e);
+        console.error("Failed to queue telemetry/webhook at edge", e);
       }
     }
 
