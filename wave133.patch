@@ -1,0 +1,163 @@
+From 8a4ea4ed7555d57da0d1d0d5616d7be13b266268 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Wed, 26 Aug 2026 17:01:14 +0000
+Subject: [PATCH] feat: Upgrade Wave 133 - Edge alerts and UI polish
+
+---
+ AGENTS_VERIFICATION.md                       | 50 ++++++--------------
+ cloudflare-workers/src/index.js              | 15 ++++++
+ src/components/dashboard/JobQueueMonitor.jsx | 14 +++---
+ src/components/dashboard/RecentWorkflows.jsx |  6 +--
+ 4 files changed, 39 insertions(+), 46 deletions(-)
+
+diff --git a/AGENTS_VERIFICATION.md b/AGENTS_VERIFICATION.md
+index ead847d..38513c3 100644
+--- a/AGENTS_VERIFICATION.md
++++ b/AGENTS_VERIFICATION.md
+@@ -1,39 +1,17 @@
+-# Wave 129: Telemetry Activation & UI Polish
++# Verification Report for Wave 133
+
+-## Proof-of-Fix Protocol
+-- **Issue**: Telemetry endpoints were blocking execution at the edge which could introduce UI latency, and UI components were outdated.
+-- **Root Cause**: `telemetry-ingress` and `satellite-telemetry` lacked background queuing, and Cloudflare Worker (`cloudflare-workers/src/index.js`) didn't quickly return `202 Accepted` to unblock UI execution.
+-- **Resolution**:
+-    - **Cloudflare Edge (`cloudflare-workers/src/index.js`)**: Hooked `/telemetry-ingress` and `/satellite-telemetry` using `ctx.waitUntil()` to push execution to the background and instantly return `202 Accepted`.
+-    - **Supabase Edge Functions (`telemetry-ingress` & `satellite-telemetry`)**: Wrapped database operations inside asynchronous structures and invoked `EdgeRuntime.waitUntil(processTelemetry())` to run non-blocking processing.
+-    - **UI Enhancements (`DashboardContent.jsx`, `SystemHealthPanel.jsx`, `MetricsGrid.jsx`)**: Improved component grid layouts with rounded borders (`rounded-2xl`), subtle shadows (`shadow-[0_0_25px_rgba(0,0,0,0.5)]`), modern fonts, tighter container spacing for extreme responsiveness, and hover effects.
+-- **Validation**:
+-    - Passed `tests/telemetry-pipeline.test.js`.
+-    - Passed `tests/ui-smoke.test.jsx`.
+-    - Zero disruption to `AuthContext.jsx` and `ProtectedRoute.jsx`.
++## Proof of Fix Protocol
++1. **Edge Security Alerts (Task 1)**:
++   - Added `403` rejection tracking logic in `cloudflare-workers/src/index.js` using `env.KV`.
++   - The threshold is configured at `> 50` hits within a `60-second` rolling window (`Math.floor(Date.now() / 60000)`).
++   - Once threshold is breached, an asynchronous webhook alert is sent using `ctx.waitUntil(fetch(env.ALERT_WEBHOOK_URL, ...))` ensuring it does not block or add latency to legitimate user requests.
++   - Tested using `npm run test tests/edge-worker.test.js` - Tests PASSED.
+
++2. **Workflow & Job Queue UI Modernization (Task 2)**:
++   - Upgraded `src/components/dashboard/RecentWorkflows.jsx` and `src/components/dashboard/JobQueueMonitor.jsx`.
++   - Replaced basic styling with `rounded-2xl`, `shadow-[0_0_25px_rgba(0,0,0,0.5)]`, `bg-onyx-900/40 backdrop-blur-md border border-white/5` for a glass-effect appearance.
++   - Upgraded badges with modern Tailwind colors (`emerald-500`, `rose-500`, `sky-500`, `amber-500`) combined with dropshadows and `animate-pulse` for processing/active states.
++   - Verified that data polling hooks/logic remain untouched.
++   - Tested using `npx vitest run tests/ui-smoke.test.jsx` - Tests PASSED.
+
+-## Wave 130: Dual-Provider Email Dispatch & Failover
+-- **Issue**: Email dispatch lacked automatic failover resulting in missing emails and timeouts if the primary provider limit was reached.
+-- **Root Cause**: `send-email` edge function utilized direct fetch calls to EmailIt without a unified dispatch manager handling limits or fallbacks.
+-- **Resolution**:
+-    - **EmailDispatchManager (`supabase/functions/_shared/EmailDispatchManager.ts`)**: Built a TypeScript class establishing EmailIt as primary and Resend as secondary. Intercepts `ratelimit-daily-remaining` and handles API fallbacks.
+-    - **Schema Transformations (`EmailDispatchManager.ts`)**: Dynamically transforms the schema payload converting properties like `Idempotency-Key` to `X-Idempotency-Key`, string parameters to arrays, and URL attachments to Base64 to ensure Resend receives a valid payload.
+-    - **Edge Function Rollout (`supabase/functions/send-email/index.ts`)**: Rewrote the email execution logic to use `EmailDispatchManager`. Ensured compatibility with the logging of `public.api_usage_logs` and the newly implemented `email_dead_letter_queue`.
+-- **Validation**:
+-    - Ran typescript check against the changed files.
+-    - Verified `EmailDispatchManager` class functions properly.
+-    - Build successfully outputs without errors related to these changes.
+-
+-## Wave 131: Unified Webhook Ingestion & Edge Security
+-- **Issue**: Need to normalize and unify webhook telemetry from EmailIt and Resend, and modernize the Email Console UI.
+-- **Root Cause**: `email-tracking-webhook` lacked EmailIt signature verification and payload normalization across providers. The Email Console UI was outdated.
+-- **Resolution**:
+-    - **Edge Function (`supabase/functions/email-tracking-webhook/index.ts`)**: Rewrote the webhook handler to identify the provider, verify EmailIt HMAC-SHA256 signatures (`X-Emailit-Signature`), normalize events (Delivered, Queued, Bounced, Opened, Clicked), and log asynchronously using `EdgeRuntime.waitUntil`.
+-    - **Crypto Utility (`supabase/functions/_shared/crypto.ts`)**: Added `verifyEmailItSignature` to parse `X-Emailit-Signature` and verify it using HMAC-SHA256.
+-    - **Cloudflare Edge (`cloudflare-workers/src/index.js`)**: Updated routing to capture requests for `/email-tracking-webhook` and instantly return `202 Accepted` while forwarding the payload in the background.
+-    - **UI Enhancements (`src/components/admin/EmailConsole.jsx`)**: Applied modern Tailwind CSS classes (rounded-2xl, glass-effect, animations) to improve the layout and readability of DLQ items and direct ping controls.
+-- **Validation**:
+-    - Executed frontend verification with Playwright (video and screenshot created).
+-    - Tests passing (`telemetry-pipeline.test.js`, `ui-smoke.test.jsx`).
+-    - Verified `AuthContext.jsx` and user routes were not disrupted.
++3. All modifications satisfy the strict requirement of Zero Downtime and complete backward compatibility with existing data fetching logic.
+diff --git a/cloudflare-workers/src/index.js b/cloudflare-workers/src/index.js
+index e61fcfb..dc32bd8 100644
+--- a/cloudflare-workers/src/index.js
++++ b/cloudflare-workers/src/index.js
+@@ -31,6 +31,21 @@ export default {
+
+     if (request.method === 'OPTIONS') {
+       if (request.headers.get('Origin') && !corsHeaders['Access-Control-Allow-Origin']) {
++        const rejectionCountKey = `403_rejections_${Math.floor(Date.now() / 60000)}`;
++        let count = 1;
++        if (env.KV) {
++          count = parseInt(await env.KV.get(rejectionCountKey) || '0', 10) + 1;
++          ctx.waitUntil(env.KV.put(rejectionCountKey, count.toString(), { expirationTtl: 120 }));
++        }
++
++        if (count > 50 && env.ALERT_WEBHOOK_URL) {
++           ctx.waitUntil(fetch(env.ALERT_WEBHOOK_URL, {
++             method: 'POST',
++             headers: { 'Content-Type': 'application/json' },
++             body: JSON.stringify({ text: `High number of 403 rejections detected at edge (${count} in the last minute).` })
++           }).catch(err => console.error("Alert webhook failed:", err)));
++        }
++
+         return new Response('Origin not allowed', { status: 403, headers: corsHeaders });
+       }
+
+diff --git a/src/components/dashboard/JobQueueMonitor.jsx b/src/components/dashboard/JobQueueMonitor.jsx
+index 3b621b0..ed43980 100644
+--- a/src/components/dashboard/JobQueueMonitor.jsx
++++ b/src/components/dashboard/JobQueueMonitor.jsx
+@@ -85,7 +85,7 @@ const JobQueueMonitor = () => {
+
+   if (loading && jobs.length === 0) {
+     return (
+-      <div className="p-6 text-white min-h-[160px] animate-pulse" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
++      <div className="p-6 text-white min-h-[160px] animate-pulse rounded-2xl shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md border border-white/5">
+         <div className="h-8 bg-slate-700/50 rounded w-1/3 mb-6"></div>
+         <div className="grid grid-cols-4 gap-4 mb-8">
+           {[1, 2, 3, 4].map(i => (
+@@ -99,7 +99,7 @@ const JobQueueMonitor = () => {
+   if (error) return <div className="text-red-500 p-4">Error: {error}</div>;
+
+   return (
+-    <div className="p-6 text-white min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
++    <div className="p-6 text-white min-h-[160px] rounded-2xl shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md border border-white/5">
+       <h1 className="text-2xl font-bold mb-6 text-blue-400 border-b border-blue-900 pb-2">Mission Control: Job Queue</h1>
+
+       {/* Summary Ribbon */}
+@@ -163,11 +163,11 @@ const JobQueueMonitor = () => {
+                   <div className="font-semibold mt-1 text-blue-300">{job.app_id}</div>
+                 </td>
+                 <td className="px-6 py-4">
+-                  <span className={`px-2 py-1 rounded-full text-xs font-medium
+-                    ${job.status === 'completed' ? 'bg-green-900 text-green-300' :
+-                      job.status === 'failed' ? 'bg-red-900 text-red-300' :
+-                      job.status === 'processing' ? 'bg-blue-900 text-blue-300' :
+-                      'bg-yellow-900 text-yellow-300'}`}
++                  <span className={`px-3 py-1 rounded-full text-xs font-semibold tracking-wide border
++                    ${job.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_10px_rgba(52,211,153,0.1)]' :
++                      job.status === 'failed' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20 shadow-[0_0_10px_rgba(251,113,133,0.1)]' :
++                      job.status === 'processing' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20 shadow-[0_0_10px_rgba(14,165,233,0.2)] animate-pulse' :
++                      'bg-amber-500/10 text-amber-400 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.1)]'}`}
+                   >
+                     {job.status}
+                   </span>
+diff --git a/src/components/dashboard/RecentWorkflows.jsx b/src/components/dashboard/RecentWorkflows.jsx
+index 521777f..ab84419 100644
+--- a/src/components/dashboard/RecentWorkflows.jsx
++++ b/src/components/dashboard/RecentWorkflows.jsx
+@@ -14,7 +14,7 @@ const RecentWorkflows = () => {
+     <motion.div
+       initial={{ opacity: 0, y: 20 }}
+       animate={{ opacity: 1, y: 0 }}
+-      className="glass-effect p-6 rounded-xl min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
++      className="glass-effect p-6 rounded-2xl min-h-[160px] shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md border border-white/5"
+     >
+       <div className="flex items-center justify-between mb-4">
+         <div className="flex items-center gap-2">
+@@ -53,9 +53,9 @@ const RecentWorkflows = () => {
+               </div>
+               <div className="flex items-center space-x-2">
+                 {flow.data?.results?.every(r => r.success) ? (
+-                  <SafeIcon icon={FiCheckCircle} className="text-green-500" data-testid="success-icon" />
++                  <SafeIcon icon={FiCheckCircle} className="text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" data-testid="success-icon" />
+                 ) : (
+-                  <SafeIcon icon={FiXCircle} className="text-red-500" data-testid="failure-icon" />
++                  <SafeIcon icon={FiXCircle} className="text-rose-400 drop-shadow-[0_0_8px_rgba(251,113,133,0.5)]" data-testid="failure-icon" />
+                 )}
+                 <span className="text-sm font-medium text-slate-300">
+                   {flow.data?.results?.filter(r => r.success).length || 0}/{flow.data?.results?.length || 0} Steps
+--
+2.53.0
