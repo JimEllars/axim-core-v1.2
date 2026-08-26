@@ -12,3 +12,15 @@
     - Passed `tests/ui-smoke.test.jsx`.
     - Zero disruption to `AuthContext.jsx` and `ProtectedRoute.jsx`.
 
+
+## Wave 130: Dual-Provider Email Dispatch & Failover
+- **Issue**: Email dispatch lacked automatic failover resulting in missing emails and timeouts if the primary provider limit was reached.
+- **Root Cause**: `send-email` edge function utilized direct fetch calls to EmailIt without a unified dispatch manager handling limits or fallbacks.
+- **Resolution**:
+    - **EmailDispatchManager (`supabase/functions/_shared/EmailDispatchManager.ts`)**: Built a TypeScript class establishing EmailIt as primary and Resend as secondary. Intercepts `ratelimit-daily-remaining` and handles API fallbacks.
+    - **Schema Transformations (`EmailDispatchManager.ts`)**: Dynamically transforms the schema payload converting properties like `Idempotency-Key` to `X-Idempotency-Key`, string parameters to arrays, and URL attachments to Base64 to ensure Resend receives a valid payload.
+    - **Edge Function Rollout (`supabase/functions/send-email/index.ts`)**: Rewrote the email execution logic to use `EmailDispatchManager`. Ensured compatibility with the logging of `public.api_usage_logs` and the newly implemented `email_dead_letter_queue`.
+- **Validation**:
+    - Ran typescript check against the changed files.
+    - Verified `EmailDispatchManager` class functions properly.
+    - Build successfully outputs without errors related to these changes.
