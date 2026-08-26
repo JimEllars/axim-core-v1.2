@@ -24,3 +24,16 @@
     - Ran typescript check against the changed files.
     - Verified `EmailDispatchManager` class functions properly.
     - Build successfully outputs without errors related to these changes.
+
+## Wave 131: Unified Webhook Ingestion & Edge Security
+- **Issue**: Need to normalize and unify webhook telemetry from EmailIt and Resend, and modernize the Email Console UI.
+- **Root Cause**: `email-tracking-webhook` lacked EmailIt signature verification and payload normalization across providers. The Email Console UI was outdated.
+- **Resolution**:
+    - **Edge Function (`supabase/functions/email-tracking-webhook/index.ts`)**: Rewrote the webhook handler to identify the provider, verify EmailIt HMAC-SHA256 signatures (`X-Emailit-Signature`), normalize events (Delivered, Queued, Bounced, Opened, Clicked), and log asynchronously using `EdgeRuntime.waitUntil`.
+    - **Crypto Utility (`supabase/functions/_shared/crypto.ts`)**: Added `verifyEmailItSignature` to parse `X-Emailit-Signature` and verify it using HMAC-SHA256.
+    - **Cloudflare Edge (`cloudflare-workers/src/index.js`)**: Updated routing to capture requests for `/email-tracking-webhook` and instantly return `202 Accepted` while forwarding the payload in the background.
+    - **UI Enhancements (`src/components/admin/EmailConsole.jsx`)**: Applied modern Tailwind CSS classes (rounded-2xl, glass-effect, animations) to improve the layout and readability of DLQ items and direct ping controls.
+- **Validation**:
+    - Executed frontend verification with Playwright (video and screenshot created).
+    - Tests passing (`telemetry-pipeline.test.js`, `ui-smoke.test.jsx`).
+    - Verified `AuthContext.jsx` and user routes were not disrupted.
