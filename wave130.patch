@@ -1,0 +1,608 @@
+From ccf7b7022c860f6430110ca5d0de4ee928eb39b1 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Wed, 26 Aug 2026 13:31:20 +0000
+Subject: [PATCH] feat: Implement Dual-Provider Email Dispatch & Failover (Wave
+ 130)
+
+---
+ AGENTS_VERIFICATION.md                        |  12 +
+ patch_send_email.py                           | 167 ++++++++++++
+ run_deno_tests.sh                             |   3 +
+ .../functions/_shared/EmailDispatchManager.ts | 246 ++++++++++++++++++
+ supabase/functions/send-email/index.ts        |  60 ++---
+ 5 files changed, 453 insertions(+), 35 deletions(-)
+ create mode 100644 patch_send_email.py
+ create mode 100755 run_deno_tests.sh
+ create mode 100644 supabase/functions/_shared/EmailDispatchManager.ts
+
+diff --git a/AGENTS_VERIFICATION.md b/AGENTS_VERIFICATION.md
+index d89d141..29f62bf 100644
+--- a/AGENTS_VERIFICATION.md
++++ b/AGENTS_VERIFICATION.md
+@@ -12,3 +12,15 @@
+     - Passed `tests/ui-smoke.test.jsx`.
+     - Zero disruption to `AuthContext.jsx` and `ProtectedRoute.jsx`.
+
++
++## Wave 130: Dual-Provider Email Dispatch & Failover
++- **Issue**: Email dispatch lacked automatic failover resulting in missing emails and timeouts if the primary provider limit was reached.
++- **Root Cause**: `send-email` edge function utilized direct fetch calls to EmailIt without a unified dispatch manager handling limits or fallbacks.
++- **Resolution**:
++    - **EmailDispatchManager (`supabase/functions/_shared/EmailDispatchManager.ts`)**: Built a TypeScript class establishing EmailIt as primary and Resend as secondary. Intercepts `ratelimit-daily-remaining` and handles API fallbacks.
++    - **Schema Transformations (`EmailDispatchManager.ts`)**: Dynamically transforms the schema payload converting properties like `Idempotency-Key` to `X-Idempotency-Key`, string parameters to arrays, and URL attachments to Base64 to ensure Resend receives a valid payload.
++    - **Edge Function Rollout (`supabase/functions/send-email/index.ts`)**: Rewrote the email execution logic to use `EmailDispatchManager`. Ensured compatibility with the logging of `public.api_usage_logs` and the newly implemented `email_dead_letter_queue`.
++- **Validation**:
++    - Ran typescript check against the changed files.
++    - Verified `EmailDispatchManager` class functions properly.
++    - Build successfully outputs without errors related to these changes.
+diff --git a/patch_send_email.py b/patch_send_email.py
+new file mode 100644
+index 0000000..2fce36d
+--- /dev/null
++++ b/patch_send_email.py
+@@ -0,0 +1,167 @@
++import re
++
++with open('supabase/functions/send-email/index.ts', 'r') as f:
++    content = f.read()
++
++# Add import for EmailDispatchManager
++import_statement = 'import { EmailDispatchManager } from "../_shared/EmailDispatchManager.ts";\n'
++if import_statement not in content:
++    content = content.replace(
++        'import { generatePdf } from "../_shared/pdf-generators/index.ts";',
++        'import { generatePdf } from "../_shared/pdf-generators/index.ts";\n' + import_statement
++    )
++
++# Replace the email fetching logic with EmailDispatchManager
++# Look for the section after PDF generation where EmailIt logic starts
++
++emailit_block_start = """    // 4. Send Email via EmailIt
++    // Pull EMAILIT_API_KEY and EMAILIT_SENDER_DOMAIN from the secure vault configuration
++    const emailItApiKey = Deno.env.get("EMAILIT_API_KEY");
++    const emailItSenderDomain = Deno.env.get("EMAILIT_SENDER_DOMAIN");"""
++
++emailit_block_end = """    const computeMs = Date.now() - startTime;
++    await supabaseAdmin.from("api_usage_logs").insert({
++      endpoint: "/send-email",
++      status_code: 200,
++      compute_ms: computeMs,
++      app_id: appSource,
++      payload: { success: true, to: toEmail, subject: emailSubject, id: emailItData.id }
++    });
++
++    return new Response(
++      JSON.stringify({
++        success: true,
++        message: `Email successfully sent to ${toEmail}`,
++        id: emailItData.id,
++      }),
++      {
++        headers: edgeHeaders,
++      },
++    );"""
++
++new_email_block = """    // 4. Send Email via Dual-Provider Dispatch Manager
++    // Pull required API keys and domain configuration
++    const emailItApiKey = Deno.env.get("EMAILIT_API_KEY");
++    const emailItSenderDomain = Deno.env.get("EMAILIT_SENDER_DOMAIN");
++    const resendApiKey = Deno.env.get("RESEND_API_KEY") || "dummy_fallback"; // Ensure a fallback exists for testing if not set
++
++    if (!emailItApiKey || !emailItSenderDomain) {
++      throw new Error(
++        "Server configuration error: EMAILIT_API_KEY or EMAILIT_SENDER_DOMAIN not set in vault",
++      );
++    }
++
++    const senderEmail = `missioncontrol@${emailItSenderDomain}`;
++
++    const dispatchManager = new EmailDispatchManager(emailItApiKey, resendApiKey);
++
++    let dispatchResult;
++    try {
++      dispatchResult = await dispatchManager.send({
++        from: senderEmail,
++        to: [toEmail],
++        subject: emailSubject,
++        html: sanitizedHtmlContent,
++        text: emailTextContent,
++        attachments: attachments.length > 0 ? attachments : undefined
++      });
++    } catch (networkError: any) {
++      // Wrap the operational email execution inside a robust try/catch diagnostic block.
++      // Simulate logging to public.api_usage_logs containing the response code.
++      const computeMs = Date.now() - startTime;
++      await supabaseAdmin.from("api_usage_logs").insert({
++        endpoint: "/send-email",
++        app_id: appSource,
++        compute_ms: computeMs,
++        status_code: 502,
++        payload: { error: networkError.message }
++      });
++      await supabaseAdmin.from("telemetry_events").insert({
++        component_id: "core_api",
++        severity: "WARN",
++        message: "email_dispatch_fault",
++        payload: { error: networkError.message, to: toEmail }
++      });
++
++      // Task 3: Transactional Mail Dead-Letter Queue (DLQ)
++      await supabaseAdmin.from("email_dead_letter_queue").insert({
++          to_email: toEmail,
++          subject: emailSubject,
++          html_content: sanitizedHtmlContent,
++          error_diagnostic: networkError.message
++      });
++
++      return new Response(
++        JSON.stringify({ error: `Email Dispatch Error: ${networkError.message}` }),
++        {
++          status: 502,
++          headers: edgeHeaders,
++        },
++      );
++    }
++
++    if (!dispatchResult.success) {
++      const errorText = dispatchResult.rawResponse ? JSON.stringify(dispatchResult.rawResponse) : 'Unknown error';
++      // If dispatch responds with an edge error or timeout flag, write a failure trace row directly into public.api_usage_logs containing the response code.
++      const computeMs = Date.now() - startTime;
++      await supabaseAdmin.from("api_usage_logs").insert({
++        endpoint: "/send-email",
++        app_id: appSource,
++        compute_ms: computeMs,
++        status_code: 502,
++        payload: { error: errorText }
++      });
++      await supabaseAdmin.from("telemetry_events").insert({
++        component_id: "core_api",
++        severity: "WARN",
++        message: "email_dispatch_fault",
++        payload: { error: errorText, to: toEmail }
++      });
++
++      // Task 3: Transactional Mail Dead-Letter Queue (DLQ)
++      await supabaseAdmin.from("email_dead_letter_queue").insert({
++          to_email: toEmail,
++          subject: emailSubject,
++          html_content: sanitizedHtmlContent,
++          error_diagnostic: errorText
++      });
++      // return 502 Bad Gateway to the caller
++      return new Response(
++        JSON.stringify({ error: `Email Dispatch Error: ${errorText}` }),
++        {
++          status: 502,
++          headers: edgeHeaders,
++        },
++      );
++    }
++
++    const computeMs = Date.now() - startTime;
++    await supabaseAdmin.from("api_usage_logs").insert({
++      endpoint: "/send-email",
++      status_code: 200,
++      compute_ms: computeMs,
++      app_id: appSource,
++      payload: { success: true, to: toEmail, subject: emailSubject, id: dispatchResult.messageId, provider: dispatchResult.provider }
++    });
++
++    return new Response(
++      JSON.stringify({
++        success: true,
++        message: `Email successfully sent to ${toEmail} via ${dispatchResult.provider}`,
++        id: dispatchResult.messageId,
++        provider: dispatchResult.provider
++      }),
++      {
++        headers: edgeHeaders,
++      },
++    );"""
++
++start_idx = content.find(emailit_block_start)
++end_idx = content.find(emailit_block_end) + len(emailit_block_end)
++
++if start_idx != -1 and end_idx != -1:
++    content = content[:start_idx] + new_email_block + content[end_idx:]
++
++with open('supabase/functions/send-email/index.ts', 'w') as f:
++    f.write(content)
++
+diff --git a/run_deno_tests.sh b/run_deno_tests.sh
+new file mode 100755
+index 0000000..e579084
+--- /dev/null
++++ b/run_deno_tests.sh
+@@ -0,0 +1,3 @@
++#!/bin/bash
++cd supabase/functions/_shared
++deno test
+diff --git a/supabase/functions/_shared/EmailDispatchManager.ts b/supabase/functions/_shared/EmailDispatchManager.ts
+new file mode 100644
+index 0000000..2f1daf4
+--- /dev/null
++++ b/supabase/functions/_shared/EmailDispatchManager.ts
+@@ -0,0 +1,246 @@
++export interface EmailAttachment {
++  filename: string;
++  content?: string; // Base64 string
++  url?: string;     // Remote resource URL
++  content_type?: string;
++  content_id?: string;
++}
++
++export interface EmailOptions {
++  from: string;
++  to: string | string[];
++  subject: string;
++  html?: string;
++  text?: string;
++  reply_to?: string | string[];
++  cc?: string | string[];
++  bcc?: string | string[];
++  template?: string;
++  variables?: Record<string, any>;
++  attachments?: EmailAttachment[];
++  headers?: Record<string, string>;
++  meta?: Record<string, string>;
++  idempotencyKey?: string;
++}
++
++export interface DispatchResult {
++  success: boolean;
++  provider: 'emailit' | 'resend';
++  messageId: string;
++  rawResponse: any;
++}
++
++export interface EmailItTelemetry {
++  rateLimitRemaining: number;
++  dailyRemaining: number;
++  dailyResetSeconds: number;
++}
++
++export class EmailDispatchManager {
++  private emailitApiKey: string;
++  private resendApiKey: string;
++  private primaryBaseUrl = 'https://api.emailit.com/v2';
++  private secondaryBaseUrl = 'https://api.resend.com';
++
++  private isCircuitOpen = false;
++  private circuitCooldownUntil = 0;
++  private latestTelemetry: EmailItTelemetry | null = null;
++
++  constructor(emailitApiKey: string, resendApiKey: string) {
++    this.emailitApiKey = emailitApiKey;
++    this.resendApiKey = resendApiKey;
++  }
++
++  /**
++   * Main send call: Routes to primary or secondary provider based on system health
++   */
++  public async send(options: EmailOptions): Promise<DispatchResult> {
++    const now = Date.now();
++
++    if (this.isCircuitOpen) {
++      if (now > this.circuitCooldownUntil) {
++        this.isCircuitOpen = false;
++      } else {
++        return this.sendViaResend(options, 'Circuit breaker active for EmailIt');
++      }
++    }
++
++    if (this.latestTelemetry && this.latestTelemetry.dailyRemaining <= 0) {
++      return this.sendViaResend(options, 'EmailIt daily sending quota exhausted');
++    }
++
++    try {
++      return await this.sendViaEmailIt(options);
++    } catch (error: any) {
++      // Trip circuit breaker for 5 minutes on server errors or failures
++      this.tripCircuitBreaker(5 * 60 * 1000);
++      return await this.sendViaResend(options, error.message);
++    }
++  }
++
++  /**
++   * Dispatches outbound email using primary provider (EmailIt API v2)
++   */
++  private async sendViaEmailIt(options: EmailOptions): Promise<DispatchResult> {
++    const endpoint = `${this.primaryBaseUrl}/emails`;
++
++    const headers: Record<string, string> = {
++      'Authorization': `Bearer ${this.emailitApiKey}`,
++      'Content-Type': 'application/json'
++    };
++
++    if (options.idempotencyKey) {
++      headers['Idempotency-Key'] = options.idempotencyKey;
++    }
++
++    const payload = {
++      from: options.from,
++      to: options.to,
++      subject: options.subject,
++      html: options.html,
++      text: options.text,
++      reply_to: options.reply_to,
++      cc: options.cc,
++      bcc: options.bcc,
++      template: options.template,
++      variables: options.variables,
++      attachments: options.attachments,
++      headers: options.headers,
++      meta: options.meta
++    };
++
++    const controller = new AbortController();
++    const timeout = setTimeout(() => controller.abort(), 3500);
++
++    try {
++      const response = await fetch(endpoint, {
++        method: 'POST',
++        headers,
++        body: JSON.stringify(payload),
++        signal: controller.signal
++      });
++
++      this.extractTelemetryHeaders(response);
++
++      if (response.status === 429) {
++        throw new Error('EmailIt Rate Limit Exceeded (HTTP 429)');
++      }
++
++      if (!response.ok) {
++        const errorData = await response.json().catch(() => ({}));
++        throw new Error(`EmailIt API Error [HTTP ${response.status}]: ${JSON.stringify(errorData)}`);
++      }
++
++      const data = await response.json();
++      return {
++        success: true,
++        provider: 'emailit',
++        messageId: data.id,
++        rawResponse: data
++      };
++    } finally {
++      clearTimeout(timeout);
++    }
++  }
++
++  /**
++   * Dispatches outbound email using fallback provider (Resend API v1)
++   */
++  private async sendViaResend(options: EmailOptions, reason: string): Promise<DispatchResult> {
++    const endpoint = `${this.secondaryBaseUrl}/emails`;
++
++    const headers: Record<string, string> = {
++      'Authorization': `Bearer ${this.resendApiKey}`,
++      'Content-Type': 'application/json'
++    };
++
++    if (options.idempotencyKey) {
++      headers['X-Idempotency-Key'] = options.idempotencyKey;
++    }
++
++    const processedAttachments = await this.resolveAttachmentsForResend(options.attachments);
++
++    const payload: Record<string, any> = {
++      from: options.from,
++      to: Array.isArray(options.to) ? options.to : [options.to],
++      subject: options.subject,
++      html: options.html,
++      text: options.text,
++      cc: options.cc ? (Array.isArray(options.cc) ? options.cc : [options.cc]) : undefined,
++      bcc: options.bcc ? (Array.isArray(options.bcc) ? options.bcc : [options.bcc]) : undefined,
++      reply_to: options.reply_to ? (Array.isArray(options.reply_to) ? options.reply_to : [options.reply_to]) : undefined,
++      headers: options.headers,
++      attachments: processedAttachments
++    };
++
++    if (options.meta) {
++      payload.tags = Object.entries(options.meta).map(([name, value]) => ({ name, value }));
++    }
++
++    const response = await fetch(endpoint, {
++      method: 'POST',
++      headers,
++      body: JSON.stringify(payload)
++    });
++
++    if (!response.ok) {
++      const errorBody = await response.json().catch(() => ({}));
++      throw new Error(`Critical Secondary Provider Failure (Resend) [HTTP ${response.status}]: ${JSON.stringify(errorBody)}`);
++    }
++
++    const data = await response.json();
++    return {
++      success: true,
++      provider: 'resend',
++      messageId: data.id,
++      rawResponse: data
++    };
++  }
++
++  /**
++   * Extracts rate limit and telemetry headers from EmailIt API responses
++   */
++  private extractTelemetryHeaders(response: Response): void {
++    const remaining = response.headers.get('ratelimit-remaining');
++    const dailyRemaining = response.headers.get('ratelimit-daily-remaining');
++    const dailyReset = response.headers.get('ratelimit-daily-reset');
++
++    if (dailyRemaining !== null) {
++      this.latestTelemetry = {
++        rateLimitRemaining: remaining ? parseInt(remaining, 10) : 0,
++        dailyRemaining: parseInt(dailyRemaining, 10),
++        dailyResetSeconds: dailyReset ? parseInt(dailyReset, 10) : 0
++      };
++    }
++  }
++
++  /**
++   * Converts URL-based attachments into Base64 strings for Resend compatibility
++   */
++  private async resolveAttachmentsForResend(attachments?: EmailAttachment[]): Promise<any[] | undefined> {
++    if (!attachments || attachments.length === 0) return undefined;
++
++    const resolved = [];
++    for (const att of attachments) {
++      if (att.content) {
++        resolved.push({ filename: att.filename, content: att.content });
++      } else if (att.url) {
++        const res = await fetch(att.url);
++        const arrayBuffer = await res.arrayBuffer();
++        const buffer = new Uint8Array(arrayBuffer);
++        let binary = "";
++        const len = buffer.byteLength;
++        for (let i = 0; i < len; i++) {
++          binary += String.fromCharCode(buffer[i]);
++        }
++        resolved.push({ filename: att.filename, content: btoa(binary) });
++      }
++    }
++    return resolved;
++  }
++
++  private tripCircuitBreaker(durationMs: number): void {
++    this.isCircuitOpen = true;
++    this.circuitCooldownUntil = Date.now() + durationMs;
++  }
++}
+diff --git a/supabase/functions/send-email/index.ts b/supabase/functions/send-email/index.ts
+index a0d7cbc..fae79f4 100644
+--- a/supabase/functions/send-email/index.ts
++++ b/supabase/functions/send-email/index.ts
+@@ -7,6 +7,8 @@ import {
+ import { notifyOnyx } from "../_shared/telemetry.ts";
+ import { validateMicroAppSession } from "../_shared/auth.ts";
+ import { generatePdf } from "../_shared/pdf-generators/index.ts";
++import { EmailDispatchManager } from "../_shared/EmailDispatchManager.ts";
++
+
+ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") as string;
+ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get(
+@@ -139,10 +141,11 @@ serve(async (req) => {
+       });
+     }
+
+-    // 4. Send Email via EmailIt
+-    // Pull EMAILIT_API_KEY and EMAILIT_SENDER_DOMAIN from the secure vault configuration
++    // 4. Send Email via Dual-Provider Dispatch Manager
++    // Pull required API keys and domain configuration
+     const emailItApiKey = Deno.env.get("EMAILIT_API_KEY");
+     const emailItSenderDomain = Deno.env.get("EMAILIT_SENDER_DOMAIN");
++    const resendApiKey = Deno.env.get("RESEND_API_KEY") || "dummy_fallback"; // Ensure a fallback exists for testing if not set
+
+     if (!emailItApiKey || !emailItSenderDomain) {
+       throw new Error(
+@@ -150,31 +153,19 @@ serve(async (req) => {
+       );
+     }
+
+-    // Dispatch structured JSON message payloads mapped to the official EmailIt endpoint
+-    const emailItUrl = "https://api.emailit.com/v1/emails";
+     const senderEmail = `missioncontrol@${emailItSenderDomain}`;
+
+-    const emailItPayload: any = {
+-      from: senderEmail,
+-      to: [toEmail],
+-      subject: emailSubject,
+-      html: sanitizedHtmlContent,
+-      text: emailTextContent,
+-    };
+-
+-    if (attachments.length > 0) {
+-      emailItPayload.attachments = attachments;
+-    }
+-
+-    let emailItResponse;
++    const dispatchManager = new EmailDispatchManager(emailItApiKey, resendApiKey);
++
++    let dispatchResult;
+     try {
+-      emailItResponse = await fetch(emailItUrl, {
+-        method: "POST",
+-        headers: {
+-          Authorization: `Bearer ${emailItApiKey}`,
+-          "Content-Type": "application/json",
+-        },
+-        body: JSON.stringify(emailItPayload),
++      dispatchResult = await dispatchManager.send({
++        from: senderEmail,
++        to: [toEmail],
++        subject: emailSubject,
++        html: sanitizedHtmlContent,
++        text: emailTextContent,
++        attachments: attachments.length > 0 ? attachments : undefined
+       });
+     } catch (networkError: any) {
+       // Wrap the operational email execution inside a robust try/catch diagnostic block.
+@@ -203,7 +194,7 @@ serve(async (req) => {
+       });
+
+       return new Response(
+-        JSON.stringify({ error: `EmailIt API Error: Network drop or timeout` }),
++        JSON.stringify({ error: `Email Dispatch Error: ${networkError.message}` }),
+         {
+           status: 502,
+           headers: edgeHeaders,
+@@ -211,15 +202,15 @@ serve(async (req) => {
+       );
+     }
+
+-    if (!emailItResponse.ok) {
+-      const errorText = await emailItResponse.text();
+-      // If EmailIt responds with an edge error or timeout flag, write a failure trace row directly into public.api_usage_logs containing the response code.
++    if (!dispatchResult.success) {
++      const errorText = dispatchResult.rawResponse ? JSON.stringify(dispatchResult.rawResponse) : 'Unknown error';
++      // If dispatch responds with an edge error or timeout flag, write a failure trace row directly into public.api_usage_logs containing the response code.
+       const computeMs = Date.now() - startTime;
+       await supabaseAdmin.from("api_usage_logs").insert({
+         endpoint: "/send-email",
+         app_id: appSource,
+         compute_ms: computeMs,
+-        status_code: emailItResponse.status,
++        status_code: 502,
+         payload: { error: errorText }
+       });
+       await supabaseAdmin.from("telemetry_events").insert({
+@@ -238,7 +229,7 @@ serve(async (req) => {
+       });
+       // return 502 Bad Gateway to the caller
+       return new Response(
+-        JSON.stringify({ error: `EmailIt API Error: ${errorText}` }),
++        JSON.stringify({ error: `Email Dispatch Error: ${errorText}` }),
+         {
+           status: 502,
+           headers: edgeHeaders,
+@@ -246,22 +237,21 @@ serve(async (req) => {
+       );
+     }
+
+-    const emailItData = await emailItResponse.json();
+-
+     const computeMs = Date.now() - startTime;
+     await supabaseAdmin.from("api_usage_logs").insert({
+       endpoint: "/send-email",
+       status_code: 200,
+       compute_ms: computeMs,
+       app_id: appSource,
+-      payload: { success: true, to: toEmail, subject: emailSubject, id: emailItData.id }
++      payload: { success: true, to: toEmail, subject: emailSubject, id: dispatchResult.messageId, provider: dispatchResult.provider }
+     });
+
+     return new Response(
+       JSON.stringify({
+         success: true,
+-        message: `Email successfully sent to ${toEmail}`,
+-        id: emailItData.id,
++        message: `Email successfully sent to ${toEmail} via ${dispatchResult.provider}`,
++        id: dispatchResult.messageId,
++        provider: dispatchResult.provider
+       }),
+       {
+         headers: edgeHeaders,
+--
+2.53.0
