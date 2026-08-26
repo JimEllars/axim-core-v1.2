@@ -14,7 +14,7 @@ const RecentWorkflows = () => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-effect p-6 rounded-xl min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
+      className="glass-effect p-6 rounded-2xl min-h-[160px] shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md border border-white/5"
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -53,9 +53,9 @@ const RecentWorkflows = () => {
               </div>
               <div className="flex items-center space-x-2">
                 {flow.data?.results?.every(r => r.success) ? (
-                  <SafeIcon icon={FiCheckCircle} className="text-green-500" data-testid="success-icon" />
+                  <SafeIcon icon={FiCheckCircle} className="text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" data-testid="success-icon" />
                 ) : (
-                  <SafeIcon icon={FiXCircle} className="text-red-500" data-testid="failure-icon" />
+                  <SafeIcon icon={FiXCircle} className="text-rose-400 drop-shadow-[0_0_8px_rgba(251,113,133,0.5)]" data-testid="failure-icon" />
                 )}
                 <span className="text-sm font-medium text-slate-300">
                   {flow.data?.results?.filter(r => r.success).length || 0}/{flow.data?.results?.length || 0} Steps

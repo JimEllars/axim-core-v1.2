@@ -31,6 +31,21 @@ export default {
 
     if (request.method === 'OPTIONS') {
       if (request.headers.get('Origin') && !corsHeaders['Access-Control-Allow-Origin']) {
+        const rejectionCountKey = `403_rejections_${Math.floor(Date.now() / 60000)}`;
+        let count = 1;
+        if (env.KV) {
+          count = parseInt(await env.KV.get(rejectionCountKey) || '0', 10) + 1;
+          ctx.waitUntil(env.KV.put(rejectionCountKey, count.toString(), { expirationTtl: 120 }));
+        }
+
+        if (count > 50 && env.ALERT_WEBHOOK_URL) {
+           ctx.waitUntil(fetch(env.ALERT_WEBHOOK_URL, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ text: `High number of 403 rejections detected at edge (${count} in the last minute).` })
+           }).catch(err => console.error("Alert webhook failed:", err)));
+        }
+
         return new Response('Origin not allowed', { status: 403, headers: corsHeaders });
       }
 

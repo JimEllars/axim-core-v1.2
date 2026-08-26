@@ -85,7 +85,7 @@ const JobQueueMonitor = () => {
 
   if (loading && jobs.length === 0) {
     return (
-      <div className="p-6 text-white min-h-[160px] animate-pulse" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+      <div className="p-6 text-white min-h-[160px] animate-pulse rounded-2xl shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md border border-white/5">
         <div className="h-8 bg-slate-700/50 rounded w-1/3 mb-6"></div>
         <div className="grid grid-cols-4 gap-4 mb-8">
           {[1, 2, 3, 4].map(i => (
@@ -99,7 +99,7 @@ const JobQueueMonitor = () => {
   if (error) return <div className="text-red-500 p-4">Error: {error}</div>;
 
   return (
-    <div className="p-6 text-white min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+    <div className="p-6 text-white min-h-[160px] rounded-2xl shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md border border-white/5">
       <h1 className="text-2xl font-bold mb-6 text-blue-400 border-b border-blue-900 pb-2">Mission Control: Job Queue</h1>
 
       {/* Summary Ribbon */}
@@ -163,11 +163,11 @@ const JobQueueMonitor = () => {
                   <div className="font-semibold mt-1 text-blue-300">{job.app_id}</div>
                 </td>
                 <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium
-                    ${job.status === 'completed' ? 'bg-green-900 text-green-300' :
-                      job.status === 'failed' ? 'bg-red-900 text-red-300' :
-                      job.status === 'processing' ? 'bg-blue-900 text-blue-300' :
-                      'bg-yellow-900 text-yellow-300'}`}
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold tracking-wide border
+                    ${job.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_10px_rgba(52,211,153,0.1)]' :
+                      job.status === 'failed' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20 shadow-[0_0_10px_rgba(251,113,133,0.1)]' :
+                      job.status === 'processing' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20 shadow-[0_0_10px_rgba(14,165,233,0.2)] animate-pulse' :
+                      'bg-amber-500/10 text-amber-400 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.1)]'}`}
                   >
                     {job.status}
                   </span>
