@@ -1,0 +1,812 @@
+From 7a21824fba65744f1a4d486d95c978d7e527d4c9 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Thu, 27 Aug 2026 20:14:20 +0000
+Subject: [PATCH] Wave 135: AI Telemetry UI Polish & Edge Caching Optimization
+
+---
+ AGENTS_VERIFICATION.md                        |  23 +-
+ cloudflare-workers/src/index.js               |  28 +
+ .../dashboard/AIInteractionsChart.jsx         |   5 +-
+ src/components/dashboard/EventLog.jsx         |   5 +-
+ tests/edge-worker.test.js                     |  62 ++
+ wave135.patch                                 | 576 ++++++++++++++++++
+ 6 files changed, 687 insertions(+), 12 deletions(-)
+ create mode 100644 wave135.patch
+
+diff --git a/AGENTS_VERIFICATION.md b/AGENTS_VERIFICATION.md
+index 788f634..d30080d 100644
+--- a/AGENTS_VERIFICATION.md
++++ b/AGENTS_VERIFICATION.md
+@@ -1,16 +1,19 @@
+-# Verification Log - Wave 134
++# Verification Log - Wave 135
+
+ ## Changes Completed
+
+-**Task 1: Telemetry Edge Alignment & CORS**
+-- Updated `cloudflare-workers/src/index.js` to ensure telemetry endpoints are not subjected to the rate limiter that returns 429 to user-facing applications.
+-- Removed `/api/system-status` from the `cacheableEndpoints` array in the Cloudflare worker to prevent aggressive caching and serve fresh dashboard data.
+-- Updated `supabase/functions/system-status/index.ts` to include `GET` in the `Access-Control-Allow-Methods` header to allow proper CORS requests.
++**Task 1: AI Dashboard & Event Log UI Polish**
++- Upgraded `src/components/dashboard/AIInteractionsChart.jsx` to match the enterprise design system with `rounded-2xl`, `shadow-[0_0_25px_rgba(0,0,0,0.5)]` and `glass-effect` classes (`bg-onyx-900/40 backdrop-blur-md`).
++- Wrapped the internal rendering logic within an `ErrorBoundary` component to gracefully handle and log render errors without breaking the wider layout.
++- Upgraded `src/components/dashboard/EventLog.jsx` following the same styling guidelines as above and correctly nested the dynamic event list inside the `<ErrorBoundary>` wrapper.
++- All polling mechanisms and charting libraries were kept untouched per instructions.
+
+-**Task 2: System Health & KPI UI Polish**
+-- Updated `src/components/admin/SystemHealthPanel.jsx` to correctly wrap inner dynamic content within the `<ErrorBoundary>` component.
+-- Ensure `SystemHealthPanel` uses the `shadow-[0_0_25px_rgba(0,0,0,0.5)]` shadow variant as requested.
+-- Updated `src/components/admin/KPIOverview.jsx` to reflect enterprise styling with `rounded-2xl`, `shadow-[0_0_25px_rgba(0,0,0,0.5)]` and `glass-effect`. Wrapped the internal content inside `<ErrorBoundary>`.
++**Task 2: Cloudflare Edge Static Asset Optimization**
++- Modified `cloudflare-workers/src/index.js` to implement an explicit static asset check.
++- Matched extensions like `.js`, `.css`, `.png`, `.woff2`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.ico` and structural paths `/assets/` and `/static/`.
++- Appended `Cache-Control: public, max-age=31536000, immutable` headers to explicitly intercept and cache static files at the edge.
++- Ensured sensitive or dynamic paths including `/api/`, `/telemetry-ingress`, `/system-status`, and `/auth/` explicitly bypass this mechanism and retain their `no-store` or proxy-revalidate strategies.
+
+ ## Tests
+-Vitest run generated an OOM error due to memory issues in the sandbox. The pipeline changes are sound and verified conceptually.
++- Confirmed `tests/ui-smoke.test.jsx` runs perfectly to verify no breaking logic on Dashboard UI components.
++- Added test coverage in `tests/edge-worker.test.js` to explicitly assert the returned `Cache-Control` static headers (`public, max-age=31536000, immutable`) are set correctly when fetching static paths, and verified all tests pass without errors.
+diff --git a/cloudflare-workers/src/index.js b/cloudflare-workers/src/index.js
+index 358b071..6ccddb6 100644
+--- a/cloudflare-workers/src/index.js
++++ b/cloudflare-workers/src/index.js
+@@ -182,6 +182,34 @@ export default {
+       }
+     }
+
++
++    // 2. Static Asset Caching
++    const isStaticAsset = url.pathname.match(/\.(js|css|png|woff2|jpg|jpeg|gif|svg|ico)$/i) ||
++                          url.pathname.startsWith('/assets/') ||
++                          url.pathname.startsWith('/static/');
++
++    const isBypassedRoute = url.pathname.includes('/api/') ||
++                            url.pathname.includes('/telemetry-ingress') ||
++                            url.pathname.includes('/system-status') ||
++                            url.pathname.includes('/auth/');
++
++    if (isStaticAsset && !isBypassedRoute && request.method === 'GET') {
++      try {
++        // Since Cloudflare Pages handles the actual serving, we don't have ASSETS binding by default in a standard worker.
++        // If this worker sits in front of a site, we usually fetch the origin.
++        // Wait, normally if this is just a proxy worker on a route, if we return fetch(request) we pass it to the origin.
++        const response = await fetch(request);
++        const staticResponse = new Response(response.body, response);
++        staticResponse.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
++        Object.keys(corsHeaders).forEach(key => {
++          staticResponse.headers.set(key, corsHeaders[key]);
++        });
++        return staticResponse;
++      } catch (err) {
++        // Fallback
++      }
++    }
++
+     // Default Response for Non-API requests (Not Found)
+     return new Response('404 Not Found', {
+       status: 404,
+diff --git a/src/components/dashboard/AIInteractionsChart.jsx b/src/components/dashboard/AIInteractionsChart.jsx
+index f30fef6..9632120 100644
+--- a/src/components/dashboard/AIInteractionsChart.jsx
++++ b/src/components/dashboard/AIInteractionsChart.jsx
+@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
+ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+ import * as FiIcons from 'react-icons/fi';
+ import SafeIcon from '../../common/SafeIcon';
++import ErrorBoundary from '../ErrorBoundary';
+ import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
+
+ const { FiCpu, FiAlertTriangle } = FiIcons;
+@@ -21,8 +22,9 @@ const AIInteractionsChart = () => {
+       initial={{ opacity: 0, y: 20 }}
+       animate={{ opacity: 1, y: 0 }}
+       transition={{ delay: 0.4 }}
+-      className="glass-effect rounded-xl p-6 col-span-1 lg:col-span-2 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
++      className="glass-effect rounded-2xl p-6 col-span-1 lg:col-span-2 min-h-[160px] shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md"
+     >
++      <ErrorBoundary>
+       <div className="flex items-center space-x-3 mb-6">
+         <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
+           <SafeIcon icon={FiCpu} className="text-white" />
+@@ -84,6 +86,7 @@ const AIInteractionsChart = () => {
+           </LineChart>
+         </ResponsiveContainer>
+       )}
++        </ErrorBoundary>
+     </motion.div>
+   );
+ };
+diff --git a/src/components/dashboard/EventLog.jsx b/src/components/dashboard/EventLog.jsx
+index b78e47a..06312bc 100644
+--- a/src/components/dashboard/EventLog.jsx
++++ b/src/components/dashboard/EventLog.jsx
+@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
+ import { format } from 'date-fns/format';
+ import * as FiIcons from 'react-icons/fi';
+ import SafeIcon from '../../common/SafeIcon';
++import ErrorBoundary from '../ErrorBoundary';
+ import { supabase } from '../../services/supabaseClient';
+ import { useDashboard } from '../../contexts/DashboardContext';
+
+@@ -101,8 +102,9 @@ const EventLog = () => {
+       initial={{ opacity: 0, y: 20 }}
+       animate={{ opacity: 1, y: 0 }}
+       transition={{ delay: 0.4 }}
+-      className="glass-effect rounded-xl"
++      className="glass-effect rounded-2xl shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md"
+     >
++      <ErrorBoundary>
+       <div className="flex items-center justify-between p-6 border-b border-onyx-accent/20">
+         <div className="flex items-center space-x-3">
+           <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
+@@ -186,6 +188,7 @@ const EventLog = () => {
+           </div>
+         )}
+       </div>
++      </ErrorBoundary>
+     </motion.div>
+   );
+ };
+diff --git a/tests/edge-worker.test.js b/tests/edge-worker.test.js
+index 0e0f30c..31b206c 100644
+--- a/tests/edge-worker.test.js
++++ b/tests/edge-worker.test.js
+@@ -76,10 +76,72 @@ describe('Edge Worker Rate Limiting', () => {
+                         this.headers.set(key, value);
+                     }
+                 }
++
++                this.headers.set = (key, value) => {
++                    this.headers[key] = value;
++                };
++
++                this.headers.has = (key) => {
++                    return this.headers[key] !== undefined;
++                };
++            }
++
++            clone() {
++              return new global.Response(this.body, { status: this.status, headers: this.headers });
++            }
++        };
++
++        const response = await worker.fetch(mockRequest, mockEnv, { waitUntil: vi.fn() });
++        expect(response.status).toBe(200);
++    });
++
++    it('sets cache control headers for static assets correctly', async () => {
++        const mockEnv = {
++            RATE_LIMITER: {
++                limit: vi.fn().mockResolvedValue({ success: true })
++            }
++        };
++
++        const headers = new Map([
++            ['Origin', 'https://axim.us.com']
++        ]);
++
++        const mockRequest = {
++            method: 'GET',
++            url: 'https://axim.us.com/assets/index.js',
++            headers: {
++                get: (name) => headers.get(name) || null
++            },
++            cf: { colo: 'TEST' }
++        };
++
++        global.fetch = vi.fn().mockResolvedValue({
++            body: 'test body',
++            headers: new Map(),
++            status: 200
++        });
++
++        global.Response = class Response {
++            constructor(body, init) {
++                this.body = body;
++                this.status = init?.status || 200;
++
++                // create a map-like headers object
++                const h = new Map();
++                this.headers = h;
++
++                if (init && init.headers) {
++                  // just support set, get
++                }
++            }
++
++            clone() {
++              return new global.Response(this.body, { status: this.status, headers: this.headers });
+             }
+         };
+
+         const response = await worker.fetch(mockRequest, mockEnv, { waitUntil: vi.fn() });
+         expect(response.status).toBe(200);
++        expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+     });
+ });
+diff --git a/wave135.patch b/wave135.patch
+new file mode 100644
+index 0000000..60121b5
+--- /dev/null
++++ b/wave135.patch
+@@ -0,0 +1,576 @@
++From c5dd50595f62c3d0d59e52973c7f6b8f75725fd7 Mon Sep 17 00:00:00 2001
++From: "google-labs-jules[bot]"
++ <161369871+google-labs-jules[bot]@users.noreply.github.com>
++Date: Thu, 27 Aug 2026 20:14:20 +0000
++Subject: [PATCH] Wave 135: AI Telemetry UI Polish & Edge Caching Optimization
++
++---
++ AGENTS_VERIFICATION.md                        |  23 +--
++ cloudflare-workers/src/index.js               |  28 ++++
++ fix_test.cjs                                  | 150 ++++++++++++++++++
++ patch_components.cjs                          |  15 ++
++ patch_edge_worker_test.cjs                    |  44 +++++
++ patch_worker.cjs                              |  43 +++++
++ patch_worker2.cjs                             |  11 ++
++ patch_worker3.cjs                             |  11 ++
++ .../dashboard/AIInteractionsChart.jsx         |   5 +-
++ src/components/dashboard/EventLog.jsx         |   5 +-
++ test_plan1.cjs                                |   5 +
++ test_plan2.cjs                                |   4 +
++ tests/edge-worker.test.js                     |  62 ++++++++
++ 13 files changed, 394 insertions(+), 12 deletions(-)
++ create mode 100644 fix_test.cjs
++ create mode 100644 patch_components.cjs
++ create mode 100644 patch_edge_worker_test.cjs
++ create mode 100644 patch_worker.cjs
++ create mode 100644 patch_worker2.cjs
++ create mode 100644 patch_worker3.cjs
++ create mode 100644 test_plan1.cjs
++ create mode 100644 test_plan2.cjs
++
++diff --git a/AGENTS_VERIFICATION.md b/AGENTS_VERIFICATION.md
++index 788f634..d30080d 100644
++--- a/AGENTS_VERIFICATION.md
+++++ b/AGENTS_VERIFICATION.md
++@@ -1,16 +1,19 @@
++-# Verification Log - Wave 134
+++# Verification Log - Wave 135
++
++ ## Changes Completed
++
++-**Task 1: Telemetry Edge Alignment & CORS**
++-- Updated `cloudflare-workers/src/index.js` to ensure telemetry endpoints are not subjected to the rate limiter that returns 429 to user-facing applications.
++-- Removed `/api/system-status` from the `cacheableEndpoints` array in the Cloudflare worker to prevent aggressive caching and serve fresh dashboard data.
++-- Updated `supabase/functions/system-status/index.ts` to include `GET` in the `Access-Control-Allow-Methods` header to allow proper CORS requests.
+++**Task 1: AI Dashboard & Event Log UI Polish**
+++- Upgraded `src/components/dashboard/AIInteractionsChart.jsx` to match the enterprise design system with `rounded-2xl`, `shadow-[0_0_25px_rgba(0,0,0,0.5)]` and `glass-effect` classes (`bg-onyx-900/40 backdrop-blur-md`).
+++- Wrapped the internal rendering logic within an `ErrorBoundary` component to gracefully handle and log render errors without breaking the wider layout.
+++- Upgraded `src/components/dashboard/EventLog.jsx` following the same styling guidelines as above and correctly nested the dynamic event list inside the `<ErrorBoundary>` wrapper.
+++- All polling mechanisms and charting libraries were kept untouched per instructions.
++
++-**Task 2: System Health & KPI UI Polish**
++-- Updated `src/components/admin/SystemHealthPanel.jsx` to correctly wrap inner dynamic content within the `<ErrorBoundary>` component.
++-- Ensure `SystemHealthPanel` uses the `shadow-[0_0_25px_rgba(0,0,0,0.5)]` shadow variant as requested.
++-- Updated `src/components/admin/KPIOverview.jsx` to reflect enterprise styling with `rounded-2xl`, `shadow-[0_0_25px_rgba(0,0,0,0.5)]` and `glass-effect`. Wrapped the internal content inside `<ErrorBoundary>`.
+++**Task 2: Cloudflare Edge Static Asset Optimization**
+++- Modified `cloudflare-workers/src/index.js` to implement an explicit static asset check.
+++- Matched extensions like `.js`, `.css`, `.png`, `.woff2`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.ico` and structural paths `/assets/` and `/static/`.
+++- Appended `Cache-Control: public, max-age=31536000, immutable` headers to explicitly intercept and cache static files at the edge.
+++- Ensured sensitive or dynamic paths including `/api/`, `/telemetry-ingress`, `/system-status`, and `/auth/` explicitly bypass this mechanism and retain their `no-store` or proxy-revalidate strategies.
++
++ ## Tests
++-Vitest run generated an OOM error due to memory issues in the sandbox. The pipeline changes are sound and verified conceptually.
+++- Confirmed `tests/ui-smoke.test.jsx` runs perfectly to verify no breaking logic on Dashboard UI components.
+++- Added test coverage in `tests/edge-worker.test.js` to explicitly assert the returned `Cache-Control` static headers (`public, max-age=31536000, immutable`) are set correctly when fetching static paths, and verified all tests pass without errors.
++diff --git a/cloudflare-workers/src/index.js b/cloudflare-workers/src/index.js
++index 358b071..6ccddb6 100644
++--- a/cloudflare-workers/src/index.js
+++++ b/cloudflare-workers/src/index.js
++@@ -182,6 +182,34 @@ export default {
++       }
++     }
++
+++
+++    // 2. Static Asset Caching
+++    const isStaticAsset = url.pathname.match(/\.(js|css|png|woff2|jpg|jpeg|gif|svg|ico)$/i) ||
+++                          url.pathname.startsWith('/assets/') ||
+++                          url.pathname.startsWith('/static/');
+++
+++    const isBypassedRoute = url.pathname.includes('/api/') ||
+++                            url.pathname.includes('/telemetry-ingress') ||
+++                            url.pathname.includes('/system-status') ||
+++                            url.pathname.includes('/auth/');
+++
+++    if (isStaticAsset && !isBypassedRoute && request.method === 'GET') {
+++      try {
+++        // Since Cloudflare Pages handles the actual serving, we don't have ASSETS binding by default in a standard worker.
+++        // If this worker sits in front of a site, we usually fetch the origin.
+++        // Wait, normally if this is just a proxy worker on a route, if we return fetch(request) we pass it to the origin.
+++        const response = await fetch(request);
+++        const staticResponse = new Response(response.body, response);
+++        staticResponse.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+++        Object.keys(corsHeaders).forEach(key => {
+++          staticResponse.headers.set(key, corsHeaders[key]);
+++        });
+++        return staticResponse;
+++      } catch (err) {
+++        // Fallback
+++      }
+++    }
+++
++     // Default Response for Non-API requests (Not Found)
++     return new Response('404 Not Found', {
++       status: 404,
++diff --git a/fix_test.cjs b/fix_test.cjs
++new file mode 100644
++index 0000000..bb25256
++--- /dev/null
+++++ b/fix_test.cjs
++@@ -0,0 +1,150 @@
+++const fs = require('fs');
+++let testCode = `import { describe, it, expect, vi } from 'vitest';
+++import worker from '../cloudflare-workers/src/index.js';
+++
+++describe('Edge Worker Rate Limiting', () => {
+++    it('returns 429 when rate limit is exceeded', async () => {
+++        const mockEnv = {
+++            RATE_LIMITER: {
+++                limit: vi.fn().mockResolvedValue({ success: false })
+++            }
+++        };
+++
+++        const headers = new Map([
+++            ['CF-Connecting-IP', '192.168.1.1'],
+++            ['Origin', 'https://axim.us.com']
+++        ]);
+++
+++        const mockRequest = {
+++            method: 'GET',
+++            url: 'https://axim.us.com/api/test',
+++            headers: {
+++                get: (name) => headers.get(name) || null
+++            },
+++            cf: { colo: 'TEST' }
+++        };
+++
+++        const response = await worker.fetch(mockRequest, mockEnv, { waitUntil: vi.fn() });
+++        expect(response.status).toBe(429);
+++        const data = await response.json();
+++        expect(data.error).toBe('Too Many Requests');
+++    });
+++
+++    it('allows request when rate limit is not exceeded', async () => {
+++        const mockEnv = {
+++            SUPABASE_URL: 'https://test.supabase.co',
+++            RATE_LIMITER: {
+++                limit: vi.fn().mockResolvedValue({ success: true })
+++            }
+++        };
+++
+++        const headers = new Map([
+++            ['CF-Connecting-IP', '192.168.1.1'],
+++            ['Origin', 'https://axim.us.com']
+++        ]);
+++
+++        const mockRequest = {
+++            method: 'GET',
+++            url: 'https://axim.us.com/api/test',
+++            headers: {
+++                get: (name) => headers.get(name) || null
+++            },
+++            cf: { colo: 'TEST' }
+++        };
+++
+++        global.fetch = vi.fn().mockResolvedValue({
+++            body: 'test',
+++            headers: new Map(),
+++            status: 200
+++        });
+++
+++        // Add Request constructor polyfill
+++        global.Request = class Request {
+++            constructor(input, init) {
+++                this.url = input;
+++                this.method = init?.method || 'GET';
+++                this.headers = new Map();
+++            }
+++        };
+++
+++        global.Response = class Response {
+++            constructor(body, init) {
+++                this.body = body;
+++                this.status = init?.status || 200;
+++                this.headers = new Map();
+++                if (init?.headers) {
+++                    for (const [key, value] of Object.entries(init.headers)) {
+++                        this.headers.set(key, value);
+++                    }
+++                }
+++
+++                this.headers.set = (key, value) => {
+++                    this.headers[key] = value;
+++                };
+++
+++                this.headers.has = (key) => {
+++                    return this.headers[key] !== undefined;
+++                };
+++            }
+++
+++            clone() {
+++              return new global.Response(this.body, { status: this.status, headers: this.headers });
+++            }
+++        };
+++
+++        const response = await worker.fetch(mockRequest, mockEnv, { waitUntil: vi.fn() });
+++        expect(response.status).toBe(200);
+++    });
+++
+++    it('sets cache control headers for static assets correctly', async () => {
+++        const mockEnv = {
+++            RATE_LIMITER: {
+++                limit: vi.fn().mockResolvedValue({ success: true })
+++            }
+++        };
+++
+++        const headers = new Map([
+++            ['Origin', 'https://axim.us.com']
+++        ]);
+++
+++        const mockRequest = {
+++            method: 'GET',
+++            url: 'https://axim.us.com/assets/index.js',
+++            headers: {
+++                get: (name) => headers.get(name) || null
+++            },
+++            cf: { colo: 'TEST' }
+++        };
+++
+++        global.fetch = vi.fn().mockResolvedValue({
+++            body: 'test body',
+++            headers: new Map(),
+++            status: 200
+++        });
+++
+++        global.Response = class Response {
+++            constructor(body, init) {
+++                this.body = body;
+++                this.status = init?.status || 200;
+++
+++                // create a map-like headers object
+++                const h = new Map();
+++                this.headers = h;
+++
+++                if (init && init.headers) {
+++                  // just support set, get
+++                }
+++            }
+++
+++            clone() {
+++              return new global.Response(this.body, { status: this.status, headers: this.headers });
+++            }
+++        };
+++
+++        const response = await worker.fetch(mockRequest, mockEnv, { waitUntil: vi.fn() });
+++        expect(response.status).toBe(200);
+++        expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+++    });
+++});
+++`;
+++fs.writeFileSync('tests/edge-worker.test.js', testCode);
++diff --git a/patch_components.cjs b/patch_components.cjs
++new file mode 100644
++index 0000000..9c35018
++--- /dev/null
+++++ b/patch_components.cjs
++@@ -0,0 +1,15 @@
+++const fs = require('fs');
+++
+++const eventLogPath = 'src/components/dashboard/EventLog.jsx';
+++let eventLog = fs.readFileSync(eventLogPath, 'utf8');
+++
+++eventLog = eventLog.replace(
+++  /                    <\/ErrorBoundary>\n    <\/motion\.div>/g,
+++  '                </motion.div>'
+++);
+++eventLog = eventLog.replace(
+++  /      <\/div>\n    <\/motion\.div>/g,
+++  '      </div>\n      </ErrorBoundary>\n    </motion.div>'
+++);
+++
+++fs.writeFileSync(eventLogPath, eventLog);
++diff --git a/patch_edge_worker_test.cjs b/patch_edge_worker_test.cjs
++new file mode 100644
++index 0000000..56a4738
++--- /dev/null
+++++ b/patch_edge_worker_test.cjs
++@@ -0,0 +1,44 @@
+++const fs = require('fs');
+++
+++const testPath = 'tests/edge-worker.test.js';
+++let testSrc = fs.readFileSync(testPath, 'utf8');
+++
+++const injectionCode = `
+++    it('sets cache control headers for static assets correctly', async () => {
+++        const mockEnv = {
+++            RATE_LIMITER: {
+++                limit: vi.fn().mockResolvedValue({ success: true })
+++            }
+++        };
+++
+++        const headers = new Map([
+++            ['Origin', 'https://axim.us.com']
+++        ]);
+++
+++        const mockRequest = {
+++            method: 'GET',
+++            url: 'https://axim.us.com/assets/index.js',
+++            headers: {
+++                get: (name) => headers.get(name) || null
+++            },
+++            cf: { colo: 'TEST' }
+++        };
+++
+++        global.fetch = vi.fn().mockResolvedValue({
+++            body: 'test body',
+++            headers: new Map(),
+++            status: 200
+++        });
+++
+++        const response = await worker.fetch(mockRequest, mockEnv, { waitUntil: vi.fn() });
+++        expect(response.status).toBe(200);
+++        expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+++    });
+++`;
+++
+++testSrc = testSrc.replace(
+++  /}\);/,
+++  `});\n${injectionCode}`
+++);
+++
+++fs.writeFileSync(testPath, testSrc);
++diff --git a/patch_worker.cjs b/patch_worker.cjs
++new file mode 100644
++index 0000000..dde203b
++--- /dev/null
+++++ b/patch_worker.cjs
++@@ -0,0 +1,43 @@
+++const fs = require('fs');
+++
+++const workerPath = 'cloudflare-workers/src/index.js';
+++let workerSrc = fs.readFileSync(workerPath, 'utf8');
+++
+++// Replace the fallback 404 response area or inject the static asset logic right before it
+++// Look for `if (url.pathname.startsWith('/api/')) { ... }`
+++
+++const injectionCode = `
+++    // 2. Static Asset Caching
+++    const isStaticAsset = url.pathname.match(/\\.(js|css|png|woff2|jpg|jpeg|gif|svg|ico)$/i) ||
+++                          url.pathname.startsWith('/assets/') ||
+++                          url.pathname.startsWith('/static/');
+++
+++    const isBypassedRoute = url.pathname.includes('/api/') ||
+++                            url.pathname.includes('/telemetry-ingress') ||
+++                            url.pathname.includes('/system-status') ||
+++                            url.pathname.includes('/auth/');
+++
+++    if (isStaticAsset && !isBypassedRoute && request.method === 'GET') {
+++      try {
+++        // Since Cloudflare Pages handles the actual serving, we don't have ASSETS binding by default in a standard worker.
+++        // If this worker sits in front of a site, we usually fetch the origin.
+++        // Wait, normally if this is just a proxy worker on a route, if we return fetch(request) we pass it to the origin.
+++        const response = await fetch(request);
+++        const staticResponse = new Response(response.body, response);
+++        staticResponse.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+++        Object.keys(corsHeaders).forEach(key => {
+++          staticResponse.headers.set(key, corsHeaders[key]);
+++        });
+++        return staticResponse;
+++      } catch (err) {
+++        // Fallback
+++      }
+++    }
+++`;
+++
+++workerSrc = workerSrc.replace(
+++  /\/\/ Default Response for Non-API requests/,
+++  `${injectionCode}\n    // Default Response for Non-API requests`
+++);
+++
+++fs.writeFileSync(workerPath, workerSrc);
++diff --git a/patch_worker2.cjs b/patch_worker2.cjs
++new file mode 100644
++index 0000000..42a91d4
++--- /dev/null
+++++ b/patch_worker2.cjs
++@@ -0,0 +1,11 @@
+++const fs = require('fs');
+++
+++const workerPath = 'cloudflare-workers/src/index.js';
+++let workerSrc = fs.readFileSync(workerPath, 'utf8');
+++
+++workerSrc = workerSrc.replace(
+++  /const response = await fetch\(request\);/g,
+++  'const response = await fetch(request.url); // Use request.url or just fetch(request)'
+++);
+++
+++fs.writeFileSync(workerPath, workerSrc);
++diff --git a/patch_worker3.cjs b/patch_worker3.cjs
++new file mode 100644
++index 0000000..5217108
++--- /dev/null
+++++ b/patch_worker3.cjs
++@@ -0,0 +1,11 @@
+++const fs = require('fs');
+++
+++const workerPath = 'cloudflare-workers/src/index.js';
+++let workerSrc = fs.readFileSync(workerPath, 'utf8');
+++
+++workerSrc = workerSrc.replace(
+++  /const response = await fetch\(request.url\); \/\/ Use request.url or just fetch\(request\)/g,
+++  'const response = await fetch(request);'
+++);
+++
+++fs.writeFileSync(workerPath, workerSrc);
++diff --git a/src/components/dashboard/AIInteractionsChart.jsx b/src/components/dashboard/AIInteractionsChart.jsx
++index f30fef6..9632120 100644
++--- a/src/components/dashboard/AIInteractionsChart.jsx
+++++ b/src/components/dashboard/AIInteractionsChart.jsx
++@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
++ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
++ import * as FiIcons from 'react-icons/fi';
++ import SafeIcon from '../../common/SafeIcon';
+++import ErrorBoundary from '../ErrorBoundary';
++ import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
++
++ const { FiCpu, FiAlertTriangle } = FiIcons;
++@@ -21,8 +22,9 @@ const AIInteractionsChart = () => {
++       initial={{ opacity: 0, y: 20 }}
++       animate={{ opacity: 1, y: 0 }}
++       transition={{ delay: 0.4 }}
++-      className="glass-effect rounded-xl p-6 col-span-1 lg:col-span-2 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
+++      className="glass-effect rounded-2xl p-6 col-span-1 lg:col-span-2 min-h-[160px] shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md"
++     >
+++      <ErrorBoundary>
++       <div className="flex items-center space-x-3 mb-6">
++         <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
++           <SafeIcon icon={FiCpu} className="text-white" />
++@@ -84,6 +86,7 @@ const AIInteractionsChart = () => {
++           </LineChart>
++         </ResponsiveContainer>
++       )}
+++        </ErrorBoundary>
++     </motion.div>
++   );
++ };
++diff --git a/src/components/dashboard/EventLog.jsx b/src/components/dashboard/EventLog.jsx
++index b78e47a..06312bc 100644
++--- a/src/components/dashboard/EventLog.jsx
+++++ b/src/components/dashboard/EventLog.jsx
++@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
++ import { format } from 'date-fns/format';
++ import * as FiIcons from 'react-icons/fi';
++ import SafeIcon from '../../common/SafeIcon';
+++import ErrorBoundary from '../ErrorBoundary';
++ import { supabase } from '../../services/supabaseClient';
++ import { useDashboard } from '../../contexts/DashboardContext';
++
++@@ -101,8 +102,9 @@ const EventLog = () => {
++       initial={{ opacity: 0, y: 20 }}
++       animate={{ opacity: 1, y: 0 }}
++       transition={{ delay: 0.4 }}
++-      className="glass-effect rounded-xl"
+++      className="glass-effect rounded-2xl shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md"
++     >
+++      <ErrorBoundary>
++       <div className="flex items-center justify-between p-6 border-b border-onyx-accent/20">
++         <div className="flex items-center space-x-3">
++           <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
++@@ -186,6 +188,7 @@ const EventLog = () => {
++           </div>
++         )}
++       </div>
+++      </ErrorBoundary>
++     </motion.div>
++   );
++ };
++diff --git a/test_plan1.cjs b/test_plan1.cjs
++new file mode 100644
++index 0000000..46562c9
++--- /dev/null
+++++ b/test_plan1.cjs
++@@ -0,0 +1,5 @@
+++const fs = require('fs');
+++const eventLog = fs.readFileSync('src/components/dashboard/EventLog.jsx', 'utf8');
+++console.log(eventLog.includes('ErrorBoundary'));
+++const aiChart = fs.readFileSync('src/components/dashboard/AIInteractionsChart.jsx', 'utf8');
+++console.log(aiChart.includes('ErrorBoundary'));
++diff --git a/test_plan2.cjs b/test_plan2.cjs
++new file mode 100644
++index 0000000..348e43f
++--- /dev/null
+++++ b/test_plan2.cjs
++@@ -0,0 +1,4 @@
+++const fs = require('fs');
+++const workerSrc = fs.readFileSync('cloudflare-workers/src/index.js', 'utf8');
+++console.log(workerSrc.includes('isStaticAsset'));
+++console.log(workerSrc.includes('isBypassedRoute'));
++diff --git a/tests/edge-worker.test.js b/tests/edge-worker.test.js
++index 0e0f30c..31b206c 100644
++--- a/tests/edge-worker.test.js
+++++ b/tests/edge-worker.test.js
++@@ -76,10 +76,72 @@ describe('Edge Worker Rate Limiting', () => {
++                         this.headers.set(key, value);
++                     }
++                 }
+++
+++                this.headers.set = (key, value) => {
+++                    this.headers[key] = value;
+++                };
+++
+++                this.headers.has = (key) => {
+++                    return this.headers[key] !== undefined;
+++                };
+++            }
+++
+++            clone() {
+++              return new global.Response(this.body, { status: this.status, headers: this.headers });
+++            }
+++        };
+++
+++        const response = await worker.fetch(mockRequest, mockEnv, { waitUntil: vi.fn() });
+++        expect(response.status).toBe(200);
+++    });
+++
+++    it('sets cache control headers for static assets correctly', async () => {
+++        const mockEnv = {
+++            RATE_LIMITER: {
+++                limit: vi.fn().mockResolvedValue({ success: true })
+++            }
+++        };
+++
+++        const headers = new Map([
+++            ['Origin', 'https://axim.us.com']
+++        ]);
+++
+++        const mockRequest = {
+++            method: 'GET',
+++            url: 'https://axim.us.com/assets/index.js',
+++            headers: {
+++                get: (name) => headers.get(name) || null
+++            },
+++            cf: { colo: 'TEST' }
+++        };
+++
+++        global.fetch = vi.fn().mockResolvedValue({
+++            body: 'test body',
+++            headers: new Map(),
+++            status: 200
+++        });
+++
+++        global.Response = class Response {
+++            constructor(body, init) {
+++                this.body = body;
+++                this.status = init?.status || 200;
+++
+++                // create a map-like headers object
+++                const h = new Map();
+++                this.headers = h;
+++
+++                if (init && init.headers) {
+++                  // just support set, get
+++                }
+++            }
+++
+++            clone() {
+++              return new global.Response(this.body, { status: this.status, headers: this.headers });
++             }
++         };
++
++         const response = await worker.fetch(mockRequest, mockEnv, { waitUntil: vi.fn() });
++         expect(response.status).toBe(200);
+++        expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
++     });
++ });
++--
++2.53.0
++
+--
+2.53.0
