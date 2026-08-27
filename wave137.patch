@@ -1,0 +1,413 @@
+From ec4d66d4cecec61acd7d6b15528a1c20238cce67 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Thu, 27 Aug 2026 21:51:13 +0000
+Subject: [PATCH] Wave 137: SSO Handoff Resilience
+
+---
+ AGENTS_VERIFICATION.md                |  14 ++
+ code_review.diff                      | 184 ++++++++++++++++++++++++++
+ src/App.jsx                           |   2 +
+ src/components/ProtectedRoute.jsx     |  25 +++-
+ src/components/RedirectToPassport.jsx |  19 ++-
+ src/lib/auth-handoff.js               |  25 ++++
+ src/pages/AuthOffline.jsx             |  47 +++++++
+ 7 files changed, 309 insertions(+), 7 deletions(-)
+ create mode 100644 code_review.diff
+ create mode 100644 src/pages/AuthOffline.jsx
+
+diff --git a/AGENTS_VERIFICATION.md b/AGENTS_VERIFICATION.md
+index 21be6ba..d24b48c 100644
+--- a/AGENTS_VERIFICATION.md
++++ b/AGENTS_VERIFICATION.md
+@@ -17,3 +17,17 @@
+
+ ## Tests
+ - Verified the build succeeds through `npm run build`, eliminating `relative pathnames are not supported` exceptions at bundle time.
++
++## Verification Log - Wave 137
++
++**Task 1: Pre-Flight SSO Health Check**
++- Added `checkSsoHealth` to `src/lib/auth-handoff.js`. It performs a lightweight `HEAD` fetch with `no-cors` and a 3000ms timeout to verify connectivity to the SSO domain.
++
++**Task 2: Graceful Fallback UI**
++- Created `src/pages/AuthOffline.jsx` to serve as a local fallback route (`/auth-offline`) presenting a clear UI and a "Retry Connection" button.
++- Updated `src/components/RedirectToPassport.jsx` and `src/components/ProtectedRoute.jsx` to perform the `checkSsoHealth` pre-flight check before assigning `window.location.href`. If the check fails, the user is navigated to `/auth-offline` via React Router's `navigate`.
++- Added the `/auth-offline` route to `src/App.jsx`.
++
++**Task 3: Verification & Failsafe Output**
++- Functionality manually verified to not crash and to appropriately route to `/auth-offline` upon SSO health check failure.
++- Patch generation ready.
+diff --git a/code_review.diff b/code_review.diff
+new file mode 100644
+index 0000000..fe652e3
+--- /dev/null
++++ b/code_review.diff
+@@ -0,0 +1,184 @@
++diff --git a/code_review.diff b/code_review.diff
++new file mode 100644
++index 0000000..e69de29
++diff --git a/src/App.jsx b/src/App.jsx
++index 77c7d6c..46c1fe7 100644
++--- a/src/App.jsx
+++++ b/src/App.jsx
++@@ -15,6 +15,7 @@ const CommandHub = React.lazy(() => import('./components/CommandHub'));
++ const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard'));
++ const Ingest = React.lazy(() => import('./components/ingest/Ingest'));
++ const Settings = React.lazy(() => import('./components/settings/Settings'));
+++import AuthOffline from './pages/AuthOffline';
++ const UserProfile = React.lazy(() => import('./components/UserProfile'));
++ const Support = React.lazy(() => import('./pages/Support'));
++
++@@ -107,6 +108,7 @@ function AppContent() {
++       <AnimatePresence mode="wait">
++         <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-onyx-950 via-purple-900 to-onyx-950 flex items-center justify-center"><div className="text-white text-xl flex items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mr-4"></div>Loading View...</div></div>}>
++         <Routes location={location} key={location.pathname}>
+++          <Route path="/auth-offline" element={<AuthOffline />} />
++           <Route path="/login" element={<RedirectToPassport />} />
++
++         <Route
++diff --git a/src/components/ProtectedRoute.jsx b/src/components/ProtectedRoute.jsx
++index e69fb81..ef37e72 100644
++--- a/src/components/ProtectedRoute.jsx
+++++ b/src/components/ProtectedRoute.jsx
++@@ -1,19 +1,34 @@
++-import React, { useEffect } from 'react';
++-import { Navigate } from 'react-router-dom';
+++import React, { useEffect, useState } from 'react';
+++import { Navigate, useNavigate } from 'react-router-dom';
++ import { useAuth } from '../contexts/AuthContext';
+++import { checkSsoHealth } from '../lib/auth-handoff';
++
++ import toast from 'react-hot-toast';
++
++ const ProtectedRoute = ({ children, allowedRoles }) => {
++   const { isAuthenticated, role, loading } = useAuth();
+++  const navigate = useNavigate();
+++  const [isRedirecting, setIsRedirecting] = useState(false);
++
++   useEffect(() => {
+++    const ssoUrl = "https://passport.axim.us.com";
+++
+++    const attemptRedirect = async () => {
+++      setIsRedirecting(true);
+++      const isHealthy = await checkSsoHealth(ssoUrl);
+++      if (isHealthy) {
+++        window.location.href = ssoUrl;
+++      } else {
+++        navigate('/auth-offline', { replace: true });
+++      }
+++    };
+++
++     if (!loading && !isAuthenticated) {
++-      window.location.href = "https://passport.axim.us.com";
+++      attemptRedirect();
++     }
++-  }, [loading, isAuthenticated]);
+++  }, [loading, isAuthenticated, navigate]);
++
++-  if (loading) {
+++  if (loading || (!isAuthenticated && isRedirecting)) {
++     return (
++       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
++         <div className="text-white text-xl">Loading...</div>
++diff --git a/src/components/RedirectToPassport.jsx b/src/components/RedirectToPassport.jsx
++index b57415f..991ee60 100644
++--- a/src/components/RedirectToPassport.jsx
+++++ b/src/components/RedirectToPassport.jsx
++@@ -1,9 +1,24 @@
++ import { useEffect } from 'react';
+++import { useNavigate } from 'react-router-dom';
+++import { checkSsoHealth } from '../lib/auth-handoff';
++
++ const RedirectToPassport = () => {
+++  const navigate = useNavigate();
+++
++   useEffect(() => {
++-    window.location.href = "https://passport.axim.us.com";
++-  }, []);
+++    const ssoUrl = "https://passport.axim.us.com";
+++
+++    const attemptRedirect = async () => {
+++      const isHealthy = await checkSsoHealth(ssoUrl);
+++      if (isHealthy) {
+++        window.location.href = ssoUrl;
+++      } else {
+++        navigate('/auth-offline', { replace: true });
+++      }
+++    };
+++
+++    attemptRedirect();
+++  }, [navigate]);
++
++   return null;
++ };
++diff --git a/src/lib/auth-handoff.js b/src/lib/auth-handoff.js
++index a5c3090..e591cc1 100644
++--- a/src/lib/auth-handoff.js
+++++ b/src/lib/auth-handoff.js
++@@ -55,3 +55,28 @@ export const generateCrossDomainHandoffUrl = (targetDomain, aximSessionToken) =>
++   url.searchParams.set('handoff_token', aximSessionToken);
++   return url.toString();
++ };
+++
+++// Pre-Flight SSO Health Check
+++export const checkSsoHealth = async (ssoUrl) => {
+++  try {
+++    const controller = new AbortController();
+++    const timeoutId = setTimeout(() => controller.abort(), 3000);
+++
+++    // Attempt a lightweight fetch to the passport domain.
+++    const response = await fetch(ssoUrl, {
+++      method: 'HEAD',
+++      mode: 'no-cors',
+++      signal: controller.signal
+++    });
+++
+++    clearTimeout(timeoutId);
+++
+++    // Because of 'no-cors', response.ok will be false and status will be 0.
+++    // As long as the fetch completes without throwing an error (like a network timeout or DNS failure),
+++    // we consider the domain reachable.
+++    return true;
+++  } catch (error) {
+++    console.warn('[SSO Health Check] Pre-flight ping failed:', error);
+++    return false;
+++  }
+++};
++diff --git a/src/pages/AuthOffline.jsx b/src/pages/AuthOffline.jsx
++new file mode 100644
++index 0000000..5c7bfc4
++--- /dev/null
+++++ b/src/pages/AuthOffline.jsx
++@@ -0,0 +1,47 @@
+++import React from 'react';
+++import { motion } from 'framer-motion';
+++import { FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
+++import { useNavigate } from 'react-router-dom';
+++
+++const AuthOffline = () => {
+++  const navigate = useNavigate();
+++
+++  const handleRetry = () => {
+++    // Retry redirecting to the main entry point which will re-trigger the SSO check
+++    navigate('/', { replace: true });
+++  };
+++
+++  return (
+++    <div className="min-h-screen bg-gradient-to-br from-onyx-950 via-slate-900 to-onyx-950 flex items-center justify-center p-4">
+++      <motion.div
+++        initial={{ opacity: 0, y: 20 }}
+++        animate={{ opacity: 1, y: 0 }}
+++        className="max-w-md w-full glass-effect bg-onyx-950/80 border border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.15)] rounded-xl p-8 text-center"
+++      >
+++        <div className="flex justify-center mb-6">
+++          <div className="p-4 bg-amber-500/10 rounded-full border border-amber-500/20">
+++            <FiAlertTriangle className="w-12 h-12 text-amber-500 animate-pulse" />
+++          </div>
+++        </div>
+++
+++        <h1 className="text-2xl font-bold text-slate-100 mb-3 font-mono tracking-tight">
+++          Service Degraded
+++        </h1>
+++
+++        <p className="text-slate-400 mb-8 leading-relaxed">
+++          Authentication Services are currently experiencing connectivity issues. Please try again in a few moments.
+++        </p>
+++
+++        <button
+++          onClick={handleRetry}
+++          className="w-full flex items-center justify-center gap-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg py-3 px-4 transition-all duration-200 font-mono font-bold uppercase tracking-wider group"
+++        >
+++          <FiRefreshCw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
+++          Retry Connection
+++        </button>
+++      </motion.div>
+++    </div>
+++  );
+++};
+++
+++export default AuthOffline;
+diff --git a/src/App.jsx b/src/App.jsx
+index 77c7d6c..46c1fe7 100644
+--- a/src/App.jsx
++++ b/src/App.jsx
+@@ -15,6 +15,7 @@ const CommandHub = React.lazy(() => import('./components/CommandHub'));
+ const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard'));
+ const Ingest = React.lazy(() => import('./components/ingest/Ingest'));
+ const Settings = React.lazy(() => import('./components/settings/Settings'));
++import AuthOffline from './pages/AuthOffline';
+ const UserProfile = React.lazy(() => import('./components/UserProfile'));
+ const Support = React.lazy(() => import('./pages/Support'));
+
+@@ -107,6 +108,7 @@ function AppContent() {
+       <AnimatePresence mode="wait">
+         <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-onyx-950 via-purple-900 to-onyx-950 flex items-center justify-center"><div className="text-white text-xl flex items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mr-4"></div>Loading View...</div></div>}>
+         <Routes location={location} key={location.pathname}>
++          <Route path="/auth-offline" element={<AuthOffline />} />
+           <Route path="/login" element={<RedirectToPassport />} />
+
+         <Route
+diff --git a/src/components/ProtectedRoute.jsx b/src/components/ProtectedRoute.jsx
+index e69fb81..ef37e72 100644
+--- a/src/components/ProtectedRoute.jsx
++++ b/src/components/ProtectedRoute.jsx
+@@ -1,19 +1,34 @@
+-import React, { useEffect } from 'react';
+-import { Navigate } from 'react-router-dom';
++import React, { useEffect, useState } from 'react';
++import { Navigate, useNavigate } from 'react-router-dom';
+ import { useAuth } from '../contexts/AuthContext';
++import { checkSsoHealth } from '../lib/auth-handoff';
+
+ import toast from 'react-hot-toast';
+
+ const ProtectedRoute = ({ children, allowedRoles }) => {
+   const { isAuthenticated, role, loading } = useAuth();
++  const navigate = useNavigate();
++  const [isRedirecting, setIsRedirecting] = useState(false);
+
+   useEffect(() => {
++    const ssoUrl = "https://passport.axim.us.com";
++
++    const attemptRedirect = async () => {
++      setIsRedirecting(true);
++      const isHealthy = await checkSsoHealth(ssoUrl);
++      if (isHealthy) {
++        window.location.href = ssoUrl;
++      } else {
++        navigate('/auth-offline', { replace: true });
++      }
++    };
++
+     if (!loading && !isAuthenticated) {
+-      window.location.href = "https://passport.axim.us.com";
++      attemptRedirect();
+     }
+-  }, [loading, isAuthenticated]);
++  }, [loading, isAuthenticated, navigate]);
+
+-  if (loading) {
++  if (loading || (!isAuthenticated && isRedirecting)) {
+     return (
+       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+         <div className="text-white text-xl">Loading...</div>
+diff --git a/src/components/RedirectToPassport.jsx b/src/components/RedirectToPassport.jsx
+index b57415f..991ee60 100644
+--- a/src/components/RedirectToPassport.jsx
++++ b/src/components/RedirectToPassport.jsx
+@@ -1,9 +1,24 @@
+ import { useEffect } from 'react';
++import { useNavigate } from 'react-router-dom';
++import { checkSsoHealth } from '../lib/auth-handoff';
+
+ const RedirectToPassport = () => {
++  const navigate = useNavigate();
++
+   useEffect(() => {
+-    window.location.href = "https://passport.axim.us.com";
+-  }, []);
++    const ssoUrl = "https://passport.axim.us.com";
++
++    const attemptRedirect = async () => {
++      const isHealthy = await checkSsoHealth(ssoUrl);
++      if (isHealthy) {
++        window.location.href = ssoUrl;
++      } else {
++        navigate('/auth-offline', { replace: true });
++      }
++    };
++
++    attemptRedirect();
++  }, [navigate]);
+
+   return null;
+ };
+diff --git a/src/lib/auth-handoff.js b/src/lib/auth-handoff.js
+index a5c3090..e591cc1 100644
+--- a/src/lib/auth-handoff.js
++++ b/src/lib/auth-handoff.js
+@@ -55,3 +55,28 @@ export const generateCrossDomainHandoffUrl = (targetDomain, aximSessionToken) =>
+   url.searchParams.set('handoff_token', aximSessionToken);
+   return url.toString();
+ };
++
++// Pre-Flight SSO Health Check
++export const checkSsoHealth = async (ssoUrl) => {
++  try {
++    const controller = new AbortController();
++    const timeoutId = setTimeout(() => controller.abort(), 3000);
++
++    // Attempt a lightweight fetch to the passport domain.
++    const response = await fetch(ssoUrl, {
++      method: 'HEAD',
++      mode: 'no-cors',
++      signal: controller.signal
++    });
++
++    clearTimeout(timeoutId);
++
++    // Because of 'no-cors', response.ok will be false and status will be 0.
++    // As long as the fetch completes without throwing an error (like a network timeout or DNS failure),
++    // we consider the domain reachable.
++    return true;
++  } catch (error) {
++    console.warn('[SSO Health Check] Pre-flight ping failed:', error);
++    return false;
++  }
++};
+diff --git a/src/pages/AuthOffline.jsx b/src/pages/AuthOffline.jsx
+new file mode 100644
+index 0000000..5c7bfc4
+--- /dev/null
++++ b/src/pages/AuthOffline.jsx
+@@ -0,0 +1,47 @@
++import React from 'react';
++import { motion } from 'framer-motion';
++import { FiAlertTriangle, FiRefreshCw } from 'react-icons/fi';
++import { useNavigate } from 'react-router-dom';
++
++const AuthOffline = () => {
++  const navigate = useNavigate();
++
++  const handleRetry = () => {
++    // Retry redirecting to the main entry point which will re-trigger the SSO check
++    navigate('/', { replace: true });
++  };
++
++  return (
++    <div className="min-h-screen bg-gradient-to-br from-onyx-950 via-slate-900 to-onyx-950 flex items-center justify-center p-4">
++      <motion.div
++        initial={{ opacity: 0, y: 20 }}
++        animate={{ opacity: 1, y: 0 }}
++        className="max-w-md w-full glass-effect bg-onyx-950/80 border border-amber-500/30 shadow-[0_0_30px_rgba(245,158,11,0.15)] rounded-xl p-8 text-center"
++      >
++        <div className="flex justify-center mb-6">
++          <div className="p-4 bg-amber-500/10 rounded-full border border-amber-500/20">
++            <FiAlertTriangle className="w-12 h-12 text-amber-500 animate-pulse" />
++          </div>
++        </div>
++
++        <h1 className="text-2xl font-bold text-slate-100 mb-3 font-mono tracking-tight">
++          Service Degraded
++        </h1>
++
++        <p className="text-slate-400 mb-8 leading-relaxed">
++          Authentication Services are currently experiencing connectivity issues. Please try again in a few moments.
++        </p>
++
++        <button
++          onClick={handleRetry}
++          className="w-full flex items-center justify-center gap-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg py-3 px-4 transition-all duration-200 font-mono font-bold uppercase tracking-wider group"
++        >
++          <FiRefreshCw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
++          Retry Connection
++        </button>
++      </motion.div>
++    </div>
++  );
++};
++
++export default AuthOffline;
+--
+2.53.0
