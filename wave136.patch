@@ -1,0 +1,163 @@
+From 2016b9bc2c685153cb9dcbfefb0fffceb146ad68 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Thu, 27 Aug 2026 20:48:32 +0000
+Subject: [PATCH] Emergency Upgrade Wave 136: Dashboard Restoration & Routing
+ Fix
+
+---
+ AGENTS_VERIFICATION.md                | 26 +++++++++++++-------------
+ src/App.jsx                           |  5 +++--
+ src/components/ProtectedRoute.jsx     | 10 ++++++++--
+ src/components/RedirectToPassport.jsx | 11 +++++++++++
+ src/contexts/SupabaseContext.jsx      |  2 +-
+ src/services/supabaseApiService.js    |  2 +-
+ wave136.patch                         |  0
+ 7 files changed, 37 insertions(+), 19 deletions(-)
+ create mode 100644 src/components/RedirectToPassport.jsx
+ create mode 100644 wave136.patch
+
+diff --git a/AGENTS_VERIFICATION.md b/AGENTS_VERIFICATION.md
+index 2ce3b15..21be6ba 100644
+--- a/AGENTS_VERIFICATION.md
++++ b/AGENTS_VERIFICATION.md
+@@ -1,19 +1,19 @@
+-# Verification Log - Wave 135
++# Verification Log - Wave 136
+
+ ## Changes Completed
+
+-**Task 1: AI Dashboard & Event Log UI Polish**
+-- Upgraded `src/components/dashboard/AIInteractionsChart.jsx` to match the enterprise design system with `rounded-2xl`, `shadow-[0_0_25px_rgba(0,0,0,0.5)]` and `glass-effect` classes (`bg-onyx-900/40 backdrop-blur-md`).
+-- Wrapped the internal rendering logic within an `ErrorBoundary` component to gracefully handle and log render errors without breaking the wider layout.
+-- Upgraded `src/components/dashboard/EventLog.jsx` following the same styling guidelines as above and correctly nested the dynamic event list inside the `<ErrorBoundary>` wrapper.
+-- All polling mechanisms and charting libraries were kept untouched per instructions.
++**Task 1: Fix React Router Absolute URL Crash**
++- Replaced `<Navigate to="https://passport.axim.us.com" replace />` with `window.location.href = "https://passport.axim.us.com"` across `src/components/ProtectedRoute.jsx` and `src/App.jsx`.
++- In `src/components/ProtectedRoute.jsx`, used `useEffect` to safely perform window location assignment.
++- Created `src/components/RedirectToPassport.jsx` to handle the redirection securely and without triggering react-router-dom path error.
+
+-**Task 2: Cloudflare Edge Static Asset Optimization**
+-- Modified `cloudflare-workers/src/index.js` to implement an explicit static asset check.
+-- Matched extensions like `.js`, `.css`, `.png`, `.woff2`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.ico` and structural paths `/assets/` and `/static/`.
+-- Appended `Cache-Control: public, max-age=31536000, immutable` headers to explicitly intercept and cache static files at the edge.
+-- Ensured sensitive or dynamic paths including `/api/`, `/telemetry-ingress`, `/system-status`, and `/auth/` explicitly bypass this mechanism and retain their `no-store` or proxy-revalidate strategies.
++**Task 2: Fix events_ax2024 400 Bad Request**
++- Located issues in `src/services/supabaseApiService.js` and `src/contexts/SupabaseContext.jsx` where standard attributes required by `events_ax2024` table might be missing.
++- Ensured fields like `error_code`, `error`, and `message` are explicitly set to `null` or a generic string when missing during `bulk_import` and `system_heartbeat` to strictly conform to Supabase schema expectations.
++
++**Task 3: Clean Up EventEmitter Memory Leaks**
++- Checked `src/contexts/RealtimeContext.jsx` for missing channel cleanup and timeouts. Found comprehensive cleanups on unmount.
++- Verified that `src/components/PassportListener.jsx` explicitly removes channel subscriptions via `supabase.removeChannel(channel)` and `src/components/dashboard/EventLog.jsx` also uses `supabase.removeChannel(channel)` efficiently inside `useEffect` return statements to prevent subscription bloat.
+
+ ## Tests
+-- Confirmed `tests/ui-smoke.test.jsx` runs perfectly to verify no breaking logic on Dashboard UI components.
+-- Added test coverage in `tests/edge-worker.test.js` to explicitly assert the returned `Cache-Control` static headers (`public, max-age=31536000, immutable`) are set correctly when fetching static paths, and verified all tests pass without errors.
++- Verified the build succeeds through `npm run build`, eliminating `relative pathnames are not supported` exceptions at bundle time.
+diff --git a/src/App.jsx b/src/App.jsx
+index 3ddfe83..77c7d6c 100644
+--- a/src/App.jsx
++++ b/src/App.jsx
+@@ -1,3 +1,4 @@
++import RedirectToPassport from "./components/RedirectToPassport";
+ import React, { useEffect, Suspense } from 'react';
+ import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+ import { motion, AnimatePresence } from 'framer-motion';
+@@ -106,7 +107,7 @@ function AppContent() {
+       <AnimatePresence mode="wait">
+         <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-onyx-950 via-purple-900 to-onyx-950 flex items-center justify-center"><div className="text-white text-xl flex items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mr-4"></div>Loading View...</div></div>}>
+         <Routes location={location} key={location.pathname}>
+-          <Route path="/login" element={<Navigate to="https://passport.axim.us.com" replace />} />
++          <Route path="/login" element={<RedirectToPassport />} />
+
+         <Route
+           path="/"
+@@ -141,7 +142,7 @@ function AppContent() {
+           />
+         </Route>
+
+-        <Route path="*" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="https://passport.axim.us.com" replace />} />
++        <Route path="*" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RedirectToPassport />} />
+         </Routes>
+         </Suspense>
+       </AnimatePresence>
+diff --git a/src/components/ProtectedRoute.jsx b/src/components/ProtectedRoute.jsx
+index c63951c..e69fb81 100644
+--- a/src/components/ProtectedRoute.jsx
++++ b/src/components/ProtectedRoute.jsx
+@@ -1,4 +1,4 @@
+-import React from 'react';
++import React, { useEffect } from 'react';
+ import { Navigate } from 'react-router-dom';
+ import { useAuth } from '../contexts/AuthContext';
+
+@@ -7,6 +7,12 @@ import toast from 'react-hot-toast';
+ const ProtectedRoute = ({ children, allowedRoles }) => {
+   const { isAuthenticated, role, loading } = useAuth();
+
++  useEffect(() => {
++    if (!loading && !isAuthenticated) {
++      window.location.href = "https://passport.axim.us.com";
++    }
++  }, [loading, isAuthenticated]);
++
+   if (loading) {
+     return (
+       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+@@ -16,7 +22,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
+   }
+
+   if (!isAuthenticated) {
+-    return <Navigate to="https://passport.axim.us.com" replace />;
++    return null;
+   }
+
+   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(role)) {
+diff --git a/src/components/RedirectToPassport.jsx b/src/components/RedirectToPassport.jsx
+new file mode 100644
+index 0000000..b57415f
+--- /dev/null
++++ b/src/components/RedirectToPassport.jsx
+@@ -0,0 +1,11 @@
++import { useEffect } from 'react';
++
++const RedirectToPassport = () => {
++  useEffect(() => {
++    window.location.href = "https://passport.axim.us.com";
++  }, []);
++
++  return null;
++};
++
++export default RedirectToPassport;
+diff --git a/src/contexts/SupabaseContext.jsx b/src/contexts/SupabaseContext.jsx
+index 74b878c..2c3d8de 100644
+--- a/src/contexts/SupabaseContext.jsx
++++ b/src/contexts/SupabaseContext.jsx
+@@ -37,7 +37,7 @@ export const SupabaseProvider = ({ children, client = null }) => {
+            await supabaseClient.from('events_ax2024').insert({
+               type: 'system_heartbeat',
+               source: 'AXiM Core System',
+-              data: { event: 'Database Uplink Active' },
++              data: { event: "Database Uplink Active", error_code: null, error: null, message: "System online" },
+               user_id: '00000000-0000-0000-0000-000000000000'
+            });
+         } catch (telemetryError) {
+diff --git a/src/services/supabaseApiService.js b/src/services/supabaseApiService.js
+index ed807f7..a5c1c05 100644
+--- a/src/services/supabaseApiService.js
++++ b/src/services/supabaseApiService.js
+@@ -312,7 +312,7 @@ class SupabaseApiService {
+       await this.supabase.from('events_ax2024').insert({
+         type: 'bulk_import',
+         source: 'csv_import',
+-        data: { count: contacts.length },
++        data: { count: contacts.length, error_code: null, error: null, message: "Bulk import" },
+         user_id: userId,
+       });
+       return data;
+diff --git a/wave136.patch b/wave136.patch
+new file mode 100644
+index 0000000..e69de29
+--
+2.53.0
