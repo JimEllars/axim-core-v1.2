@@ -57,7 +57,14 @@ export default {
     // Rate Limiting using Cloudflare Rate Limiting binding
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
 
-    if (env.RATE_LIMITER) {
+    // Bypass rate limiter for telemetry to prevent user-facing 429s from background polling
+    const isTelemetryEndpoint = url.pathname.endsWith('/telemetry-ingress') ||
+                               url.pathname.endsWith('/satellite-telemetry') ||
+                               url.pathname.endsWith('/email-tracking-webhook') ||
+                               url.pathname.endsWith('/system-status') ||
+                               url.pathname.includes('/system-status');
+
+    if (env.RATE_LIMITER && !isTelemetryEndpoint) {
       const { success } = await env.RATE_LIMITER.limit({ key: ip });
       if (!success) {
         return new Response(JSON.stringify({ error: "Too Many Requests", message: "Rate limit exceeded." }), {
@@ -122,7 +129,7 @@ export default {
     // 1. API Proxy Routing
     if (url.pathname.startsWith('/api/')) {
       // Edge Caching
-      const cacheableEndpoints = ['/api/system/capabilities', '/api/providers/status', '/api/system-status'];
+      const cacheableEndpoints = ['/api/system/capabilities', '/api/providers/status']; // Removed /api/system-status to avoid serving stale telemetry data
       if (request.method === 'GET' && cacheableEndpoints.includes(url.pathname)) {
         const cache = caches.default;
         const cachedResponse = await cache.match(request);

@@ -50,7 +50,7 @@ const PredictiveInsights = ({ supabase }) => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="glass-effect rounded-xl p-6 border border-onyx-accent/20 h-full flex flex-col min-h-[160px]" style={{ background: "rgba(10, 10, 12, 0.45)", backdropFilter: "blur(16px)" }}
+      className="glass-effect rounded-2xl p-6 shadow-[0_0_25px_rgba(0,0,0,0.5)] border border-onyx-accent/20 h-full flex flex-col min-h-[160px]" style={{ background: "rgba(10, 10, 12, 0.45)", backdropFilter: "blur(16px)" }}
     >
       <div className="mb-4 flex items-center justify-between">
         <div>
@@ -72,7 +72,7 @@ const PredictiveInsights = ({ supabase }) => {
           </div>
         ) : (
           insights.map((user, idx) => (
-            <div key={user.user_id || idx} className="bg-onyx-900/50 p-3 rounded-lg border border-onyx-accent/10">
+            <div key={user.user_id || idx} className="glass-effect p-3 rounded-lg border border-onyx-accent/10">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-sm font-medium text-white truncate w-1/2">{user.email}</span>
                 <span className="text-xs text-slate-400">{getRiskLabel(user.health_index)}</span>
@@ -94,7 +94,7 @@ const PredictiveInsights = ({ supabase }) => {
 const KPICard = ({ title, value, change, icon: Icon, color, info, loading }) => {
   if (loading) {
     return (
-      <div className="glass-effect rounded-xl p-6 border border-onyx-accent/20 flex flex-col justify-between transition-colors min-h-[160px] animate-pulse" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+      <div className="glass-effect rounded-2xl p-6 shadow-[0_0_25px_rgba(0,0,0,0.5)] border border-onyx-accent/20 flex flex-col justify-between transition-colors min-h-[160px] animate-pulse" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
         <div className="h-4 bg-slate-800 rounded w-1/2 mb-4"></div>
         <div className="h-8 bg-slate-800 rounded w-3/4 mb-2"></div>
         <div className="h-4 bg-slate-800 rounded w-1/3"></div>
@@ -102,7 +102,7 @@ const KPICard = ({ title, value, change, icon: Icon, color, info, loading }) => 
     );
   }
   return (
-  <div className="glass-effect rounded-xl p-6 border border-onyx-accent/20 flex flex-col justify-between hover:border-onyx-accent/50 transition-colors min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+  <div className="glass-effect rounded-2xl p-6 shadow-[0_0_25px_rgba(0,0,0,0.5)] border border-onyx-accent/20 flex flex-col justify-between hover:border-onyx-accent/50 transition-colors min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
     <div className="flex justify-between items-start">
       <div>
         <h3 className="text-slate-400 text-sm font-medium">{title}</h3>
@@ -212,8 +212,9 @@ const KPIOverview = () => {
 }, [supabase]);
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <ErrorBoundary>
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Core Financials */}
         <KPICard
             title="Monthly Recurring Revenue"
@@ -291,7 +292,8 @@ const KPIOverview = () => {
         </div>
         <PredictiveInsights supabase={supabase} />
       </div>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 };
 
