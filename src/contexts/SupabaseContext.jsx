@@ -37,7 +37,7 @@ export const SupabaseProvider = ({ children, client = null }) => {
            await supabaseClient.from('events_ax2024').insert({
               type: 'system_heartbeat',
               source: 'AXiM Core System',
-              data: { event: 'Database Uplink Active' },
+              data: { event: "Database Uplink Active", error_code: null, error: null, message: "System online" },
               user_id: '00000000-0000-0000-0000-000000000000'
            });
         } catch (telemetryError) {
