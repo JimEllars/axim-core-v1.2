@@ -150,7 +150,7 @@ serve(async (req) => {
     };
 
     // Use EdgeRuntime.waitUntil if available (Supabase/Deno environment), otherwise just run it
-    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+    if (typeof EdgeRuntime !== 'undefined' && (EdgeRuntime as any).waitUntil) {
       EdgeRuntime.waitUntil(processTelemetry());
     } else {
       // Fallback for environments without EdgeRuntime

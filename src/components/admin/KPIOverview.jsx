@@ -1,6 +1,7 @@
 import RevenueHeatmap from '../dashboard/RevenueHeatmap';
 import React, { useEffect, useState } from 'react';
 import { useSupabase } from '../../contexts/SupabaseContext';
+import ErrorBoundary from '../ErrorBoundary';
 import { FiTrendingUp, FiUsers, FiDollarSign, FiActivity, FiUserPlus, FiTarget, FiPieChart, FiBarChart2, FiAlertTriangle, FiCpu } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 
@@ -294,4 +295,4 @@ const KPIOverview = () => {
   );
 };
 
-export default KPIOverview;
+export default function KPIOverviewWrapper(props) { return <ErrorBoundary><KPIOverview {...props} /></ErrorBoundary>; }

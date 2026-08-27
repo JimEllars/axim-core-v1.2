@@ -68,7 +68,7 @@ serve(async (req) => {
       nodes,
       apps,
       subsystems: allSubsystems,
-      aggregateStatus,
+      status: aggregateStatus,
       timestamp: new Date().toISOString(),
       edgeRegion: edgeRegion,
       rateLimitRemaining: '999'
