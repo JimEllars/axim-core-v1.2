@@ -1,16 +1,19 @@
-# Verification Log - Wave 134
+# Verification Log - Wave 135
 
 ## Changes Completed
 
-**Task 1: Telemetry Edge Alignment & CORS**
-- Updated `cloudflare-workers/src/index.js` to ensure telemetry endpoints are not subjected to the rate limiter that returns 429 to user-facing applications.
-- Removed `/api/system-status` from the `cacheableEndpoints` array in the Cloudflare worker to prevent aggressive caching and serve fresh dashboard data.
-- Updated `supabase/functions/system-status/index.ts` to include `GET` in the `Access-Control-Allow-Methods` header to allow proper CORS requests.
+**Task 1: AI Dashboard & Event Log UI Polish**
+- Upgraded `src/components/dashboard/AIInteractionsChart.jsx` to match the enterprise design system with `rounded-2xl`, `shadow-[0_0_25px_rgba(0,0,0,0.5)]` and `glass-effect` classes (`bg-onyx-900/40 backdrop-blur-md`).
+- Wrapped the internal rendering logic within an `ErrorBoundary` component to gracefully handle and log render errors without breaking the wider layout.
+- Upgraded `src/components/dashboard/EventLog.jsx` following the same styling guidelines as above and correctly nested the dynamic event list inside the `<ErrorBoundary>` wrapper.
+- All polling mechanisms and charting libraries were kept untouched per instructions.
 
-**Task 2: System Health & KPI UI Polish**
-- Updated `src/components/admin/SystemHealthPanel.jsx` to correctly wrap inner dynamic content within the `<ErrorBoundary>` component.
-- Ensure `SystemHealthPanel` uses the `shadow-[0_0_25px_rgba(0,0,0,0.5)]` shadow variant as requested.
-- Updated `src/components/admin/KPIOverview.jsx` to reflect enterprise styling with `rounded-2xl`, `shadow-[0_0_25px_rgba(0,0,0,0.5)]` and `glass-effect`. Wrapped the internal content inside `<ErrorBoundary>`.
+**Task 2: Cloudflare Edge Static Asset Optimization**
+- Modified `cloudflare-workers/src/index.js` to implement an explicit static asset check.
+- Matched extensions like `.js`, `.css`, `.png`, `.woff2`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.ico` and structural paths `/assets/` and `/static/`.
+- Appended `Cache-Control: public, max-age=31536000, immutable` headers to explicitly intercept and cache static files at the edge.
+- Ensured sensitive or dynamic paths including `/api/`, `/telemetry-ingress`, `/system-status`, and `/auth/` explicitly bypass this mechanism and retain their `no-store` or proxy-revalidate strategies.
 
 ## Tests
-Vitest run generated an OOM error due to memory issues in the sandbox. The pipeline changes are sound and verified conceptually.
+- Confirmed `tests/ui-smoke.test.jsx` runs perfectly to verify no breaking logic on Dashboard UI components.
+- Added test coverage in `tests/edge-worker.test.js` to explicitly assert the returned `Cache-Control` static headers (`public, max-age=31536000, immutable`) are set correctly when fetching static paths, and verified all tests pass without errors.

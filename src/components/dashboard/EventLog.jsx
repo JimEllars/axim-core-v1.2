@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { format } from 'date-fns/format';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
+import ErrorBoundary from '../ErrorBoundary';
 import { supabase } from '../../services/supabaseClient';
 import { useDashboard } from '../../contexts/DashboardContext';
 
@@ -101,8 +102,9 @@ const EventLog = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.4 }}
-      className="glass-effect rounded-xl"
+      className="glass-effect rounded-2xl shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md"
     >
+      <ErrorBoundary>
       <div className="flex items-center justify-between p-6 border-b border-onyx-accent/20">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
@@ -186,6 +188,7 @@ const EventLog = () => {
           </div>
         )}
       </div>
+      </ErrorBoundary>
     </motion.div>
   );
 };

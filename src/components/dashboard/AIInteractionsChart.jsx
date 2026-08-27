@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
+import ErrorBoundary from '../ErrorBoundary';
 import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 
 const { FiCpu, FiAlertTriangle } = FiIcons;
@@ -21,8 +22,9 @@ const AIInteractionsChart = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.4 }}
-      className="glass-effect rounded-xl p-6 col-span-1 lg:col-span-2 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
+      className="glass-effect rounded-2xl p-6 col-span-1 lg:col-span-2 min-h-[160px] shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md"
     >
+      <ErrorBoundary>
       <div className="flex items-center space-x-3 mb-6">
         <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
           <SafeIcon icon={FiCpu} className="text-white" />
@@ -84,6 +86,7 @@ const AIInteractionsChart = () => {
           </LineChart>
         </ResponsiveContainer>
       )}
+        </ErrorBoundary>
     </motion.div>
   );
 };

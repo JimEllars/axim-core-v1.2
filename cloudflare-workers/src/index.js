@@ -182,6 +182,34 @@ export default {
       }
     }
 
+
+    // 2. Static Asset Caching
+    const isStaticAsset = url.pathname.match(/\.(js|css|png|woff2|jpg|jpeg|gif|svg|ico)$/i) ||
+                          url.pathname.startsWith('/assets/') ||
+                          url.pathname.startsWith('/static/');
+
+    const isBypassedRoute = url.pathname.includes('/api/') ||
+                            url.pathname.includes('/telemetry-ingress') ||
+                            url.pathname.includes('/system-status') ||
+                            url.pathname.includes('/auth/');
+
+    if (isStaticAsset && !isBypassedRoute && request.method === 'GET') {
+      try {
+        // Since Cloudflare Pages handles the actual serving, we don't have ASSETS binding by default in a standard worker.
+        // If this worker sits in front of a site, we usually fetch the origin.
+        // Wait, normally if this is just a proxy worker on a route, if we return fetch(request) we pass it to the origin.
+        const response = await fetch(request);
+        const staticResponse = new Response(response.body, response);
+        staticResponse.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        Object.keys(corsHeaders).forEach(key => {
+          staticResponse.headers.set(key, corsHeaders[key]);
+        });
+        return staticResponse;
+      } catch (err) {
+        // Fallback
+      }
+    }
+
     // Default Response for Non-API requests (Not Found)
     return new Response('404 Not Found', {
       status: 404,

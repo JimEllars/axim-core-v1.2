@@ -76,10 +76,72 @@ describe('Edge Worker Rate Limiting', () => {
                         this.headers.set(key, value);
                     }
                 }
+
+                this.headers.set = (key, value) => {
+                    this.headers[key] = value;
+                };
+
+                this.headers.has = (key) => {
+                    return this.headers[key] !== undefined;
+                };
+            }
+
+            clone() {
+              return new global.Response(this.body, { status: this.status, headers: this.headers });
             }
         };
 
         const response = await worker.fetch(mockRequest, mockEnv, { waitUntil: vi.fn() });
         expect(response.status).toBe(200);
+    });
+
+    it('sets cache control headers for static assets correctly', async () => {
+        const mockEnv = {
+            RATE_LIMITER: {
+                limit: vi.fn().mockResolvedValue({ success: true })
+            }
+        };
+
+        const headers = new Map([
+            ['Origin', 'https://axim.us.com']
+        ]);
+
+        const mockRequest = {
+            method: 'GET',
+            url: 'https://axim.us.com/assets/index.js',
+            headers: {
+                get: (name) => headers.get(name) || null
+            },
+            cf: { colo: 'TEST' }
+        };
+
+        global.fetch = vi.fn().mockResolvedValue({
+            body: 'test body',
+            headers: new Map(),
+            status: 200
+        });
+
+        global.Response = class Response {
+            constructor(body, init) {
+                this.body = body;
+                this.status = init?.status || 200;
+
+                // create a map-like headers object
+                const h = new Map();
+                this.headers = h;
+
+                if (init && init.headers) {
+                  // just support set, get
+                }
+            }
+
+            clone() {
+              return new global.Response(this.body, { status: this.status, headers: this.headers });
+            }
+        };
+
+        const response = await worker.fetch(mockRequest, mockEnv, { waitUntil: vi.fn() });
+        expect(response.status).toBe(200);
+        expect(response.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
     });
 });
