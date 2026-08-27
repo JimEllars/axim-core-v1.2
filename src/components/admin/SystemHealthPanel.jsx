@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { supabase } from '../../services/supabaseClient';
 import * as FiIcons from 'react-icons/fi';
+import ErrorBoundary from '../ErrorBoundary';
 import SafeIcon from '../../common/SafeIcon';
 import api from '../../services/onyxAI/api';
 import { useMetrics } from '../../hooks/useMetrics';
@@ -302,4 +303,4 @@ const SystemHealthPanel = () => {
   );
 };
 
-export default SystemHealthPanel;
+export default function SystemHealthPanelWrapper(props) { return <ErrorBoundary><SystemHealthPanel {...props} /></ErrorBoundary>; }
