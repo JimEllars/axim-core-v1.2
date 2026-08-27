@@ -137,6 +137,7 @@ const SystemHealthPanel = () => {
 
   return (
     <div className="glass-effect rounded-2xl p-6 sm:p-8 shadow-[0_0_25px_rgba(0,0,0,0.5)] min-h-[160px] transition-all duration-300" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+      <ErrorBoundary>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold tracking-tight text-white flex items-center">
           <SafeIcon icon={FiActivity} className="mr-2 text-cyan-400" />
@@ -236,7 +237,7 @@ const SystemHealthPanel = () => {
             const statusBg = timeAgo < 60 ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-amber-500/10 border-amber-500/30';
 
             return (
-            <div key={cron.endpoint} className="p-4 rounded-2xl border border-onyx-accent/30 shadow-[0_0_15px_rgba(0,0,0,0.5)] transition-all" style={{ backgroundColor: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+            <div key={cron.endpoint} className="p-4 rounded-2xl border border-onyx-accent/30 shadow-[0_0_25px_rgba(0,0,0,0.5)] transition-all" style={{ backgroundColor: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
                <div className="flex justify-between items-center mb-2">
                  <span className="text-cyan-300 font-mono text-xs font-bold uppercase truncate">{cron.endpoint.split('/').pop()}</span>
                  <span className={`px-2 py-0.5 rounded text-[10px] font-mono border ${statusBg} ${statusColor}`}>
@@ -259,7 +260,7 @@ const SystemHealthPanel = () => {
             {metrics.microAppMetrics.filter(app => app.app_id !== 'unknown').map(app => (
               <div
                 key={app.app_id}
-                className="p-5 rounded-2xl border border-onyx-accent/30 shadow-[0_0_15px_rgba(0,0,0,0.5)] transition-all hover:border-cyan-500/50"
+                className="p-5 rounded-2xl border border-onyx-accent/30 shadow-[0_0_25px_rgba(0,0,0,0.5)] transition-all hover:border-cyan-500/50"
                 style={{ backgroundColor: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)' }}
               >
                 <div className="flex justify-between items-center mb-4">
@@ -299,6 +300,7 @@ const SystemHealthPanel = () => {
           </div>
         </div>
       )}
+      </ErrorBoundary>
     </div>
   );
 };
