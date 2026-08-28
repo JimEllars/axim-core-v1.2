@@ -54,3 +54,10 @@
 * Verified routes \`/admin/cfo\` are fully registered in \`App.jsx\`.
 * Verified \`Sidebar.jsx\` includes the new 'CFO Dashboard' link and icon.
 * Created backing SQL RPC function \`get_cfo_pending_approvals\` in a new migration to fulfill the data fetch.
+
+## Wave 140: Dispatcher Hardening
+* Implemented \`VALID_DEPARTMENTS\` array \`['CEO', 'CFO', 'COO', 'CORE']\` in \`universal-dispatcher/index.ts\`.
+* Hardened department extraction to safely fallback to \`'CORE'\` if invalid, null, or undefined.
+* Returns 400 Bad Request immediately if the provided department string is not within the valid range.
+* Verified High Stakes \`toolCalledPayload\` correctly serializes \`target_department\`.
+* Ran \`scripts/test-department-dispatch.cjs\` locally to ensure target department is successfully serialized.
