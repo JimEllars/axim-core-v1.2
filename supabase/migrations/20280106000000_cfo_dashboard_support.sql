@@ -7,7 +7,7 @@ RETURNS TABLE (
     admin_id UUID,
     action TEXT,
     tool_called TEXT,
-    timestamp TIMESTAMPTZ,
+    "timestamp" TIMESTAMPTZ,
     ticket_id UUID,
     status TEXT,
     action_required TEXT,
