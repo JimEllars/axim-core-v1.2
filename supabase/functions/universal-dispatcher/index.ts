@@ -77,6 +77,17 @@ serve(async (req: Request) => {
 
     const { action_type, payload } = body;
 
+    const target_department = body.target_department || payload?.target_department || 'CORE';
+    if (target_department !== 'CORE') {
+        console.log(`[Dispatcher] Routing payload to department: ${target_department}`);
+        await supabaseAdmin.from('telemetry_logs').insert({
+            event: 'department_dispatch',
+            app_type: 'universal-dispatcher',
+            details: { department: target_department, original_payload: body },
+            timestamp: new Date().toISOString()
+        });
+    }
+
     if (!action_type || !payload) {
       return new Response(
         JSON.stringify({
@@ -263,10 +274,15 @@ serve(async (req: Request) => {
       let adminId = users?.users?.[0]?.id;
 
       // We will serialize payload in the action or tool_called field since hitl_audit_logs lacks a payload col
+      const toolCalledPayload = {
+        ...payload,
+        target_department: target_department
+      };
+
       const { error: hitlError } = await supabaseAdmin.from("hitl_audit_logs").insert({
         admin_id: adminId || "00000000-0000-0000-0000-000000000000",
         action: action_type,
-        tool_called: JSON.stringify(payload).substring(0, 500), // store payload representation in tool_called temporarily
+        tool_called: JSON.stringify(toolCalledPayload).substring(0, 500), // store payload representation in tool_called temporarily
         status: 'pending'
       });
 

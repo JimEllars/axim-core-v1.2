@@ -109,6 +109,18 @@ serve(async (req) => {
           continue; // Skip processing this payload
         }
 
+        const target_department = limitedPayload.target_department || 'CORE';
+
+        if (target_department !== 'CORE') {
+          await supabaseClient.from('telemetry_logs').insert({
+              event: 'department_dispatch',
+              app_type: app_id,
+              ip_address: clientIp,
+              details: { department: target_department, original_payload: limitedPayload },
+              timestamp: new Date().toISOString()
+          });
+        }
+
         // Insert the telemetry log
         const { error: insertError } = await supabaseClient.from('events_ax2024').insert({
             type: limitedPayload.event || 'generic_telemetry',
