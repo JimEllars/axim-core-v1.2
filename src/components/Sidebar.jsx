@@ -53,6 +53,13 @@ const Sidebar = () => {
       icon: FiUserCheck,
       description: 'User Management',
       path: '/admin'
+    },
+    {
+      id: 'cfo-dashboard',
+      label: 'CFO Dashboard',
+      icon: FiDollarSign,
+      description: 'Financial Approvals',
+      path: '/admin/cfo'
     }] : [])
   ];
 
