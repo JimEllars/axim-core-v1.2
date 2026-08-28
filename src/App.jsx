@@ -13,6 +13,7 @@ import { DashboardProvider } from './contexts/DashboardContext.jsx';
 import Dashboard from './components/Dashboard';
 const CommandHub = React.lazy(() => import('./components/CommandHub'));
 const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard'));
+const CFODashboard = React.lazy(() => import('./components/admin/CFODashboard'));
 const Ingest = React.lazy(() => import('./components/ingest/Ingest'));
 const Settings = React.lazy(() => import('./components/settings/Settings'));
 import AuthOffline from './pages/AuthOffline';
@@ -130,6 +131,14 @@ function AppContent() {
             element={
               <ProtectedRoute allowedRoles={['admin']}>
                 <AdminDashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="admin/cfo"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <CFODashboard />
               </ProtectedRoute>
             }
           />

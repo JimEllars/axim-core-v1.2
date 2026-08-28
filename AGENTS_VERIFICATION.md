@@ -48,3 +48,9 @@
 **Task 3: Verification**
 - Created \`scripts/test-department-dispatch.cjs\` to simulate dispatch payload routing targeting \`'CFO'\` and ensuring \`hitl_audit_logs\` serialization succeeds.
 - Patch generation ready.
+
+## Wave 139: CFO Dashboard Update
+* Implemented \`CFODashboard.jsx\` and tested using \`src/components/admin/CFODashboard.test.jsx\`.
+* Verified routes \`/admin/cfo\` are fully registered in \`App.jsx\`.
+* Verified \`Sidebar.jsx\` includes the new 'CFO Dashboard' link and icon.
+* Created backing SQL RPC function \`get_cfo_pending_approvals\` in a new migration to fulfill the data fetch.
