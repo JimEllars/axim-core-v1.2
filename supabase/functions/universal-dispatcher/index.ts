@@ -78,6 +78,20 @@ serve(async (req: Request) => {
     const { action_type, payload } = body;
 
     const target_department = body.target_department || payload?.target_department || 'CORE';
+    const VALID_DEPARTMENTS = ['CEO', 'CFO', 'COO', 'CORE'];
+    if (!VALID_DEPARTMENTS.includes(target_department)) {
+        return new Response(
+            JSON.stringify({
+                error: "Bad Request",
+                message: "Invalid target department specified",
+            }),
+            {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+        );
+    }
+
     if (target_department !== 'CORE') {
         console.log(`[Dispatcher] Routing payload to department: ${target_department}`);
         await supabaseAdmin.from('telemetry_logs').insert({
