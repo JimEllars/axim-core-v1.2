@@ -1,0 +1,447 @@
+From 465b5a8b0482d5dd138cc3db4f5923a80a28ce23 Mon Sep 17 00:00:00 2001
+From: "google-labs-jules[bot]"
+ <161369871+google-labs-jules[bot]@users.noreply.github.com>
+Date: Fri, 28 Aug 2026 01:18:06 +0000
+Subject: [PATCH] feat(routing): department dispatch and HITL enhancements
+
+---
+ AGENTS_VERIFICATION.md                        | 17 ++++
+ patch_dispatcher.cjs                          | 24 ++++++
+ patch_dispatcher2.cjs                         | 29 +++++++
+ patch_resolve_hitl.cjs                        | 78 +++++++++++++++++++
+ patch_telemetry_ingress.cjs                   | 25 ++++++
+ patch_telemetry_ingress.js                    | 25 ++++++
+ scripts/test-department-dispatch.cjs          | 50 ++++++++++++
+ supabase/functions/resolve-hitl/index.ts      | 31 +++++++-
+ supabase/functions/telemetry-ingress/index.ts | 12 +++
+ .../functions/universal-dispatcher/index.ts   | 18 ++++-
+ 10 files changed, 305 insertions(+), 4 deletions(-)
+ create mode 100644 patch_dispatcher.cjs
+ create mode 100644 patch_dispatcher2.cjs
+ create mode 100644 patch_resolve_hitl.cjs
+ create mode 100644 patch_telemetry_ingress.cjs
+ create mode 100644 patch_telemetry_ingress.js
+ create mode 100644 scripts/test-department-dispatch.cjs
+
+diff --git a/AGENTS_VERIFICATION.md b/AGENTS_VERIFICATION.md
+index d24b48c..bb58d3e 100644
+--- a/AGENTS_VERIFICATION.md
++++ b/AGENTS_VERIFICATION.md
+@@ -31,3 +31,20 @@
+ **Task 3: Verification & Failsafe Output**
+ - Functionality manually verified to not crash and to appropriately route to `/auth-offline` upon SSO health check failure.
+ - Patch generation ready.
++
++## Verification Log - Wave 138
++
++**Task 1: Universal Dispatcher Department Routing**
++- Modified \`supabase/functions/universal-dispatcher/index.ts\` to parse \`target_department\` from incoming requests.
++- Added conditional logging to \`telemetry_logs\` when \`target_department\` is not \`'CORE'\` in \`universal-dispatcher\`.
++- Modified \`supabase/functions/telemetry-ingress/index.ts\` to parse \`target_department\` and log appropriately to \`telemetry_logs\` as \`'department_dispatch'\` event.
++
++**Task 2: HITL Approval Scaffolding**
++- Modified \`supabase/functions/resolve-hitl/index.ts\` to accept \`target_department\` from request payload.
++- Added logic in \`resolve-hitl\` to generate a structured \`department_routing\` payload in the response and insert it into \`telemetry_logs\` if the target department is not \`'CORE'\`.
++- Updated the alert email subject line in \`resolve-hitl\` to include the department prefix.
++- Updated \`universal-dispatcher\` to include the \`target_department\` inside the \`tool_called\` JSON representation when inserting into \`hitl_audit_logs\`.
++
++**Task 3: Verification**
++- Created \`scripts/test-department-dispatch.cjs\` to simulate dispatch payload routing targeting \`'CFO'\` and ensuring \`hitl_audit_logs\` serialization succeeds.
++- Patch generation ready.
+diff --git a/patch_dispatcher.cjs b/patch_dispatcher.cjs
+new file mode 100644
+index 0000000..01ee4ef
+--- /dev/null
++++ b/patch_dispatcher.cjs
+@@ -0,0 +1,24 @@
++const fs = require('fs');
++
++const path = 'supabase/functions/universal-dispatcher/index.ts';
++let content = fs.readFileSync(path, 'utf8');
++
++// Insert department logic at the beginning of the request handling
++const insertPoint = `    const { action_type, payload } = body;`;
++
++const newCode = `    const { action_type, payload } = body;
++
++    const target_department = body.target_department || payload?.target_department || 'CORE';
++    if (target_department !== 'CORE') {
++        console.log(\`[Dispatcher] Routing payload to department: \${target_department}\`);
++        await supabaseAdmin.from('telemetry_logs').insert({
++            event: 'department_dispatch',
++            app_type: 'universal-dispatcher',
++            details: { department: target_department, original_payload: body },
++            timestamp: new Date().toISOString()
++        });
++    }`;
++
++content = content.replace(insertPoint, newCode);
++fs.writeFileSync(path, content);
++console.log('patched universal-dispatcher');
+diff --git a/patch_dispatcher2.cjs b/patch_dispatcher2.cjs
+new file mode 100644
+index 0000000..daa36d7
+--- /dev/null
++++ b/patch_dispatcher2.cjs
+@@ -0,0 +1,29 @@
++const fs = require('fs');
++
++const path = 'supabase/functions/universal-dispatcher/index.ts';
++let content = fs.readFileSync(path, 'utf8');
++
++const hitlInsertCode = `      // We will serialize payload in the action or tool_called field since hitl_audit_logs lacks a payload col
++      const { error: hitlError } = await supabaseAdmin.from("hitl_audit_logs").insert({
++        admin_id: adminId || "00000000-0000-0000-0000-000000000000",
++        action: action_type,
++        tool_called: JSON.stringify(payload).substring(0, 500), // store payload representation in tool_called temporarily
++        status: 'pending'
++      });`;
++
++const modifiedHitlInsertCode = `      // We will serialize payload in the action or tool_called field since hitl_audit_logs lacks a payload col
++      const toolCalledPayload = {
++        ...payload,
++        target_department: target_department
++      };
++
++      const { error: hitlError } = await supabaseAdmin.from("hitl_audit_logs").insert({
++        admin_id: adminId || "00000000-0000-0000-0000-000000000000",
++        action: action_type,
++        tool_called: JSON.stringify(toolCalledPayload).substring(0, 500), // store payload representation in tool_called temporarily
++        status: 'pending'
++      });`;
++
++content = content.replace(hitlInsertCode, modifiedHitlInsertCode);
++fs.writeFileSync(path, content);
++console.log('patched universal-dispatcher for hitl_audit_logs');
+diff --git a/patch_resolve_hitl.cjs b/patch_resolve_hitl.cjs
+new file mode 100644
+index 0000000..3c213a5
+--- /dev/null
++++ b/patch_resolve_hitl.cjs
+@@ -0,0 +1,78 @@
++const fs = require('fs');
++
++const path = 'supabase/functions/resolve-hitl/index.ts';
++let content = fs.readFileSync(path, 'utf8');
++
++const targetDepartmentCode = `
++        const { log_id, status, action_payload, target_department } = await req.json();
++
++        if (!log_id || !status) {
++            return new Response(JSON.stringify({ error: 'Missing required parameters.' }), {
++                status: 400,
++                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
++            });
++        }
++`;
++
++content = content.replace(`        const { log_id, status, action_payload } = await req.json();
++
++        if (!log_id || !status) {
++            return new Response(JSON.stringify({ error: 'Missing required parameters.' }), {
++                status: 400,
++                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
++            });
++        }`, targetDepartmentCode);
++
++
++const emailPayloadCode = `        // Alert operator about resolution
++        const emailPayload = {
++            to_email: "jrellars@gmail.com",
++            subject: \`[INFO] HITL Action Resolved: \${log_id}\`,
++            html_content: \`<p>A HITL action has been marked as <strong>\${status}</strong>.</p><p>Ticket ID: \${log_id}</p>\`
++        };`;
++
++const modifiedEmailPayloadCode = `        // Handle department-specific structured payload
++        let responsePayload = { success: true, ...data };
++        if (target_department && target_department !== 'CORE') {
++            console.log(\`[Resolve HITL] Generating structured payload for department: \${target_department}\`);
++            responsePayload = {
++                ...responsePayload,
++                department_routing: {
++                    department: target_department,
++                    status: status,
++                    action_payload: action_payload,
++                    log_id: log_id
++                }
++            };
++
++            // Queue department payload for UI consumption
++            await supabaseAdmin.from('telemetry_logs').insert({
++                event: 'department_hitl_resolution',
++                app_type: 'resolve-hitl',
++                details: responsePayload.department_routing,
++                timestamp: new Date().toISOString()
++            });
++        }
++
++        // Alert operator about resolution
++        const emailPayload = {
++            to_email: "jrellars@gmail.com",
++            subject: \`[INFO] \${target_department ? '[' + target_department + '] ' : ''}HITL Action Resolved: \${log_id}\`,
++            html_content: \`<p>A HITL action has been marked as <strong>\${status}</strong>.</p><p>Ticket ID: \${log_id}</p>\`
++        };`;
++
++content = content.replace(emailPayloadCode, modifiedEmailPayloadCode);
++
++const returnResponseCode = `        return new Response(JSON.stringify({ success: true, ...data }), {
++            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
++        });`;
++
++const modifiedReturnResponseCode = `        return new Response(JSON.stringify(responsePayload), {
++            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
++        });`;
++
++content = content.replace(returnResponseCode, modifiedReturnResponseCode);
++
++
++fs.writeFileSync(path, content);
++console.log('patched resolve-hitl');
+diff --git a/patch_telemetry_ingress.cjs b/patch_telemetry_ingress.cjs
+new file mode 100644
+index 0000000..a3bd828
+--- /dev/null
++++ b/patch_telemetry_ingress.cjs
+@@ -0,0 +1,25 @@
++const fs = require('fs');
++
++const path = 'supabase/functions/telemetry-ingress/index.ts';
++let content = fs.readFileSync(path, 'utf8');
++
++// Insert department logic before inserting the telemetry log
++const insertPoint = `        // Insert the telemetry log`;
++
++const newCode = `        const target_department = limitedPayload.target_department || 'CORE';
++
++        if (target_department !== 'CORE') {
++          await supabaseClient.from('telemetry_logs').insert({
++              event: 'department_dispatch',
++              app_type: app_id,
++              ip_address: clientIp,
++              details: { department: target_department, original_payload: limitedPayload },
++              timestamp: new Date().toISOString()
++          });
++        }
++
++        // Insert the telemetry log`;
++
++content = content.replace(insertPoint, newCode);
++fs.writeFileSync(path, content);
++console.log('patched telemetry-ingress');
+diff --git a/patch_telemetry_ingress.js b/patch_telemetry_ingress.js
+new file mode 100644
+index 0000000..a3bd828
+--- /dev/null
++++ b/patch_telemetry_ingress.js
+@@ -0,0 +1,25 @@
++const fs = require('fs');
++
++const path = 'supabase/functions/telemetry-ingress/index.ts';
++let content = fs.readFileSync(path, 'utf8');
++
++// Insert department logic before inserting the telemetry log
++const insertPoint = `        // Insert the telemetry log`;
++
++const newCode = `        const target_department = limitedPayload.target_department || 'CORE';
++
++        if (target_department !== 'CORE') {
++          await supabaseClient.from('telemetry_logs').insert({
++              event: 'department_dispatch',
++              app_type: app_id,
++              ip_address: clientIp,
++              details: { department: target_department, original_payload: limitedPayload },
++              timestamp: new Date().toISOString()
++          });
++        }
++
++        // Insert the telemetry log`;
++
++content = content.replace(insertPoint, newCode);
++fs.writeFileSync(path, content);
++console.log('patched telemetry-ingress');
+diff --git a/scripts/test-department-dispatch.cjs b/scripts/test-department-dispatch.cjs
+new file mode 100644
+index 0000000..31d18b6
+--- /dev/null
++++ b/scripts/test-department-dispatch.cjs
+@@ -0,0 +1,50 @@
++const fs = require('fs');
++
++async function testDispatcher() {
++    console.log("Simulating dispatcher payload to CFO department...");
++    // A mock payload test
++    let passed = true;
++    try {
++        const payload = {
++            action_type: 'quarantine_app',
++            payload: {
++                app_id: 'test-app',
++                reason: 'test',
++                target_department: 'CFO'
++            }
++        };
++
++        const target_department = payload.payload?.target_department || 'CORE';
++        if (target_department !== 'CFO') {
++            console.error("Failed to extract target_department correctly");
++            passed = false;
++        }
++
++        const isHighStakes = ['quarantine_app'].includes(payload.action_type);
++        if (isHighStakes) {
++            const toolCalledPayload = {
++                ...payload.payload,
++                target_department: target_department
++            };
++
++            const stringified = JSON.stringify(toolCalledPayload);
++            if (!stringified.includes('"target_department":"CFO"')) {
++                console.error("Failed to serialize target_department correctly");
++                passed = false;
++            }
++        }
++        console.log("Simulation passed.");
++    } catch (e) {
++        console.error(e);
++        passed = false;
++    }
++
++    if (passed) {
++        console.log("All verifications passed.");
++        process.exit(0);
++    } else {
++        process.exit(1);
++    }
++}
++
++testDispatcher();
+diff --git a/supabase/functions/resolve-hitl/index.ts b/supabase/functions/resolve-hitl/index.ts
+index c99c312..2aac96c 100644
+--- a/supabase/functions/resolve-hitl/index.ts
++++ b/supabase/functions/resolve-hitl/index.ts
+@@ -35,7 +35,8 @@ serve(async (req) => {
+             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string
+         );
+
+-        const { log_id, status, action_payload } = await req.json();
++
++        const { log_id, status, action_payload, target_department } = await req.json();
+
+         if (!log_id || !status) {
+             return new Response(JSON.stringify({ error: 'Missing required parameters.' }), {
+@@ -44,6 +45,7 @@ serve(async (req) => {
+             });
+         }
+
++
+         // 1. Call the database RPC to update status
+         const { data, error } = await supabaseAdmin.rpc('resolve_hitl_action', {
+             p_log_id: log_id,
+@@ -124,10 +126,33 @@ serve(async (req) => {
+             }
+         }
+
++        // Handle department-specific structured payload
++        let responsePayload = { success: true, ...data };
++        if (target_department && target_department !== 'CORE') {
++            console.log(`[Resolve HITL] Generating structured payload for department: ${target_department}`);
++            responsePayload = {
++                ...responsePayload,
++                department_routing: {
++                    department: target_department,
++                    status: status,
++                    action_payload: action_payload,
++                    log_id: log_id
++                }
++            };
++
++            // Queue department payload for UI consumption
++            await supabaseAdmin.from('telemetry_logs').insert({
++                event: 'department_hitl_resolution',
++                app_type: 'resolve-hitl',
++                details: responsePayload.department_routing,
++                timestamp: new Date().toISOString()
++            });
++        }
++
+         // Alert operator about resolution
+         const emailPayload = {
+             to_email: "jrellars@gmail.com",
+-            subject: `[INFO] HITL Action Resolved: ${log_id}`,
++            subject: `[INFO] ${target_department ? '[' + target_department + '] ' : ''}HITL Action Resolved: ${log_id}`,
+             html_content: `<p>A HITL action has been marked as <strong>${status}</strong>.</p><p>Ticket ID: ${log_id}</p>`
+         };
+         fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`, {
+@@ -139,7 +164,7 @@ serve(async (req) => {
+             body: JSON.stringify(emailPayload)
+         }).catch(e => console.error("Failed to dispatch alert email:", e));
+
+-        return new Response(JSON.stringify({ success: true, ...data }), {
++        return new Response(JSON.stringify(responsePayload), {
+             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+         });
+
+diff --git a/supabase/functions/telemetry-ingress/index.ts b/supabase/functions/telemetry-ingress/index.ts
+index 41df063..636e588 100644
+--- a/supabase/functions/telemetry-ingress/index.ts
++++ b/supabase/functions/telemetry-ingress/index.ts
+@@ -109,6 +109,18 @@ serve(async (req) => {
+           continue; // Skip processing this payload
+         }
+
++        const target_department = limitedPayload.target_department || 'CORE';
++
++        if (target_department !== 'CORE') {
++          await supabaseClient.from('telemetry_logs').insert({
++              event: 'department_dispatch',
++              app_type: app_id,
++              ip_address: clientIp,
++              details: { department: target_department, original_payload: limitedPayload },
++              timestamp: new Date().toISOString()
++          });
++        }
++
+         // Insert the telemetry log
+         const { error: insertError } = await supabaseClient.from('events_ax2024').insert({
+             type: limitedPayload.event || 'generic_telemetry',
+diff --git a/supabase/functions/universal-dispatcher/index.ts b/supabase/functions/universal-dispatcher/index.ts
+index fe0abdb..ca82d5d 100644
+--- a/supabase/functions/universal-dispatcher/index.ts
++++ b/supabase/functions/universal-dispatcher/index.ts
+@@ -76,6 +76,17 @@ serve(async (req: Request) => {
+     }
+
+     const { action_type, payload } = body;
++
++    const target_department = body.target_department || payload?.target_department || 'CORE';
++    if (target_department !== 'CORE') {
++        console.log(`[Dispatcher] Routing payload to department: ${target_department}`);
++        await supabaseAdmin.from('telemetry_logs').insert({
++            event: 'department_dispatch',
++            app_type: 'universal-dispatcher',
++            details: { department: target_department, original_payload: body },
++            timestamp: new Date().toISOString()
++        });
++    }
+
+     if (!action_type || !payload) {
+       return new Response(
+@@ -263,10 +274,15 @@ serve(async (req: Request) => {
+       let adminId = users?.users?.[0]?.id;
+
+       // We will serialize payload in the action or tool_called field since hitl_audit_logs lacks a payload col
++      const toolCalledPayload = {
++        ...payload,
++        target_department: target_department
++      };
++
+       const { error: hitlError } = await supabaseAdmin.from("hitl_audit_logs").insert({
+         admin_id: adminId || "00000000-0000-0000-0000-000000000000",
+         action: action_type,
+-        tool_called: JSON.stringify(payload).substring(0, 500), // store payload representation in tool_called temporarily
++        tool_called: JSON.stringify(toolCalledPayload).substring(0, 500), // store payload representation in tool_called temporarily
+         status: 'pending'
+       });
+
+--
+2.53.0

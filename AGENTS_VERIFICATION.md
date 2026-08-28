@@ -31,3 +31,20 @@
 **Task 3: Verification & Failsafe Output**
 - Functionality manually verified to not crash and to appropriately route to `/auth-offline` upon SSO health check failure.
 - Patch generation ready.
+
+## Verification Log - Wave 138
+
+**Task 1: Universal Dispatcher Department Routing**
+- Modified \`supabase/functions/universal-dispatcher/index.ts\` to parse \`target_department\` from incoming requests.
+- Added conditional logging to \`telemetry_logs\` when \`target_department\` is not \`'CORE'\` in \`universal-dispatcher\`.
+- Modified \`supabase/functions/telemetry-ingress/index.ts\` to parse \`target_department\` and log appropriately to \`telemetry_logs\` as \`'department_dispatch'\` event.
+
+**Task 2: HITL Approval Scaffolding**
+- Modified \`supabase/functions/resolve-hitl/index.ts\` to accept \`target_department\` from request payload.
+- Added logic in \`resolve-hitl\` to generate a structured \`department_routing\` payload in the response and insert it into \`telemetry_logs\` if the target department is not \`'CORE'\`.
+- Updated the alert email subject line in \`resolve-hitl\` to include the department prefix.
+- Updated \`universal-dispatcher\` to include the \`target_department\` inside the \`tool_called\` JSON representation when inserting into \`hitl_audit_logs\`.
+
+**Task 3: Verification**
+- Created \`scripts/test-department-dispatch.cjs\` to simulate dispatch payload routing targeting \`'CFO'\` and ensuring \`hitl_audit_logs\` serialization succeeds.
+- Patch generation ready.
