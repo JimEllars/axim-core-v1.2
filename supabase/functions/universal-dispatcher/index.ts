@@ -77,7 +77,11 @@ serve(async (req: Request) => {
 
     const { action_type, payload } = body;
 
-    const target_department = body.target_department || payload?.target_department || 'CORE';
+    let target_department = body?.target_department ?? payload?.target_department;
+    if (target_department === null || target_department === undefined || typeof target_department !== 'string') {
+        target_department = 'CORE';
+    }
+
     const VALID_DEPARTMENTS = ['CEO', 'CFO', 'COO', 'CORE'];
     if (!VALID_DEPARTMENTS.includes(target_department)) {
         return new Response(
@@ -318,7 +322,7 @@ serve(async (req: Request) => {
 
       const { error: jobError } = await supabaseAdmin.from("satellite_job_queue").insert({
         app_id: "universal-dispatcher",
-        payload: { action_type, payload },
+        payload: { action_type, payload: { ...payload, target_department } },
         status: 'pending',
         task_type: action_type
       });
