@@ -61,3 +61,9 @@
 * Returns 400 Bad Request immediately if the provided department string is not within the valid range.
 * Verified High Stakes \`toolCalledPayload\` correctly serializes \`target_department\`.
 * Ran \`scripts/test-department-dispatch.cjs\` locally to ensure target department is successfully serialized.
+
+## Wave 139: CFO Affiliate Approval Dashboard
+* Implemented `CFODashboard.jsx` with enterprise UI (glass-effect, rounded borders) and basic hitl_audit_logs data display.
+* Verified `CFODashboard` unit tests run and pass using `useSupabaseQuery` mocks and React Testing Library.
+* Modified `App.jsx` to register route `/admin/cfo` guarded by `ProtectedRoute` matching 'admin' roles.
+* Added `CFODashboard` link to `Sidebar.jsx` and updated icon mapping with `FiDollarSign`.
