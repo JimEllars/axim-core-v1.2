@@ -98,12 +98,27 @@ serve(async (req: Request) => {
 
     if (target_department !== 'CORE') {
         console.log(`[Dispatcher] Routing payload to department: ${target_department}`);
-        await supabaseAdmin.from('telemetry_logs').insert({
+        const useCfQueue = Deno.env.get('USE_CF_TELEMETRY_QUEUE') === 'true';
+        const payloadToLog = {
             event: 'department_dispatch',
             app_type: 'universal-dispatcher',
             details: { department: target_department, original_payload: body },
             timestamp: new Date().toISOString()
-        });
+        };
+        if (useCfQueue) {
+            const workerUrl = Deno.env.get('TELEMETRY_WORKER_URL');
+            if (workerUrl) {
+                await fetch(workerUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payloadToLog)
+                }).catch(e => console.error('Failed to queue telemetry', e));
+            } else {
+                await supabaseAdmin.from('telemetry_logs').insert(payloadToLog);
+            }
+        } else {
+            await supabaseAdmin.from('telemetry_logs').insert(payloadToLog);
+        }
     }
 
     if (!action_type || !payload) {
@@ -206,14 +221,29 @@ serve(async (req: Request) => {
         const results = await Promise.all(agentPromises);
 
         // Write findings to Blackboard (telemetry_logs as mock Blackboard)
-        await supabaseAdmin.from('telemetry_logs').insert({
+        const useCfQueue = Deno.env.get('USE_CF_TELEMETRY_QUEUE') === 'true';
+        const payloadToLog = {
             event: 'swarm_blackboard_update',
             app_type: 'universal-dispatcher',
             details: {
                 blackboard_id: blackboardId,
                 results: results
             }
-        });
+        };
+        if (useCfQueue) {
+            const workerUrl = Deno.env.get('TELEMETRY_WORKER_URL');
+            if (workerUrl) {
+                await fetch(workerUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payloadToLog)
+                }).catch(e => console.error('Failed to queue telemetry', e));
+            } else {
+                await supabaseAdmin.from('telemetry_logs').insert(payloadToLog);
+            }
+        } else {
+            await supabaseAdmin.from('telemetry_logs').insert(payloadToLog);
+        }
 
         // Feed aggregated context back to main brain
         let synthesisPrompt = `The sub-agents have completed their tasks for prompt: "${prompt}".\n\nHere are their findings:\n`;
@@ -363,13 +393,28 @@ serve(async (req: Request) => {
     }
 
 
-    await supabaseAdmin.from("telemetry_logs").insert({
+    const useCfQueueError = Deno.env.get('USE_CF_TELEMETRY_QUEUE') === 'true';
+    const payloadToLog = {
       event: "integration_failure",
       app_type: "universal-dispatcher",
       status_code: 500,
       timestamp: new Date().toISOString(),
       details: { error: error.message },
-    });
+    };
+    if (useCfQueueError) {
+        const workerUrl = Deno.env.get('TELEMETRY_WORKER_URL');
+        if (workerUrl) {
+            await fetch(workerUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payloadToLog)
+            }).catch(e => console.error('Failed to queue telemetry', e));
+        } else {
+            await supabaseAdmin.from("telemetry_logs").insert(payloadToLog);
+        }
+    } else {
+        await supabaseAdmin.from("telemetry_logs").insert(payloadToLog);
+    }
 
     return new Response(
       JSON.stringify({
