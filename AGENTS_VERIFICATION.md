@@ -67,3 +67,22 @@
 * Verified `CFODashboard` unit tests run and pass using `useSupabaseQuery` mocks and React Testing Library.
 * Modified `App.jsx` to register route `/admin/cfo` guarded by `ProtectedRoute` matching 'admin' roles.
 * Added `CFODashboard` link to `Sidebar.jsx` and updated icon mapping with `FiDollarSign`.
+
+## Wave 140: Affiliate Webhook Formatting (Selldone)
+
+**Status:** Verified
+**Verification Method:** Node script simulating the Selldone webhook parsing logic.
+
+**Verification Output:**
+```
+Mocking request...
+Formatted Payload: {
+  action_type: 'process_affiliate_payout',
+  target_department: 'CFO',
+  partner_id: 'partner_123',
+  commission_amount: 50,
+  currency: 'USD',
+  source_transaction: 'order_999'
+}
+Test Passed!
+```
