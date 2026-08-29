@@ -112,13 +112,30 @@ serve(async (req) => {
         const target_department = limitedPayload.target_department || 'CORE';
 
         if (target_department !== 'CORE') {
-          await supabaseClient.from('telemetry_logs').insert({
+          await (async () => {
+          const useCfQueue = Deno.env.get('USE_CF_TELEMETRY_QUEUE') === 'true';
+          const payloadToLog = {
               event: 'department_dispatch',
               app_type: app_id,
               ip_address: clientIp,
               details: { department: target_department, original_payload: limitedPayload },
               timestamp: new Date().toISOString()
-          });
+          };
+          if (useCfQueue) {
+              const workerUrl = Deno.env.get('TELEMETRY_WORKER_URL');
+              if (workerUrl) {
+                  await fetch(workerUrl, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(payloadToLog)
+                  }).catch(e => console.error('Failed to queue telemetry', e));
+              } else {
+                  await supabaseClient.from('telemetry_logs').insert(payloadToLog);
+              }
+          } else {
+              await supabaseClient.from('telemetry_logs').insert(payloadToLog);
+          }
+      })();
         }
 
         // Insert the telemetry log

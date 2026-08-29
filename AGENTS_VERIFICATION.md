@@ -86,3 +86,10 @@ Formatted Payload: {
 }
 Test Passed!
 ```
+
+### Cloudflare Queue Telemetry Buffer (Wave 115)
+- Telemetry processing has been updated to support batching via Cloudflare queues to reduce database load.
+- Ensure the following environment variables are configured in the Supabase Edge Functions:
+  - `USE_CF_TELEMETRY_QUEUE`='true' or 'false'
+  - `TELEMETRY_WORKER_URL`='<your-worker-url>'
+- A mock test `scripts/test-telemetry-buffer.js` demonstrates the queue payload consumer parsing logic.
