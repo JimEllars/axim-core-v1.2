@@ -120,3 +120,8 @@ Test Passed!
 - Rewrote `EventLog.test.jsx`'s realtime unmount test to instead verify fallback routing.
 - Triggered `onerror` via act and observed state change, successfully confirming that fallback triggers standard Supabase channel bindings.
 - Executed `npm run test` ensuring 100% test success across all `EventLog` test cases.
+
+## Wave 143: Edge Lead Scoring
+*   **Cloudflare Workers AI Integration:** Implemented edge lead scoring ingress in `supabase/functions/onyx-edge-worker/index.ts` intercepting `POST /api/v1/leads/ingress`. The script parses the incoming lead payload and queries `@cf/meta/llama-3.1-8b-instruct` to determine a lead score and reason based on `company_name`, `job_title`, and `company_size`.
+*   **Fail-Open Pattern:** The AI scoring is constrained by a strict 3000ms timeout (`AbortController`). If the AI query fails or times out, the system catches the error, logs it in the background to `telemetry_logs`, sets `edge_score: null`, and still forwards the original lead payload downstream to `lead-triage`.
+*   **Unit Tests:** Configured Deno unit tests in `supabase/functions/onyx-edge-worker/__tests__/index.test.ts` to mock external fetch requests to Cloudflare AI and internal `lead-triage` endpoints. Tests verify successful enrichment propagation and the fail-open fallback.
