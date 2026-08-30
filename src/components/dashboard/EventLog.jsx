@@ -93,7 +93,7 @@ const EventLog = () => {
 
           let newEvent = null;
 
-          if (payload.table === 'telemetry_events' || payload.table === 'api_usage_logs') {
+          if (payload.table === 'telemetry_events' || payload.table === 'api_usage_logs' || payload.table === 'telephony_logs' || payload.table === 'blockchain_transactions') {
              const pulse = payload.record;
              newEvent = {
                id: pulse.id,

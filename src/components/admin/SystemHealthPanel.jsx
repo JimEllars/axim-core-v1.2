@@ -80,6 +80,24 @@ const SystemHealthPanel = () => {
   }, []);
 
   useEffect(() => {
+    let sseSource = null;
+    try {
+      sseSource = new EventSource(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/onyx-ui-stream`);
+      sseSource.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+          if (payload.type === 'heartbeat') {
+             // We can use this heartbeat to confirm live status
+             setHealthData(prev => prev.status !== 'error' ? { ...prev, status: 'healthy' } : prev);
+          }
+        } catch (e) {
+          // Ignore parse errors on heartbeat
+        }
+      };
+    } catch(e) {
+       console.error("SSE connection failed:", e);
+    }
+
     // Subscribe to real-time changes for deflected storms
     const channel = supabase.channel('health_panel_realtime')
       .on(
@@ -99,6 +117,9 @@ const SystemHealthPanel = () => {
 
     return () => {
       supabase.removeChannel(channel);
+      if (sseSource) {
+        sseSource.close();
+      }
     };
   }, []);
 

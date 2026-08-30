@@ -567,6 +567,77 @@ serve(async (req) => {
        });
     }
 
+    if (req.method === 'POST' && endpoint === '/api/v1/users/provision') {
+      const internalKey = Deno.env.get('AXIM_INTERNAL_KEY');
+      const signature = req.headers.get('x-axim-signature');
+
+      if (!signature || signature !== internalKey) {
+        return new Response(JSON.stringify({ error: 'Unauthorized signature' }), {
+          status: 401,
+          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      const { candidate_id, email, full_name, role, department, start_date } = body;
+
+      if (!email || !full_name || !role) {
+        return new Response(JSON.stringify({ error: 'Missing required fields' }), {
+          status: 400,
+          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Upsert into public.users
+      const userId = crypto.randomUUID();
+      const { error: userError } = await supabaseAdmin.from('users').upsert({
+        id: userId,
+        email: email,
+        full_name: full_name,
+        department: department,
+        created_at: new Date().toISOString()
+      }, { onConflict: 'email' });
+
+      if (userError) {
+        return new Response(JSON.stringify({ error: 'Failed to provision user', details: userError }), {
+          status: 500,
+          headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      // We need to fetch the user ID if it was an update
+      const { data: userData } = await supabaseAdmin.from('users').select('id').eq('email', email).single();
+      const finalUserId = userData ? userData.id : userId;
+
+      // Assign initial permissions
+      const { error: roleError } = await supabaseAdmin.from('user_roles').upsert({
+        user_id: finalUserId,
+        role: role
+      });
+
+      if (roleError) {
+        console.error('Failed to assign user role:', roleError);
+      }
+
+      // Insert initial post-hire compliance checklist
+      const onboardingTasks = [
+        { user_id: finalUserId, task_name: 'W-4 Verification', status: 'pending' },
+        { user_id: finalUserId, task_name: 'I-9 Verification', status: 'pending' },
+        { user_id: finalUserId, task_name: 'Direct Deposit Setup', status: 'pending' },
+        { user_id: finalUserId, task_name: 'NDA Execution', status: 'pending' }
+      ];
+
+      const { error: taskError } = await supabaseAdmin.from('onboarding_tasks').insert(onboardingTasks);
+
+      if (taskError) {
+        console.error('Failed to create onboarding tasks:', taskError);
+      }
+
+      return new Response(JSON.stringify({ success: true, user_id: finalUserId, message: 'User provisioned successfully' }), {
+        status: 200,
+        headers: { ...securityHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     if (req.method === 'POST' && endpoint === '/api/v1/health') {
       if (!body.component_id) {
         return new Response(JSON.stringify({ error: 'Missing component_id' }), {

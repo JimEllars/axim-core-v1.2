@@ -29,7 +29,12 @@ serve(async (req) => {
         }
 
         const payload = await req.json();
-        let { text, audio_base64, device_id } = payload;
+        let { text, audio_base64, device_id, call_sid, caller_number, duration, recording_url, transcript, sentiment, urgency_level } = payload;
+
+        // If telephony payload provided, use transcript as text
+        if (transcript && !text) {
+            text = transcript;
+        }
 
         // If audio is provided, try to transcribe via OpenAI Whisper
         if (audio_base64 && openaiApiKey) {
@@ -66,6 +71,70 @@ serve(async (req) => {
                 status: 400,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
+        }
+
+        // Insert into telephony_logs if telephony payload exists
+        if (call_sid) {
+            await supabase.from('telephony_logs').insert({
+                call_sid,
+                caller_number,
+                duration,
+                recording_url,
+                transcript: text,
+                sentiment,
+                urgency_level,
+                device_id
+            });
+
+            // CEO Alert check
+            const vipNumbers = ['+19032245522']; // Example VIP list, adjust as needed
+            const isVip = caller_number && vipNumbers.includes(caller_number);
+
+            if (urgency_level === 'URGENT' || isVip) {
+                const ceoAppUrl = Deno.env.get('CEO_APP_URL');
+                const internalKey = Deno.env.get('AXIM_INTERNAL_KEY') || supabaseKey;
+
+                if (ceoAppUrl) {
+                    try {
+                        await fetch(`${ceoAppUrl}/api/v1/communications/voice-feed`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-Axim-Signature': internalKey
+                            },
+                            body: JSON.stringify({
+                                call_sid,
+                                caller_number,
+                                transcript: text,
+                                urgency_level,
+                                sentiment,
+                                recording_url
+                            })
+                        });
+                    } catch (e) {
+                        console.error('Failed to notify CEO app:', e);
+                    }
+                }
+
+                // Send high-priority email alert
+                try {
+                    await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${supabaseKey}`,
+                            'X-Axim-Internal-Service-Key': internalKey
+                        },
+                        body: JSON.stringify({
+                            to: 'ceo@axim.us.com',
+                            subject: `URGENT CALL ALERT from ${caller_number || 'Unknown'}`,
+                            body: `An urgent call was received.\n\nCaller: ${caller_number}\nUrgency: ${urgency_level}\nSentiment: ${sentiment}\nTranscript: ${text}\nRecording: ${recording_url}`
+                        })
+                    });
+                } catch (e) {
+                    console.error('Failed to send CEO email alert:', e);
+                }
+            }
         }
 
         // Pass to llm-proxy to summarize/extract strategic directives
