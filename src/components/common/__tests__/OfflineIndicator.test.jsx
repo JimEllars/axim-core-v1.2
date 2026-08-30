@@ -21,6 +21,6 @@ describe('OfflineIndicator', () => {
         <OfflineIndicator />
       </ConnectivityContext.Provider>
     );
-    expect(screen.getByText(/You are currently offline/)).toBeInTheDocument();
+    expect(screen.getByText(/System Offline/i)).toBeInTheDocument();
   });
 });

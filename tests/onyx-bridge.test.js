@@ -6,7 +6,7 @@ describe('Onyx Edge Bridge', () => {
     vi.unstubAllGlobals();
     vi.stubEnv('VITE_ONYX_WORKER_URL', 'https://onyx.edge.test');
     vi.stubEnv('VITE_ONYX_SECURE_KEY', 'test_secure_key');
-    api.supabase = { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } };
+    api.supabase = { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 'mock-token' } } }) } };
   });
 
   it('routes correctly through sendToOnyxWorker on success', async () => {
@@ -25,7 +25,7 @@ describe('Onyx Edge Bridge', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer test_secure_key'
+        'Authorization': 'Bearer mock-token'
       },
       body: JSON.stringify(mockPayload)
     });

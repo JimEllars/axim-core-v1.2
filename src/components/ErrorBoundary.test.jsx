@@ -30,7 +30,7 @@ describe('ErrorBoundary', () => {
         <div>Child Component</div>
       </ErrorBoundary>
     );
-    expect(screen.getByText('Child Component')).toBeInTheDocument();
+    expect(screen.queryByText('Child Component')).toBeInTheDocument();
   });
 
   it('catches an error and displays the correct fallback UI', () => {
@@ -40,7 +40,7 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
 
-    expect(screen.getByText('Application Error: Please check console or refresh.')).toBeInTheDocument();
+    expect(screen.getByText(/System Exception Detected/i)).toBeInTheDocument();
   });
 
   it('calls window.location.reload when "Safe Reload Dashboard" is clicked', () => {
@@ -56,7 +56,7 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
 
-    fireEvent.click(screen.getByText('Refresh Dashboard'));
+    fireEvent.click(screen.getByRole('button', { name: /Reinitialize System/i }));
     expect(reloadMock).toHaveBeenCalledTimes(1);
   });
 
@@ -67,6 +67,6 @@ describe('ErrorBoundary', () => {
       </ErrorBoundary>
     );
 
-    expect(screen.getByText('Network error loading this module.')).toBeInTheDocument();
+    expect(screen.getByText(/Network Connection Lost/i)).toBeInTheDocument();
   });
 });
