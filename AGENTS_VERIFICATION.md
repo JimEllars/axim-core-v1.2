@@ -93,3 +93,10 @@ Test Passed!
   - `USE_CF_TELEMETRY_QUEUE`='true' or 'false'
   - `TELEMETRY_WORKER_URL`='<your-worker-url>'
 - A mock test `scripts/test-telemetry-buffer.js` demonstrates the queue payload consumer parsing logic.
+
+## Wave 141: Telemetry Ingress, SSE Stream, Passport Verify, and DLQ Activation
+* **Telemetry Ingress:** Implemented dynamic verification for HMAC signatures vs Bearer tokens based on standard headers. Implemented idempotency checks against `api_usage_logs`. Handled dynamic application origin routing and sanitized payloads using standard archiver logic. Fixed unhandled enums inserting defaults to keep database constraints happy.
+* **Onyx UI Stream (SSE):** Converted `onyx-ui-stream` edge function from generic broadcast messages into a Server-Sent Events (SSE) provider responding with keep-alive signals every 15s. Dynamically hooks into Supabase realtime via channel subscription over `telemetry_events`, `blockchain_transactions`, `hitl_audit_logs`, and `groundgame_support_incidents` generating formatted event updates.
+* **Passport Verify:** Setup checking JWT payloads directly against `users` and `axim_passports` resolving standard role claims, mapping to `generateAximSessionJwt` return token. Created explicit bounds checking token issue limits (<= 60 seconds).
+* **DLQ (Dead Letter Queue):** Hooked the `dead_letter_jobs` function into `EmailDispatchManager.ts` alerting upon complete exhaustion (retry >= 3). It utilizes exponential backoff before sending back to `scheduled_tasks` to give upstream issues time to clear.
+* **Tests:** Passed standard Vite test suites and verified typescript builds with `npm run build`.
