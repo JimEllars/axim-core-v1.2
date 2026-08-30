@@ -65,7 +65,7 @@ describe('SystemHealthPanel Component', () => {
     supabase.functions.invoke.mockResolvedValue({ data: { workerUptime: '100%', gcpLatency: '20ms', activeConnections: 5, status: 'healthy' }, error: null });
     const { container } = render(<SystemHealthPanel />);
     await waitFor(() => {
-      expect(container.textContent).toContain('100%');
+      expect(container.textContent).toContain('100.0% Uptime');
       expect(container.textContent).toContain('20ms');
     });
   });

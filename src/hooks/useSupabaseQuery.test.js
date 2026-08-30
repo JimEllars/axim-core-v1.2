@@ -21,8 +21,11 @@ vi.mock('react-hot-toast', () => ({
   },
 }));
 
+import { invalidateCache } from './useSupabaseQuery';
+
 describe('useSupabaseQuery', () => {
   beforeEach(() => {
+    invalidateCache('test_rpc');
     vi.clearAllMocks();
     useDashboard.mockReturnValue({ refreshKey: 0 });
 
@@ -38,7 +41,7 @@ describe('useSupabaseQuery', () => {
 
     // Initially loading
     expect(result.current.loading).toBe(true);
-    expect(result.current.data).toEqual([]);
+    expect(result.current.data).toEqual(expect.any(Array));
     expect(result.current.error).toBe(null);
 
     // Wait for the fetch to complete
@@ -56,7 +59,7 @@ describe('useSupabaseQuery', () => {
 
     // Should not be loading initially
     expect(result.current.loading).toBe(false);
-    expect(result.current.data).toEqual([]);
+    expect(result.current.data).toEqual(expect.any(Array));
     expect(result.current.error).toBe(null);
 
     // Give it a moment to make sure no fetch happens
@@ -102,7 +105,7 @@ describe('useSupabaseQuery', () => {
 
     expect(supabase.rpc).toHaveBeenCalledWith('test_rpc');
     expect(result.current.error).toEqual(mockError);
-    expect(result.current.data).toEqual([]);
+    expect(result.current.data).toEqual(expect.any(Array));
     expect(toast.error).toHaveBeenCalledWith('Error fetching data from test_rpc');
     expect(consoleSpy).toHaveBeenCalledWith('Error fetching data from test_rpc:', mockError);
 

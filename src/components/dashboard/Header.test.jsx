@@ -2,13 +2,18 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import Header from './Header';
+
+
+
 import { useAuth } from '../../contexts/AuthContext';
+import { useSupabase } from '../../contexts/SupabaseContext';
+import { useConnectivity } from '../../contexts/ConnectivityContext';
 import { BrowserRouter } from 'react-router-dom';
 
 // Mock the AuthContext
-vi.mock('../../contexts/AuthContext', () => ({
-  useAuth: vi.fn()
-}));
+vi.mock('../../contexts/AuthContext', () => ({ useAuth: vi.fn() }));
+vi.mock('../../contexts/SupabaseContext', () => ({ useSupabase: vi.fn() }));
+vi.mock('../../contexts/ConnectivityContext', () => ({ useConnectivity: vi.fn() }));
 
 // Mock react-icons/fi to provide testable components
 vi.mock('react-icons/fi', async () => {
@@ -26,6 +31,8 @@ describe('Header Component', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    useSupabase.mockReturnValue({ connectionError: false });
+    useConnectivity.mockReturnValue({ edgeCapacity: '98%', edgeDegraded: false });
     useAuth.mockReturnValue({
       logout: mockLogout
     });
@@ -33,13 +40,13 @@ describe('Header Component', () => {
 
   it('renders the header title and version', () => {
     render(<BrowserRouter><Header /></BrowserRouter>);
-    expect(screen.getByText('Axim Core')).toBeInTheDocument();
-    expect(screen.getByText('Operations Dashboard v1.1')).toBeInTheDocument();
+    expect(screen.getByText('AXiM Core')).toBeInTheDocument();
+    expect(screen.getByText('Operations Dashboard v1.2')).toBeInTheDocument();
   });
 
-  it('renders the "System Online" status', () => {
+  it('renders the "SYSTEM OPERATIONAL" status', () => {
     render(<BrowserRouter><Header /></BrowserRouter>);
-    expect(screen.getByText('System Online')).toBeInTheDocument();
+    expect(screen.getByText('SYSTEM OPERATIONAL')).toBeInTheDocument();
     expect(screen.getByTestId('fi-activity')).toBeInTheDocument();
   });
 

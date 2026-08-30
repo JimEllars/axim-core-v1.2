@@ -3,6 +3,7 @@ import { getCrmService } from '../index';
 import SalesforceCrm from '../salesforceCrm';
 import SuitedashCrm from '../suitedashCrm';
 import GenericCrm from '../genericCrm';
+import NexusCrm from '../nexusCrm';
 
 describe('getCrmService', () => {
   it('should return a SalesforceCrm instance for provider "salesforce"', () => {
@@ -31,24 +32,24 @@ describe('getCrmService', () => {
     expect(service.integration).toEqual(integration);
   });
 
-  it('should return a GenericCrm instance for unknown provider', () => {
+  it('should return a NexusCrm instance for unknown provider', () => {
     const integration = { credentials: { provider: 'unknown-provider' } };
     const service = getCrmService(integration);
-    expect(service).toBeInstanceOf(GenericCrm);
+    expect(service).toBeInstanceOf(NexusCrm);
     expect(service.integration).toEqual(integration);
   });
 
-  it('should return a GenericCrm instance when provider is undefined', () => {
+  it('should return a NexusCrm instance when provider is undefined', () => {
     const integration = { credentials: {} };
     const service = getCrmService(integration);
-    expect(service).toBeInstanceOf(GenericCrm);
+    expect(service).toBeInstanceOf(NexusCrm);
     expect(service.integration).toEqual(integration);
   });
 
-  it('should return a GenericCrm instance when credentials is undefined', () => {
+  it('should return a NexusCrm instance when credentials is undefined', () => {
     const integration = {};
     const service = getCrmService(integration);
-    expect(service).toBeInstanceOf(GenericCrm);
+    expect(service).toBeInstanceOf(NexusCrm);
     expect(service.integration).toEqual(integration);
   });
 });
