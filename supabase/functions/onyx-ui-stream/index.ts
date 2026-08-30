@@ -1,70 +1,119 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.6";
-import { corsHeaders } from "../_shared/cors.ts";
 
-function sanitizePayload(payload: any): any {
-    if (!payload) return payload;
-
-    const maskedValue = '[REDACTED]';
-    const sensitiveKeys = ['password', 'token', 'secret', 'api_key', 'email', 'phone', 'street_address'];
-
-    if (typeof payload === 'object') {
-        if (Array.isArray(payload)) {
-            return payload.map(item => sanitizePayload(item));
-        }
-
-        const sanitized = { ...payload };
-        for (const key in sanitized) {
-            if (Object.prototype.hasOwnProperty.call(sanitized, key)) {
-                if (sensitiveKeys.some(sensitive => key.toLowerCase().includes(sensitive))) {
-                    sanitized[key] = maskedValue;
-                } else if (typeof sanitized[key] === 'object') {
-                    sanitized[key] = sanitizePayload(sanitized[key]);
-                }
-            }
-        }
-        return sanitized;
-    }
-
-    return payload;
-}
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
-  try {
-    let payload = await req.json();
-    payload = sanitizePayload(payload);
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    const { worker_id, message, role, timestamp } = payload;
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error("Missing Supabase configuration");
-    }
-
-    const supabase = createClient(supabaseUrl, serviceRoleKey);
-
-    const channel = supabase.channel('onyx_ui_stream');
-
-    await channel.send({
-      type: 'broadcast',
-      event: 'message',
-      payload: { worker_id, message, role, timestamp },
-    });
-
-    return new Response(JSON.stringify({ success: true }), {
+  if (!supabaseUrl || !serviceRoleKey) {
+    return new Response(JSON.stringify({ error: "Missing Supabase configuration" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 400,
+      status: 500,
     });
   }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+  let timerId: number;
+  const stream = new ReadableStream({
+    start(controller) {
+      const sendEvent = (data: any) => {
+        try {
+            const str = `data: ${JSON.stringify(data)}\n\n`;
+            controller.enqueue(new TextEncoder().encode(str));
+        } catch (e) {
+            console.error("Error enqueuing event", e);
+        }
+      };
+
+      // 1. Send initial heartbeat to establish connection
+      sendEvent({ type: "heartbeat", timestamp: new Date().toISOString() });
+
+      // 2. Setup 15-second heartbeat
+      timerId = setInterval(() => {
+        sendEvent({ type: "heartbeat", timestamp: new Date().toISOString() });
+      }, 15000);
+
+      // 3. Subscribe to Realtime channels
+      const realtimeChannel = supabase.channel('telemetry_events_stream')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'telemetry_events' },
+          (payload) => {
+            sendEvent({
+              event_type: 'telemetry_event',
+              app_id: payload.new.component_id || 'system',
+              payload: payload.new,
+              timestamp: payload.new.created_at || new Date().toISOString()
+            });
+          }
+        )
+        .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'blockchain_transactions' },
+            (payload) => {
+              sendEvent({
+                event_type: 'blockchain_transaction',
+                app_id: payload.new.partner_id || 'system',
+                payload: payload.new,
+                timestamp: payload.new.created_at || new Date().toISOString()
+              });
+            }
+        )
+        .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'hitl_audit_logs' },
+            (payload) => {
+              sendEvent({
+                event_type: 'hitl_audit_log',
+                app_id: 'support_system',
+                payload: payload.new,
+                timestamp: payload.new.created_at || new Date().toISOString()
+              });
+            }
+        )
+        .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'groundgame_support_incidents' },
+            (payload) => {
+              sendEvent({
+                event_type: 'groundgame_incident',
+                app_id: 'groundgame',
+                payload: payload.new,
+                timestamp: payload.new.created_at || new Date().toISOString()
+              });
+            }
+        )
+        .subscribe();
+
+      req.signal.addEventListener("abort", () => {
+        console.log("Client disconnected");
+        clearInterval(timerId);
+        supabase.removeChannel(realtimeChannel);
+        controller.close();
+      });
+    },
+    cancel() {
+      clearInterval(timerId);
+    }
+  });
+
+  return new Response(stream, {
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+    },
+  });
 });
