@@ -12,6 +12,7 @@ const { FiActivity, FiRss, FiUser, FiMail, FiDatabase, FiGlobe, FiAlertTriangle,
 const EventLog = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [sseError, setSseError] = useState(false);
   const { refreshKey } = useDashboard();
 
   const eventTypes = {
@@ -69,7 +70,94 @@ const EventLog = () => {
     fetchInitialEvents();
   }, [refreshKey]);
 
+
   useEffect(() => {
+    let eventSource = null;
+    let reconnectTimeout = null;
+
+    const connectSSE = () => {
+      const sseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/onyx-ui-stream`;
+      eventSource = new EventSource(sseUrl);
+
+      eventSource.onopen = () => {
+        setSseError(false);
+      };
+
+      eventSource.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data);
+
+          if (payload.type === 'heartbeat') {
+            return;
+          }
+
+          let newEvent = null;
+
+          if (payload.table === 'telemetry_events' || payload.table === 'api_usage_logs') {
+             const pulse = payload.record;
+             newEvent = {
+               id: pulse.id,
+               type: pulse.status_code >= 400 || pulse.severity === 'ERROR' ? 'error' : 'api_call',
+               source: pulse.component_id || pulse.client_id || pulse.api_key || 'System',
+               created_at: pulse.created_at,
+               data: {
+                 ...(pulse.request_metadata || {}),
+                 ...(pulse.payload || {}),
+                 endpoint: pulse.endpoint,
+                 origin: pulse.client_id || pulse.api_key
+               }
+             };
+          } else if (payload.table === 'hitl_audit_logs' || payload.table === 'groundgame_support_incidents' || payload.table === 'blockchain_transactions' || payload.table === 'events_ax2024') {
+             // For events_ax2024 or generic records
+             newEvent = {
+               ...payload.record,
+               id: payload.record.id,
+               type: payload.record.type || payload.table,
+               source: payload.record.source || 'System',
+               created_at: payload.record.created_at,
+               data: payload.record.data || payload.record
+             };
+          }
+
+          if (newEvent) {
+            setEvents(currentEvents => {
+              // prevent duplicates
+              if (currentEvents.some(e => e.id === newEvent.id)) return currentEvents;
+              return [newEvent, ...currentEvents].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 20);
+            });
+          }
+        } catch (error) {
+          console.error('Error parsing SSE message:', error);
+        }
+      };
+
+      eventSource.onerror = (error) => {
+        console.error('SSE connection error:', error);
+        setSseError(true);
+        if (eventSource) {
+          eventSource.close();
+        }
+        // Attempt to reconnect after 5 seconds
+        reconnectTimeout = setTimeout(() => {
+          connectSSE();
+        }, 5000);
+      };
+    };
+
+    connectSSE();
+
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sseError) return;
     const channel = supabase.channel('events');
     channel
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events_ax2024' }, (payload) => {
@@ -95,7 +183,7 @@ const EventLog = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [sseError]);
 
   return (
     <motion.div

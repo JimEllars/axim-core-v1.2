@@ -100,3 +100,23 @@ Test Passed!
 * **Passport Verify:** Setup checking JWT payloads directly against `users` and `axim_passports` resolving standard role claims, mapping to `generateAximSessionJwt` return token. Created explicit bounds checking token issue limits (<= 60 seconds).
 * **DLQ (Dead Letter Queue):** Hooked the `dead_letter_jobs` function into `EmailDispatchManager.ts` alerting upon complete exhaustion (retry >= 3). It utilizes exponential backoff before sending back to `scheduled_tasks` to give upstream issues time to clear.
 * **Tests:** Passed standard Vite test suites and verified typescript builds with `npm run build`.
+
+## Verification Log - Wave 142: SSE Dashboard Wiring
+
+**Task 1: Wire EventLog to the SSE Stream**
+- Added a `useEffect` hook to initialize an `EventSource` connection to `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/onyx-ui-stream`.
+- Intercepted `message` events, applying standard JSON parsing (wrapped in `try/catch` block).
+- Filtered out `heartbeat` events to prevent them from showing up in the user-facing log.
+- Mapped specific tables (e.g. `telemetry_events`, `api_usage_logs`) dynamically to frontend representation models and prepended them to state `events` while deduplicating by ID.
+- Removed connection by calling `eventSource.close()` and clearing reconnect timeouts in the hook's cleanup function to prevent memory leaks on component unmount.
+
+**Task 2: Resilient Connection Handling**
+- Intercepted stream drops via `eventSource.onerror`. Set boolean fallback state (`sseError: true`) and invoked `close()` immediately.
+- Attempted to reconnect with a resilient 5-second backoff logic (`reconnectTimeout = setTimeout(..., 5000)`).
+- When `sseError` activates, the component gracefully falls back to the previous behavior by triggering a secondary `useEffect` which maps to standard Supabase Realtime channel hooks (`events_ax2024` and `api_usage_logs`).
+
+**Task 3: UI Test Hygiene & Failsafe Output**
+- Implemented `vitest.setup.js` global `EventSource` mock with instance capturing.
+- Rewrote `EventLog.test.jsx`'s realtime unmount test to instead verify fallback routing.
+- Triggered `onerror` via act and observed state change, successfully confirming that fallback triggers standard Supabase channel bindings.
+- Executed `npm run test` ensuring 100% test success across all `EventLog` test cases.

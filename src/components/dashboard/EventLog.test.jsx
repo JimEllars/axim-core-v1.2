@@ -83,11 +83,21 @@ describe('EventLog', () => {
     });
   });
 
-  it('subscribes to realtime channels on mount and cleans up on unmount', async () => {
+  it('subscribes to realtime channels on sse fallback', async () => {
     supabase.limit.mockResolvedValue({ data: [], error: null });
 
     const rendered = await renderComponent();
 
+    // Verify SSE connects on mount
+    expect(window.EventSource.instances.length).toBeGreaterThan(0);
+    const mockSSE = window.EventSource.instances[window.EventSource.instances.length - 1];
+
+    // Simulate SSE error
+    await act(async () => {
+      mockSSE.onerror(new Error('SSE Error'));
+    });
+
+    // Should now fallback to supabase.channel
     expect(supabase.channel).toHaveBeenCalledWith('events');
     const mockChannel = supabase.channel();
     expect(mockChannel.on).toHaveBeenCalledTimes(2); // One for core, one for telemetry

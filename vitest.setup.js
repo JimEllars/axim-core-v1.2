@@ -1,23 +1,32 @@
-import { expect, vi, afterEach } from 'vitest';
-import { cleanup } from '@testing-library/react';
-import * as matchers from '@testing-library/jest-dom/matchers';
+import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 
-expect.extend(matchers);
-
-afterEach(() => {
-  cleanup();
-});
-
+// Mock window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: vi.fn().mockImplementation(query => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
+    addListener: vi.fn(), // deprecated
+    removeListener: vi.fn(), // deprecated
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(),
   })),
 });
+
+// Mock EventSource globally
+class MockEventSource {
+  constructor(url) {
+    this.url = url;
+    this.onmessage = null;
+    this.onerror = null;
+    this.onopen = null;
+    this.close = vi.fn();
+    MockEventSource.instances.push(this);
+  }
+}
+MockEventSource.instances = [];
+global.EventSource = MockEventSource;
+window.EventSource = MockEventSource;
