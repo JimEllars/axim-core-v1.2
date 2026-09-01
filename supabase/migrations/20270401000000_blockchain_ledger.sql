@@ -6,8 +6,10 @@ CREATE TABLE IF NOT EXISTS public.blockchain_transactions (
     smart_contract_address TEXT NOT NULL,
     amount NUMERIC NOT NULL,
     currency TEXT NOT NULL,
-    status TEXT NOT NULL CHECK (status IN ('pending', 'minted', 'failed')),
+    idempotency_key TEXT UNIQUE,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'submitted', 'minted', 'failed')),
     transaction_hash TEXT,
+    error_log TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );

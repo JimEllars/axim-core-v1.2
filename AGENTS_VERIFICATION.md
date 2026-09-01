@@ -137,3 +137,14 @@ Test Passed!
 *   **Onboard1 Provisioning (`api-gateway`):** Added the `POST /api/v1/users/provision` endpoint logic. Validates the `X-Axim-Signature` against `AXIM_INTERNAL_KEY`. Automatically inserts new user data into `users`, roles into `user_roles`, and seeds four initial HR tracking tasks into `onboarding_tasks`.
 *   **Ground Game Leads (`universal-dispatcher`):** Intercepts requests targeting `/api/v1/groundgame/leads`, runs a basic E.164 sanitization check on phone numbers, and securely logs the output inside `customer_leads`. Also flags appointments to `scheduled_tasks` automatically.
 *   **Real-Time Dashboard Binding:** Appended `telephony_logs` and `blockchain_transactions` to `EventLog.jsx` stream parsing loop. Wired up `SystemHealthPanel.jsx` to dynamically update its health state upon catching a `heartbeat` payload.
+
+## Wave 146: Phase 4 Treasury Rollback & State Tracking
+* **Database Ledger Updates:** Expanded `blockchain_transactions` in `20270401000000_blockchain_ledger.sql` by adding `idempotency_key` (UNIQUE) and `error_log` TEXT column, and extending the status constraint to support (`'pending'`, `'submitted'`, `'minted'`, `'failed'`).
+* **Smart Contract Dispatcher:**
+    * Implemented multi-stage state machine tracking within `smart-contract-dispatcher`.
+    * Initiates record with `status: 'pending'` and idempotency key before calling the Thirdweb / Safe SDK.
+    * Updates to `status: 'submitted'` and logs `tx_hash` after SDK broadcasts/proposes the transaction.
+    * Concludes transaction tracking with `status: 'minted'` upon receipt confirmation.
+    * Added comprehensive try/catch block executing a safe database rollback updating `status: 'failed'` and capturing reason inside `error_log` on failure.
+* **Idempotency Gates:** Inserted global check at function ingestion validating `idempotency_key`. Returns HTTP 409 Conflict if record exists under `pending`, `submitted`, or `minted` states.
+* **Unit Tests:** Validated new business logic under `smart-contract-dispatcher/__tests__/index.test.ts` testing both the idempotency conflict rejection (409) and the rollback mechanisms via Deno standard asserts.

@@ -1,3 +1,2 @@
 #!/bin/bash
-cd supabase/functions/_shared
-deno test
+deno test --allow-env --allow-net supabase/functions/smart-contract-dispatcher/__tests__/
