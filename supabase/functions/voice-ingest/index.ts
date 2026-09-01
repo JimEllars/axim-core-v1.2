@@ -29,7 +29,7 @@ serve(async (req) => {
         }
 
         const payload = await req.json();
-        let { text, audio_base64, device_id, call_sid, caller_number, duration, recording_url, transcript, sentiment, urgency_level } = payload;
+        let { text, audio_base64, device_id, call_sid, caller_number, sip_source_ip, duration, recording_url, transcript, sentiment, urgency_level } = payload;
 
         // If telephony payload provided, use transcript as text
         if (transcript && !text) {
@@ -71,6 +71,52 @@ serve(async (req) => {
                 status: 400,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
+        }
+
+        // Asguard Telephony Threat Verification
+        const asguardApiUrl = Deno.env.get("ASGUARD_API_URL") || "https://api.asguard.axim.us.com";
+        const internalKey = Deno.env.get("AXIM_INTERNAL_KEY") || supabaseKey;
+
+        if (call_sid) {
+            try {
+                const threatRes = await fetch(`${asguardApiUrl}/api/v1/telephony/threat-check`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Axim-Signature': internalKey
+                    },
+                    body: JSON.stringify({
+                        caller_number,
+                        sip_source_ip,
+                        call_sid
+                    })
+                });
+
+                if (threatRes.ok) {
+                    const threatData = await threatRes.json();
+                    if (threatData.risk_level === 'CRITICAL' || threatData.is_blocked === true) {
+                        await supabase.from('telephony_logs').insert({
+                            call_sid,
+                            caller_number,
+                            duration,
+                            recording_url,
+                            transcript: text,
+                            sentiment,
+                            urgency_level,
+                            device_id,
+                            is_spam: true,
+                            threat_score: threatData.risk_score
+                        });
+
+                        return new Response(JSON.stringify({ success: false, reason: "threat_blocked" }), {
+                            status: 200,
+                            headers: { ...corsHeaders, "Content-Type": "application/json" }
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error("Asguard threat check failed:", e);
+            }
         }
 
         // Insert into telephony_logs if telephony payload exists

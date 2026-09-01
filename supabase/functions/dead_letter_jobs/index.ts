@@ -72,6 +72,19 @@ serve(async (req) => {
           payload: { job_id: job.id, app_id: job.app_id, error_log: job.error_log }
         });
 
+        // Broadcast DLQ Exhaustion over SSE via telemetry_events
+        const notifyPayload = {
+          event_type: "dlq.job_exhausted",
+          job_id: job.id,
+          payload_type: job.task_type,
+          error: job.error_log,
+          timestamp: new Date().toISOString()
+        };
+        await supabase.rpc('pg_notify_rpc', {
+          channel: 'telemetry_events',
+          payload: JSON.stringify(notifyPayload)
+        });
+
         // Dispatch alert email
         try {
             await emailManager.send({
