@@ -1,7 +1,7 @@
-import '@testing-library/jest-dom';
 import { vi } from 'vitest';
+import React from 'react';
 
-// Mock window.matchMedia
+// Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: vi.fn().mockImplementation(query => ({
@@ -16,16 +16,20 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
-// Mock EventSource globally
-class MockEventSource {
-  constructor(url) {
-    this.url = url;
-    this.onmessage = null;
-    this.onerror = null;
-    this.onopen = null;
-    this.close = vi.fn();
-    MockEventSource.instances.push(this);
-  }
-}
-MockEventSource.instances = [];
-global.EventSource = MockEventSource;
+// Basic mocks for framer-motion to avoid testing actual animations
+vi.mock('framer-motion', () => ({
+  motion: {
+    div: React.forwardRef((props, ref) => <div ref={ref} {...props} />),
+    span: React.forwardRef((props, ref) => <span ref={ref} {...props} />),
+    tr: React.forwardRef((props, ref) => <tr ref={ref} {...props} />),
+  },
+  AnimatePresence: ({ children }) => <>{children}</>,
+}));
+
+vi.mock('react-hot-toast', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+  },
+  default: vi.fn()
+}));

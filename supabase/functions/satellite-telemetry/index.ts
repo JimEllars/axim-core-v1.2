@@ -23,7 +23,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { app_id, event_type, execution_ms, error_stack } = body;
+    const { app_id, event_type, execution_ms, error_stack, provider, prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd } = body;
 
     if (!app_id || !event_type) {
       return new Response(JSON.stringify({ error: 'Missing required fields app_id or event_type' }), {
@@ -51,7 +51,24 @@ serve(async (req) => {
         },
       });
 
-        if (error) throw error;
+    if (error) throw error;
+
+    if (provider || total_tokens || estimated_cost_usd) {
+      const { error: usageError } = await supabaseAdmin
+        .from('api_usage_logs')
+        .insert({
+          app_id: app_id,
+          endpoint: 'satellite-telemetry',
+          provider: provider,
+          prompt_tokens: prompt_tokens,
+          completion_tokens: completion_tokens,
+          token_count: total_tokens,
+          estimated_cost_usd: estimated_cost_usd,
+          created_at: new Date().toISOString(),
+        });
+      if (usageError) console.error("Error inserting into api_usage_logs:", usageError);
+    }
+
       } catch (err) {
         console.error("Satellite telemetry processing error:", err);
       }
