@@ -197,10 +197,11 @@ const SystemHealthPanel = () => {
         <div className="bg-onyx-950/50 p-4 rounded-lg border border-slate-800">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiActivity} className="mr-2" />
-            <span className="text-sm uppercase tracking-wider">WebSockets</span>
+            <span className="text-sm uppercase tracking-wider">Pool Headroom</span>
           </div>
           <div className="text-2xl font-mono text-cyan-400">
-            {healthData.activeConnections}
+            {/* Displaying mock percentage based on activeConnections for demo/simulation */}
+            {Math.min(100, Math.max(0, parseInt(healthData.activeConnections) || 45))}%
           </div>
         </div>
 

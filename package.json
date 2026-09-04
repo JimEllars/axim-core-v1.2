@@ -40,6 +40,7 @@
     "@questlabs/react-sdk": "^2.2.898",
     "@tailwindcss/postcss": "^4.1.14",
     "@tanstack/react-query": "^5.99.0",
+    "@testing-library/dom": "^10.4.1",
     "@thirdweb-dev/react": "^4.9.4",
     "@thirdweb-dev/sdk": "^4.0.99",
     "@xyflow/react": "^12.10.2",
