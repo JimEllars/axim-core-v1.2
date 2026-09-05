@@ -164,12 +164,12 @@ serve(async (req) => {
     // 5. Construct Universal Endpoint Payload for Cloudflare AI Gateway
     const cfAccountId = Deno.env.get('CLOUDFLARE_ACCOUNT_ID');
     const cfGatewayId = Deno.env.get('CLOUDFLARE_GATEWAY_ID');
+    const tenantId = user.id;
 
-    if (!cfAccountId || !cfGatewayId) {
-        throw new Error("Missing Cloudflare AI Gateway Configuration (CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_GATEWAY_ID)");
+    let universalEndpoint = '';
+    if (cfAccountId && cfGatewayId) {
+        universalEndpoint = `https://gateway.ai.cloudflare.com/v1/${cfAccountId}/${cfGatewayId}`;
     }
-
-    const universalEndpoint = `https://gateway.ai.cloudflare.com/v1/${cfAccountId}/${cfGatewayId}`;
 
     const messages = [{ role: 'user', content: finalPrompt }];
 
@@ -273,15 +273,39 @@ serve(async (req) => {
         }
     }
 
-    console.log(`[${request_id}] Dispatching to Cloudflare AI Gateway Universal Endpoint...`);
+    console.log(`[${request_id}] Dispatching to ${universalEndpoint ? 'Cloudflare AI Gateway Universal Endpoint' : 'Direct API'}...`);
 
-    const response = await fetch(universalEndpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(providerList),
-    });
+    let response;
+    let respondingProvider = provider;
+    let cached = false;
+
+    if (universalEndpoint) {
+        response = await fetch(universalEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'cf-aig-metadata': JSON.stringify({ tenantId: tenantId, feature: "onyx-assistant" })
+          },
+          body: JSON.stringify(providerList),
+        });
+    } else {
+        // Fallback to direct API routing if Cloudflare AI Gateway is not configured
+        const p = providerList[0];
+        let directUrl = '';
+        if (p.provider === 'openai') directUrl = `https://api.openai.com/v1/${p.endpoint}`;
+        if (p.provider === 'anthropic') directUrl = `https://api.anthropic.com/${p.endpoint}`;
+        if (p.provider === 'google-ai-studio') directUrl = `https://generativelanguage.googleapis.com/${p.endpoint}`;
+        if (p.provider === 'deepseek') directUrl = `https://api.deepseek.com/${p.endpoint}`;
+
+        response = await fetch(directUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...p.headers
+            },
+            body: JSON.stringify(p.query)
+        });
+    }
 
     if (!response.ok) {
         let errMessage = response.statusText;
@@ -295,8 +319,24 @@ serve(async (req) => {
     const data = await response.json();
 
     // Parse response headers for caching status
-    const cached = response.headers.get('cf-aig-cache-status') === 'HIT';
-    const respondingProvider = response.headers.get('cf-aig-provider') || provider;
+    if (universalEndpoint) {
+        cached = response.headers.get('cf-aig-cache-status') === 'HIT';
+        respondingProvider = response.headers.get('cf-aig-provider') || provider;
+    }
+
+    if (cached) {
+      try {
+        await serviceClient.from('api_usage_logs').insert({
+          endpoint: '/llm-proxy',
+          status_code: 200,
+          compute_ms: 0,
+          app_id: 'axim-llm-proxy',
+          payload: { action: 'cache_hit', provider: respondingProvider }
+        });
+      } catch (logError) {
+        console.error(`[${request_id}] Failed to log cache hit to api_usage_logs:`, logError);
+      }
+    }
 
     console.log(`[${request_id}] Successfully received response from CF AI Gateway. Cached: ${cached}, Responding Provider: ${respondingProvider}`);
 

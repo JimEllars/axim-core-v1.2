@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
@@ -16,6 +17,10 @@ vi.mock('../../services/supabaseClient', () => ({
       subscribe: vi.fn().mockReturnThis(),
     }),
     removeChannel: vi.fn()
+  },
+  supabaseClient: {
+    from: vi.fn().mockReturnThis(),
+    select: vi.fn().mockReturnThis(),
   }
 }));
 

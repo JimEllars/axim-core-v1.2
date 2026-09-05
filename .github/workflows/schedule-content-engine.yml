@@ -12,30 +12,38 @@ jobs:
 
     steps:
       - name: Trigger Content Engine
-        run: |
-          response=$(curl -s -w "\n%{http_code}" -X POST \
-            https://${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/axim-content-engine \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "action": "generate_news_batch",
-              "source": "github_actions_automation",
-              "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"
-            }')
+        uses: nick-fields/retry@v2
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 30
+          command: |
+            response=$(curl -s -w "\n%{http_code}" -X POST \
+              https://${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/axim-content-engine \
+              -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+              -H "Content-Type: application/json" \
+              -d '{
+                "action": "generate_news_batch",
+                "source": "github_actions_automation",
+                "timestamp": "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"
+              }')
 
-          http_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | sed '$d')
+            http_code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | sed '$d')
 
-          echo "Response: $body"
-          echo "HTTP Status: $http_code"
+            echo "Response: $body"
+            echo "HTTP Status: $http_code"
 
-          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
-            echo "✅ Content Engine triggered successfully"
-          else
-            echo "❌ Content Engine failed with status $http_code"
-            echo "$body"
-            exit 1
-          fi
+            if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+              echo "✅ Content Engine triggered successfully"
+            elif [ "$http_code" -eq 429 ] || [ "$http_code" -eq 503 ]; then
+              echo "⚠️ Content Engine returned $http_code. Upstream API rate limited or unavailable. Exiting cleanly."
+              exit 0
+            else
+              echo "❌ Content Engine failed with status $http_code"
+              echo "$body"
+              exit 1
+            fi
 
       - name: Notify on Failure
         if: failure()

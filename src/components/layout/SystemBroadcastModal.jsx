@@ -109,7 +109,7 @@ const SystemBroadcastModal = () => {
           </div>
           <button
             onClick={() => setIsVisible(false)}
-            className="text-slate-400 hover:text-white"
+            className="text-slate-400 hover:text-white transition-colors bg-slate-800 hover:bg-slate-700 rounded-full p-1"
           >
             <SafeIcon icon={FiX} />
           </button>

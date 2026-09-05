@@ -26,10 +26,21 @@ vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }) => <>{children}</>,
 }));
 
+
+
 vi.mock('react-hot-toast', () => ({
+  default: {
+    success: vi.fn(),
+    error: vi.fn(),
+    loading: vi.fn(),
+    dismiss: vi.fn(),
+    promise: vi.fn(),
+  },
   toast: {
     success: vi.fn(),
     error: vi.fn(),
-  },
-  default: vi.fn()
+    loading: vi.fn(),
+    dismiss: vi.fn(),
+    promise: vi.fn(),
+  }
 }));

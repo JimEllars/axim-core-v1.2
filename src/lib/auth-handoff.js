@@ -56,6 +56,16 @@ export const generateCrossDomainHandoffUrl = (targetDomain, aximSessionToken) =>
   return url.toString();
 };
 
+// Handle session state preservation gracefully when URL parameters are cleansed
+export const cleanseUrlHandoffToken = () => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('handoff_token')) {
+        url.searchParams.delete('handoff_token');
+        window.history.replaceState({}, '', url.toString());
+    }
+};
+
 // Pre-Flight SSO Health Check
 export const checkSsoHealth = async (ssoUrl) => {
   try {

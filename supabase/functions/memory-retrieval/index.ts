@@ -28,30 +28,87 @@ serve(async (req) => {
     }
 
     let embedding = null;
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+    const cfAccountId = Deno.env.get('CLOUDFLARE_ACCOUNT_ID');
+    const cfApiToken = Deno.env.get('CLOUDFLARE_API_TOKEN');
+    let usedVectorize = false;
+    let vectorizeResults = [];
 
-    if (!openAIApiKey) {
-      // Mock embedding for testing without OPENAI_API_KEY
-      embedding = new Array(1536).fill(0.01);
-    } else {
-      const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${openAIApiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          input: query,
-          model: 'text-embedding-ada-002'
-        })
-      });
+    // Try Cloudflare Workers AI for embeddings if configured
+    if (cfAccountId && cfApiToken) {
+        try {
+            const aiResponse = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/ai/run/@cf/baai/bge-base-en-v1.5`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${cfApiToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ text: query })
+            });
 
-      if (!embeddingResponse.ok) {
-          throw new Error(`OpenAI API Error: ${embeddingResponse.status} ${await embeddingResponse.text()}`);
-      }
+            if (aiResponse.ok) {
+                const aiData = await aiResponse.json();
+                if (aiData.result && aiData.result.data && aiData.result.data.length > 0) {
+                   embedding = aiData.result.data[0];
 
-      const embeddingData = await embeddingResponse.json();
-      embedding = embeddingData.data[0].embedding;
+                   // Try to query Cloudflare Vectorize if we got an embedding from Workers AI
+                   try {
+                       const vectorizeResponse = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/vectorize/indexes/vector-kb/query`, {
+                           method: 'POST',
+                           headers: {
+                               'Authorization': `Bearer ${cfApiToken}`,
+                               'Content-Type': 'application/json'
+                           },
+                           body: JSON.stringify({ vector: embedding, topK: limit, returnMetadata: true })
+                       });
+
+                       if (vectorizeResponse.ok) {
+                           const vData = await vectorizeResponse.json();
+                           // Check if we have good matches
+                           if (vData.result && vData.result.matches && vData.result.matches.length > 0 && vData.result.matches[0].score >= threshold) {
+                               vectorizeResults = vData.result.matches.map((m: any) => ({
+                                   id: m.id,
+                                   content: m.metadata?.content || 'Vectorize result',
+                                   similarity: m.score
+                               }));
+                               usedVectorize = true;
+                           }
+                       }
+                   } catch (vErr) {
+                       console.warn("Cloudflare Vectorize query failed", vErr);
+                   }
+                }
+            }
+        } catch (err) {
+            console.warn("Cloudflare Workers AI embedding failed", err);
+        }
+    }
+
+    // Fallback to OpenAI if Workers AI failed or wasn't configured, or to 1536-dim mock if neither is available
+    if (!embedding) {
+        const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
+        if (!openAIApiKey) {
+          // Mock embedding for testing without OPENAI_API_KEY
+          embedding = new Array(1536).fill(0.01);
+        } else {
+          const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${openAIApiKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              input: query,
+              model: 'text-embedding-ada-002'
+            })
+          });
+
+          if (!embeddingResponse.ok) {
+              throw new Error(`OpenAI API Error: ${embeddingResponse.status} ${await embeddingResponse.text()}`);
+          }
+
+          const embeddingData = await embeddingResponse.json();
+          embedding = embeddingData.data[0].embedding;
+        }
     }
 
     const supabaseAdmin = createClient(
@@ -91,10 +148,18 @@ serve(async (req) => {
       console.warn("match_knowledge_base failed:", kbError);
     }
 
+    // If Vectorize had good hits, we can prepend or use them
+    if (usedVectorize) {
+       // Merge vectorize results into knowledge base context, or return immediately if it's a perfect hit > 0.9
+       // For this implementation, we prepend them to the executive knowledge base
+       knowledgeBaseContext = [...vectorizeResults, ...(knowledgeBaseContext || [])];
+    }
+
     return new Response(JSON.stringify({
       chat_context: chatContext || [],
       strategic_context: strategicContext || [],
-      executive_knowledge_base: knowledgeBaseContext || []
+      executive_knowledge_base: knowledgeBaseContext || [],
+      edge_accelerated: usedVectorize
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

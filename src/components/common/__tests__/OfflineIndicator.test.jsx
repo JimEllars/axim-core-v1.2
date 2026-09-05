@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom';
 // src/components/common/__tests__/OfflineIndicator.test.jsx
 import React from 'react';
 import { render, screen } from '@testing-library/react';
