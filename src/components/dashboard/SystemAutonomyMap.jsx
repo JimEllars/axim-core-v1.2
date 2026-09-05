@@ -133,7 +133,7 @@ const SystemAutonomyMap = () => {
         {loading ? (
           <div className="animate-pulse space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="p-3 rounded border bg-onyx-950/20 border-onyx-accent/20 h-16"></div>
+              <div key={i} className="p-3 rounded border bg-slate-950/20 border-onyx-accent/20 h-16"></div>
             ))}
           </div>
         ) : events.length === 0 ? (

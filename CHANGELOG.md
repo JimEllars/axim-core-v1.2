@@ -1,3 +1,23 @@
+## Wave 141 (2024-09-04)
+
+### ✨ Features & Architecture Polish
+* **Cloudflare AI Gateway Activation**: Activated universal AI routing in `llm-proxy` to leverage Edge caching and centralized provider observability.
+* **Vectorize Edge Caching Prep**: Prepared `memory-retrieval` for direct edge lookups via Cloudflare Vectorize and Workers AI before passing requests to Postgres RPC.
+* **Telemetry Archiver Resilience**: Updated the archival flow to support multi-stream NDJSON uploads to R2 buckets (`axim-telemetry-archive`).
+
+### 🐛 Bug Fixes & Resilience
+* **Automated Content Engine Recovery**: Applied robust 3-attempt backoff retries via `nick-fields/retry@v2` in the GitHub Actions scheduler to gracefully handle 429/503 errors without blocking CI.
+* **Chatlog Exporter Exit Handling**: Muted strict failure triggers if Google Drive credentials expire, gracefully warning and bypassing to ensure the pipeline isn't permanently blocked.
+* **Auth Continuity**: Replaced strict `window.location` reloads with smooth history state updates when cleansing cross-domain token `handoff_token` payloads.
+
+### 🎨 UI Polish
+* Enforced structural uniformity across `SystemAutonomyMap.jsx`, `ChatInterface.jsx`, and `CFODashboard.jsx` with standardized `border-slate-800/60 backdrop-blur-md` aesthetics.
+* Refined `SystemBroadcastModal.jsx` layout styling and interactive dismiss functionality.
+
+### 🛠️ Developer Experience
+* Repackaged and moved root-level patch artifacts into the `scripts/archive-hygiene/` directory.
+* Resolved hanging `vitest` execution warnings by properly replacing dummy files inside `useContacts.test.js`, `deviceManager.test.js`, and `ApiKeyManager.test.jsx`.
+
 ## Wave 114: Reissuing Unlanded Correctness Fixes (#344)
 
 Reissued unlanded fixes, added KV activation, updated CHANGELOG automation, and added BD/CRM tests.

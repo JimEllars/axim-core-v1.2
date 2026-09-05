@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom';
 import { sanitizePayload } from '../../utils/sanitization';
 vi.mock('../../utils/sanitization', () => ({
   sanitizePayload: vi.fn((data) => data)
