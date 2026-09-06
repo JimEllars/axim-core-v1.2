@@ -12,6 +12,26 @@ const PassportListener = () => {
   const [events, setEvents] = useState([]);
 
   useEffect(() => {
+    // Check wildcard session on mount
+    const getWildcardCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+    };
+
+    const wildcardSession = getWildcardCookie('axim_session');
+    if (wildcardSession) {
+        setEvents([{
+            id: 'wildcard-init',
+            status: 'Wildcard Session Detected',
+            user_id: 'SSO Active',
+            timestamp: new Date().toISOString()
+        }]);
+    }
+  }, []);
+
+  useEffect(() => {
     const channel = supabase.channel('passport-verify-events');
 
     channel

@@ -94,6 +94,20 @@ serve(async (req) => {
               });
             }
         )
+        .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'api_usage_logs' },
+            (payload) => {
+              if (payload.new.app_id === 'onyx-core') {
+                  sendEvent({
+                    event_type: 'onyx_thought_token',
+                    app_id: 'onyx-core',
+                    payload: payload.new,
+                    timestamp: payload.new.created_at || new Date().toISOString()
+                  });
+              }
+            }
+        )
         .subscribe();
 
       req.signal.addEventListener("abort", () => {

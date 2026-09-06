@@ -87,6 +87,12 @@ export const AuthProvider = ({ children }) => {
       // Let's use user_roles table or app_metadata. But wait, I'm fetching currentUser.app_metadata.
       try {
         let currentRole = currentUser.app_metadata?.role || session.user?.app_metadata?.role;
+
+        // Super User restriction
+        const isSuperUser = currentUser.email === 'james.ellars@axim.us.com' || currentUser.email === 'jrellars@gmail.com';
+        if (isSuperUser) {
+            currentRole = 'admin'; // Override to admin
+        }
         if (!currentRole) {
            const { data: roleData, error: roleError } = await supabase.from('user_roles').select('role').eq('user_id', currentUser.id).maybeSingle();
            if (roleError && (roleError?.code?.startsWith('PGRST') || roleError?.message?.includes('does not exist'))) { /* handled */ }
@@ -123,6 +129,19 @@ export const AuthProvider = ({ children }) => {
     if (!supabase) {
       setTimeout(() => setLoading(false), 0);
       return;
+    }
+
+    const getWildcardCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+    };
+
+    const wildcardSession = getWildcardCookie('axim_session');
+    if (wildcardSession) {
+        console.log('Detected AXiM wildcard session cookie');
+        // We could validate this session with the backend, for now just note it
     }
 
     const getSession = async () => {

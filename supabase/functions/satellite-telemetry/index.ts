@@ -11,7 +11,7 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  const internalKey = req.headers.get('x-axim-internal-service-key');
+  const internalKey = req.headers.get('x-axim-internal-service-key') || req.headers.get('x-axim-signature') || req.headers.get('x-satellite-signature');
   const expectedKey = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY');
 
   if (!internalKey || internalKey !== expectedKey) {
@@ -39,19 +39,48 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { error } = await supabaseAdmin
-      .from('telemetry_logs')
+    const { error: telemetryError } = await supabaseAdmin
+      .from('telemetry_events')
       .insert({
-        app_type: app_id,
-        event: event_type,
-        timestamp: new Date().toISOString(),
-        details: {
-          execution_ms,
-          error_stack,
-        },
+        component_id: app_id,
+        severity: (body.severity && body.severity.toUpperCase()) || 'INFO',
+        message: event_type,
+        payload: body
       });
+    if (telemetryError) console.error("Error inserting into telemetry_events:", telemetryError);
 
-    if (error) throw error;
+    const { error: nodeError } = await supabaseAdmin
+      .from('ecosystem_nodes')
+      .upsert({
+          node_id: app_id,
+          status: 'healthy',
+          last_heartbeat: new Date().toISOString(),
+          metadata: body.metrics || {}
+      }, { onConflict: 'node_id' });
+
+    if (nodeError) console.error("Error upserting into ecosystem_nodes:", nodeError);
+
+    // Check if high severity and route to universal-dispatcher
+    if ((body.severity && body.severity.toLowerCase() === 'critical') || event_type.includes('DDoS') || event_type.includes('RCA')) {
+        try {
+            const url = new URL(req.url);
+            const dispatcherUrl = `${url.protocol}//${url.host}/universal-dispatcher`;
+            await fetch(dispatcherUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Axim-Internal-Service-Key': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+                },
+                body: JSON.stringify({
+                    action_type: 'ecosystem_incident_triage',
+                    source: app_id,
+                    payload: body.data || body
+                })
+            });
+        } catch (dispatchError) {
+            console.error("Failed to route to universal-dispatcher", dispatchError);
+        }
+    }
 
     if (provider || total_tokens || estimated_cost_usd) {
       const { error: usageError } = await supabaseAdmin
