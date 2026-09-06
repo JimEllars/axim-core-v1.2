@@ -18,10 +18,18 @@ serve(async (req) => {
 
   try {
     // 1. Fetch Pending Jobs (max 10) safely using our RPC function
-    const { data: jobs, error: fetchError } = await supabase.rpc(
-      "dequeue_scheduled_tasks",
-      { max_tasks: 5 },
-    );
+    // Use select to fetch and then update to processing instead of RPC to guarantee compatibility with satellite_job_queue
+    let { data: jobs, error: fetchError } = await supabase
+      .from('satellite_job_queue')
+      .select('*')
+      .eq('status', 'pending') // or 'queued'
+      .limit(5);
+
+    if (jobs && jobs.length > 0) {
+       const jobIds = jobs.map(j => j.id);
+       await supabase.from('satellite_job_queue').update({status: 'processing'}).in('id', jobIds);
+    }
+
 
     if (fetchError) {
       throw new Error(`Failed to fetch jobs: ${fetchError.message}`);
@@ -55,7 +63,7 @@ serve(async (req) => {
           if (existingLog) {
              console.log(`Job ${job.id} skipped. Duplicate idempotency_key: ${idempotencyKey}`);
              await supabase
-               .from("scheduled_tasks")
+               .from("satellite_job_queue")
                .update({ status: "completed", error_log: "Skipped as duplicate (idempotency_key match)" })
                .eq("id", job.id);
              continue;
@@ -260,7 +268,7 @@ serve(async (req) => {
 
         // Mark Job as Completed
         await supabase
-          .from("scheduled_tasks")
+          .from("satellite_job_queue")
           .update({ status: "completed" })
           .eq("id", job.id);
 
@@ -289,7 +297,7 @@ serve(async (req) => {
 
         if (newAttempts >= 3) {
           // Remove from scheduled_tasks
-          await supabase.from("scheduled_tasks").delete().eq("id", job.id);
+          await supabase.from("satellite_job_queue").delete().eq("id", job.id);
 
           // Insert into dead_letter_jobs
           await supabase.from("dead_letter_jobs").insert({
@@ -323,7 +331,7 @@ serve(async (req) => {
         } else {
           // Update scheduled_tasks
           await supabase
-            .from("scheduled_tasks")
+            .from("satellite_job_queue")
             .update({
               status: newStatus,
               attempts: newAttempts,
