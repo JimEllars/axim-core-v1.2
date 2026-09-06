@@ -18,7 +18,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { title, html_content, status = 'draft', author_id = 1 } = await req.json();
+    const { title, html_content, status = 'draft', author_id = 1, category_slug } = await req.json();
 
     if (!title || !html_content) {
       throw new Error("Missing title or html_content in payload");
@@ -50,18 +50,44 @@ serve(async (req) => {
     // wpSiteUrl should ideally be base url, e.g., https://wp.axim.us.com
     const wpEndpoint = `${wpSiteUrl.replace(/\/$/, '')}/wp-json/wp/v2/posts`;
 
+    // Resolve category slug to ID if provided
+    let categories = [];
+    if (category_slug) {
+        try {
+            // we call wordpress-proxy or directly hit wp api if we have credentials
+            const catEndpoint = `${wpSiteUrl.replace(/\/$/, '')}/wp-json/wp/v2/categories?slug=${category_slug}`;
+            const catResponse = await fetch(catEndpoint, {
+                headers: { 'Authorization': authHeader }
+            });
+            if (catResponse.ok) {
+                const catData = await catResponse.json();
+                if (catData && catData.length > 0) {
+                    categories.push(catData[0].id);
+                }
+            }
+        } catch (e) {
+            console.warn("Failed to resolve category slug", e);
+        }
+    }
+
+    const payload: any = {
+        title: title,
+        content: finalHtmlContent,
+        status: status,
+        author: author_id
+    };
+
+    if (categories.length > 0) {
+        payload.categories = categories;
+    }
+
     const wpResponse = await fetch(wpEndpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': authHeader
       },
-      body: JSON.stringify({
-        title: title,
-        content: finalHtmlContent,
-        status: status,
-        author: author_id
-      })
+      body: JSON.stringify(payload)
     });
 
     if (!wpResponse.ok) {

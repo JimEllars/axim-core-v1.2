@@ -79,9 +79,9 @@ describe('SystemAutonomyMap', () => {
       rendered = render(<SystemAutonomyMap />);
     });
 
-    expect(supabase.channel).toHaveBeenCalledTimes(2);
+    expect(supabase.channel).toHaveBeenCalledTimes(3);
 
     rendered.unmount();
-    expect(supabase.removeChannel).toHaveBeenCalledTimes(2);
+    expect(supabase.removeChannel).toHaveBeenCalledTimes(3);
   });
 });

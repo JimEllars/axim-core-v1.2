@@ -72,38 +72,30 @@ const SystemAutonomyMap = () => {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchEvents();
 
-    // The component used to subscribe directly. Now we use the RealtimeContext custom events
-    // Wait, the prompt says: "Securely connect the state outputs directly to the layout hooks of SystemAutonomyMap.jsx ... so changes ... display instantly."
-
-    const handleTelemetryUpdate = (event) => {
-        // Just trigger a re-fetch, or optimally append the new event. For simplicity and correctness, fetch again or prepend.
-        // Let's re-fetch to ensure order and limits.
-
-    fetchEvents();
-    };
-
-    const handleExecUpdate = (event) => {
-
-    fetchEvents();
-    };
+    const handleTelemetryUpdate = () => fetchEvents();
+    const handleExecUpdate = () => fetchEvents();
 
     window.addEventListener('axim:telemetry_update', handleTelemetryUpdate);
     window.addEventListener('axim:exec_update', handleExecUpdate);
 
-    // Keep the old subscriptions too just in case we are missing some tables
     const usageSub = supabase.channel('api_usage_logs_changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'api_usage_logs' }, () => {
-
-    fetchEvents();
+        fetchEvents();
       }).subscribe();
 
     const bcSub = supabase.channel('blockchain_changes')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'blockchain_transactions' }, () => {
+        fetchEvents();
+      }).subscribe();
 
-    fetchEvents();
+    const meshSub = supabase.channel('ecosystem-mesh-autonomy')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ecosystem_nodes' }, () => {
+        // You might want to update node status here if it was displayed.
+        // The instructions ask to "Subscribe SystemAutonomyMap.jsx and FleetStatusMap.jsx to public.ecosystem_nodes."
+        // We'll just fetchEvents here or we could fetch the nodes if they were displayed here.
+        fetchEvents();
       }).subscribe();
 
     return () => {
@@ -111,6 +103,7 @@ const SystemAutonomyMap = () => {
       window.removeEventListener('axim:exec_update', handleExecUpdate);
       supabase.removeChannel(usageSub);
       supabase.removeChannel(bcSub);
+      supabase.removeChannel(meshSub);
     };
   }, []);
 
