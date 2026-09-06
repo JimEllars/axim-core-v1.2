@@ -344,6 +344,37 @@ serve(async (req: Request) => {
     }
 
 
+    if (action_type === 'ecosystem_incident_triage') {
+        const url = new URL(req.url);
+        const onyxEdgeUrl = Deno.env.get('ONYX_EDGE_URL') || `${url.protocol}//${url.host}/onyx-bridge`;
+
+        try {
+             const res = await fetch(onyxEdgeUrl, {
+                 method: 'POST',
+                 headers: {
+                     'Content-Type': 'application/json',
+                     'Authorization': `Bearer ${AXIM_SERVICE_KEY}`
+                 },
+                 body: JSON.stringify({
+                     prompt: `[URGENT ECOSYSTEM INCIDENT]: Analyze the following telemetry payload and suggest a remediation strategy:\n\n${JSON.stringify(payload, null, 2)}`,
+                     agent_id: 'onyx-coordinator',
+                     context: { source: payload.source }
+                 })
+             });
+
+             if (!res.ok) throw new Error(`Onyx edge returned ${res.status}`);
+
+             const data = await res.json();
+
+             return new Response(JSON.stringify({ success: true, message: 'Incident triage initiated', response: data.response || data.text || JSON.stringify(data) }), {
+                 status: 200,
+                 headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+             });
+        } catch (e) {
+            throw new Error(`Failed to dispatch to Onyx for triage: ${e.message}`);
+        }
+    }
+
     if (action_type === "generate_pdf_artifact") {
         const { content, bucket, filename } = payload;
         try {
