@@ -3,7 +3,9 @@ import React, { useEffect, Suspense } from 'react';
 import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
-import { ThirdwebProvider, embeddedWallet, metamaskWallet, safeWallet } from '@thirdweb-dev/react';
+import { ThirdwebProvider } from 'thirdweb/react';
+import { createThirdwebClient } from 'thirdweb';
+import { inAppWallet, createWallet } from 'thirdweb/wallets';
 import { SupabaseProvider } from './contexts/SupabaseContext.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { ConnectivityProvider } from './contexts/ConnectivityContext.jsx';
@@ -196,12 +198,12 @@ function App() {
 
   return (
     <ThirdwebProvider
-      activeChain="arbitrum"
-      clientId={clientId}
-      supportedWallets={[
-        embeddedWallet({ auth: { options: ["google", "apple", "email"] } }),
-        metamaskWallet(),
-        safeWallet(),
+
+      client={createThirdwebClient({ clientId })}
+      wallets={[
+        inAppWallet({ auth: { options: ["google", "apple", "email"] } }),
+        createWallet("io.metamask"),
+        createWallet("safe"),
       ]}
     >
       {appTree}
