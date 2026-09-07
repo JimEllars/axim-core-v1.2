@@ -10,7 +10,16 @@ const { FiCpu, FiShield, FiLink, FiBox, FiDollarSign, FiAlertTriangle, FiActivit
 const MetricsGrid = () => {
   const { metrics: initialMetrics, loading, error, refetch } = useMetrics();
   const { supabase } = useSupabase();
-  const [metrics, setMetrics] = React.useState(null);
+  const [cachedMetrics] = React.useState(() => {
+    try {
+      const cached = localStorage.getItem("dashboardMetricsCache");
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const metrics = initialMetrics || cachedMetrics;
 
   React.useEffect(() => {
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -18,10 +27,15 @@ const MetricsGrid = () => {
     if (!anonKey || !onyxSecret) {
       console.warn("Security Perimeter Warning: VITE_SUPABASE_ANON_KEY or AXIM_ONYX_SECRET missing.");
     }
+  }, []);
 
+  React.useEffect(() => {
     if (initialMetrics) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setMetrics(initialMetrics);
+      try {
+        localStorage.setItem("dashboardMetricsCache", JSON.stringify(initialMetrics));
+      } catch (e) {
+        console.warn("Could not cache metrics", e);
+      }
     }
   }, [initialMetrics]);
 
@@ -41,7 +55,7 @@ const MetricsGrid = () => {
     };
   }, [supabase, refetch]);
 
-  if (error) {
+  if (error && !metrics) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 min-h-[160px]">
         <div className="col-span-full glass-effect rounded-xl p-6 flex items-center justify-center text-red-400">
@@ -52,7 +66,7 @@ const MetricsGrid = () => {
     );
   }
 
-  if (loading || !metrics) {
+  if (loading && !metrics) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 min-h-[160px]">
         {Array.from({ length: 7 }).map((_, index) => (
@@ -67,6 +81,8 @@ const MetricsGrid = () => {
       </div>
     );
   }
+
+  if (!metrics) return null;
 
   const systemComponentFaults = metrics.activeEvents || 0;
   const totalActiveNodes = metrics.activeUsers || 100; // avoid division by zero or use a real baseline
@@ -85,11 +101,11 @@ const MetricsGrid = () => {
       change: 'Active',
       changeColor: 'text-cyan-400',
       tooltip: 'Cloudflare AI Gateway Cache Hit Rate',
-      subtext: `SAVINGS: ${(metrics.aiGatewayMetrics?.estimated_cost_savings_usd || 0).toFixed(2)} | TOKENS: ${(metrics.aiGatewayMetrics?.total_tokens_processed || 0).toLocaleString()}`
+      subtext: 'SAVINGS: ' + (metrics.aiGatewayMetrics?.estimated_cost_savings_usd || 0).toFixed(2) + ' | TOKENS: ' + (metrics.aiGatewayMetrics?.total_tokens_processed || 0).toLocaleString()
     },
     {
       title: 'Cache Savings',
-      value: `${metrics.cacheSavings || '0'}%`,
+      value: (metrics.cacheSavings || '0') + '%',
       icon: FiDatabase,
       color: 'from-rose-500 to-red-600',
       change: 'Optimized',
@@ -143,7 +159,7 @@ const MetricsGrid = () => {
     },
     {
       title: 'System Health',
-      value: `${ecosystemHealth}%`,
+      value: ecosystemHealth + '%',
       icon: FiActivity,
       color: 'from-cyan-500 to-blue-600',
       change: 'Optimal',
@@ -170,11 +186,11 @@ const MetricsGrid = () => {
           </div>
 
           <div className="flex items-center justify-between mb-4">
-            <div className={`w-12 h-12 bg-gradient-to-r ${metric.color} rounded-lg flex items-center justify-center shadow-lg`}>
+            <div className={'w-12 h-12 bg-gradient-to-r ' + metric.color + ' rounded-lg flex items-center justify-center shadow-lg'}>
               <SafeIcon icon={metric.icon} className="text-white text-xl" />
             </div>
-            <span className={`text-[10px] ${metric.changeColor} font-mono uppercase tracking-wider glass-effect/50 px-2 py-1 rounded-full flex items-center gap-1 border border-${metric.color.split('-')[1]}-500/30`}>
-              <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse"></span>
+            <span className={'text-[10px] ' + metric.changeColor + ' font-mono uppercase tracking-wider glass-effect/50 px-2 py-1 rounded-full flex items-center gap-1 border border-' + metric.color.split('-')[1] + '-500/30'}>
+              <span className={'w-1.5 h-1.5 rounded-full bg-current ' + (loading ? 'animate-pulse' : '')}></span>
               {metric.change}
             </span>
           </div>
@@ -183,14 +199,11 @@ const MetricsGrid = () => {
             <h3 className="text-slate-400 text-xs font-mono uppercase tracking-wider mb-1">
               {metric.title}
             </h3>
-            <div className="text-2xl font-bold text-white tracking-tight font-mono">
-              {loading ? (
-                <div data-testid="loading-skeleton" className="animate-pulse glass-effect h-8 w-16 rounded"></div>
-              ) : (
-                metric.value
-              )}
+            <div className="text-2xl font-bold text-white tracking-tight font-mono relative">
+              {loading && <span className="absolute -top-1 -right-2 w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>}
+              {metric.value}
             </div>
-            {metric.subtext && !loading && (
+            {metric.subtext && (
               <div className="text-[10px] text-slate-300 mt-2 font-mono tracking-tighter truncate uppercase rounded px-1.5 py-0.5" style={{ backgroundColor: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)', border: '1px solid rgba(255,255,255,0.05)' }}>
                 {metric.subtext}
               </div>
@@ -202,8 +215,9 @@ const MetricsGrid = () => {
 
       {metrics?.microAppMetrics && metrics.microAppMetrics.length > 0 && (
         <div className="col-span-full mt-6">
-          <h3 className="text-slate-400 text-sm font-mono uppercase tracking-wider mb-4 border-b border-slate-800 pb-2">
+          <h3 className="text-slate-400 text-sm font-mono uppercase tracking-wider mb-4 border-b border-slate-800 pb-2 flex items-center gap-2">
             Decentralized Micro-App Fleet Telemetry
+            {loading && <span className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>}
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {metrics.microAppMetrics.filter(app => app.app_id !== 'unknown').map(app => (
@@ -212,8 +226,8 @@ const MetricsGrid = () => {
                   <span className="text-cyan-400 font-mono text-sm font-bold uppercase tracking-wider truncate" title={app.app_id}>
                     {app.app_id.replace(/_/g, ' ')}
                   </span>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-mono ${app.error_count > 0 ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>
-                    {app.error_count > 0 ? `${app.error_count} FAULTS` : 'STABLE'}
+                  <span className={'px-2 py-0.5 rounded text-[10px] font-mono ' + (app.error_count > 0 ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400')}>
+                    {app.error_count > 0 ? app.error_count + ' FAULTS' : 'STABLE'}
                   </span>
                 </div>
 

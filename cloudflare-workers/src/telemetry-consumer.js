@@ -3,7 +3,19 @@ export default {
         let messages = [];
 
         for (let msg of batch.messages) {
-            messages.push(msg.body);
+            let body = msg.body;
+
+            // Validate incoming events for missing/partial geo-metadata
+            if (!body.geo) {
+                body.geo = {
+                    colo: 'unknown',
+                    country: 'unknown',
+                    city: 'unknown',
+                    region: 'unknown'
+                };
+            }
+
+            messages.push(body);
             msg.ack();
         }
 
