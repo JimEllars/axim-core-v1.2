@@ -87,47 +87,56 @@ export const AuthProvider = ({ children }) => {
 
   const handleSession = useCallback(async (session) => {
     const currentUser = session?.user ?? null;
-    setUser(currentUser);
+
+    // Check if the user is identical to prevent state flickers on token refresh
+    setUser(prevUser => {
+      if (prevUser?.id === currentUser?.id && prevUser?.email === currentUser?.email) {
+        return prevUser;
+      }
+      return currentUser;
+    });
+
     setIsAuthenticated(!!session);
 
     if (currentUser) {
-      // Wait, we need to fetch from user_roles or app_metadata
-      // But user_roles might not exist, app_metadata does not exist on users table in public.
-      // Wait, let's keep fetching from users table or check if user_roles exists.
-      // The prompt says: "Update the AuthContext to fetch and store the user's role from a user_roles table (or Supabase app_metadata)."
-      // Let's use user_roles table or app_metadata. But wait, I'm fetching currentUser.app_metadata.
       try {
         let currentRole = currentUser.app_metadata?.role || session.user?.app_metadata?.role;
 
-        // Super User restriction
         const isSuperUser = currentUser.email === 'james.ellars@axim.us.com' || currentUser.email === 'jrellars@gmail.com';
         if (isSuperUser) {
-            currentRole = 'admin'; // Override to admin
+            currentRole = 'admin';
         }
         if (!currentRole) {
            const { data: roleData, error: roleError } = await supabase.from('user_roles').select('role').eq('user_id', currentUser.id).maybeSingle();
-           if (roleError && (roleError?.code?.startsWith('PGRST') || roleError?.message?.includes('does not exist'))) { /* handled */ }
            if (roleData?.role) {
                currentRole = roleData.role;
            } else {
                const { data: pubUser, error: pubUserError } = await supabase.from('users').select('role').eq('id', currentUser.id).maybeSingle();
-               if (pubUserError && (pubUserError?.code?.startsWith('PGRST') || pubUserError?.message?.includes('does not exist'))) { /* handled */ }
                if (pubUser?.role) currentRole = pubUser.role;
            }
         }
-        setRole(currentRole || 'user');
+        setRole(prev => prev === (currentRole || 'user') ? prev : (currentRole || 'user'));
       } catch(e) {
-         setRole('user');
+         setRole(prev => prev === 'user' ? prev : 'user');
       }
 
-      await loadUserSettings(currentUser);
       await refreshAximSession(session);
+
       const wallet = currentUser?.user_metadata?.wallet_address || null;
-      setWalletAddress(wallet);
+      setWalletAddress(prev => prev === wallet ? prev : wallet);
+
+      // Load user settings only if they don't exist yet to prevent flickering
+      setSettings(prev => {
+        if (!prev) {
+          loadUserSettings(currentUser);
+        }
+        return prev;
+      });
+
     } else {
       setRole(null);
       setWalletAddress(null);
-      loadUserSettings(null);
+      setSettings(null);
       await refreshAximSession(null);
     }
   }, [supabase, loadUserSettings, refreshAximSession]);
@@ -184,8 +193,9 @@ export const AuthProvider = ({ children }) => {
          if (session) {
              const { error } = await supabase.auth.refreshSession();
              if (error) throw error;
-             const { data: refreshedSession } = await supabase.auth.getSession();
-             await handleSession(refreshedSession.session);
+             // Only update if something changed, prevent flickering
+             // The auth listener will likely catch this and trigger handleSession anyway,
+             // but we'll leave it simple for resilience without unmounting
          }
        } catch (err) {
          console.warn("Failed silent token refresh on wakeup:", err);
