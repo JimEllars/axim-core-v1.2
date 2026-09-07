@@ -5,10 +5,12 @@ import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../common/SafeIcon';
 import { trackEvent } from '../services/telemetry';
 import { cleanseUrlHandoffToken } from '../lib/auth-handoff';
+import { useAuth } from '../contexts/AuthContext';
 
 const { FiShield, FiCheckCircle, FiXCircle, FiClock } = FiIcons;
 
 const PassportListener = () => {
+  const { isOffline } = useAuth();
   const [events, setEvents] = useState([]);
 
   useEffect(() => {
@@ -73,8 +75,13 @@ const PassportListener = () => {
   };
 
   return (
-    <div className="bg-onyx-950 border border-onyx-accent/20 rounded-xl p-4">
-      <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+    <div className={`bg-onyx-950 border ${isOffline ? 'border-amber-500/50 opacity-80' : 'border-onyx-accent/20'} rounded-xl p-4 transition-all duration-300`}>
+      <h3 className="text-lg font-semibold text-white mb-4 flex items-center justify-between">
+        <span className="flex items-center">
+          <SafeIcon icon={FiShield} className="mr-2 text-indigo-400" />
+          Passport Verifications
+        </span>
+        {isOffline && <span className="text-xs font-mono text-amber-400 animate-pulse border border-amber-400/30 px-2 py-0.5 rounded bg-amber-400/10">Offline</span>}
         <SafeIcon icon={FiShield} className="mr-2 text-indigo-400" />
         Passport Verifications
       </h3>

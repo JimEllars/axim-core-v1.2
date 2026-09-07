@@ -25,6 +25,13 @@ const CloudflareEdgeHealth = () => {
     } catch {
       return 98.4;
     }
+  });
+  const [ingressQueueDepth, setIngressQueueDepth] = useState(() => {
+    try {
+      return parseInt(localStorage.getItem("cfEdgeQueueDepth")) || 0;
+    } catch {
+      return 0;
+    }
   }); // Mocked starting value for now
   const [lastChecked, setLastChecked] = useState(new Date().toLocaleTimeString());
 
@@ -42,6 +49,9 @@ const CloudflareEdgeHealth = () => {
       setStatus('ONLINE');
       try { localStorage.setItem("cfEdgeStatus", 'ONLINE'); } catch(e) { console.debug(e); }
       const newRatio = (95 + Math.random() * 4).toFixed(1);
+      const newQueue = Math.floor(Math.random() * 15);
+      setIngressQueueDepth(newQueue);
+      try { localStorage.setItem("cfEdgeQueueDepth", newQueue); } catch(e) { console.debug(e); }
       setCacheHitRatio(newRatio);
       try { localStorage.setItem("cfEdgeCacheHitRatio", newRatio); } catch(e) { console.debug(e); }
       setLastChecked(new Date().toLocaleTimeString());
@@ -131,7 +141,7 @@ const CloudflareEdgeHealth = () => {
 
       <div className="flex-grow flex flex-col gap-4">
         {/* Latency & Cache Stats */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div className="bg-black/30 border border-white/5 rounded-lg p-3 relative overflow-hidden">
              {isPinging && <div className="absolute inset-0 bg-blue-500/10 animate-pulse"></div>}
              <div className="flex items-center gap-2 mb-1 relative z-10">
@@ -148,6 +158,16 @@ const CloudflareEdgeHealth = () => {
              <p className="text-xl font-bold text-white transition-all">{cacheHitRatio}%</p>
              <div className="w-full bg-slate-800 rounded-full h-1 mt-2">
                 <div className="bg-purple-500 h-1 rounded-full transition-all duration-500" style={{ width: `${cacheHitRatio}%` }}></div>
+             </div>
+          </div>
+          <div className="bg-black/30 border border-white/5 rounded-lg p-3">
+             <div className="flex items-center gap-2 mb-1">
+               <FiActivity className="text-emerald-400 w-4 h-4" />
+               <h4 className="text-xs text-slate-400 font-mono tracking-wider uppercase">Ingress Queue</h4>
+             </div>
+             <p className="text-xl font-bold text-white transition-all">{ingressQueueDepth}</p>
+             <div className="w-full bg-slate-800 rounded-full h-1 mt-2">
+                <div className="bg-emerald-500 h-1 rounded-full transition-all duration-500" style={{ width: `${Math.min(ingressQueueDepth * 5, 100)}%` }}></div>
              </div>
           </div>
         </div>
@@ -180,7 +200,7 @@ const CloudflareEdgeHealth = () => {
           className="px-3 py-1.5 rounded bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-all font-mono text-xs font-bold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50 hover:shadow-[0_0_10px_rgba(59,130,246,0.3)]"
         >
           <FiActivity className={isPinging ? "animate-pulse" : ""} />
-          {isPinging ? 'Pinging...' : 'Ping Edge Gateway'}
+          {isPinging ? 'Pinging...' : 'Refresh Diagnostics'}
         </button>
       </div>
     </div>

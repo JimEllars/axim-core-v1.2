@@ -131,7 +131,7 @@ const CFODashboard = () => {
                 <div className="overflow-x-auto">
                   <table className="w-full text-left border-collapse">
                     <thead>
-                      <tr className="bg-onyx-950/50 text-slate-300 text-sm uppercase tracking-wider border-b border-onyx-accent/10">
+                      <tr className="bg-slate-950/80/50 text-slate-300 text-sm uppercase tracking-wider border-b border-onyx-accent/10">
                         <th className="p-4 pl-6 font-medium">Request ID</th>
                         <th className="p-4 font-medium">Partner / Details</th>
                         <th className="p-4 font-medium">Commission Amount</th>
@@ -230,7 +230,7 @@ const CFODashboard = () => {
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="relative bg-onyx-900 border border-onyx-accent/20 rounded-xl shadow-2xl p-6 max-w-md w-full m-4"
+                className="relative bg-slate-900/50 backdrop-blur-md border border-cyan-500/20 shadow-lg rounded-xl shadow-2xl p-6 max-w-md w-full m-4"
               >
                 <div className="flex items-start mb-4">
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
@@ -249,7 +249,7 @@ const CFODashboard = () => {
                 </div>
 
                 {confirmModal.details && (
-                  <div className="bg-onyx-950 rounded-lg p-4 mb-6 border border-onyx-accent/10">
+                  <div className="bg-slate-950/80 rounded-lg p-4 mb-6 border border-onyx-accent/10">
                     <div className="flex justify-between mb-2">
                       <span className="text-xs text-slate-500">Partner</span>
                       <span className="text-xs font-medium text-white">{confirmModal.details.partnerId}</span>

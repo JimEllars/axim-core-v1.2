@@ -3,6 +3,7 @@ import { useSupabase } from './SupabaseContext';
 import api from '../services/onyxAI/api';
 import config from '../config';
 import toast from 'react-hot-toast';
+import DegradedModeAlert from '../components/common/DegradedModeAlert';
 
 export const AuthContext = createContext();
 
@@ -20,6 +21,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
   const [role, setRole] = useState(null);
   const [settings, setSettings] = useState(null);
   const [aximSessionToken, setAximSessionToken] = useState(null);
@@ -43,7 +45,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const refreshAximSession = useCallback(async (session) => {
+  const refreshAximSession = useCallback(async function refresh(session, attempt = 1) {
     if (!session) {
       setAximSessionToken(null);
       localStorage.removeItem('axim_session_token');
@@ -55,7 +57,7 @@ export const AuthProvider = ({ children }) => {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
-          'x-axim-edge-token': session.access_token // Ensure auth tokens are safely integrated into standard fetch request headers
+          'x-axim-edge-token': session.access_token
         }
       });
       if (response.ok) {
@@ -64,10 +66,19 @@ export const AuthProvider = ({ children }) => {
           setAximSessionToken(data.axim_session_token);
           localStorage.setItem('axim_session_token', data.axim_session_token);
         }
+        setIsOffline(false);
+      } else if (response.status === 401) {
+        // Explicit unauthorized, maybe trigger logout
+        window.dispatchEvent(new Event('auth:unauthorized'));
       }
     } catch (error) {
       if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
-        console.warn("Network offline. Skipping AXiM session refresh.");
+        console.warn(`Network offline. Skipping AXiM session refresh (Attempt ${attempt}).`);
+        setIsOffline(true);
+        // Exponential backoff
+        if (attempt <= 5) {
+          setTimeout(() => refresh(session, attempt + 1), Math.pow(2, attempt) * 1000);
+        }
       } else {
         console.error("Failed to refresh AXiM session token:", error);
       }
@@ -167,14 +178,22 @@ export const AuthProvider = ({ children }) => {
 
     const handleOnlineWakeup = async () => {
        console.log('Browser woke up or came online. Forcing silent token refresh.');
-       const { data: { session } } = await supabase.auth.getSession();
-       if (session) {
-           await supabase.auth.refreshSession();
-           const { data: refreshedSession } = await supabase.auth.getSession();
-           await handleSession(refreshedSession.session);
+       setIsOffline(false);
+       try {
+         const { data: { session } } = await supabase.auth.getSession();
+         if (session) {
+             const { error } = await supabase.auth.refreshSession();
+             if (error) throw error;
+             const { data: refreshedSession } = await supabase.auth.getSession();
+             await handleSession(refreshedSession.session);
+         }
+       } catch (err) {
+         console.warn("Failed silent token refresh on wakeup:", err);
+         setIsOffline(true);
        }
     };
     window.addEventListener('online', handleOnlineWakeup);
+    window.addEventListener('offline', () => setIsOffline(true));
 
 
     getSession();
@@ -257,6 +276,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const value = {
+    isOffline,
     user,
     isAuthenticated,
     role,
@@ -273,6 +293,7 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider value={value}>
       {children}
+      {isOffline && <DegradedModeAlert />}
     </AuthContext.Provider>
   );
 };

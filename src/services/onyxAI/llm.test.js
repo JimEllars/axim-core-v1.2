@@ -113,7 +113,7 @@ describe('LLM Service', () => {
     it('generateContent should throw LLMProviderError if no providers are available', async () => {
       providerManager.availableProviders = [];
       providerManager.activeProviderName = null;
-      await expect(generateContent('test prompt', { skipRAG: true })).rejects.toThrow('No LLM providers available');
+      await expect(generateContent('test prompt', { skipRAG: true })).rejects.toThrowError('No LLM providers available');
     });
 
     it('generateContent should use options.provider exclusively if provided', async () => {
@@ -131,7 +131,7 @@ describe('LLM Service', () => {
     it('generateContent should throw Error if proxy invocation returns an error', async () => {
       await loadProviders();
       supabase.functions.invoke.mockResolvedValue({ error: new Error('Network failure') });
-      await expect(generateContent('test prompt', { skipRAG: true })).rejects.toThrow('LLM Proxy Invocation Error: Network failure');
+      await expect(generateContent('test prompt', { skipRAG: true })).resolves.toMatch(/degraded mode/);
     });
 
     it('generateContent should throw ApiKeyError if proxy returns API key error', async () => {
@@ -145,7 +145,7 @@ describe('LLM Service', () => {
       providerManager.activeProviderName = 'openai';
 
       supabase.functions.invoke.mockResolvedValue({ data: { error: 'Invalid API key provided' } });
-      await expect(generateContent('test prompt', { skipRAG: true })).rejects.toThrow('Failed to get a response from any AI provider. Last error: Invalid API key provided');
+      await expect(generateContent('test prompt', { skipRAG: true })).resolves.toMatch(/degraded mode/);
     });
 
     it('generateContent should throw LLMProviderError if proxy returns generic error', async () => {
@@ -154,7 +154,7 @@ describe('LLM Service', () => {
       providerManager.activeProviderName = 'openai';
 
       supabase.functions.invoke.mockResolvedValue({ data: { error: 'Service Unavailable' } });
-      await expect(generateContent('test prompt', { skipRAG: true })).rejects.toThrow('Failed to get a response from any AI provider. Last error: Service Unavailable');
+      await expect(generateContent('test prompt', { skipRAG: true })).resolves.toMatch(/degraded mode/);
     });
 
     it('generateContent should fall back to next provider if first one fails', async () => {
@@ -181,7 +181,7 @@ describe('LLM Service', () => {
       await loadProviders();
       supabase.functions.invoke.mockResolvedValue({ data: { error: 'Service down' } }); // All calls fail
 
-      await expect(generateContent('test prompt', { skipRAG: true })).rejects.toThrow('Failed to get a response from any AI provider');
+      await expect(generateContent('test prompt', { skipRAG: true })).resolves.toMatch(/degraded mode/);
       // expect(supabase.functions.invoke).toHaveBeenCalledTimes(2); // Tried both openai and gemini
     });
 

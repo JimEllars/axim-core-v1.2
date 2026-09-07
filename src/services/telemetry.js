@@ -24,9 +24,14 @@ export const trackEvent = (() => {
     queue = [];
 
     try {
-      const telemetryUrl = import.meta.env?.VITE_SUPABASE_URL
-        ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/telemetry-ingress`
-        : '/api/telemetry';
+      const primaryUrl = import.meta.env?.VITE_CLOUDFLARE_WORKER_URL ? `${import.meta.env.VITE_CLOUDFLARE_WORKER_URL}/api/telemetry` : '/api/telemetry';
+      const fallbackUrl = import.meta.env?.VITE_SUPABASE_URL ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/telemetry-ingress` : '/api/telemetry';
+
+      let telemetryUrl = primaryUrl;
+      let useFallback = consecutiveFailures > 2; // Trip circuit breaker after 2 failures
+      if (useFallback) {
+         telemetryUrl = fallbackUrl;
+      }
 
       const startTime = performance.now();
 
@@ -35,17 +40,25 @@ export const trackEvent = (() => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ events: batch }) // Wrap in an object if needed, or just send batch if endpoint supports array
+        body: JSON.stringify({ events: batch })
       });
 
       const latency = performance.now() - startTime;
 
       if (!response.ok) {
+        if (response.status === 429 || response.status >= 500) {
+           consecutiveFailures++;
+           if (!useFallback && consecutiveFailures > 2) {
+              // Re-queue to immediately retry with fallback
+              queue = [...batch, ...queue];
+              setTimeout(flushQueue, 100);
+              return;
+           }
+        }
         throw new Error(`Telemetry dispatch failed with status ${response.status}`);
       }
 
       if (latency > LATENCY_THRESHOLD) {
-        // High latency, treat as a partial failure to trigger backoff
         consecutiveFailures++;
         lastFailureTime = Date.now();
       } else {
