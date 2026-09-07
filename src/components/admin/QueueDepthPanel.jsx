@@ -93,7 +93,7 @@ const QueueDepthPanel = () => {
 
   if (queueData.loading && !hasCache) {
     return (
-      <div className="glass-effect rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] animate-pulse mt-4">
+      <div className="bg-slate-900/80 rounded-xl border border-slate-700/50 shadow-lg p-6  animate-pulse mt-4">
         <div className="h-6 w-1/3 bg-slate-800 rounded mb-6"></div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="h-24 bg-slate-800 rounded-lg"></div>
@@ -113,7 +113,7 @@ const QueueDepthPanel = () => {
         <h3 className="text-sm font-bold text-slate-300 mb-2 uppercase tracking-wider">{type === 'standard' ? 'Standard DLQ' : 'Email DLQ'}</h3>
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="border-b border-slate-800 text-xs text-slate-500 uppercase tracking-wider">
+            <tr className="border-b border-slate-700/50 text-xs text-slate-500 uppercase tracking-wider">
               <th className="p-2">ID</th>
               <th className="p-2">Created</th>
               <th className="p-2">Error / Context</th>
@@ -122,7 +122,7 @@ const QueueDepthPanel = () => {
           </thead>
           <tbody className="text-sm font-mono text-slate-300">
             {jobs.map(job => (
-              <tr key={job.id} className="border-b border-slate-800/50 hover:bg-slate-900/30 transition-colors">
+              <tr key={job.id} className="border-b border-slate-700/50/50 hover:bg-slate-900/30 transition-colors">
                 <td className="p-2 text-slate-400">{job.id.substring(0, 8)}</td>
                 <td className="p-2">{new Date(job.created_at).toLocaleString()}</td>
                 <td className="p-2 truncate max-w-xs text-red-400/80" title={job.error_message || job.last_error}>
@@ -132,7 +132,7 @@ const QueueDepthPanel = () => {
                   <button
                     onClick={() => handleReplay(job.id, type)}
                     disabled={replayingIds.has(job.id)}
-                    className="inline-flex items-center px-3 py-1 bg-indigo-900/40 hover:bg-indigo-800/60 text-indigo-300 rounded border border-indigo-500/30 transition-colors disabled:opacity-50"
+                    className="inline-flex items-center px-3 py-1 bg-cyan-900/40 hover:bg-cyan-800/60 text-cyan-300 rounded border border-cyan-500/30 transition-colors disabled:opacity-50"
                   >
                     <SafeIcon icon={FiRefreshCw} className={`mr-2 ${replayingIds.has(job.id) ? 'animate-spin' : ''}`} />
                     {replayingIds.has(job.id) ? 'Replaying...' : 'Replay'}
@@ -147,11 +147,11 @@ const QueueDepthPanel = () => {
   };
 
   return (
-    <div className="glass-effect rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] mt-4 relative">
-      {queueData.loading && <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></div>}
+    <div className="bg-slate-900/80 rounded-xl border border-slate-700/50 shadow-lg p-6  mt-4 relative">
+      {queueData.loading && <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-white flex items-center">
-          <SafeIcon icon={FiList} className="mr-2 text-indigo-400" />
+          <SafeIcon icon={FiList} className="mr-2 text-cyan-400" />
           Queue & Automation Depth
         </h2>
 
@@ -164,42 +164,42 @@ const QueueDepthPanel = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-zinc-900/50 p-4 rounded-lg border border-slate-800">
+        <div className="bg-slate-800/40 p-4 rounded-lg border border-slate-700/50">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiList} className="mr-2" />
             <span className="text-sm uppercase tracking-wider">Pending Jobs</span>
           </div>
-          <div className="text-2xl font-mono text-indigo-400">
+          <div className="text-2xl font-mono text-cyan-400">
             {queueData.pendingJobs}
           </div>
         </div>
 
-        <div className="bg-zinc-900/50 p-4 rounded-lg border border-slate-800">
+        <div className="bg-slate-800/40 p-4 rounded-lg border border-slate-700/50">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiClock} className="mr-2" />
             <span className="text-sm uppercase tracking-wider">Active Cron Tasks</span>
           </div>
-          <div className="text-2xl font-mono text-indigo-400">
+          <div className="text-2xl font-mono text-cyan-400">
             {queueData.activeTasks}
           </div>
         </div>
 
-        <div className="bg-zinc-900/50 p-4 rounded-lg border border-slate-800">
+        <div className="bg-slate-800/40 p-4 rounded-lg border border-slate-700/50">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiAlertCircle} className="mr-2" />
             <span className="text-sm uppercase tracking-wider">Dead Letters (DLQ)</span>
           </div>
-          <div className={`text-2xl font-mono ${queueData.deadLetters > 0 ? 'text-red-500' : 'text-indigo-400'}`}>
+          <div className={`text-2xl font-mono ${queueData.deadLetters > 0 ? 'text-red-500' : 'text-cyan-400'}`}>
             {queueData.deadLetters}
           </div>
         </div>
 
-        <div className="bg-zinc-900/50 p-4 rounded-lg border border-slate-800">
+        <div className="bg-slate-800/40 p-4 rounded-lg border border-slate-700/50">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiAlertCircle} className="mr-2" />
             <span className="text-sm uppercase tracking-wider">Critical Failures</span>
           </div>
-          <div className={`text-2xl font-mono ${queueData.criticalFailures > 0 ? 'text-red-500' : 'text-indigo-400'}`}>
+          <div className={`text-2xl font-mono ${queueData.criticalFailures > 0 ? 'text-red-500' : 'text-cyan-400'}`}>
             {queueData.criticalFailures}
           </div>
         </div>
@@ -211,7 +211,7 @@ const QueueDepthPanel = () => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="mt-6 pt-4 border-t border-slate-800"
+            className="mt-6 pt-4 border-t border-slate-700/50"
           >
             <h3 className="text-lg font-bold text-white mb-4">DLQ Operational Cockpit</h3>
             {renderDlqTable(dlqJobs, 'standard')}
