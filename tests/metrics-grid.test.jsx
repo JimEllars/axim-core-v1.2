@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import React from 'react';
+
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import MetricsGrid from '../src/components/dashboard/MetricsGrid';
@@ -49,6 +49,6 @@ describe('MetricsGrid Component', () => {
     expect(screen.getByText('25.0%')).toBeInTheDocument();
 
     // Check if the subtext is formatted properly
-    expect(screen.getByText('SAVINGS: $12.34 | TOKENS: 123,456')).toBeInTheDocument();
+    expect(screen.getByText('SAVINGS: 12.34 | TOKENS: 123,456')).toBeInTheDocument();
   });
 });

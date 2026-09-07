@@ -9,12 +9,22 @@ import toast from 'react-hot-toast';
 const { FiList, FiClock, FiAlertCircle, FiRefreshCw, FiChevronDown, FiChevronUp } = FiIcons;
 
 const QueueDepthPanel = () => {
-  const [queueData, setQueueData] = useState({
-    pendingJobs: 0,
-    deadLetters: 0,
-    activeTasks: 0,
-    criticalFailures: 0,
-    loading: true
+  const [queueData, setQueueData] = useState(() => {
+    try {
+      const cached = localStorage.getItem("queueDepthCache");
+      if (cached) {
+        return { ...JSON.parse(cached), loading: false };
+      }
+    } catch {
+      //
+    }
+    return {
+      pendingJobs: 0,
+      deadLetters: 0,
+      activeTasks: 0,
+      criticalFailures: 0,
+      loading: true
+    };
   });
 
   const [dlqJobs, setDlqJobs] = useState([]);
@@ -33,15 +43,18 @@ const QueueDepthPanel = () => {
         supabase.from('email_dead_letter_queue').select('*').eq('status', 'Pending').order('created_at', { ascending: false }).limit(10)
       ]);
 
-      const totalDeadLetters = (dlqRes.count || 0) + (emailDlqListRes.data?.length || 0); // Approx count for email if no count query
+      const totalDeadLetters = (dlqRes.count || 0) + (emailDlqListRes.data?.length || 0);
 
-      setQueueData({
+      const newData = {
         pendingJobs: jobsRes.count || 0,
         deadLetters: totalDeadLetters,
         activeTasks: tasksRes.count || 0,
         criticalFailures: failuresRes.count || 0,
         loading: false
-      });
+      };
+
+      setQueueData(newData);
+      try { localStorage.setItem("queueDepthCache", JSON.stringify(newData)); } catch(e) { console.debug(e); }
 
       if (dlqListRes.data) setDlqJobs(dlqListRes.data);
       if (emailDlqListRes.data) setEmailDlqJobs(emailDlqListRes.data);
@@ -75,7 +88,10 @@ const QueueDepthPanel = () => {
     }
   };
 
-  if (queueData.loading) {
+  let hasCache = false;
+  try { hasCache = !!localStorage.getItem("queueDepthCache"); } catch(e) {}
+
+  if (queueData.loading && !hasCache) {
     return (
       <div className="glass-effect rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] animate-pulse mt-4">
         <div className="h-6 w-1/3 bg-slate-800 rounded mb-6"></div>
@@ -131,7 +147,8 @@ const QueueDepthPanel = () => {
   };
 
   return (
-    <div className="glass-effect rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] mt-4">
+    <div className="glass-effect rounded-xl p-6 shadow-[0_0_20px_rgba(0,0,0,0.4)] mt-4 relative">
+      {queueData.loading && <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></div>}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-white flex items-center">
           <SafeIcon icon={FiList} className="mr-2 text-indigo-400" />

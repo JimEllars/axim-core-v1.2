@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock the dependencies used by the edge function
 vi.mock('https://esm.sh/@supabase/supabase-js@2.7.1', () => ({
@@ -16,10 +16,18 @@ vi.mock('https://esm.sh/@supabase/supabase-js@2.7.1', () => ({
   })
 }));
 
-// We'll test the core logic of telemetry.js wrapper here as well since the Edge Function relies on Deno imports
 import { trackEvent } from '../src/services/telemetry.js';
 
 describe('Telemetry Pipeline Validation', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.restoreAllMocks();
+  });
+
   it('should compile payload with route context and not throw on network error', async () => {
     // Mock fetch to simulate network failure
     global.fetch = vi.fn(() => Promise.reject(new Error('Network error')));
@@ -36,20 +44,25 @@ describe('Telemetry Pipeline Validation', () => {
     // It should catch the error and not throw, satisfying the requirement to fail gracefully
     await expect(trackEvent('test_event', { key: 'value' })).resolves.not.toThrow();
 
+    // Fast-forward timers to trigger the queue flush
+    vi.runAllTimers();
+
+    // Need to await Promises to resolve
+    await Promise.resolve();
+
     // Verify fetch was called with expected payload
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const callArgs = global.fetch.mock.calls[0];
     const payload = JSON.parse(callArgs[1].body);
 
-    expect(payload.event).toBe('test_event');
-    expect(payload.details.key).toBe('value');
-    expect(payload.details.path).toBe('/dashboard');
-    expect(payload.details.url).toBe('http://localhost:3000/dashboard');
-    expect(payload.app_id).toBe('axim_core_frontend');
+    expect(payload.events).toBeDefined();
+    expect(payload.events.length).toBe(1);
+    expect(payload.events[0].event).toBe('test_event');
+    expect(payload.events[0].details.key).toBe('value');
+    expect(payload.events[0].details.path).toBe('/dashboard');
+    expect(payload.events[0].details.url).toBe('http://localhost:3000/dashboard');
+    expect(payload.events[0].app_id).toBe('axim_core_frontend');
   });
-
-  // Since we can't easily run Deno code in Vitest directly, we test the concepts
-  // applied to the edge function through standard JS
 
   it('should successfully handle arrays of payloads', () => {
     const payloadsToProcess = [{ id: 1 }, { id: 2 }];

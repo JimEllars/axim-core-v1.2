@@ -17,7 +17,6 @@ serve(async (req) => {
     const authHeader = req.headers.get('Authorization') ?? '';
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
 
-    // Create authenticated client for tenant scoping via RLS
     const supabase = createClient(supabaseUrl, anonKey, {
        global: { headers: { Authorization: authHeader } }
     });
@@ -34,7 +33,7 @@ serve(async (req) => {
     const computeHealth = (item, type) => {
       let status = item.status || 'offline';
       if (status !== 'offline' && item.last_ping) {
-        const diffMinutes = (now - new Date(item.last_ping)) / (1000 * 60);
+        const diffMinutes = (now.getTime() - new Date(item.last_ping).getTime()) / (1000 * 60);
         if (diffMinutes > 15) {
           status = 'offline';
         } else if (diffMinutes > 5) {
@@ -76,7 +75,7 @@ serve(async (req) => {
     };
 
     return new Response(JSON.stringify(summary), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=60' },
       status: 200,
     });
   } catch (error: any) {

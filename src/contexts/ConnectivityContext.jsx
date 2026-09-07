@@ -1,5 +1,5 @@
 // src/contexts/ConnectivityContext.jsx
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import connectivityManager from '../services/connectivityManager';
 import offlineManager from '../services/offline';
 
@@ -65,7 +65,6 @@ export const ConnectivityProvider = ({ children }) => {
     }
     return () => { mounted = false; };
   }, [isOnline, clearOfflineTelemetry]);
-
 
   return (
     <ConnectivityContext.Provider value={{
