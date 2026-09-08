@@ -49,10 +49,11 @@ const JobQueueMonitor = () => {
       const token = session?.access_token;
 
       try {
-          await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/job-processor`, {
+          await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/resolve_hitl_action`, {
               method: 'POST',
               headers: {
-                  'Authorization': `Bearer ${token}`
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
               }
           });
       } catch (e) {

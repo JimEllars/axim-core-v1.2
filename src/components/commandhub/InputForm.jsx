@@ -371,9 +371,9 @@ const InputForm = ({
           <button
             type="button"
             onClick={isRecording ? stopRecording : startRecording}
-            className={`p-2 mr-1 transition-colors ${isRecording ? 'text-red-500 animate-pulse' : 'text-gray-400 hover:text-purple-400'}`}
+            className={`p-2 mr-1 transition-colors ${isRecording ? 'text-red-500 animate-pulse' : 'text-gray-400 hover:text-purple-400'} disabled:opacity-50`}
             title={isRecording ? "Stop recording" : "Record voice command"}
-            disabled={isProcessing || localIsProcessing}
+            disabled={localIsProcessing}
           >
             <FiMic />
           </button>
@@ -393,15 +393,15 @@ const InputForm = ({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="flex-grow bg-transparent text-white placeholder-gray-500 focus:outline-none px-2"
-            disabled={isProcessing || localIsProcessing}
+            className="flex-grow bg-transparent text-white placeholder-gray-500 focus:outline-none px-2 disabled:opacity-50"
+            disabled={localIsProcessing}
             autoComplete="off"
           />
           <button
             type="submit"
             aria-label="Send command"
             className="bg-purple-600 text-white rounded-md px-4 py-2 hover:bg-purple-700 disabled:bg-gray-600 flex items-center transition-colors"
-            disabled={isProcessing || localIsProcessing || !inputValue}
+            disabled={localIsProcessing || !inputValue}
           >
             <FiSend className="mr-2" /> Send
           </button>
