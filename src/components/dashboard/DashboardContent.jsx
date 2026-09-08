@@ -12,6 +12,7 @@ import FleetStatusMap from './FleetStatusMap';
 import SystemAutonomyMap from './SystemAutonomyMap';
 import JulesStatusPanel from './JulesStatusPanel';
 import CloudflareEdgeHealth from './CloudflareEdgeHealth';
+import JobQueueMonitor from './JobQueueMonitor';
 
 import { useDashboard } from '../../contexts/DashboardContext';
 import { FiRefreshCw, FiTerminal } from 'react-icons/fi';
@@ -30,65 +31,54 @@ const DashboardContent = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8"
+        className="w-full h-full flex flex-col gap-6"
       >
-        {/* Header */}
-        <div className="lg:col-span-3 mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0">
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3 tracking-tight">
-              <FiTerminal className="text-blue-500" />
-              Unified Command Terminal
-            </h1>
-            <p className="text-slate-400 font-mono text-sm tracking-wider uppercase">Active State Monitoring & Ecosystem Aggregation</p>
+        <div className="flex justify-between items-center bg-onyx-900/50 p-4 rounded-xl border border-onyx-accent/20 backdrop-blur-sm">
+          <div className="flex items-center space-x-3">
+             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+             <h1 className="text-2xl font-bold text-white tracking-wide">Command Center</h1>
           </div>
-          <button
-            onClick={handleRefresh}
-            className="glass-effect p-2 md:p-3 rounded-full text-slate-300 hover:text-white hover:bg-onyx-accent/20 transition-all duration-300 hover:scale-105 active:scale-95 border border-onyx-accent/20 shadow-[0_0_15px_rgba(0,0,0,0.3)]"
-            aria-label="Refresh Dashboard"
-          >
-            <FiRefreshCw className="w-5 h-5 md:w-6 md:h-6" />
-          </button>
+          <div className="flex space-x-4">
+             {activeJulesSessionId && (
+               <div className="flex items-center space-x-2 text-indigo-400 bg-indigo-900/20 px-3 py-1.5 rounded-lg border border-indigo-500/30">
+                 <FiTerminal className="animate-pulse" />
+                 <span className="text-sm font-mono tracking-wider text-xs">Jules Active</span>
+               </div>
+             )}
+             <button
+               onClick={handleRefresh}
+               className="p-2 rounded-lg bg-onyx-800 text-slate-300 hover:text-white hover:bg-onyx-700 transition-colors border border-onyx-accent/30"
+               aria-label="Refresh Dashboard"
+             >
+               <FiRefreshCw />
+             </button>
+          </div>
         </div>
 
-        {/* Metrics Overview - Unified Command Terminal Indicators */}
-        <div className="lg:col-span-3">
-          <MetricsGrid />
-        </div>
+        <MetricsGrid />
 
-        {/* Fleet Map Overview */}
-        <div className="lg:col-span-2">
-          <FleetStatusMap />
-        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow">
+          <div className="lg:col-span-8 flex flex-col gap-6">
+            <FleetStatusMap />
+            <JobQueueMonitor />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 flex-grow">
+                <VisualizationPanel />
+                <GenerativeAIPanel />
+            </div>
+            {activeJulesSessionId && (
+               <JulesStatusPanel />
+            )}
+            <AIInteractionsChart />
+          </div>
 
-
-        {/* Cloudflare Edge Health */}
-        <div className="lg:col-span-1">
-          <CloudflareEdgeHealth />
-        </div>
-
-        {/* Jules Status Panel */}
-        <div className="lg:col-span-1">
-          <JulesStatusPanel activeSessionId={activeJulesSessionId} />
-        </div>
-
-        {/* System Autonomy Map */}
-        <div className="lg:col-span-1">
-          <SystemAutonomyMap />
-        </div>
-
-        {/* Left Column */}
-        <div className="lg:col-span-2 space-y-6 lg:space-y-8">
-          <ActionPanel />
-          <VisualizationPanel />
-          <ContactManager />
-        </div>
-
-        {/* Right Column */}
-        <div className="lg:col-span-1 space-y-6 lg:space-y-8">
-          <RecentWorkflows />
-          <GenerativeAIPanel />
-          <EventLog />
+          <div className="lg:col-span-4 flex flex-col gap-6">
+            <CloudflareEdgeHealth />
+            <SystemAutonomyMap />
+            <ActionPanel />
+            <RecentWorkflows />
+            <EventLog />
+            <ContactManager />
+          </div>
         </div>
       </motion.div>
     </div>

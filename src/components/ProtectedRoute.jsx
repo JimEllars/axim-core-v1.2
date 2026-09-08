@@ -17,7 +17,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
       setIsRedirecting(true);
       const isHealthy = await checkSsoHealth(ssoUrl);
       if (isHealthy) {
-        window.location.href = ssoUrl;
+        window.location.href = "https://passport.axim.us.com/login?redirect_uri=https://core.axim.us.com/auth/callback&app_id=core";
       } else {
         navigate('/auth-offline', { replace: true });
       }

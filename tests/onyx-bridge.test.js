@@ -21,11 +21,12 @@ describe('Onyx Edge Bridge', () => {
 
     const result = await api.sendToOnyxWorker(mockPayload);
 
-    expect(fetchMock).toHaveBeenCalledWith('https://onyx.edge.test/api/v1/chat', {
+    expect(fetchMock).toHaveBeenCalledWith('https://onyx-bridge.axim.us.com/api/v1/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer mock-token'
+        'Authorization': 'Bearer mock-token',
+        'X-Axim-Signature': 'test_secure_key'
       },
       body: JSON.stringify(mockPayload)
     });

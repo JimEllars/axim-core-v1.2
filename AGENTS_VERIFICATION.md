@@ -198,3 +198,16 @@ Test Passed!
 - [x] Tested Cloudflare workers integration tests (`cd cloudflare-workers && npm run test:integration`).
 - [x] Executed production frontend compilation (`npm run build`).
 - [x] Verified missing Cloudflare worker unit tests pass successfully.
+
+## Wave 64: Executive Briefing Dispatch, Passport SSO Validation, Ecosystem Launcher & Onyx Link
+**Date:** 2026-09-08
+**Changes:**
+1. Hardened the `executive-report` Edge Function to aggregate critical fleet metrics, Support RCA statistics, and revenue logs into a sleek HTML email dispatched via EmailIt API. Added DLQ routing for dispatch failures.
+2. Wired `PassportListener.jsx` and `ProtectedRoute.jsx` for wildcard SSO tracking and enforced secure `?token=` callback verifications through `passport-verify` Edge Function.
+3. Expanded `AppLauncher.jsx` into the Full Suite Ecosystem App Launcher, providing seamless cross-domain navigation tiles using `handoff_token`.
+4. Linked `api.js` to route `sendToOnyxWorker` requests to the production `onyx-bridge.axim.us.com` Edge Bridge, securely attaching `X-Axim-Signature`.
+5. Adjusted local test stubs in `api.test.js`, `DashboardContent.test.jsx`, and `onyx-bridge.test.js` to clear integration discrepancies.
+
+**Checks Completed:**
+- [x] Tested full project Vitest suite (`npx vitest run --coverage`). All 102 test files passed.
+- [x] Validated strict Edge Bridge JWT signature assignment.
