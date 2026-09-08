@@ -51,10 +51,19 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
     };
 
     const handleStreamError = (e) => {
+      let content = { title: 'Stream Error', details: e.detail.error };
+      let errorMessage = String(e.detail.error || '');
+      if (errorMessage.includes('timeout') || errorMessage.includes('rate-limit') || errorMessage.includes('429')) {
+         content = {
+            title: 'Agent Disconnected',
+            details: 'Connection timed out or rate limit reached. Retrying on fallback edge...'
+         };
+      }
+
       setLocalMessages(prev => [...prev, {
         id: crypto.randomUUID(),
         timestamp: new Date(),
-        content: { title: 'Stream Error', details: e.detail.error },
+        content: content,
         type: 'error'
       }]);
       setIsStreaming(false);

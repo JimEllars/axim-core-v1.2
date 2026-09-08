@@ -8,6 +8,13 @@ export const trackEvent = (() => {
   const BACKOFF_DURATION = 15000; // 15 seconds
   const LATENCY_THRESHOLD = 800; // 800ms
 
+  const generateTraceId = () => {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+  };
+
   const flushQueue = async () => {
     if (isFlushing || queue.length === 0) return;
 
@@ -35,10 +42,13 @@ export const trackEvent = (() => {
 
       const startTime = performance.now();
 
+      const traceId = generateTraceId();
       const response = await fetch(telemetryUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-trace-id': traceId,
+          'x-client-timestamp': new Date().toISOString()
         },
         body: JSON.stringify({ events: batch })
       });
@@ -93,6 +103,7 @@ export const trackEvent = (() => {
           url: typeof window !== 'undefined' ? window.location.href : 'unknown',
         },
         timestamp: new Date().toISOString(),
+        trace_id: generateTraceId(),
         app_id: 'axim_core_frontend'
       };
 

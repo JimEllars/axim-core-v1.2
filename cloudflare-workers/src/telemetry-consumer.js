@@ -5,6 +5,9 @@ export default {
         for (let msg of batch.messages) {
             let body = msg.body;
 
+            // Extract trace id if passed in headers and added to body by producer
+            // (Assuming producer sets body.trace_id or body.headers)
+
             // Validate incoming events for missing/partial geo-metadata
             if (!body.geo) {
                 body.geo = {

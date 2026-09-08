@@ -193,7 +193,7 @@ const CommandHub = () => {
                  handlers={{ onCopyContent: handleCopyContent, onClearChat: handleClearChat }}
                  messagesEndRef={messagesEndRef}
                />
-               <InputForm
+               <InputForm disabled={isProcessing}
                  inputValue={inputValue}
                  isProcessing={isProcessing}
                  onInputValueChange={(e) => dispatch({ type: 'SET_INPUT_VALUE', payload: e.target.value })}
