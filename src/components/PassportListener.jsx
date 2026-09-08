@@ -61,11 +61,59 @@ const PassportListener = () => {
     };
   }, []);
 
+  useEffect(() => {
+    // Capture incoming ?token=... from the callback URL
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+
+    if (token) {
+        const verifyToken = async () => {
+            try {
+                const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/passport-verify`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ token })
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.axim_session_token) {
+                        localStorage.setItem('axim_session_token', data.axim_session_token);
+                    }
+                    setEvents([{
+                        id: 'token-verify',
+                        status: 'Verified',
+                        user_id: data.user_id || 'Unknown',
+                        timestamp: new Date().toISOString()
+                    }]);
+                } else {
+                    setEvents([{
+                        id: 'token-verify-failed',
+                        status: 'Verification Failed',
+                        user_id: 'Unknown',
+                        timestamp: new Date().toISOString()
+                    }]);
+                }
+            } catch (err) {
+                console.error("Token verification error:", err);
+            } finally {
+                // Clean the URL via window.history.replaceState
+                params.delete('token');
+                window.history.replaceState({}, document.title, window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+            }
+        };
+        verifyToken();
+    }
+  }, []);
+
   const getStatusConfig = (status) => {
     switch (status) {
       case 'verified':
+      case 'Verified':
         return { icon: FiCheckCircle, color: 'text-emerald-400', bg: 'bg-emerald-900/20' };
       case 'failed':
+      case 'Verification Failed':
         return { icon: FiXCircle, color: 'text-red-400', bg: 'bg-red-900/20' };
       case 'pending':
         return { icon: FiClock, color: 'text-amber-400', bg: 'bg-amber-900/20' };
@@ -82,8 +130,6 @@ const PassportListener = () => {
           Passport Verifications
         </span>
         {isOffline && <span className="text-xs font-mono text-amber-400 animate-pulse border border-amber-400/30 px-2 py-0.5 rounded bg-amber-400/10">Offline</span>}
-        <SafeIcon icon={FiShield} className="mr-2 text-indigo-400" />
-        Passport Verifications
       </h3>
       {events.length === 0 ? (
         <p className="text-sm text-slate-500 italic">No recent verifications.</p>
