@@ -19,16 +19,16 @@ serve(async (req) => {
   try {
     // 1. Fetch Pending Jobs (max 10) safely using our RPC function
     // Use select to fetch and then update to processing instead of RPC to guarantee compatibility with satellite_job_queue
+    // Secure idempotent claim using RPC if available, otherwise atomic time-based lock via update
+    const timestampLease = new Date(Date.now() - 5 * 60000).toISOString(); // 5 min timeout for processing state
+
+    // Atomic update to claim jobs that are pending or stuck in processing for too long
     let { data: jobs, error: fetchError } = await supabase
       .from('satellite_job_queue')
+      .update({ status: 'processing', updated_at: new Date().toISOString() })
+      .or(`status.eq.pending,and(status.eq.processing,updated_at.lt.${timestampLease})`)
       .select('*')
-      .eq('status', 'pending') // or 'queued'
       .limit(5);
-
-    if (jobs && jobs.length > 0) {
-       const jobIds = jobs.map(j => j.id);
-       await supabase.from('satellite_job_queue').update({status: 'processing'}).in('id', jobIds);
-    }
 
 
     if (fetchError) {

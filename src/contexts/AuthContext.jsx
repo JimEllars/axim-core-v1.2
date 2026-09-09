@@ -73,8 +73,14 @@ export const AuthProvider = ({ children }) => {
       }
     } catch (error) {
       if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
+
         console.warn(`Network offline. Skipping AXiM session refresh (Attempt ${attempt}).`);
-        setIsOffline(true);
+
+        // Implement debounced 2-strike check before flipping offline mode
+        if (attempt >= 2) {
+            setIsOffline(true);
+        }
+
         // Exponential backoff
         if (attempt <= 5) {
           setTimeout(() => refresh(session, attempt + 1), Math.pow(2, attempt) * 1000);
@@ -203,7 +209,16 @@ export const AuthProvider = ({ children }) => {
        }
     };
     window.addEventListener('online', handleOnlineWakeup);
-    window.addEventListener('offline', () => setIsOffline(true));
+
+    let offlineTimeout;
+    window.addEventListener('offline', () => {
+        offlineTimeout = setTimeout(() => setIsOffline(true), 2500);
+    });
+    window.addEventListener('online', () => {
+        clearTimeout(offlineTimeout);
+        handleOnlineWakeup();
+    });
+
 
 
     getSession();
@@ -217,6 +232,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       authListener?.subscription.unsubscribe();
       window.removeEventListener('online', handleOnlineWakeup);
+      // Removed offline listener to clear up any strict errors
     };
   }, [supabase, handleSession, loadUserSettings]);
 

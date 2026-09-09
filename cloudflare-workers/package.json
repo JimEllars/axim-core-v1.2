@@ -20,6 +20,8 @@
     "deploy:dry-run": "npx wrangler deploy --dry-run -c wrangler.toml"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.1",
+    "@vitest/coverage-v8": "^2.1.9",
     "jsdom": "^29.1.1",
     "vitest": "^2.1.9",
     "wrangler": "^4.95.0"

@@ -143,7 +143,7 @@ const SystemHealthPanel = () => {
 
   if (healthData.status === 'loading') {
     return (
-      <div className="glass-effect rounded-2xl p-6 sm:p-8 shadow-[0_0_25px_rgba(0,0,0,0.5)] animate-pulse min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+      <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-6 sm:p-8 shadow-lg animate-pulse min-h-[160px]">
         <div className="h-6 w-1/3 bg-slate-800 rounded mb-6"></div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="h-24 bg-slate-800 rounded-lg"></div>
@@ -157,7 +157,7 @@ const SystemHealthPanel = () => {
   }
 
   return (
-    <div className="glass-effect rounded-2xl p-6 sm:p-8 shadow-[0_0_25px_rgba(0,0,0,0.5)] min-h-[160px] transition-all duration-300" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+    <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-6 sm:p-8 shadow-lg min-h-[160px] transition-all duration-300">
       <ErrorBoundary>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold tracking-tight text-white flex items-center">
@@ -174,7 +174,7 @@ const SystemHealthPanel = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-onyx-950/50 p-4 rounded-lg border border-slate-800">
+        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 shadow-inner">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiGlobe} className="mr-2" />
             <span className="text-sm uppercase tracking-wider">Edge Worker</span>
@@ -184,7 +184,7 @@ const SystemHealthPanel = () => {
           </div>
         </div>
 
-        <div className="bg-onyx-950/50 p-4 rounded-lg border border-slate-800">
+        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 shadow-inner">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiServer} className="mr-2" />
             <span className="text-sm uppercase tracking-wider">API Latency</span>
@@ -194,7 +194,7 @@ const SystemHealthPanel = () => {
           </div>
         </div>
 
-        <div className="bg-onyx-950/50 p-4 rounded-lg border border-slate-800">
+        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 shadow-inner">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiActivity} className="mr-2" />
             <span className="text-sm uppercase tracking-wider">Pool Headroom</span>
@@ -205,7 +205,7 @@ const SystemHealthPanel = () => {
           </div>
         </div>
 
-        <div className="bg-onyx-950/50 p-4 rounded-lg border border-slate-800">
+        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 shadow-inner">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiAlertTriangle} className="mr-2 text-amber-500" />
             <span className="text-sm uppercase tracking-wider">Deflected Storms</span>
@@ -215,7 +215,7 @@ const SystemHealthPanel = () => {
           </div>
         </div>
 
-        <div className="bg-onyx-950/50 p-4 rounded-lg border border-slate-800">
+        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 shadow-inner">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiTrendingUp} className="mr-2 text-indigo-400" />
             <span className="text-sm uppercase tracking-wider">CF AI Cache</span>
@@ -225,7 +225,7 @@ const SystemHealthPanel = () => {
           </div>
         </div>
 
-        <div className="bg-onyx-950/50 p-4 rounded-lg border border-slate-800">
+        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 shadow-inner">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiGlobe} className="mr-2 text-blue-400" />
             <span className="text-sm uppercase tracking-wider">Edge Region</span>
@@ -235,7 +235,7 @@ const SystemHealthPanel = () => {
           </div>
         </div>
 
-        <div className="bg-onyx-950/50 p-4 rounded-lg border border-slate-800">
+        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 shadow-inner">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiServer} className="mr-2 text-purple-400" />
             <span className="text-sm uppercase tracking-wider">Rate Limit</span>

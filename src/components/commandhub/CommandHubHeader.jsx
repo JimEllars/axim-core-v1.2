@@ -16,13 +16,13 @@ const CommandHubHeader = () => {
       </div>
       <div className="flex flex-col items-end gap-2">
         {edgeDegraded && (
-          <div className="flex items-center space-x-2 text-red-500 bg-red-500/10 px-3 py-1 rounded-full border border-red-500/20">
+          <div className="flex items-center space-x-2 text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
             <SafeIcon icon={FiAlertTriangle} className="animate-pulse" />
             <span className="text-sm font-semibold">Edge Degraded - Active Fallbacks</span>
           </div>
         )}
         {edgeCapacity && (
-           <div className="flex items-center space-x-2 text-blue-400 bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20">
+           <div className="flex items-center space-x-2 text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
              <SafeIcon icon={FiCloud} />
              <span className="text-sm font-semibold">{edgeCapacity} req/m</span>
            </div>

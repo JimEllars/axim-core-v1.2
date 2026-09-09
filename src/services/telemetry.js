@@ -15,7 +15,7 @@ export const trackEvent = (() => {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   };
 
-  const flushQueue = async () => {
+  const flushQueue = async (isUnload = false) => {
     if (isFlushing || queue.length === 0) return;
 
     // Check backoff
@@ -43,7 +43,14 @@ export const trackEvent = (() => {
       const startTime = performance.now();
 
       const traceId = generateTraceId();
+
+      if (isUnload && typeof navigator !== 'undefined' && navigator.sendBeacon) {
+        const blob = new Blob([JSON.stringify({ events: batch })], { type: 'application/json' });
+        navigator.sendBeacon(telemetryUrl, blob);
+        return;
+      }
       const response = await fetch(telemetryUrl, {
+        keepalive: isUnload,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -92,6 +99,18 @@ export const trackEvent = (() => {
       }
     }
   };
+
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', () => {
+      flushQueue(true);
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        flushQueue(true);
+      }
+    });
+  }
 
   return async (eventName, payload = {}) => {
     try {
