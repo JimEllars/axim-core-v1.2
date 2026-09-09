@@ -128,7 +128,7 @@ const CloudflareEdgeHealth = () => {
   }
 
   return (
-    <div className="glass-effect rounded-xl p-6 border border-onyx-accent/20 h-full flex flex-col transition-all duration-300">
+    <div className="glass-effect rounded-2xl p-6 hover:bg-white/10 transition-all duration-300 relative group hover:shadow-[0_0_25px_rgba(0,0,0,0.5)] border border-onyx-accent/20 h-full flex flex-col">
       <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-lg ${getBgColor()} border ${getStatusColor()}`}>

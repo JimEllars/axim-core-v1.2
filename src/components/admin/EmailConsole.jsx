@@ -60,7 +60,7 @@ const EmailConsole = () => {
         })
       });
 
-      // eslint-disable-next-line react-hooks/purity
+
       const startTime = Date.now();
       const result = await response.json();
       const endTime = Date.now();
@@ -126,7 +126,7 @@ const EmailConsole = () => {
         if (response.ok) {
             // Remove from DLQ
             await supabase.from('email_dead_letter_queue').delete().eq('id', item.id);
-            // eslint-disable-next-line react-hooks/set-state-in-effect
+
             fetchDlqItems();
         } else {
             alert("Replay Transaction failed again. Please check logs.");

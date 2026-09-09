@@ -32,6 +32,7 @@ const QueueDepthPanel = () => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [replayingIds, setReplayingIds] = useState(new Set());
 
+
   const fetchQueueDepth = async () => {
     try {
       const [jobsRes, dlqRes, tasksRes, failuresRes, dlqListRes, emailDlqListRes] = await Promise.all([
@@ -50,7 +51,8 @@ const QueueDepthPanel = () => {
         deadLetters: totalDeadLetters,
         activeTasks: tasksRes.count || 0,
         criticalFailures: failuresRes.count || 0,
-        loading: false
+        loading: false,
+        error: false
       };
 
       setQueueData(newData);
@@ -61,9 +63,10 @@ const QueueDepthPanel = () => {
 
     } catch (err) {
       console.error('Error fetching queue depth:', err);
-      setQueueData(prev => ({ ...prev, loading: false }));
+      setQueueData(prev => ({ ...prev, loading: false, error: true }));
     }
   };
+
 
   useEffect(() => {
     fetchQueueDepth();
@@ -91,9 +94,19 @@ const QueueDepthPanel = () => {
   let hasCache = false;
   try { hasCache = !!localStorage.getItem("queueDepthCache"); } catch(e) {}
 
+
+  if (queueData.error) {
+    return (
+      <div className="glass-effect rounded-2xl p-6 border border-onyx-accent/20 mt-4 text-red-400 flex items-center justify-center">
+        <SafeIcon icon={FiAlertCircle} className="mr-2" />
+        Failed to load queue data. <button onClick={fetchQueueDepth} className="ml-2 underline text-white hover:text-cyan-400">Retry</button>
+      </div>
+    );
+  }
+
   if (queueData.loading && !hasCache) {
     return (
-      <div className="bg-slate-900/80 rounded-xl border border-slate-700/50 shadow-lg p-6  animate-pulse mt-4">
+      <div className="glass-effect rounded-2xl p-6 border border-onyx-accent/20 animate-pulse mt-4">
         <div className="h-6 w-1/3 bg-slate-800 rounded mb-6"></div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="h-24 bg-slate-800 rounded-lg"></div>
@@ -147,7 +160,7 @@ const QueueDepthPanel = () => {
   };
 
   return (
-    <div className="bg-slate-900/80 rounded-xl border border-slate-700/50 shadow-lg p-6  mt-4 relative">
+    <div className="glass-effect rounded-2xl p-6 hover:bg-white/10 transition-all duration-300 relative group border border-onyx-accent/20 mt-4">
       {queueData.loading && <div className="absolute top-4 right-4 w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></div>}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-white flex items-center">
@@ -164,7 +177,7 @@ const QueueDepthPanel = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-800/40 p-4 rounded-lg border border-slate-700/50">
+        <div className="glass-effect bg-black/30 border border-white/5 p-4 rounded-xl">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiList} className="mr-2" />
             <span className="text-sm uppercase tracking-wider">Pending Jobs</span>
@@ -174,7 +187,7 @@ const QueueDepthPanel = () => {
           </div>
         </div>
 
-        <div className="bg-slate-800/40 p-4 rounded-lg border border-slate-700/50">
+        <div className="glass-effect bg-black/30 border border-white/5 p-4 rounded-xl">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiClock} className="mr-2" />
             <span className="text-sm uppercase tracking-wider">Active Cron Tasks</span>
@@ -184,7 +197,7 @@ const QueueDepthPanel = () => {
           </div>
         </div>
 
-        <div className="bg-slate-800/40 p-4 rounded-lg border border-slate-700/50">
+        <div className="glass-effect bg-black/30 border border-white/5 p-4 rounded-xl">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiAlertCircle} className="mr-2" />
             <span className="text-sm uppercase tracking-wider">Dead Letters (DLQ)</span>
@@ -194,7 +207,7 @@ const QueueDepthPanel = () => {
           </div>
         </div>
 
-        <div className="bg-slate-800/40 p-4 rounded-lg border border-slate-700/50">
+        <div className="glass-effect bg-black/30 border border-white/5 p-4 rounded-xl">
           <div className="flex items-center text-slate-400 mb-2">
             <SafeIcon icon={FiAlertCircle} className="mr-2" />
             <span className="text-sm uppercase tracking-wider">Critical Failures</span>
