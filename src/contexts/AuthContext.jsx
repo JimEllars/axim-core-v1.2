@@ -300,6 +300,43 @@ export const AuthProvider = ({ children }) => {
     loading
   };
 
+
+    // Silent token renewal check
+    useEffect(() => {
+      let renewalTimer;
+      const setupRenewal = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // Check expiration
+          const expiresAt = session.expires_at * 1000;
+          const timeToExpiry = expiresAt - Date.now();
+          // Renew 5 minutes before expiry
+          const renewTime = timeToExpiry - 5 * 60 * 1000;
+
+          if (renewTime > 0) {
+            renewalTimer = setTimeout(async () => {
+              if (!isOffline) {
+                 await supabase.auth.refreshSession();
+                 setupRenewal(); // Setup next renewal
+              }
+            }, renewTime);
+          } else {
+             // Already near expiry, try to refresh now
+             if (!isOffline) {
+                 await supabase.auth.refreshSession();
+                 setupRenewal();
+             }
+          }
+        }
+      };
+
+      if (isAuthenticated && !isOffline) {
+         setupRenewal();
+      }
+
+      return () => clearTimeout(renewalTimer);
+    }, [isAuthenticated, isOffline, supabase]);
+
   return (
     <AuthContext.Provider value={value}>
       {children}

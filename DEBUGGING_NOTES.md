@@ -207,3 +207,11 @@ During `npm install`, several deprecation warnings are visible:
 ## [Wave 56] Drift Reconciliation Notes (2026-06-25)
 * **ApiKeyManager Test Skip:** Confirmed that `ApiKeyManager` UI tests were skipping timeout-prone checks with a documented `it.skip` and explicit reasons.
 * **DLQ to Telemetry Loop:** Verified that the Dead Letter Queue error handling drops a telemetry payload, correctly alerting the immune system via the telemetry database table.
+## Increment 1 - Production Hardening
+- Implemented edge telemetry buffering and jitter backoff in `cloudflare-workers/src/telemetry-consumer.js`.
+- Configured Cloudflare index to forward CF geo headers for telemetry endpoints.
+- Added silent session refresh logic directly in `AuthContext.jsx` using `useEffect` and `setTimeout`.
+- Stabilized `PassportListener.jsx` to prevent overlapping subscriptions.
+- Made UI alerts (`DatabaseUplinkError.jsx`, `DegradedModeAlert.jsx`) non-obstructive.
+- Fallback timeouts incorporated to `ProviderManager.js`.
+- `QueueDepthPanel` and `CloudflareEdgeHealth` UI matched to tokens, implemented graceful loading states and error boundaries.

@@ -109,6 +109,14 @@ export const trackEvent = (() => {
 
       queue.push(enrichedPayload);
 
+      // We implement local in-memory ring buffering, up to MAX_QUEUE_SIZE.
+      // Already implemented: dropping the oldest if over MAX_QUEUE_SIZE in flushQueue
+      // when failures are happening. Let's make sure it drops them here too if over
+      // max size before flush can process.
+      while (queue.length > MAX_QUEUE_SIZE) {
+        queue.shift();
+      }
+
       if (queue.length >= 5 || consecutiveFailures === 0) {
          // Flush asynchronously without blocking the main thread
          setTimeout(flushQueue, 100);

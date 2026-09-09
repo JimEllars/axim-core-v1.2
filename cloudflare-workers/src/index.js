@@ -96,6 +96,11 @@ export default {
         const modifiedRequest = new Request(targetUrl, request.clone());
         modifiedRequest.headers.set('x-forwarded-host', request.headers.get('host') || '');
 
+        // Ensure edge payloads attach normalized geo-headers
+        modifiedRequest.headers.set('x-cf-ipcountry', request.cf?.country || 'unknown');
+        modifiedRequest.headers.set('x-cf-region', request.cf?.region || 'unknown');
+        modifiedRequest.headers.set('x-cf-colo', request.cf?.colo || 'unknown');
+
         // Push the processing to the background
         ctx.waitUntil(fetch(modifiedRequest).catch(err => console.error("Telemetry/Webhook forward failed:", err)));
 
