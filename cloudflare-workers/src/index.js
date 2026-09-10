@@ -97,9 +97,12 @@ export default {
         modifiedRequest.headers.set('x-forwarded-host', request.headers.get('host') || '');
 
         // Ensure edge payloads attach normalized geo-headers
-        modifiedRequest.headers.set('x-cf-ipcountry', request.cf?.country || 'unknown');
-        modifiedRequest.headers.set('x-cf-region', request.cf?.region || 'unknown');
-        modifiedRequest.headers.set('x-cf-colo', request.cf?.colo || 'unknown');
+        modifiedRequest.headers.set('x-cf-ipcountry', request.cf?.country || 'XX');
+        modifiedRequest.headers.set('x-cf-region', request.cf?.region || null);
+        modifiedRequest.headers.set('x-cf-city', request.cf?.city || null);
+        modifiedRequest.headers.set('x-cf-asn', request.cf?.asn || null);
+        modifiedRequest.headers.set('x-cf-colo', request.cf?.colo || 'UNKNOWN');
+        modifiedRequest.headers.set('x-cf-ray', request.headers.get('cf-ray') || null);
 
         // Push the processing to the background
         ctx.waitUntil(fetch(modifiedRequest).catch(err => console.error("Telemetry/Webhook forward failed:", err)));

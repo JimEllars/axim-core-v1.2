@@ -36,7 +36,8 @@ const PassportListener = () => {
   useEffect(() => {
     const channel = supabase.channel('passport-verify-events');
 
-    channel.unsubscribe(); // Cleanup any existing before subscribing
+    // channel.unsubscribe() is not a valid method on a realtime channel here in v2.
+    // Cleanup will be handled by the unmount.
     channel
       .on('broadcast', { event: 'verification_status' }, (payload) => {
         setEvents((currentEvents) => [

@@ -376,11 +376,11 @@ window.removeEventListener('onyx-agent-status', handleAgentStatus);
 
 
   return (
-  <div className="glass-effect p-4 rounded-lg mb-4 h-[60vh] flex flex-col bg-slate-900/60 backdrop-blur-md border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.1)] relative overflow-hidden">
+  <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800/80 shadow-lg p-4 rounded-xl mb-4 h-[60vh] flex flex-col relative overflow-hidden">
     {/* Decorative Scanline */}
     <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(transparent_50%,rgba(34,211,238,1)_50%)] bg-[length:100%_4px]" />
 
-    <div className="flex justify-between items-center mb-2 border-b border-onyx-accent/20 pb-2 relative z-10">
+    <div className="flex justify-between items-center mb-2 border-b border-slate-800 pb-2 relative z-10">
       <div className="flex items-center space-x-2">
         <h2 className="text-sm font-bold text-slate-200 uppercase tracking-widest flex items-center">
           <SafeIcon icon={FiActivity} className="mr-2 text-onyx-accent" />

@@ -128,7 +128,7 @@ const CloudflareEdgeHealth = () => {
   }
 
   return (
-    <div className="glass-effect rounded-2xl p-6 hover:bg-white/10 transition-all duration-300 relative group hover:shadow-[0_0_25px_rgba(0,0,0,0.5)] border border-onyx-accent/20 h-full flex flex-col">
+    <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-6 hover:bg-slate-800/60 transition-all duration-300 relative group shadow-lg hover:shadow-xl h-full flex flex-col">
       <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-lg ${getBgColor()} border ${getStatusColor()}`}>
@@ -168,7 +168,7 @@ const CloudflareEdgeHealth = () => {
                <h4 className="text-xs text-slate-400 font-mono tracking-wider uppercase">Cache Hit Ratio</h4>
              </div>
              <p className="text-xl font-bold text-white transition-all">{cacheHitRatio}%</p>
-             <div className="w-full bg-slate-800 rounded-full h-1 mt-2">
+             <div className="w-full bg-slate-800 rounded-full h-1 mt-2 overflow-hidden">
                 <div className="bg-purple-500 h-1 rounded-full transition-all duration-500" style={{ width: `${cacheHitRatio}%` }}></div>
              </div>
           </div>
@@ -178,7 +178,7 @@ const CloudflareEdgeHealth = () => {
                <h4 className="text-xs text-slate-400 font-mono tracking-wider uppercase">Ingress Queue</h4>
              </div>
              <p className="text-xl font-bold text-white transition-all">{ingressQueueDepth}</p>
-             <div className="w-full bg-slate-800 rounded-full h-1 mt-2">
+             <div className="w-full bg-slate-800 rounded-full h-1 mt-2 overflow-hidden">
                 <div className="bg-emerald-500 h-1 rounded-full transition-all duration-500" style={{ width: `${Math.min(ingressQueueDepth * 5, 100)}%` }}></div>
              </div>
           </div>

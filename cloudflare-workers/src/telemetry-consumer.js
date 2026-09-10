@@ -11,10 +11,12 @@ export default {
             // Validate incoming events for missing/partial geo-metadata
             if (!body.geo) {
                 body.geo = {
-                    colo: 'unknown',
-                    country: 'unknown',
-                    city: 'unknown',
-                    region: 'unknown'
+                    colo: 'UNKNOWN',
+                    country: 'XX',
+                    city: null,
+                    region: null,
+                    asn: null,
+                    cf_ray: null
                 };
             }
 
