@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
 import api from '../../services/onyxAI/api';
 import SafeIcon from '../../common/SafeIcon';
+import supabaseApiService from '../../services/supabaseApiService';
 import * as FiIcons from 'react-icons/fi';
 
 const { FiZap, FiCheckCircle, FiXCircle, FiAlertTriangle, FiFilter, FiRefreshCw } = FiIcons;
@@ -25,8 +26,8 @@ const WorkflowExecutionLog = () => {
   const fetchExecutions = async () => {
     setLoading(true);
     try {
-      const data = await api.getWorkflowExecutions();
-      setExecutions(data);
+      const data = await supabaseApiService.getWorkflowExecutions();
+      setExecutions(data || []);
     } catch (error) {
       console.error("Error fetching workflow executions:", error);
     } finally {

@@ -216,3 +216,16 @@ Test Passed!
 - **Status**: Verified
 - **Components Checked**: EmailConsole, QueueDepthPanel, CloudflareEdgeHealth, AppLauncher, ChatInterface, telemetry.js, telemetry-consumer.js
 - **Verification details**: All UI modifications and DLQ replay handlers manually verified via vitest unit and component tests. The Cloudflare Edge Queue Consumer error fallback loop has been hardened to securely write unprocessable logs back into the `dead_letter_jobs` queue. Cmd+K launcher filter functions accurately.
+
+## Wave 66 - Ecosystem Registry Health Probes, Satellite SDK Ingress & Universal Dispatcher DLQ
+**Date:** 2026-09-10
+**Changes:**
+1. Upgraded \`EcosystemRegistry.jsx\` with real-time status probe buttons and connected logic to \`gateway-heartbeat\`.
+2. Hardened \`universal-dispatcher\` webhooks with \`try/catch\` fallbacks to correctly write malformed signatures or execution errors directly to \`dead_letter_jobs\`.
+3. Adjusted \`satellite-telemetry\` to accurately save backend \`api_usage_logs\` and ensure generic jobs save properly when LLM tokens are not detected.
+4. Bound \`WorkflowBuilder.jsx\` "Run Workflow" action directly to \`trigger-workflow\` endpoint and normalized execution fetch outputs in \`WorkflowExecutionLog.jsx\`.
+
+**Checks Completed:**
+- [x] Tested full project Vitest suite (\`npx vitest run --coverage\`). All tests passed.
+- [x] Verified Deno syntax and handler fallbacks for modified Edge Functions.
+- [x] Executed production frontend compilation (\`npm run build\`).

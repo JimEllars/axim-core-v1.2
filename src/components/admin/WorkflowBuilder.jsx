@@ -408,9 +408,21 @@ const WorkflowBuilder = () => {
         </div>
         {activeTab === 'builder' && (
           <div className="flex gap-3">
-            <button className="flex items-center px-4 py-2 glass-effect hover:bg-onyx-accent/10 text-white text-sm rounded-md transition-colors">
+            <button
+              onClick={async () => {
+                try {
+                  await supabaseApiService.supabase.functions.invoke('trigger-workflow', {
+                    body: { workflow: activeWorkflowId || workflowName }
+                  });
+                  toast.success("Workflow test run initiated");
+                } catch (error) {
+                  console.error("Test run error:", error);
+                  toast.error("Failed to run workflow");
+                }
+              }}
+              className="flex items-center px-4 py-2 glass-effect hover:bg-onyx-accent/10 text-white text-sm rounded-md transition-colors">
               <SafeIcon icon={FiPlay} className="mr-2" />
-              Test Run
+              Run Workflow
             </button>
             <button
               onClick={async () => {

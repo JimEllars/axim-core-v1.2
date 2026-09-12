@@ -82,17 +82,21 @@ serve(async (req) => {
         }
     }
 
-    if (provider || total_tokens || estimated_cost_usd) {
+    const duration = body.duration_ms || body.execution_ms || body.execution_time_ms;
+    if (provider || total_tokens || estimated_cost_usd || duration !== undefined) {
       const { error: usageError } = await supabaseAdmin
         .from('api_usage_logs')
         .insert({
           app_id: app_id,
           endpoint: 'satellite-telemetry',
-          provider: provider,
-          prompt_tokens: prompt_tokens,
-          completion_tokens: completion_tokens,
-          token_count: total_tokens,
-          estimated_cost_usd: estimated_cost_usd,
+          provider: provider || 'satellite_job',
+          prompt_tokens: prompt_tokens || 0,
+          completion_tokens: completion_tokens || 0,
+          token_count: total_tokens || 0,
+          estimated_cost_usd: estimated_cost_usd || 0,
+          execution_time_ms: duration ? Math.round(duration) : null,
+          status_code: body.status === 'error' || body.status === 'failed' ? 500 : 200,
+          metadata: body.metadata || {},
           created_at: new Date().toISOString(),
         });
       if (usageError) console.error("Error inserting into api_usage_logs:", usageError);
