@@ -8,12 +8,40 @@ export const trackEvent = (() => {
   const BACKOFF_DURATION = 15000; // 15 seconds
   const LATENCY_THRESHOLD = 800; // 800ms
 
+
   const generateTraceId = () => {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       return crypto.randomUUID();
     }
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
   };
+
+  const getStoredEvents = () => {
+    try {
+      const stored = localStorage.getItem('axim_telemetry_fallback');
+      return stored ? JSON.parse(stored) : [];
+    } catch (e) {
+      return [];
+    }
+  };
+
+  const storeEvents = (events) => {
+    try {
+      localStorage.setItem('axim_telemetry_fallback', JSON.stringify(events));
+    } catch (e) {
+      // Silently ignore local storage errors
+    }
+  };
+
+  // Initialize queue with any stored events
+  if (typeof window !== 'undefined') {
+    const stored = getStoredEvents();
+    if (stored.length > 0) {
+      queue = stored;
+      storeEvents([]); // clear after loading
+    }
+  }
+
 
   const flushQueue = async (isUnload = false) => {
     if (isFlushing || queue.length === 0) return;
@@ -62,8 +90,18 @@ export const trackEvent = (() => {
 
       const latency = performance.now() - startTime;
 
+
       if (!response.ok) {
-        if (response.status === 429 || response.status >= 500) {
+        if (response.status >= 500) {
+           consecutiveFailures++;
+           // Fallback silently to local storage
+           if (typeof window !== 'undefined') {
+             const stored = getStoredEvents();
+             const newStored = [...stored, ...batch];
+             storeEvents(newStored.slice(-MAX_QUEUE_SIZE)); // keep last MAX_QUEUE_SIZE
+           }
+           return;
+        } else if (response.status === 429) {
            consecutiveFailures++;
            if (!useFallback && consecutiveFailures > 2) {
               // Re-queue to immediately retry with fallback
@@ -74,6 +112,7 @@ export const trackEvent = (() => {
         }
         throw new Error(`Telemetry dispatch failed with status ${response.status}`);
       }
+
 
       if (latency > LATENCY_THRESHOLD) {
         consecutiveFailures++;

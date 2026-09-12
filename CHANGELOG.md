@@ -7,6 +7,9 @@
 - Fixed overlapping events in `PassportListener.jsx` and added strict lifecycle rules.
 - Upgraded `CloudflareEdgeHealth` and `QueueDepthPanel` UI to align with enterprise design tokens and error boundary logic.
 - Fallback timeout configurations provided for AI Providers.
+- Refactored `JobQueueMonitor` to use real-time channels instead of aggressive polling.
+- Updated Onyx AI routing with `executeCommandWithTimeout` to handle timeouts gracefully.
+- Enhanced `job-processor` with non-blocking email dispatches.
 
 ## [1.2.1-wave-65] - 2026-09-10
 ### Added
