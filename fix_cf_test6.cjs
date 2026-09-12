@@ -1,4 +1,7 @@
-import '@testing-library/jest-dom';
+const fs = require('fs');
+
+const healthTestPath = 'src/components/dashboard/CloudflareEdgeHealth.test.jsx';
+const content = `import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -60,6 +63,7 @@ describe('CloudflareEdgeHealth', () => {
       fireEvent.click(refreshButton);
     });
 
+    expect(screen.getByText('Pinging...')).toBeInTheDocument();
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith('/api/edge/healthz', expect.any(Object));
@@ -111,3 +115,6 @@ describe('CloudflareEdgeHealth', () => {
     });
   });
 });
+`;
+
+fs.writeFileSync(healthTestPath, content, 'utf8');
