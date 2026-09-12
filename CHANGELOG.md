@@ -19,3 +19,13 @@
 - Refined Cloudflare Edge Health component to capture and display CF-Ray ID and Colo routing data from live pings.
 - Standardized UI elevation levels and applied cyber-grid backgrounds to the core CSS structure.
 - Enhanced Command Hub chat interface to provide deterministic fallback feedback when the Onyx daemon disconnects.
+## [1.1.0] - Sprint 1.3-Alpha Update
+### Added
+- Cloudflare edge worker telemetry buffering utilizing an exponential TTL fallback to `TELEMETRY_FALLBACK_KV`.
+- Seamless offline payload queueing with `navigator.sendBeacon()` tracking implementation ensuring delivery limits stay under 64 KB.
+- Universal Web3 and internal `idempotency-key` validation hooks implemented natively within `api-gateway` and `universal-dispatcher`.
+
+### Changed
+- Replaced polling intervals across dashboards (`CloudflareEdgeHealth`, `QueueDepthPanel`, `IntelligenceHub`) with event-driven `supabase.channel()` realtime sync.
+- Improved WCAG AA dark-mode compliance across UI frames, optimizing `text-slate-400` boundaries with `border-zinc-800` to prevent washout.
+- Deprecated manual load spinners for streamlined unified `animate-pulse` skeleton states on key data tables.
