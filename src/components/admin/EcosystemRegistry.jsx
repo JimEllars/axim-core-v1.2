@@ -19,7 +19,7 @@ const fetchNodes = async () => {
     setIsLoading(true);
     try {
       const [nodesRes, logsRes] = await Promise.all([
-        supabase.from('ecosystem_nodes').select('*').order('created_at', { ascending: false }),
+        supabase.from('ecosystem_nodes').select('*').order('app_name', { ascending: true }),
         supabase.from('api_usage_logs').select('app_id, timestamp').order('timestamp', { ascending: false }).limit(100)
       ]);
 
@@ -156,12 +156,29 @@ const fetchNodes = async () => {
             Manage circuit breakers and quarantine state for Swarm micro-apps.
           </p>
         </div>
-        <button
-           onClick={() => setShowAddForm(!showAddForm)}
-           className="bg-onyx-accent hover:bg-onyx-accent/80 text-white px-4 py-2 rounded flex items-center text-sm"
-        >
-          <SafeIcon icon={FiPlus} className="mr-2" /> Add Node
-        </button>
+        <div className="flex gap-2">
+          <button
+             onClick={async () => {
+                toast.loading('Probing all nodes...', { id: 'probe' });
+                try {
+                    await supabase.functions.invoke('gateway-heartbeat', { body: { target: 'all' } });
+                    await fetchNodes();
+                    toast.success('Probe complete', { id: 'probe' });
+                } catch (err) {
+                    toast.error('Probe failed', { id: 'probe' });
+                }
+             }}
+             className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded flex items-center text-sm"
+          >
+            🛰️ Probe All Nodes Now
+          </button>
+          <button
+             onClick={() => setShowAddForm(!showAddForm)}
+             className="bg-onyx-accent hover:bg-onyx-accent/80 text-white px-4 py-2 rounded flex items-center text-sm"
+          >
+            <SafeIcon icon={FiPlus} className="mr-2" /> Add Node
+          </button>
+        </div>
       </div>
 
       {showAddForm && (

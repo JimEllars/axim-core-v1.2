@@ -71,6 +71,17 @@ serve(async (req: Request) => {
                headers: { ...corsHeaders, "Content-Type": "application/json" }
            });
        } catch(e) {
+           // Push to dead_letter_jobs on failure
+           try {
+               await supabaseAdmin.from('dead_letter_jobs').insert({
+                   job_type: 'lead_capture',
+                   payload: body,
+                   error_details: e.message,
+                   status: 'failed'
+               });
+           } catch (dlqErr) {
+               console.error("Failed to insert into dead_letter_jobs", dlqErr);
+           }
            throw e;
        }
     }
@@ -460,6 +471,15 @@ serve(async (req: Request) => {
     console.error("Universal Dispatcher Error:", error);
 
     if (error.name === 'SyntaxError' || error.message.includes('malformed') || error.message.includes('signature')) {
+        await supabaseAdmin.from('dead_letter_jobs').insert({
+            job_type: 'unparseable_webhook',
+            payload: typeof body !== 'undefined' ? body : null,
+            error_details: error.message,
+            status: 'failed'
+        }).catch(err => {
+            console.error('Failed to log to dead_letter_jobs', err);
+        });
+
         await supabaseAdmin.from('hitl_dead_letter_logs').insert({
             raw_payload: typeof body !== 'undefined' ? body : null,
             rejection_reason: error.message,
