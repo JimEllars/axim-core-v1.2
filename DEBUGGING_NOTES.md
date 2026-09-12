@@ -215,3 +215,27 @@ During `npm install`, several deprecation warnings are visible:
 - Made UI alerts (`DatabaseUplinkError.jsx`, `DegradedModeAlert.jsx`) non-obstructive.
 - Fallback timeouts incorporated to `ProviderManager.js`.
 - `QueueDepthPanel` and `CloudflareEdgeHealth` UI matched to tokens, implemented graceful loading states and error boundaries.
+
+## Phase 1: Cloudflare Edge & Telemetry Buffer Consolidation
+* Deleted ad-hoc test patches `fix_cf_test6.cjs` and `fix_cf_test7.cjs`.
+* Updated `cloudflare-workers/wrangler.toml` queue `telemetry-queue` binding to set `max_batch_size = 50` and `max_batch_timeout = 5`.
+* Validated `cloudflare-workers/src/telemetry-consumer.js` to correctly batch events and fall back to KV caching on upstream 5xx errors instead of retrying endlessly.
+* Hardened `src/services/telemetry.js` to gracefully fall back to `localStorage` buffer if Cloudflare Edge/telemetry ingress returns 5xx errors, preventing unhandled exceptions and dropped events.
+* Ran and passed telemetry-pipeline tests (`npx vitest run tests/telemetry-pipeline.test.js`) and cloudflare-worker integration tests (`npm run test:integration`).
+
+## Phase 2: Live User Session Protection & Zero-Flicker Auth
+* Hardened `src/contexts/AuthContext.jsx` by making `handleOnlineWakeup` refresh session asynchronously (fire and forget) rather than awaiting and blocking, ensuring zero-flicker on token refreshes.
+* Refactored `loadUserSettings` inside `AuthContext.jsx` to gracefully apply default permissions if `get_user_settings_array_rpc` returns an error or empty data instead of crashing/logging out.
+* Updated `src/components/PassportListener.jsx` to catch and ignore network fetch exceptions during token verification, rather than exposing unhandled promise rejections.
+* Executed and passed `src/contexts/AuthContext.test.jsx` and `tests/user-profile.test.jsx`.
+
+## Phase 3: Dashboard Telemetry Optimization & Realtime Scaffolding
+* Refactored `CloudflareEdgeHealth.jsx` to subscribe to the shared Supabase realtime broadcast channel (`system_health_channel`) for status updates, rather than exclusively listening to window events, and maintained the 60-second fallback polling jitter.
+* Refactored `JobQueueMonitor.jsx` to also subscribe to the `system_health_channel` for `queue_depth_update` broadcasts instead of aggressively polling every 10 seconds. Added a 60-second fallback poll.
+* Verified design tokens across metric components adhere to Tailwind CSS enterprise dark-mode patterns (subtle borders, glass effects).
+* Executed and passed `src/components/dashboard/CloudflareEdgeHealth.test.jsx` and `tests/metrics-grid.test.jsx` successfully.
+
+## Phase 4: Onyx AI & Automation Pipeline Continuity
+* Added `executeCommandWithTimeout` to `src/services/onyxAI/commandRouter.js` to ensure downstream LLM timeouts trigger an immediate handoff to cached task definitions, preventing agent worker queue halts.
+* Updated `supabase/functions/job-processor/index.ts` to dispatch non-blocking jobs (like emails) using a fire-and-forget fetch strategy so they don't hold open connection slots during peak traffic.
+* Executed and passed `src/services/onyxAI/onyxAI.test.js` and `tests/job-processor.test.js`.

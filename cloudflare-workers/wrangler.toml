@@ -23,4 +23,4 @@ enabled = true
 [[queues.consumers]]
 queue = "telemetry-queue"
 max_batch_size = 50
-max_batch_timeout = 10
+max_batch_timeout = 5
