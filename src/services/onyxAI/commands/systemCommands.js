@@ -365,7 +365,7 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
 
         let errorCount = 0;
         try {
-            const { supabase } = await import('../../supabaseClient.js'); // Assuming path is correct
+              // Assuming path is correct
             const { data, error } = await supabase
                 .from('telemetry_logs')
                 .select('*')
@@ -383,7 +383,7 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
             console.error("Error querying telemetry_logs:", e);
             // Fallback checking events_ax2024 as seen in previous files
             try {
-                const { supabase } = await import('../../supabaseClient.js');
+
                 const { data, error } = await supabase
                     .from('events_ax2024')
                     .select('*')
@@ -416,8 +416,8 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
     category: 'System',
     async execute(args, { aximCore }) {
       try {
-        const { supabase } = await import('../../supabaseClient.js');
-        const api = (await import('../api.js')).default;
+
+
 
         // Fetch logs for the past 24 hours
         const oneDayAgo = new Date();
@@ -486,7 +486,7 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
       const traceId = args.trim();
 
       try {
-        const { supabase } = await import('../../supabaseClient.js');
+
 
         const { data, error } = await supabase.storage
           .from('secure_artifacts')
@@ -545,7 +545,7 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
       }
 
       try {
-        const { supabase } = await import('../../supabaseClient.js');
+
 
         const { error } = await supabase
           .from('telemetry_logs')

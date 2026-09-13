@@ -13,10 +13,15 @@ export default defineConfig({
     },
   },
   build: {
+    chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom', 'react-router-dom', 'framer-motion', '@supabase/supabase-js'],
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          motion: ['framer-motion', '@headlessui/react'],
+          charts: ['echarts', 'echarts-for-react'],
+          flow: ['@xyflow/react'],
+          supabase: ['@supabase/supabase-js'],
         },
       },
     },

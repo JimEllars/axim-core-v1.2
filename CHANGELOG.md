@@ -32,3 +32,15 @@
 - Replaced polling intervals across dashboards (`CloudflareEdgeHealth`, `QueueDepthPanel`, `IntelligenceHub`) with event-driven `supabase.channel()` realtime sync.
 - Improved WCAG AA dark-mode compliance across UI frames, optimizing `text-slate-400` boundaries with `border-zinc-800` to prevent washout.
 - Deprecated manual load spinners for streamlined unified `animate-pulse` skeleton states on key data tables.
+
+## [1.1.1] - 2026-09-13
+### Added
+- Scaffolded AXiM Core MCP Bridge with authentication and diagnostic tools (`axim_ping`, `axim_get_system_health`, `axim_get_queue_depth`) in `cloudflare-workers/mcp-bridge`.
+- Added automated KV telemetry buffer draining mechanism to the edge `telemetry-consumer.js`.
+
+### Fixed
+- Resolved Cloudflare Pages build issues by configuring `wrangler.jsonc` to explicitly include `pages_build_output_dir`.
+- Resolved Rollup circular dependency and bundle size warnings by cleaning up mixed static/dynamic imports across the codebase (`src/services/offline.js`, `src/services/onyxAI/commands/systemCommands.js`, `src/services/workflows/engine.js`).
+
+### Changed
+- Optimized Vite build chunking in `vite.config.js` to split `vendor`, `motion`, `charts`, `flow`, and `supabase` chunks to optimize the Cloudflare Pages bundle.
