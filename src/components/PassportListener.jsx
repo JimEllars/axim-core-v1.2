@@ -69,6 +69,7 @@ const PassportListener = () => {
     const token = params.get('token');
 
     if (token) {
+
         const verifyToken = async () => {
             try {
                 const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/passport-verify`, {
@@ -77,25 +78,26 @@ const PassportListener = () => {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({ token })
-                });
-                if (response.ok) {
+                }).catch(() => null); // Silently catch network errors
+
+                if (response && response.ok) {
                     const data = await response.json();
                     if (data.axim_session_token) {
                         localStorage.setItem('axim_session_token', data.axim_session_token);
                     }
-                    setEvents([{
+                    setEvents(prev => [{
                         id: 'token-verify',
                         status: 'Verified',
                         user_id: data.user_id || 'Unknown',
                         timestamp: new Date().toISOString()
-                    }]);
+                    }, ...prev]);
                 } else {
-                    setEvents([{
+                    setEvents(prev => [{
                         id: 'token-verify-failed',
                         status: 'Verification Failed',
                         user_id: 'Unknown',
                         timestamp: new Date().toISOString()
-                    }]);
+                    }, ...prev]);
                 }
             } catch (err) {
                 console.error("Token verification error:", err);
@@ -105,6 +107,7 @@ const PassportListener = () => {
                 window.history.replaceState({}, document.title, window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
             }
         };
+
         verifyToken();
     }
   }, []);

@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { supabase } from '../../services/supabaseClient';
+
 import { FiCloud, FiActivity, FiGlobe, FiCpu, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 import { apiProxy } from '../../services/apiProxy';
@@ -81,23 +83,48 @@ const CloudflareEdgeHealth = () => {
     }
   }, [isPinging, status]);
 
+
   useEffect(() => {
-    // Listen for custom events dispatched by the apiProxy
+    let intervalId;
+    const channel = supabase.channel('system_health_channel');
+
+    channel.on('broadcast', { event: 'cloudflare_edge_health' }, (payload) => {
+        if (payload.payload) {
+            setStatus(payload.payload.status === 'active' ? 'ONLINE' : 'DEGRADED');
+            setLatency(`${payload.payload.latency}ms`);
+            setCacheHitRatio(payload.payload.cacheHitRatio || 98.4);
+            setIngressQueueDepth(payload.payload.queueDepth || 0);
+            setLastChecked(new Date().toLocaleTimeString());
+            // Reset fallback timer
+            clearInterval(intervalId);
+            intervalId = setInterval(handlePingEdge, 60000);
+        }
+    }).subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+            console.log('Subscribed to system_health_channel');
+        }
+    });
+
+
+    // Fallback polling
+    intervalId = setInterval(handlePingEdge, 60000);
+
+    // Keep custom window events for fallback/testing
     const handleHealthy = () => {
       setStatus('ONLINE');
-      try { localStorage.setItem("cfEdgeStatus", 'ONLINE'); } catch(e) { console.debug(e); }
+      try { localStorage.setItem("cfEdgeStatus", 'ONLINE'); } catch(e) { console.debug('Storage error', e); }
     };
 
     const handleDegraded = () => {
       setStatus('DEGRADED');
-      try { localStorage.setItem("cfEdgeStatus", 'DEGRADED'); } catch(e) { console.debug(e); }
+      try { localStorage.setItem("cfEdgeStatus", 'DEGRADED'); } catch(e) { console.debug('Storage error', e); }
     };
 
     const handleRevalidated = () => {
         setStatus('REVALIDATING');
         setTimeout(() => {
            setStatus('ONLINE');
-           try { localStorage.setItem("cfEdgeStatus", 'ONLINE'); } catch(e) { console.debug(e); }
+           try { localStorage.setItem("cfEdgeStatus", 'ONLINE'); } catch(e) { console.debug('Storage error', e); }
         }, 1500);
     }
 
@@ -106,11 +133,15 @@ const CloudflareEdgeHealth = () => {
     window.addEventListener('edge:revalidated', handleRevalidated);
 
     return () => {
-      window.removeEventListener('edge:healthy', handleHealthy);
-      window.removeEventListener('edge:degraded', handleDegraded);
-      window.removeEventListener('edge:revalidated', handleRevalidated);
+        supabase.removeChannel(channel);
+        clearInterval(intervalId);
+        window.removeEventListener('edge:healthy', handleHealthy);
+        window.removeEventListener('edge:degraded', handleDegraded);
+        window.removeEventListener('edge:revalidated', handleRevalidated);
     };
-  }, []);
+  }, [handlePingEdge]);
+
+
 
   const isOnline = status === 'ONLINE';
   const isRevalidating = status === 'REVALIDATING';

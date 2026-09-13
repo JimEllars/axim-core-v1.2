@@ -191,23 +191,22 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     };
 
+
     const handleOnlineWakeup = async () => {
        console.log('Browser woke up or came online. Forcing silent token refresh.');
        setIsOffline(false);
-       try {
-         const { data: { session } } = await supabase.auth.getSession();
+
+       // Fire and forget silent refresh
+       supabase.auth.getSession().then(({ data: { session } }) => {
          if (session) {
-             const { error } = await supabase.auth.refreshSession();
-             if (error) throw error;
-             // Only update if something changed, prevent flickering
-             // The auth listener will likely catch this and trigger handleSession anyway,
-             // but we'll leave it simple for resilience without unmounting
+             supabase.auth.refreshSession().catch(err => {
+                 console.warn("Failed silent token refresh on wakeup:", err);
+                 setIsOffline(true);
+             });
          }
-       } catch (err) {
-         console.warn("Failed silent token refresh on wakeup:", err);
-         setIsOffline(true);
-       }
+       }).catch(() => {});
     };
+
     window.addEventListener('online', handleOnlineWakeup);
 
     let offlineTimeout;

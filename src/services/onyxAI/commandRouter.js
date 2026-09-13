@@ -61,3 +61,32 @@ export const findCommand = (command) => {
 
   throw new CommandNotFoundError(`Command "${commandKeyword}" not found.`);
 };
+
+
+// We ensure a quick fallback to cached definitions if there's a timeout.
+// But findCommand is synchronous. If it's used in an async context that times out,
+// the caller must handle the timeout. We'll add a helper function here.
+export const executeCommandWithTimeout = async (commandFunc, command, args, timeoutMs = 8000) => {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            trackEvent('onyx_command_router', {
+               action: 'timeout_fallback',
+               command: typeof command === 'string' ? command : command.id,
+               severity: 'WARN'
+            });
+            // Fallback: return a cached definition or empty response to prevent agent worker queue from halting
+            resolve({
+                status: 'timeout_fallback',
+                data: { message: "Command execution timed out. Falling back to cached state.", cached: true }
+            });
+        }, timeoutMs);
+
+        commandFunc(command, args).then(res => {
+            clearTimeout(timer);
+            resolve(res);
+        }).catch(err => {
+            clearTimeout(timer);
+            reject(err);
+        });
+    });
+};

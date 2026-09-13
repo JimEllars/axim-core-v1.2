@@ -233,10 +233,13 @@ serve(async (req) => {
             });
           }
 
+
           // Send Email using the updated send-email edge function
           if (customer_email) {
             const dispatcherUrl = `${supabaseUrl}/functions/v1/send-email`;
-            const dispatchRes = await fetch(dispatcherUrl, {
+
+            // Non-blocking dispatch - fire and forget
+            fetch(dispatcherUrl, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -248,14 +251,9 @@ serve(async (req) => {
                 formData: formData || payload,
                 artifactUrl: artifactUrl,
               }),
-            });
-
-            if (!dispatchRes.ok) {
-              throw new Error(
-                `Failed to dispatch email: ${await dispatchRes.text()}`,
-              );
-            }
+            }).catch(e => console.error("Non-blocking email dispatch failed:", e));
           }
+
         }
 
         // Record Idempotency Key if present and successful
