@@ -1,3 +1,4 @@
+import { supabase } from '../../supabaseClient';
 // src/services/onyxAI/commands/systemCommands.js
 import { createCommand } from './commandFactory';
 import { DatabaseError, CommandValidationError } from '../errors';
