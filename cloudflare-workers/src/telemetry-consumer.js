@@ -8,7 +8,7 @@ export default {
                     const value = await env.KV.get(key.name);
                     if (value) {
                         try {
-                            const url = `${env.SUPABASE_URL}/rest/v1/telemetry_logs`;
+                            const url = `${env.SUPABASE_URL}/rest/v1/telemetry_events`;
                             const response = await fetch(url, {
                                 method: 'POST',
                                 headers: {
@@ -66,7 +66,7 @@ export default {
 
             while (attempts < maxAttempts && !success) {
                 try {
-                    const url = `${env.SUPABASE_URL}/rest/v1/telemetry_logs`;
+                    const url = `${env.SUPABASE_URL}/rest/v1/telemetry_events`;
                     const response = await fetch(url, {
                         method: 'POST',
                         headers: {
