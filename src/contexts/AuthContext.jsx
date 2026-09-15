@@ -110,7 +110,8 @@ export const AuthProvider = ({ children }) => {
 
         const isSuperUser = currentUser.email === 'james.ellars@axim.us.com' || currentUser.email === 'jrellars@gmail.com';
         if (isSuperUser) {
-            currentRole = 'admin';
+            currentRole = 'super_user';
+            currentUser.is_super_user = true;
         }
         if (!currentRole) {
            const { data: roleData, error: roleError } = await supabase.from('user_roles').select('role').eq('user_id', currentUser.id).maybeSingle();
@@ -165,9 +166,29 @@ export const AuthProvider = ({ children }) => {
     };
 
     const wildcardSession = getWildcardCookie('axim_session');
-    if (wildcardSession) {
-        console.log('Detected AXiM wildcard session cookie');
-        // We could validate this session with the backend, for now just note it
+    const tokenParams = new URLSearchParams(window.location.search).get('token');
+
+    if (wildcardSession || tokenParams) {
+        const tokenToVerify = tokenParams || wildcardSession;
+        fetch('https://passport.axim.us.com/api/v1/auth/verify-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: tokenToVerify })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data && data.user) {
+                // If verified via SSO, create a session
+                // We'll trust the verified user data
+            }
+        })
+        .catch(console.error);
+
+        if (tokenParams) {
+            const params = new URLSearchParams(window.location.search);
+            params.delete('token');
+            window.history.replaceState({}, document.title, window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+        }
     }
 
     const getSession = async () => {

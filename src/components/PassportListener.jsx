@@ -72,7 +72,7 @@ const PassportListener = () => {
 
         const verifyToken = async () => {
             try {
-                const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/passport-verify`, {
+                const response = await fetch(`https://passport.axim.us.com/api/v1/auth/verify-token`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'

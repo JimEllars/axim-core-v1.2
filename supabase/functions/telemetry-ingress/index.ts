@@ -197,12 +197,21 @@ serve(async (req) => {
             }
 
             // Insert the telemetry event
+            const eventType = limitedPayload.event_type || limitedPayload.event || 'generic_telemetry';
             const { error: insertEventError } = await supabaseClient.from('telemetry_events').insert({
                 component_id: app_id === 'unknown_app' ? 'core_api' : (app_id === 'onyx_edge_worker' ? 'onyx_bridge' : 'core_api'), // Defaulting for enum constraints
                 environment: 'production',
                 severity: limitedPayload.severity || 'INFO',
-                message: limitedPayload.message || limitedPayload.event || 'generic_telemetry',
-                payload: { ...limitedPayload.details || limitedPayload, ip_address: clientIp, user_agent: userAgent },
+                message: limitedPayload.message || eventType,
+                payload: {
+                  ...limitedPayload.details || limitedPayload,
+                  source_app: app_id,
+                  event_type: eventType,
+                  ip_address: clientIp,
+                  user_agent: userAgent,
+                  geo_country: limitedPayload.geo_country || null,
+                  geo_city: limitedPayload.geo_city || null
+                },
                 idempotency_key: idempotencyKey,
             });
 

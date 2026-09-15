@@ -18,7 +18,7 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
 
     channel.on(
       'postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'hitl_audit_logs', filter: "status=eq.pending" },
+      { event: 'INSERT', schema: 'public', table: 'hitl_audit_logs', filter: "status=in.(pending,Pending)" },
       (payload) => {
         setPendingLogs((prev) => {
           if (!prev.find(log => log.id === payload.new.id)) {
@@ -29,7 +29,7 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
       }
     ).on(
       'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'hitl_audit_logs', filter: "status=eq.pending" },
+      { event: 'UPDATE', schema: 'public', table: 'hitl_audit_logs', filter: "status=in.(pending,Pending)" },
       (payload) => {
         setPendingLogs((prev) => {
           const index = prev.findIndex(log => log.id === payload.new.id);

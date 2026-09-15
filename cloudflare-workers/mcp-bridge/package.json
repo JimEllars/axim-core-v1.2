@@ -7,7 +7,6 @@
   "scripts": {
     "test": "vitest run"
   },
-  "dependencies": {},
   "devDependencies": {
     "vitest": "^0.34.6"
   }
