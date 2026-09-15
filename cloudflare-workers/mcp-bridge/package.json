@@ -1,0 +1,14 @@
+{
+  "name": "axim-core-mcp",
+  "version": "1.0.0",
+  "description": "AXiM Core MCP Bridge",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "vitest": "^0.34.6"
+  }
+}

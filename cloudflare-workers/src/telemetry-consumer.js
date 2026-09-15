@@ -1,5 +1,40 @@
 export default {
     async queue(batch, env) {
+        // Drain KV fallback buffer
+        if (env.KV) {
+            try {
+                const list = await env.KV.list({ prefix: 'telemetry_buffer_', limit: 2 });
+                for (const key of list.keys) {
+                    const value = await env.KV.get(key.name);
+                    if (value) {
+                        try {
+                            const url = `${env.SUPABASE_URL}/rest/v1/telemetry_logs`;
+                            const response = await fetch(url, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+                                    'apikey': env.SUPABASE_SERVICE_ROLE_KEY
+                                },
+                                body: value
+                            });
+
+                            if (response.ok) {
+                                await env.KV.delete(key.name);
+                                console.log(`Successfully drained and deleted KV key: ${key.name}`);
+                            } else {
+                                console.error(`Failed to drain KV key: ${key.name}, Status: ${response.status}`);
+                            }
+                        } catch (e) {
+                            console.error(`Error draining KV key: ${key.name}`, e);
+                        }
+                    }
+                }
+            } catch (listError) {
+                console.error('Failed to list KV buffer keys', listError);
+            }
+        }
+
         let messages = [];
 
         for (let msg of batch.messages) {

@@ -32,3 +32,6 @@
 - Replaced polling intervals across dashboards (`CloudflareEdgeHealth`, `QueueDepthPanel`, `IntelligenceHub`) with event-driven `supabase.channel()` realtime sync.
 - Improved WCAG AA dark-mode compliance across UI frames, optimizing `text-slate-400` boundaries with `border-zinc-800` to prevent washout.
 - Deprecated manual load spinners for streamlined unified `animate-pulse` skeleton states on key data tables.
+
+### Fixed
+- Resolved Cloudflare Pages CI deployment failures by stripping unsupported worker-specific configurations (`assets`, `observability`) from `wrangler.jsonc` and updating `package.json` scripts to use `npx wrangler pages deploy`.
