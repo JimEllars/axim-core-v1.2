@@ -1,4 +1,3 @@
-import { generateEmbedding } from '../llm.js';
 import { createCommand } from './commandFactory';
 import logger from '../../logging';
 import { CommandExecutionError } from '../errors';
@@ -31,7 +30,7 @@ export default [
         let results = [];
         try {
           // Attempt RAG search first
-
+          const { generateEmbedding } = await import('../llm.js');
           const embedding = await generateEmbedding(query);
           results = await aximCore.api.searchMemory(embedding, 5, userId);
         } catch (embeddingError) {

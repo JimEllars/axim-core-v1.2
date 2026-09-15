@@ -239,3 +239,10 @@ During `npm install`, several deprecation warnings are visible:
 * Added `executeCommandWithTimeout` to `src/services/onyxAI/commandRouter.js` to ensure downstream LLM timeouts trigger an immediate handoff to cached task definitions, preventing agent worker queue halts.
 * Updated `supabase/functions/job-processor/index.ts` to dispatch non-blocking jobs (like emails) using a fire-and-forget fetch strategy so they don't hold open connection slots during peak traffic.
 * Executed and passed `src/services/onyxAI/onyxAI.test.js` and `tests/job-processor.test.js`.
+
+## [2026-09-13] CI Failure on Cloudflare Pages Deployment
+- **Issue**: The Cloudflare Pages deployment failed during CI with `Configuration file for Pages projects does not support "assets"` and `Configuration file for Pages projects does not support "observability"`. Additionally, running `npx wrangler deploy` on a Pages project produced unwanted results.
+- **Root Cause**: `wrangler.jsonc` contained `assets` and `observability` keys which are meant for standard Cloudflare Workers, not Cloudflare Pages projects. Furthermore, `package.json` had incorrect scripts executing `npx wrangler deploy` for the dashboard deployment instead of `npx wrangler pages deploy`.
+- **Resolution**:
+  - Stripped `assets` and `observability` properties from `wrangler.jsonc`, leaving only `$schema`, `name`, `compatibility_date`, and `pages_build_output_dir`.
+  - Updated `package.json` deployment scripts (`deploy:dashboard` and `dry-run`) to properly use `npx wrangler pages deploy ./dist` instead of the generic `npx wrangler deploy`.

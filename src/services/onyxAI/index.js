@@ -1,4 +1,3 @@
-import { generateEmbedding } from './llm';
 import toast from 'react-hot-toast';
 import { findCommand } from './commandRouter';
 import { sanitizeInput } from './utils';
@@ -224,7 +223,7 @@ if (commandType === 'llm') {
 
       let embedding = null;
       try {
-
+        const { generateEmbedding } = await import('./llm');
         embedding = await generateEmbedding(sanitizedCommand);
       } catch (err) {
         logger.warn('Failed to generate embedding for AI interaction:', err);
@@ -303,7 +302,7 @@ const intent = await this.getIntentsFromLLM(sanitizedCommand);
       // Retrieve relevant past interactions for deep context before calling the LLM
       let deepContext = '';
       try {
-
+        const { generateEmbedding } = await import('./llm');
         const queryEmbedding = await generateEmbedding(sanitizedCommand);
         if (queryEmbedding) {
            const relevantInteractions = await this.api.searchMemory(queryEmbedding, 5, this.userId);

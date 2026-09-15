@@ -17,8 +17,7 @@
     "test:integration": "vitest run tests/integration.test.js",
     "build": "npx wrangler deploy --dry-run -c wrangler.toml",
     "test": "npm run test:integration",
-    "deploy:dry-run": "npx wrangler deploy --dry-run -c wrangler.toml",
-    "deploy:mcp": "npx wrangler deploy -c mcp-bridge/wrangler.toml"
+    "deploy:dry-run": "npx wrangler deploy --dry-run -c wrangler.toml"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.1.1",

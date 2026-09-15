@@ -230,9 +230,3 @@ Test Passed!
 - [x] Verified Deno syntax and handler fallbacks for modified Edge Functions.
 - [x] Executed production frontend compilation (\`npm run build\`).
 - **Sprint 1.3-Alpha**: Hardened Edge Worker telemetry buffers, refined offline batch queues via sendBeacon, tuned Tailwind dark mode aesthetics for strict contrast, and ensured idempotent Edge Function routing.
-
-### Sprint 1.4: Build Stabilization & MCP Bridge Source Integration
-- **Vite & Rollup**: Configured manual chunks in `vite.config.js` to split heavy libraries (React, Motion, Charts, XYFlow, Supabase) and suppress circular import warnings by replacing dynamic imports with top-level static imports.
-- **Cloudflare Pages**: Fixed build engine configuration via `wrangler.jsonc` (`pages_build_output_dir`).
-- **MCP Bridge**: Scaffolded the initial MCP bridge into source control (`cloudflare-workers/mcp-bridge/`) secured by Bearer/`X-AXiM-MCP-Key` header authentication, implementing read-only diagnostic tools.
-- **Telemetry Queue**: Updated the `telemetry-consumer.js` to autonomously drain KV fallback stores directly into Supabase before processing standard edge messages to guarantee zero telemetry loss during upstream outages.
