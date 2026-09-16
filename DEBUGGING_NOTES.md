@@ -246,3 +246,11 @@ During `npm install`, several deprecation warnings are visible:
 - **Resolution**:
   - Stripped `assets` and `observability` properties from `wrangler.jsonc`, leaving only `$schema`, `name`, `compatibility_date`, and `pages_build_output_dir`.
   - Updated `package.json` deployment scripts (`deploy:dashboard` and `dry-run`) to properly use `npx wrangler pages deploy ./dist` instead of the generic `npx wrangler deploy`.
+## Sprint 2.4 Notes
+
+- Identified and removed bad Cloudflare Worker configurations (`assets`, `enable_containers`, etc.) from the global `wrangler.jsonc` file, to enforce proper Pages-only building metrics.
+- Added `.assetsignore` to prevent Vite from copying `wrangler.json` to the output `dist` folder.
+- Remedied Vite build dual-import and chunk splitting conflicts by refactoring dynamic imports to static ES module imports in heavily utilized `src/services/offline.js`, `src/services/workflows/engine.js`, and `src/services/onyxAI/commands/systemCommands.js`.
+- Cleaned up React component errors in test scenarios specifically the `MetricsGrid` suite by isolating Supabase channel usage and wrapping components with explicit `AuthProvider` stubs.
+- Updated `src/components/dashboard/CloudflareEdgeHealth.jsx` to dynamically fetch endpoint metrics accurately from `/api/mcp-bridge/status` gracefully replacing hard-coded assumptions and falling back dynamically via mocked parameters.
+- Re-architectured `src/contexts/AuthContext.jsx` session caching via standard `sessionStorage` hooks resulting in improved offline session survival preventing white screens in degraded zones, properly nested under `<ErrorBoundary>` shells directly inside the primary navigation component (`MainLayout.jsx`).

@@ -4,6 +4,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import MetricsGrid from '../src/components/dashboard/MetricsGrid';
 
+
 // Mock contexts
 vi.mock('../src/hooks/useMetrics', () => ({
   useMetrics: () => ({
@@ -26,6 +27,10 @@ vi.mock('../src/hooks/useMetrics', () => ({
 vi.mock('../src/contexts/SupabaseContext', () => ({
   useSupabase: () => ({
     supabase: {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+        onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } })
+      },
       channel: vi.fn().mockReturnThis(),
       on: vi.fn().mockReturnThis(),
       subscribe: vi.fn().mockReturnThis(),

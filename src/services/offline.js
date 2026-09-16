@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 // ApiService -> connectivityManager -> offlineManager -> ApiService (circular)
 // By importing it inside a method, we break the cycle at module load time.
 import api from './onyxAI/api';
+import onyxAI from './onyxAI';
+import { supabase } from './supabaseClient';
 // Do NOT add a top-level import for onyxAI here, as it will create a circular dependency
 // that breaks the test environment: offlineManager -> onyxAI -> api -> supabaseClient -> config (mocked)
 
@@ -123,7 +125,7 @@ class OfflineManager {
    */
   async _processCommandQueue() {
     if (this.commandQueue.length === 0) return;
-    const { default: onyxAI } = await import('./onyxAI');
+
 
     logger.log(`Processing ${this.commandQueue.length} queued commands...`);
     const processingQueue = [...this.commandQueue];
@@ -237,7 +239,7 @@ if (typeof window !== 'undefined') {
     // Auto-flush dead-letter queue to telemetry
     if (offlineManager.deadLetterQueue && offlineManager.deadLetterQueue.length > 0) {
       try {
-         const { supabase } = await import('./supabaseClient');
+
          if (supabase) {
            for (const deadReq of offlineManager.deadLetterQueue) {
              await supabase.from('api_usage_logs').insert({
