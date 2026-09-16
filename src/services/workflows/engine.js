@@ -1,5 +1,6 @@
 import api from "../onyxAI/api";
 import { workflowDefinitions } from "./definitions";
+import { supabase } from "../../services/supabaseClient";
 
 
 const stepHandlerRegistry = {
@@ -35,7 +36,7 @@ const stepHandlerRegistry = {
     const { table, select = '*', match = {} } = step.config;
     if (!table) throw new Error("query_database step requires a 'table' in config.");
 
-    const { supabase } = await import('../../services/supabaseClient');
+
     let query = supabase.from(table).select(select);
     Object.keys(match).forEach(k => {
        query = query.eq(k, match[k]);
