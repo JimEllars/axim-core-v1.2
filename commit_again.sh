@@ -1,2 +1,2 @@
 #!/bin/bash
-git commit -m "fix(ci): cloudflare workers dependencies and dry run build"
+git commit -am "fix(ci): remove incomplete queues configuration from axim-core-worker wrangler.toml"
