@@ -27,7 +27,7 @@
     "deploy:edge": "cd cloudflare-workers && npm run deploy",
     "deploy:onyx": "cd cloudflare-workers && npm run deploy:onyx",
     "deploy": "npm run deploy:dashboard && npm run deploy:edge && npm run deploy:onyx",
-    "dry-run": "npm run build && npx wrangler pages deploy ./dist --dry-run && cd cloudflare-workers && npm run dry-run && npm run dry-run:onyx",
+    "dry-run": "npm run build && cd cloudflare-workers && npm run dry-run",
     "test:functions": "node scripts/smoke-test-functions.js"
   },
   "dependencies": {
