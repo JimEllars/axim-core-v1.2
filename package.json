@@ -25,7 +25,6 @@
     "electron:build:mac": "npm run build && electron-builder --mac --publish never",
     "deploy:dashboard": "npm run build && npx wrangler pages deploy ./dist",
     "deploy:edge": "cd cloudflare-workers && npm run deploy",
-
     "deploy": "npm run deploy:dashboard && npm run deploy:edge",
     "dry-run": "npm run build && cd cloudflare-workers && npx wrangler deploy --dry-run -c wrangler.toml",
     "test:functions": "node scripts/smoke-test-functions.js"
