@@ -1,8 +1,8 @@
-name = "axim-core-worker"
+name = "axim-core-api-proxy"
 main = "src/index.js"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
 SUPABASE_URL = "https://pvbcdndqjguzqeafhwhw.supabase.co"
-ALLOWED_ORIGINS = "https://axim.us.com,http://localhost:5173"
+ALLOWED_ORIGINS = "https://axim.us.com,http://localhost:5176"

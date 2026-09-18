@@ -44,6 +44,38 @@ export default {
       const { prompt, command, context, nodeScope } = await request.json() as any;
 
       const payloadString = prompt || command;
+      const authHeader = request.headers.get("Authorization");
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+      }
+
+      const token = authHeader.slice("Bearer ".length);
+      const authSupabaseUrl = env.SUPABASE_URL;
+      let authUserResponse;
+      try {
+        authUserResponse = await fetch(`${authSupabaseUrl}/auth/v1/user`, {
+          headers: {
+            Authorization: "Bearer " + token,
+            apikey: env.SUPABASE_ANON_KEY
+          }
+        });
+      } catch (authError) {
+        console.error("Authentication service unavailable", authError);
+        return new Response(
+          JSON.stringify({ error: "Authentication service unavailable" }),
+          { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      if (!authUserResponse.ok) {
+        return new Response("Unauthorized - Invalid Token", { status: 403, headers: corsHeaders });
+      }
+
+      const authUserData = await authUserResponse.json();
+      const authRole = authUserData.app_metadata?.role;
+      if (authRole !== "admin" && authRole !== "support") {
+        return new Response("Forbidden - Insufficient Privileges", { status: 403, headers: corsHeaders });
+      }
 
       // Handle async embedding generation
       if (payloadString) {
@@ -145,13 +177,8 @@ export default {
 
       let remainingRateLimit = "5";
       if (nodeScope) { remainingRateLimit = Math.max(0, 5 - (windowCache.get(nodeScope) || []).length).toString(); }
-      const authHeader = request.headers.get("Authorization");
       const clientIp = request.headers.get("CF-Connecting-IP") || "unknown_ip";
       const traceId = request.headers.get("X-AXiM-Trace-ID") || crypto.randomUUID();
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return new Response("Unauthorized", { status: 401, headers: corsHeaders });
-      }
-      const token = authHeader.split('Bearer ')[1];
 
       const supabaseUrl = env.SUPABASE_URL;
       const supabaseAnonKey = env.SUPABASE_ANON_KEY;
