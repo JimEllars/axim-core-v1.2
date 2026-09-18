@@ -44,8 +44,9 @@ const ProviderSelector = () => {
       case 'mock': return "Mock LLM";
       case 'openai': return "OpenAI";
       case 'claude': return "Claude";
+      case 'anthropic': return "Anthropic (Backup)";
       case 'gemini': return "Gemini";
-      case 'deepseek': return "Deepseek";
+      case 'deepseek': return "DeepSeek (Primary)";
       default: return provider;
     }
   };

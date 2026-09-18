@@ -80,43 +80,54 @@ serve(async (req) => {
   }
 
   const request_id = crypto.randomUUID();
-  console.log(`[${request_id}] New llm-proxy request received via Cloudflare AI Gateway Universal Endpoint.`);
+  console.log(`[${request_id}] New llm-proxy request received.`);
 
   try {
+    const authHeader = req.headers.get('Authorization') || '';
+    const isInternalCall = authHeader.replace('Bearer ', '') === Deno.env.get('AXIM_GATEWAY_TOKEN');
+
     // 1. Create a Supabase client with the SERVICE_ROLE_KEY for admin operations.
     const serviceClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // 2. Authenticate the user from the Authorization header.
-    const userClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization') || '' } } }
-    );
-    const { data: { user }, error: userError } = await userClient.auth.getUser();
-    if (userError || !user) {
-      console.error(`[${request_id}] Unauthorized: User authentication failed.`, userError);
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    let user = null;
 
-    console.log(`[${request_id}] Authenticated user: ${user.id}`);
-
-    // Rate Limiting Check
-    if (!checkRateLimit(user.id)) {
-        console.warn(`[${request_id}] Rate limit exceeded for user: ${user.id}`);
-        return new Response(JSON.stringify({ error: "Too Many Requests" }), {
-            status: 429,
-            headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "60" },
+    if (!isInternalCall) {
+      // 2. Authenticate the user from the Authorization header.
+      const userClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+        { global: { headers: { Authorization: authHeader } } }
+      );
+      const { data: userData, error: userError } = await userClient.auth.getUser();
+      if (userError || !userData?.user) {
+        console.error(`[${request_id}] Unauthorized: User authentication failed.`, userError);
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
+      }
+      user = userData.user;
+      console.log(`[${request_id}] Authenticated user: ${user.id}`);
+
+      // Rate Limiting Check
+      if (!checkRateLimit(user.id)) {
+          console.warn(`[${request_id}] Rate limit exceeded for user: ${user.id}`);
+          return new Response(JSON.stringify({ error: "Too Many Requests" }), {
+              status: 429,
+              headers: { ...corsHeaders, "Content-Type": "application/json", "Retry-After": "60" },
+          });
+      }
+    } else {
+       console.log(`[${request_id}] Authenticated internal call using AXIM_GATEWAY_TOKEN.`);
+       user = { id: 'internal-system' };
     }
 
     // 3. Parse the request body.
     let { provider, prompt, options = {} } = await req.json();
+
     // Workstream B: Explicit default provider policy. Wave 55 used deepseek for cost.
     if (!provider || provider.trim() === '') {
         provider = 'deepseek';
@@ -142,242 +153,225 @@ serve(async (req) => {
     // Determine actual provider used for logging
     let activeProvider = provider;
 
-    // 4. Get the user's API key using the secure service client.
-    const apiKey = await getApiKey(serviceClient, user.id, provider);
+    let apiKey = Deno.env.get('DEEPSEEK_API_KEY');
+    if (!apiKey && user.id !== 'internal-system') {
+      try {
+        apiKey = await getApiKey(serviceClient, user.id, 'deepseek');
+      } catch(e) {}
+    }
+
     if (!apiKey) {
-      console.error(`[${request_id}] Forbidden: API key for ${provider} not found for user ${user.id}.`);
-       return new Response(JSON.stringify({ error: `API key for provider '${provider}' is not configured.` }), {
+      console.error(`[${request_id}] Forbidden: API key for deepseek not found.`);
+       return new Response(JSON.stringify({ error: `API key for provider 'deepseek' is not configured.` }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Attempt to get a fallback key
-    let fallbackProvider = provider === 'claude' ? 'openai' : 'claude';
-    let fallbackApiKey = null;
-    try {
-        fallbackApiKey = await getApiKey(serviceClient, user.id, fallbackProvider);
-    } catch (e) {
-        console.warn(`[${request_id}] Fallback API key for ${fallbackProvider} not found, skipping fallback routing.`);
-    }
-
-    // 5. Construct Universal Endpoint Payload for Cloudflare AI Gateway
-    const cfAccountId = Deno.env.get('CLOUDFLARE_ACCOUNT_ID');
-    const cfGatewayId = Deno.env.get('CLOUDFLARE_GATEWAY_ID');
-    const tenantId = user.id;
-
-    let universalEndpoint = '';
-    if (cfAccountId && cfGatewayId) {
-        universalEndpoint = `https://gateway.ai.cloudflare.com/v1/${cfAccountId}/${cfGatewayId}`;
+    let fallbackApiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    if (!fallbackApiKey && user.id !== 'internal-system') {
+      try {
+        fallbackApiKey = await getApiKey(serviceClient, user.id, 'claude');
+      } catch (e) {
+        console.warn(`[${request_id}] Fallback API key for claude not found.`);
+      }
     }
 
     const messages = [{ role: 'user', content: finalPrompt }];
+    const stream = options.stream === true;
 
-    // Construct the provider configurations for the universal payload
-    const providerList = [];
-
-    if (provider === 'openai') {
-        providerList.push({
-            provider: 'openai',
-            endpoint: 'chat/completions',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`
-            },
-            query: {
-                model: options.model || 'gpt-4o-mini',
-                messages: messages,
-                max_tokens: options.max_tokens || 1024,
-                temperature: options.temperature || 0.7
-            }
-        });
-    } else if (provider === 'claude') {
-        providerList.push({
-            provider: 'anthropic',
-            endpoint: 'v1/messages',
-            headers: {
-                'x-api-key': apiKey,
-                'anthropic-version': '2023-06-01'
-            },
-            query: {
-                model: options.model || 'claude-3-haiku-20240307',
-                messages: messages,
-                max_tokens: options.max_tokens || 1024,
-                temperature: options.temperature || 0.7
-            }
-        });
-    } else if (provider === 'gemini') {
-        providerList.push({
-            provider: 'google-ai-studio',
-            endpoint: `v1beta/models/${options.model || 'gemini-pro'}:generateContent?key=${apiKey}`,
-            query: {
-                contents: [{ parts: [{ text: finalPrompt }] }],
-                generationConfig: {
-                    maxOutputTokens: options.max_tokens || 1024,
-                    temperature: options.temperature || 0.7
-                }
-            }
-        });
-    } else if (provider === 'deepseek') {
-        providerList.push({
-            // Assuming deepseek isn't natively listed in CF AIG yet, we might use openai endpoint format
-            // if configured, but to make CF AIG route it, we'll map it to an open-compatible route or direct format.
-            // If CF AIG doesn't support deepseek as a first-class provider id, we will assume standard openai-compatible
-            // passthrough or explicit deepseek provider if available.
-            provider: 'deepseek', // Cloudflare AI gateway does support some additional providers via custom routing, assuming deepseek is supported or mapped this way.
-            endpoint: 'chat/completions',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`
-            },
-            query: {
-                model: options.model || 'deepseek-chat',
-                messages: messages,
-                max_tokens: options.max_tokens || 1024,
-                temperature: options.temperature || 0.7
-            }
-        });
-    } else {
-        throw new Error(`Provider ${provider} is not supported by the universal routing gateway.`);
-    }
-
-    // Add fallback if configured
-    if (fallbackApiKey && provider !== fallbackProvider) {
-        if (fallbackProvider === 'openai') {
-            providerList.push({
-                provider: 'openai',
-                endpoint: 'chat/completions',
-                headers: {
-                    'Authorization': `Bearer ${fallbackApiKey}`
-                },
-                query: {
-                    model: 'gpt-4o-mini',
-                    messages: messages,
-                    max_tokens: options.max_tokens || 1024,
-                    temperature: options.temperature || 0.7
-                }
-            });
-        } else if (fallbackProvider === 'claude') {
-            providerList.push({
-                provider: 'anthropic',
-                endpoint: 'v1/messages',
-                headers: {
-                    'x-api-key': fallbackApiKey,
-                    'anthropic-version': '2023-06-01'
-                },
-                query: {
-                    model: 'claude-3-haiku-20240307',
-                    messages: messages,
-                    max_tokens: options.max_tokens || 1024,
-                    temperature: options.temperature || 0.7
-                }
-            });
-        }
-    }
-
-    console.log(`[${request_id}] Dispatching to ${universalEndpoint ? 'Cloudflare AI Gateway Universal Endpoint' : 'Direct API'}...`);
-
+    // Dispatch to DeepSeek directly
     let response;
-    let respondingProvider = provider;
-    let cached = false;
+    let respondingProvider = 'deepseek';
+    let failedOver = false;
 
-    if (universalEndpoint) {
-        response = await fetch(universalEndpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'cf-aig-metadata': JSON.stringify({ tenantId: tenantId, feature: "onyx-assistant" })
-          },
-          body: JSON.stringify(providerList),
-        });
-    } else {
-        // Fallback to direct API routing if Cloudflare AI Gateway is not configured
-        const p = providerList[0];
-        let directUrl = '';
-        if (p.provider === 'openai') directUrl = `https://api.openai.com/v1/${p.endpoint}`;
-        if (p.provider === 'anthropic') directUrl = `https://api.anthropic.com/${p.endpoint}`;
-        if (p.provider === 'google-ai-studio') directUrl = `https://generativelanguage.googleapis.com/${p.endpoint}`;
-        if (p.provider === 'deepseek') directUrl = `https://api.deepseek.com/${p.endpoint}`;
+    const deepseekBaseUrl = Deno.env.get('DEEPSEEK_BASE_URL') || 'https://api.deepseek.com/v1';
 
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 15000);
+
+    const startTime = Date.now();
+    let directUrl = `${deepseekBaseUrl}/chat/completions`;
+
+    try {
+        console.log(`[${request_id}] Dispatching to DeepSeek (${directUrl})...`);
         response = await fetch(directUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                ...p.headers
+                'Authorization': `Bearer ${apiKey}`
             },
-            body: JSON.stringify(p.query)
+            body: JSON.stringify({
+                model: options.model || 'deepseek-chat',
+                messages: messages,
+                max_tokens: options.max_tokens || 1024,
+                temperature: options.temperature || 0.7,
+                stream: stream
+            }),
+            signal: abortController.signal
         });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+           let errMessage = response.statusText;
+           try {
+               const errData = await response.json();
+               errMessage = JSON.stringify(errData);
+           } catch(e) {}
+           throw new Error(`[${response.status}] ${errMessage}`);
+        }
+
+    } catch (error: any) {
+        clearTimeout(timeoutId);
+        console.warn(`[${request_id}] [llm-proxy] DeepSeek failed (${error.status || error.message}). Failing over to Anthropic.`);
+
+        if (!fallbackApiKey) {
+           throw new Error(`DeepSeek failed and Anthropic fallback key is not available. Error: ${error.message}`);
+        }
+
+        failedOver = true;
+        respondingProvider = 'anthropic';
+
+        const anthropicBaseUrl = Deno.env.get('ANTHROPIC_BASE_URL') || 'https://api.anthropic.com/v1';
+        directUrl = `${anthropicBaseUrl}/messages`;
+
+        // Transform for Anthropic
+        let systemMessage = undefined;
+        let anthropicMessages = messages.map(m => {
+           if (m.role === 'system') {
+               systemMessage = m.content;
+               return null;
+           }
+           return m;
+        }).filter(m => m !== null);
+
+        if (anthropicMessages.length > 0 && anthropicMessages[0].role !== 'user') {
+            anthropicMessages[0].role = 'user';
+        }
+
+        console.log(`[${request_id}] Dispatching to Anthropic (${directUrl})...`);
+        response = await fetch(directUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': fallbackApiKey,
+                'anthropic-version': '2023-06-01'
+            },
+            body: JSON.stringify({
+                model: 'claude-3-5-sonnet-20241022',
+                messages: anthropicMessages,
+                system: systemMessage,
+                max_tokens: options.max_tokens || 1024,
+                temperature: options.temperature || 0.7,
+                stream: stream
+            })
+        });
+
+        if (!response.ok) {
+            let errMessage = response.statusText;
+            try {
+                const errData = await response.json();
+                errMessage = JSON.stringify(errData);
+            } catch(e) {}
+            throw new Error(`Anthropic Fallback Error: [${response.status}] ${errMessage}`);
+        }
     }
 
-    if (!response.ok) {
-        let errMessage = response.statusText;
-        try {
-            const errData = await response.json();
-            errMessage = JSON.stringify(errData);
-        } catch(e) {}
-        throw new Error(`Cloudflare AI Gateway Error: ${errMessage}`);
+    const executionLatency = Date.now() - startTime;
+
+    if (stream) {
+        let streamBody = response.body;
+
+        if (failedOver) {
+             // Translate Anthropic SSE events to OpenAI format
+             const transformStream = new TransformStream({
+                 transform(chunk, controller) {
+                     const decoder = new TextDecoder();
+                     const text = decoder.decode(chunk);
+                     const lines = text.split('\n');
+
+                     for (const line of lines) {
+                         if (line.startsWith('data: ')) {
+                             try {
+                                 const data = JSON.parse(line.substring(6));
+                                 if (data.type === 'content_block_delta' && data.delta && data.delta.text) {
+                                     const openAiChunk = {
+                                         choices: [{
+                                             delta: {
+                                                 content: data.delta.text
+                                             }
+                                         }]
+                                     };
+                                     controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openAiChunk)}\n\n`));
+                                 }
+                             } catch(e) {
+                                 // ignore parsing errors for incomplete chunks
+                             }
+                         }
+                     }
+                 }
+             });
+
+             streamBody = response.body?.pipeThrough(transformStream) || null;
+        }
+
+        return new Response(streamBody, {
+           headers: {
+               ...corsHeaders,
+               'Content-Type': 'text/event-stream',
+               'x-axim-provider-used': respondingProvider,
+               'x-axim-failover': failedOver.toString()
+           }
+        });
     }
 
     const data = await response.json();
 
-    // Parse response headers for caching status
-    if (universalEndpoint) {
-        cached = response.headers.get('cf-aig-cache-status') === 'HIT';
-        respondingProvider = response.headers.get('cf-aig-provider') || provider;
-    }
-
-    if (cached) {
-      try {
-        await serviceClient.from('api_usage_logs').insert({
-          endpoint: '/llm-proxy',
-          status_code: 200,
-          compute_ms: 0,
-          app_id: 'axim-llm-proxy',
-          payload: { action: 'cache_hit', provider: respondingProvider }
-        });
-      } catch (logError) {
-        console.error(`[${request_id}] Failed to log cache hit to api_usage_logs:`, logError);
-      }
-    }
-
-    console.log(`[${request_id}] Successfully received response from CF AI Gateway. Cached: ${cached}, Responding Provider: ${respondingProvider}`);
-
     let content = "";
-    if (respondingProvider === 'openai' && data.choices && data.choices.length > 0) {
+    if (respondingProvider === 'deepseek' && data.choices && data.choices.length > 0) {
         content = data.choices[0].message.content;
     } else if (respondingProvider === 'anthropic' && data.content && data.content.length > 0) {
         content = data.content[0].text;
-    } else if (respondingProvider === 'google-ai-studio' && data.candidates && data.candidates.length > 0) {
-        content = data.candidates[0].content.parts[0].text;
     } else {
         content = JSON.stringify(data); // Fallback for unknown structure
     }
 
     // Log to database
     try {
-        await serviceClient.from('ai_interactions_ax2024').insert({
-            user_id: user.id,
-            command_type: 'proxy_passthrough',
-            llm_provider: respondingProvider,
-            llm_model: options.model || 'default',
-            command: prompt,
-            response: content,
-            compressed: isCompressed,
-            // Record cache status for metrics
-            metadata: {
-                cached: cached,
-                // Check if the responding provider maps back to the requested provider
-                // Using explicit mapping: openai->openai, claude->anthropic, gemini->google-ai-studio, deepseek->deepseek
-                fallback: (() => {
-                    const mappedRequested = provider === 'claude' ? 'anthropic' : (provider === 'gemini' ? 'google-ai-studio' : provider);
-                    return respondingProvider !== mappedRequested;
-                })()
-            }
+        await serviceClient.from('api_usage_logs').insert({
+          endpoint: '/llm-proxy',
+          status_code: 200,
+          compute_ms: executionLatency,
+          app_id: 'axim-llm-proxy',
+          payload: { provider: respondingProvider, failedOver, token_usage: data.usage || null }
         });
+
+        if (user.id !== 'internal-system') {
+            await serviceClient.from('ai_interactions_ax2024').insert({
+                user_id: user.id,
+                command_type: 'proxy_passthrough',
+                llm_provider: respondingProvider,
+                llm_model: options.model || (respondingProvider === 'deepseek' ? 'deepseek-chat' : 'claude-3-5-sonnet-20241022'),
+                command: prompt,
+                response: content,
+                compressed: isCompressed,
+                metadata: {
+                    failedOver: failedOver
+                }
+            });
+        }
     } catch (logError) {
         console.error(`[${request_id}] Failed to log interaction:`, logError);
     }
 
-    return new Response(JSON.stringify({ content, cached, respondingProvider }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    return new Response(JSON.stringify({ content, respondingProvider, failedOver }), {
+      headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'x-axim-provider-used': respondingProvider,
+          'x-axim-failover': failedOver.toString()
+      },
     });
 
   } catch (error: any) {

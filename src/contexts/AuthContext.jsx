@@ -176,10 +176,19 @@ export const AuthProvider = ({ children }) => {
             body: JSON.stringify({ token: tokenToVerify })
         })
         .then(res => res.json())
-        .then(data => {
+        .then(async data => {
             if (data && data.user) {
                 // If verified via SSO, create a session
                 // We'll trust the verified user data
+                try {
+                  const { error } = await supabase.auth.setSession({ access_token: tokenToVerify, refresh_token: tokenToVerify });
+                  if (!error) {
+                    setAximSessionToken(tokenToVerify);
+                    localStorage.setItem('axim_session_token', tokenToVerify);
+                  }
+                } catch (e) {
+                  console.error('Failed to set SSO session:', e);
+                }
             }
         })
         .catch(console.error);
