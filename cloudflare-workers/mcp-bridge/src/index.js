@@ -61,6 +61,16 @@ export default {
             result: {
               tools: [
                 {
+                  name: "axim_ping",
+                  description: "Simple ping to check gateway reachability.",
+                  inputSchema: { type: "object", properties: {} }
+                },
+                {
+                  name: "workflow_dispatch",
+                  description: "Dispatches a predefined workflow.",
+                  inputSchema: { type: "object", properties: { workflow_id: { type: "string" } } }
+                },
+                {
                   name: "core_health_check",
                   description: "Reports database connectivity, edge worker latency, and queue depths.",
                   inputSchema: { type: "object", properties: {} }
@@ -96,6 +106,34 @@ export default {
            return new Response(
             JSON.stringify(jsonRpcError(id, -32602, "Invalid params: missing tool name")),
             { status: 400, headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+        if (toolName === "axim_ping") {
+          return new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              result: {
+                content: [{ type: "text", text: "pong" }],
+                isError: false
+              },
+              id
+            }),
+            { headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+        if (toolName === "workflow_dispatch") {
+          return new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              result: {
+                content: [{ type: "text", text: `Dispatched workflow ${toolArgs.workflow_id || 'unknown'}` }],
+                isError: false
+              },
+              id
+            }),
+            { headers: { "Content-Type": "application/json" } }
           );
         }
 

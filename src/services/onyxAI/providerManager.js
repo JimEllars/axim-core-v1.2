@@ -2,13 +2,20 @@ import api from './api';
 import config from '../../config';
 import logger from '../logging';
 
+export const PROVIDER_CONFIG = {
+  primary: 'deepseek',
+  backup: 'anthropic',
+  defaultModel: 'deepseek-chat',
+  fallbackModel: 'claude-3-5-sonnet-20241022'
+};
+
 /**
  * Manages the selection and availability of LLM providers.
  */
 class ProviderManager {
   constructor() {
     this.availableProviders = [];
-    this.activeProviderName = 'gemini'; // Default provider
+    this.activeProviderName = PROVIDER_CONFIG.primary; // Default provider
 
     // Bind methods to ensure 'this' context is always correct
     this.loadProviders = this.loadProviders.bind(this);
@@ -44,12 +51,12 @@ class ProviderManager {
       if (providerNames && providerNames.length > 0) {
         this.availableProviders = providerNames;
       } else {
-        this.availableProviders = ['openai', 'gemini', 'claude', 'deepseek', 'chatbase'];
+        this.availableProviders = ['deepseek', 'anthropic', 'openai', 'gemini', 'chatbase'];
       }
     } catch (error) {
       logger.error("Failed to load LLM providers, using fallback list:", error);
       // Fallback on any error to ensure UI is testable
-      this.availableProviders = ['openai', 'gemini', 'claude', 'deepseek', 'chatbase'];
+      this.availableProviders = ['deepseek', 'anthropic', 'openai', 'gemini', 'chatbase'];
     }
 
 
@@ -105,16 +112,17 @@ class ProviderManager {
 
     switch (provider) {
       case 'openai':
-        model = 'gpt-4';
+        model = 'gpt-4o';
         break;
       case 'gemini':
         model = 'gemini-pro';
         break;
       case 'claude':
-        model = 'claude-2';
+      case 'anthropic':
+        model = PROVIDER_CONFIG.fallbackModel;
         break;
       case 'deepseek':
-        model = 'deepseek-coder';
+        model = PROVIDER_CONFIG.defaultModel;
         break;
       case 'chatbase':
         model = 'chatbase-v1';
@@ -135,6 +143,7 @@ class ProviderManager {
       case 'gemini':
         return 'https://generativelanguage.googleapis.com';
       case 'claude':
+      case 'anthropic':
         return 'https://api.anthropic.com';
       case 'deepseek':
           return 'https://api.deepseek.com';
