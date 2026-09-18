@@ -40,22 +40,38 @@ export default {
         for (let msg of batch.messages) {
             let body = msg.body;
 
-            // Extract trace id if passed in headers and added to body by producer
-            // (Assuming producer sets body.trace_id or body.headers)
-
-            // Validate incoming events for missing/partial geo-metadata
-            if (!body.geo) {
-                body.geo = {
-                    colo: 'UNKNOWN',
-                    country: 'XX',
-                    city: null,
-                    region: null,
-                    asn: null,
-                    cf_ray: null
-                };
+            if (Array.isArray(body.events)) {
+                body.events.forEach(event => {
+                    messages.push({
+                        ...event,
+                        geo: body.geo || {
+                            colo: 'UNKNOWN',
+                            country: 'XX',
+                            city: null,
+                            region: null,
+                            asn: null,
+                            cf_ray: null
+                        },
+                        component_id: event.app_id || 'core_api',
+                        severity: event.severity || 'INFO',
+                        message: event.event || 'unknown_event',
+                        payload: event.details || {},
+                        idempotency_key: event.trace_id || null
+                    });
+                });
+            } else {
+                if (!body.geo) {
+                    body.geo = {
+                        colo: 'UNKNOWN',
+                        country: 'XX',
+                        city: null,
+                        region: null,
+                        asn: null,
+                        cf_ray: null
+                    };
+                }
+                messages.push(body);
             }
-
-            messages.push(body);
         }
 
         if (messages.length > 0) {
@@ -72,28 +88,28 @@ export default {
                         headers: {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-                            'apikey': env.SUPABASE_SERVICE_ROLE_KEY
+                            'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
+                            'Prefer': 'resolution=ignore-duplicates' // Prevent errors if idempotency_key matches
                         },
                         body: JSON.stringify(messages)
                     });
 
                     if (response.ok) {
                         success = true;
-                    } else if (response.status >= 500) {
+                    } else if (response.status >= 500 || response.status === 429) {
                         const errorText = await response.text();
-                        console.error(`Failed to bulk insert telemetry logs (5xx):`, errorText);
-                        throw new Error(`5xx error: ${response.status}`);
+                        console.error(`Failed to bulk insert telemetry logs (${response.status}):`, errorText);
+                        throw new Error(`${response.status} error: ${response.status}`);
                     } else {
                         const errorText = await response.text();
-                        console.error('Failed to bulk insert telemetry logs (non-5xx):', errorText);
-                        // Don't retry on 4xx
-                        throw new Error(`4xx error: ${response.status}`);
+                        console.error('Failed to bulk insert telemetry logs (non-retryable):', errorText);
+                        // Don't retry on 4xx (except 429)
+                        success = true; // We don't want to retry or KV this
                     }
                 } catch (e) {
                     attempts++;
                     if (attempts >= maxAttempts) {
                         console.error('Max retries reached for telemetry insertion', e);
-                        // Fallback to KV buffering if upstream returns 5xx and KV is configured
                         if (env.KV) {
                             try {
                                 const bufferKey = `telemetry_buffer_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -107,7 +123,6 @@ export default {
                             throw e;
                         }
                     } else {
-                        // Exponential backoff with jitter
                         const jitter = Math.random() * 500;
                         const backoff = baseBackoff * Math.pow(2, attempts - 1) + jitter;
                         await new Promise(resolve => setTimeout(resolve, backoff));
@@ -116,7 +131,6 @@ export default {
             }
         }
 
-        // Acknowledge all messages in the batch since we've processed or buffered them
         for (let msg of batch.messages) {
             msg.ack();
         }

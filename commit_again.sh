@@ -1,2 +1,2 @@
-git add .
-git commit --amend -m "feat(edge): telemetry kv fallback, sendbeacon buffer, and realtime sync"
+#!/bin/bash
+git commit -am "fix(ci): remove incomplete queues configuration from axim-core-worker wrangler.toml"
