@@ -36,6 +36,18 @@ The "API Side Door" is a standardized feature of AXiM Core, turning AXiM Systems
 - [x] Update micro app environments (`wrangler.jsonc`) to include `nodejs_compat` compatibility flags for shared server-side utilities.
 - [x] Standardize `constants.js` patterns across apps so Core programmatically understands supported legal jurisdictions and statutes.
 
+### Cloudflare Edge Deployment
+
+AXiM Core deploys the dashboard and API proxy as independently named Cloudflare services so a proxy release cannot replace the dashboard:
+
+| Worker | Configuration | Purpose |
+| --- | --- | --- |
+| `axim-core-dashboard` | `wrangler.jsonc` | Serves the Vite production assets through Cloudflare Pages. |
+| `axim-core-api-proxy` | `cloudflare-workers/wrangler.toml` | Exposes the allowlisted health and capabilities proxy endpoints. |
+| `onyx-edge-worker` | `supabase/functions/onyx-edge-worker/index.ts` | Runs the Onyx bridge through Supabase Edge Functions. |
+
+Set `VITE_EDGE_WORKER_URL` to the API proxy's public URL for dashboard health checks and configure Onyx through `VITE_ONYX_MK3_URL`. Cloudflare secrets must not be stored in a Wrangler configuration file.
+
 ## Ecosystem Runbook: Satellite Artifact Generation
 
 ### Round-Trip E2E Flow

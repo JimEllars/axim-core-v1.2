@@ -25,6 +25,12 @@ function getCorsHeaders(request, env) {
   };
 }
 
+const apiRoutes = new Map([
+  ['/api/system/capabilities', '/functions/v1/api-capabilities'],
+  ['/api/providers/status', '/functions/v1/system-status'],
+  ['/api/system-status', '/functions/v1/system-status'],
+]);
+
 export default {
   async fetch(request, env, ctx) {
     const corsHeaders = getCorsHeaders(request, env);
@@ -136,6 +142,11 @@ export default {
 
     // 1. API Proxy Routing
     if (url.pathname.startsWith('/api/')) {
+      const backendUrlStr = env.SUPABASE_URL;
+      if (!backendUrlStr) {
+        return new Response('API backend is not configured', { status: 503, headers: corsHeaders });
+      }
+
       // Edge Caching
       const cacheableEndpoints = ['/api/system/capabilities', '/api/providers/status']; // Removed /api/system-status to avoid serving stale telemetry data
       if (request.method === 'GET' && cacheableEndpoints.includes(url.pathname)) {
@@ -147,15 +158,17 @@ export default {
       }
       // Proxy to Supabase backend
       try {
-        const targetUrl = new URL(request.url);
-        const backendUrlStr = env.SUPABASE_URL;
-        if (!backendUrlStr) {
-          return new Response('API backend is not configured', { status: 503, headers: corsHeaders });
+        const targetPath = apiRoutes.get(url.pathname);
+        if (!targetPath) {
+          return new Response('API route not found', { status: 404, headers: corsHeaders });
         }
+
+        const targetUrl = new URL(request.url);
         const backendUrl = new URL(backendUrlStr);
         targetUrl.hostname = backendUrl.hostname;
         targetUrl.port = backendUrl.port || '';
         targetUrl.protocol = backendUrl.protocol;
+        targetUrl.pathname = targetPath;
 
         const modifiedRequest = new Request(targetUrl, request);
         modifiedRequest.headers.set('x-forwarded-host', request.headers.get('host') || '');
@@ -174,7 +187,6 @@ export default {
 
         // Edge Caching Storage
         if (request.method === 'GET' && cacheableEndpoints.includes(url.pathname)) {
-           // We clone it to put in cache
            const responseToCache = proxyResponse.clone();
            if (url.pathname === '/api/system-status') {
              responseToCache.headers.set('Cache-Control', 'max-age=15');

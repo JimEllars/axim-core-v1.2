@@ -3,7 +3,6 @@ import { supabase } from '../../services/supabaseClient';
 
 import { FiCloud, FiActivity, FiGlobe, FiCpu, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
 import toast from 'react-hot-toast';
-import { apiProxy } from '../../services/apiProxy';
 
 const CloudflareEdgeHealth = () => {
   const [status, setStatus] = useState(() => {
@@ -43,12 +42,11 @@ const CloudflareEdgeHealth = () => {
     setLatency('pinging...');
     const start = performance.now();
     try {
-      // Fetch live edge health
-      const response = await fetch('/api/edge/healthz', {
-          headers: {
-              'Content-Type': 'application/json'
-          }
-      });
+      const edgeWorkerUrl = import.meta.env.VITE_EDGE_WORKER_URL;
+      if (!edgeWorkerUrl) {
+        throw new Error('VITE_EDGE_WORKER_URL is not configured');
+      }
+      const response = await fetch(`${edgeWorkerUrl.replace(/\/$/, '')}/api/edge/healthz`);
       if (!response.ok) throw new Error('Gateway not ok');
       const data = await response.json();
 
