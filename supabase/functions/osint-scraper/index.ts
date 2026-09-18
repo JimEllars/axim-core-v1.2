@@ -140,6 +140,64 @@ serve(async (req) => {
     }
 
     try {
+        if (req.method === 'POST') {
+            const bodyText = await req.text();
+            if (bodyText) {
+                try {
+                    const payload = JSON.parse(bodyText);
+                    if (payload.action === "extract_contact_info" && payload.target_url) {
+                        try {
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                            let html = "";
+                            try {
+                                const response = await fetch(payload.target_url, { signal: controller.signal });
+                                if (!response.ok) {
+                                    throw new Error(`HTTP Error: ${response.status}`);
+                                }
+                                html = await response.text();
+                            } finally {
+                                clearTimeout(timeoutId);
+                            }
+
+                            const titleMatch = html.match(/<title>(.*?)<\/title>/i);
+                            const title = titleMatch ? titleMatch[1] : null;
+
+                            const emailRegex = /mailto:([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/gi;
+                            const emailsFound = [];
+                            let match;
+                            while ((match = emailRegex.exec(html)) !== null) {
+                                if (!emailsFound.includes(match[1])) {
+                                    emailsFound.push(match[1]);
+                                }
+                            }
+
+                            return new Response(JSON.stringify({
+                                success: true,
+                                data: {
+                                    url: payload.target_url,
+                                    title: title,
+                                    emails_found: emailsFound
+                                }
+                            }), {
+                                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                            });
+                        } catch (err: any) {
+                            return new Response(JSON.stringify({
+                                success: false,
+                                error: `Failed to fetch URL: ${err.message}`
+                            }), {
+                                status: 500,
+                                headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+                            });
+                        }
+                    }
+                } catch (e) {
+                    // ignore JSON parse error, fall through to default behavior
+                }
+            }
+        }
         console.log("Starting OSINT Scraper polling...");
 
         for (const entity of TARGET_ENTITIES) {

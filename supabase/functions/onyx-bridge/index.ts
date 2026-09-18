@@ -8,6 +8,7 @@ serve(async (req) => {
   }
 
   try {
+    const startTime = Date.now();
     const authHeader = req.headers.get('Authorization');
     const isServiceRole = authHeader === `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`;
 
@@ -32,8 +33,8 @@ serve(async (req) => {
     }
 
 
-    const onyxEdgeUrl = Deno.env.get('ONYX_EDGE_URL');
-    const onyxEdgeSecret = Deno.env.get('ONYX_EDGE_SECRET');
+    const onyxEdgeUrl = Deno.env.get('ONYX_BRIDGE_URL') || 'https://bridge.axim.us.com';
+    const onyxEdgeSecret = Deno.env.get('AXIM_INTERNAL_KEY');
 
     if (!onyxEdgeUrl || !onyxEdgeSecret) {
       return new Response(JSON.stringify({ error: 'Onyx Edge configuration is missing on the server.' }), {
@@ -316,11 +317,33 @@ Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve
     const finalBody = JSON.stringify(bodyData);
 
 
-    const onyxRequest = new Request(`https://${onyxEdgeUrl}/api/chat`, {
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(onyxEdgeSecret || '');
+    const messageData = encoder.encode(finalBody);
+
+    let signature = '';
+    try {
+        const cryptoKey = await crypto.subtle.importKey(
+            'raw',
+            keyData,
+            { name: 'HMAC', hash: 'SHA-256' },
+            false,
+            ['sign']
+        );
+        const signatureBuf = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
+        const hashArray = Array.from(new Uint8Array(signatureBuf));
+        signature = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch(e) {
+        console.error('Failed to generate HMAC signature', e);
+    }
+
+    const endpointUrl = onyxEdgeUrl.startsWith('http') ? `${onyxEdgeUrl}/api/v1/ecosystem/event` : `https://${onyxEdgeUrl}/api/v1/ecosystem/event`;
+
+    const onyxRequest = new Request(endpointUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${onyxEdgeSecret}`,
+        'X-Axim-Signature': signature,
         // Pass through accept header if client wants text/event-stream
         'Accept': req.headers.get('Accept') || 'application/json'
       },
@@ -340,6 +363,36 @@ Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve
     if (contentType.includes('application/json') && onyxResponse.ok) {
         let responseData = await onyxResponse.json();
         responseData.agent_id = agent_id;
+
+        // Log token cost
+        try {
+            const usage = responseData.usage || {};
+            const prompt_tokens = usage.prompt_tokens || 0;
+            const completion_tokens = usage.completion_tokens || 0;
+            const latency_ms = Date.now() - startTime;
+
+            // basic cost estimation if needed, or if API provides it
+            const cost_usd = usage.cost_usd || 0;
+
+            const supabaseAdmin = createClient(
+                Deno.env.get('SUPABASE_URL') ?? '',
+                Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+            );
+            await supabaseAdmin.from('api_usage_logs').insert({
+                app_id: 'onyx-core',
+                endpoint: '/api/v1/ecosystem/event',
+                model: responseData.model || 'onyx-mk3',
+                prompt_tokens,
+                completion_tokens,
+                token_count: prompt_tokens + completion_tokens,
+                estimated_cost_usd: cost_usd,
+                compute_ms: latency_ms,
+                status_code: onyxResponse.status,
+                created_at: new Date().toISOString()
+            });
+        } catch (e) {
+            console.error('Failed to log onyx usage', e);
+        }
 
         // Detect if Onyx suggests a quarantine_app action
         const textResponse = responseData.response || responseData.text || '';
@@ -368,6 +421,23 @@ Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve
     });
 
   } catch (error) {
+    if (error.message.includes('fetch') || error.message.includes('timeout') || error.message.includes('network')) {
+        try {
+            const supabaseAdmin = createClient(
+                Deno.env.get('SUPABASE_URL') ?? '',
+                Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+            );
+            await supabaseAdmin.from('satellite_job_queue').insert({
+                app_id: 'onyx-bridge',
+                payload: await req.clone().json().catch(() => ({})),
+                status: 'retry',
+                task_type: 'onyx_proxy_retry'
+            });
+        } catch (dbError) {
+            console.error('Failed to buffer to satellite_job_queue', dbError);
+        }
+    }
+
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

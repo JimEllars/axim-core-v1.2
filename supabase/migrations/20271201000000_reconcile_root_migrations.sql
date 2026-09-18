@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS public.user_settings (
 );
 ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Users can view and edit their own settings" ON public.user_settings;
-CREATE POLICY "Users can view and edit their own settings" ON public.user_settings FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "Users can view and edit their own settings" ON public.user_settings FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- notes_ax2024
 CREATE TABLE IF NOT EXISTS public.notes_ax2024 (

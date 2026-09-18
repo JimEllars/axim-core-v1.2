@@ -86,10 +86,10 @@ const ProductFeedback = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center glass-effect rounded-xl p-6">
+      <div className="flex justify-between items-center bg-slate-900/80 rounded-xl border border-slate-700/50 shadow-lg p-6">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center">
-            <SafeIcon icon={FiMessageSquare} className="mr-2 text-indigo-400" />
+            <SafeIcon icon={FiMessageSquare} className="mr-2 text-cyan-400" />
             Product Feedback
           </h2>
           <p className="text-sm text-slate-400">User feedback and sentiment across micro-apps.</p>
@@ -97,7 +97,7 @@ const ProductFeedback = () => {
         <button
           onClick={handleSummarize}
           disabled={summarizing || feedback.length === 0}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center disabled:opacity-50"
+          className="bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center disabled:opacity-50"
         >
           <SafeIcon icon={FiCpu} className="mr-2" />
           {summarizing ? 'Summarizing...' : 'Summarize with ProdBot'}
@@ -110,7 +110,7 @@ const ProductFeedback = () => {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="glass-effect rounded-xl p-6 relative border border-indigo-500/30"
+            className="bg-slate-900/80 rounded-xl border border-slate-700/50 shadow-lg p-6 relative border border-cyan-500/30"
           >
             <button
               onClick={() => setSummary(null)}
@@ -119,7 +119,7 @@ const ProductFeedback = () => {
               <SafeIcon icon={FiX} />
             </button>
             <h3 className="text-lg font-bold text-white mb-2 flex items-center">
-              <SafeIcon icon={FiTrendingUp} className="mr-2 text-indigo-400" />
+              <SafeIcon icon={FiTrendingUp} className="mr-2 text-cyan-400" />
               ProdBot Analysis
             </h3>
             <div className="text-slate-300 text-sm whitespace-pre-wrap leading-relaxed">
@@ -130,9 +130,9 @@ const ProductFeedback = () => {
       </AnimatePresence>
 
 
-      <div className="glass-effect rounded-xl p-6 flex flex-col space-y-4">
+      <div className="bg-slate-900/80 rounded-xl border border-slate-700/50 shadow-lg p-6 flex flex-col space-y-4">
         <h3 className="text-lg font-bold text-white flex items-center">
-          <SafeIcon icon={FiMessageSquare} className="mr-2 text-indigo-400" />
+          <SafeIcon icon={FiMessageSquare} className="mr-2 text-cyan-400" />
           Submit Feedback
         </h3>
         <div className="flex items-center space-x-4 mb-2">
@@ -148,7 +148,7 @@ const ProductFeedback = () => {
           <span className="text-white font-bold">{satisfactionScore} / 5</span>
         </div>
         <textarea
-          className="w-full bg-onyx-950/50 border border-onyx-accent/20 rounded-lg p-3 text-white focus:outline-none focus:border-indigo-500"
+          className="w-full bg-slate-800/50 border border-slate-700/50 rounded-lg p-3 text-white focus:outline-none focus:border-indigo-500"
           rows="3"
           placeholder="Describe your issue or suggestion..."
           value={newFeedback}
@@ -157,17 +157,17 @@ const ProductFeedback = () => {
         <button
           onClick={handleSubmitFeedback}
           disabled={submitting || !newFeedback.trim()}
-          className="self-end bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+          className="self-end bg-cyan-600 hover:bg-cyan-500 text-white px-4 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
         >
           {submitting ? 'Submitting...' : 'Submit'}
         </button>
       </div>
 
-      <div className="glass-effect rounded-xl overflow-hidden">
+      <div className="bg-slate-900/80 rounded-xl border border-slate-700/50 shadow-lg overflow-hidden">
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left text-slate-300">
-            <thead className="text-xs text-slate-400 uppercase bg-onyx-950/50">
+            <thead className="text-xs text-slate-400 uppercase bg-slate-800/50">
               <tr>
                 <th className="px-6 py-4 rounded-tl-lg">Date</th>
                 <th className="px-6 py-4">App Source</th>
@@ -182,9 +182,9 @@ const ProductFeedback = () => {
                 <tr>
                   <td colSpan="4" className="text-center py-8">
                     <div className="animate-pulse flex space-x-4 justify-center items-center">
-                      <div className="w-4 h-4 bg-indigo-500 rounded-full"></div>
-                      <div className="w-4 h-4 bg-indigo-500 rounded-full animation-delay-200"></div>
-                      <div className="w-4 h-4 bg-indigo-500 rounded-full animation-delay-400"></div>
+                      <div className="w-4 h-4 bg-cyan-500 rounded-full"></div>
+                      <div className="w-4 h-4 bg-cyan-500 rounded-full animation-delay-200"></div>
+                      <div className="w-4 h-4 bg-cyan-500 rounded-full animation-delay-400"></div>
                     </div>
                   </td>
                 </tr>
@@ -196,7 +196,7 @@ const ProductFeedback = () => {
                 </tr>
               ) : (
                 feedback.map((item) => (
-                  <tr key={item.id} className={`border-b border-onyx-accent/10 hover:bg-onyx-950/30 ${item.score && item.score < 3 ? 'bg-red-900/10' : ''}`}>
+                  <tr key={item.id} className={`border-b border-slate-800/50 hover:bg-slate-800/30 ${item.score && item.score < 3 ? 'bg-red-500/10' : ''}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {new Date(item.created_at).toLocaleDateString()}
                     </td>
@@ -208,9 +208,9 @@ const ProductFeedback = () => {
                     </td>
                     <td className="px-6 py-4">
                       <span className={`px-2 py-1 rounded text-xs font-bold ${
-                        item.sentiment === 'positive' ? 'bg-green-500/20 text-green-400' :
-                        item.sentiment === 'negative' ? 'bg-red-500/20 text-red-400' :
-                        'bg-blue-500/20 text-blue-400'
+                        item.sentiment === 'positive' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 ' :
+                        item.sentiment === 'negative' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                        'bg-blue-500/20 text-blue-400 border border-blue-500/30'
                       }`}>
                         {item.sentiment}
                       </span>

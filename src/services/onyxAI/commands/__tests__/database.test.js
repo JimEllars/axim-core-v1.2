@@ -24,7 +24,7 @@ describe('database command', () => {
 
     const result = await databaseCommand.execute({ query }, { aximCore: { confirm: () => true } });
 
-    expect(api.supabase.rpc).toHaveBeenCalledWith('safe_sql_executor', { query });
+    expect(api.supabase.rpc).toHaveBeenCalledWith('safe_sql_executor', { query_text: query, query_params: [] });
     expect(result).toEqual({ type: 'table', data: mockData });
   });
 });

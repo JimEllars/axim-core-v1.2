@@ -35,7 +35,24 @@ serve(async (req) => {
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string
         );
 
-        const { log_id, status, action_payload } = await req.json();
+
+        const url = new URL(req.url);
+        const token = url.searchParams.get('token');
+        let log_id = url.searchParams.get('log_id');
+        let decision = url.searchParams.get('decision');
+        let status = 'Approved';
+        let action_payload = null;
+        let target_department = null;
+
+        if (req.method === 'GET' && token && log_id && decision) {
+             status = decision === 'approved' ? 'Approved' : 'Rejected';
+        } else {
+             const body = await req.json();
+             log_id = body.log_id;
+             status = body.status;
+             action_payload = body.action_payload;
+             target_department = body.target_department;
+        }
 
         if (!log_id || !status) {
             return new Response(JSON.stringify({ error: 'Missing required parameters.' }), {
@@ -43,6 +60,7 @@ serve(async (req) => {
                 headers: { ...corsHeaders, 'Content-Type': 'application/json' }
             });
         }
+
 
         // 1. Call the database RPC to update status
         const { data, error } = await supabaseAdmin.rpc('resolve_hitl_action', {
@@ -124,10 +142,33 @@ serve(async (req) => {
             }
         }
 
+        // Handle department-specific structured payload
+        let responsePayload = { success: true, ...data };
+        if (target_department && target_department !== 'CORE') {
+            console.log(`[Resolve HITL] Generating structured payload for department: ${target_department}`);
+            responsePayload = {
+                ...responsePayload,
+                department_routing: {
+                    department: target_department,
+                    status: status,
+                    action_payload: action_payload,
+                    log_id: log_id
+                }
+            };
+
+            // Queue department payload for UI consumption
+            await supabaseAdmin.from('telemetry_logs').insert({
+                event: 'department_hitl_resolution',
+                app_type: 'resolve-hitl',
+                details: responsePayload.department_routing,
+                timestamp: new Date().toISOString()
+            });
+        }
+
         // Alert operator about resolution
         const emailPayload = {
             to_email: "jrellars@gmail.com",
-            subject: `[INFO] HITL Action Resolved: ${log_id}`,
+            subject: `[INFO] ${target_department ? '[' + target_department + '] ' : ''}HITL Action Resolved: ${log_id}`,
             html_content: `<p>A HITL action has been marked as <strong>${status}</strong>.</p><p>Ticket ID: ${log_id}</p>`
         };
         fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-email`, {
@@ -139,7 +180,18 @@ serve(async (req) => {
             body: JSON.stringify(emailPayload)
         }).catch(e => console.error("Failed to dispatch alert email:", e));
 
-        return new Response(JSON.stringify({ success: true, ...data }), {
+        if (req.method === 'GET') {
+            return new Response(`<html><body style="background: #0f172a; color: white; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh;">
+                <div style="text-align: center;">
+                    <h2>Action Successfully ${status}</h2>
+                    <p>Log ID: ${log_id}</p>
+                </div>
+            </body></html>`, {
+                headers: { ...corsHeaders, 'Content-Type': 'text/html' },
+            });
+        }
+
+        return new Response(JSON.stringify(responsePayload), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
 

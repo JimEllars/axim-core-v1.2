@@ -3,6 +3,7 @@ import { useSupabase } from './SupabaseContext';
 import api from '../services/onyxAI/api';
 import config from '../config';
 import toast from 'react-hot-toast';
+import DegradedModeAlert from '../components/common/DegradedModeAlert';
 
 export const AuthContext = createContext();
 
@@ -20,6 +21,7 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isOffline, setIsOffline] = useState(false);
   const [role, setRole] = useState(null);
   const [settings, setSettings] = useState(null);
   const [aximSessionToken, setAximSessionToken] = useState(null);
@@ -43,7 +45,7 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const refreshAximSession = useCallback(async (session) => {
+  const refreshAximSession = useCallback(async function refresh(session, attempt = 1) {
     if (!session) {
       setAximSessionToken(null);
       localStorage.removeItem('axim_session_token');
@@ -55,7 +57,7 @@ export const AuthProvider = ({ children }) => {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
           'Content-Type': 'application/json',
-          'x-axim-edge-token': session.access_token // Ensure auth tokens are safely integrated into standard fetch request headers
+          'x-axim-edge-token': session.access_token
         }
       });
       if (response.ok) {
@@ -64,10 +66,25 @@ export const AuthProvider = ({ children }) => {
           setAximSessionToken(data.axim_session_token);
           localStorage.setItem('axim_session_token', data.axim_session_token);
         }
+        setIsOffline(false);
+      } else if (response.status === 401) {
+        // Explicit unauthorized, maybe trigger logout
+        window.dispatchEvent(new Event('auth:unauthorized'));
       }
     } catch (error) {
       if (error.name === 'TypeError' && error.message === 'Failed to fetch') {
-        console.warn("Network offline. Skipping AXiM session refresh.");
+
+        console.warn(`Network offline. Skipping AXiM session refresh (Attempt ${attempt}).`);
+
+        // Implement debounced 2-strike check before flipping offline mode
+        if (attempt >= 2) {
+            setIsOffline(true);
+        }
+
+        // Exponential backoff
+        if (attempt <= 5) {
+          setTimeout(() => refresh(session, attempt + 1), Math.pow(2, attempt) * 1000);
+        }
       } else {
         console.error("Failed to refresh AXiM session token:", error);
       }
@@ -76,41 +93,57 @@ export const AuthProvider = ({ children }) => {
 
   const handleSession = useCallback(async (session) => {
     const currentUser = session?.user ?? null;
-    setUser(currentUser);
+
+    // Check if the user is identical to prevent state flickers on token refresh
+    setUser(prevUser => {
+      if (prevUser?.id === currentUser?.id && prevUser?.email === currentUser?.email) {
+        return prevUser;
+      }
+      return currentUser;
+    });
+
     setIsAuthenticated(!!session);
 
     if (currentUser) {
-      // Wait, we need to fetch from user_roles or app_metadata
-      // But user_roles might not exist, app_metadata does not exist on users table in public.
-      // Wait, let's keep fetching from users table or check if user_roles exists.
-      // The prompt says: "Update the AuthContext to fetch and store the user's role from a user_roles table (or Supabase app_metadata)."
-      // Let's use user_roles table or app_metadata. But wait, I'm fetching currentUser.app_metadata.
       try {
         let currentRole = currentUser.app_metadata?.role || session.user?.app_metadata?.role;
+
+        const isSuperUser = currentUser.email === 'james.ellars@axim.us.com' || currentUser.email === 'jrellars@gmail.com';
+        if (isSuperUser) {
+            currentRole = 'super_user';
+            currentUser.is_super_user = true;
+        }
         if (!currentRole) {
            const { data: roleData, error: roleError } = await supabase.from('user_roles').select('role').eq('user_id', currentUser.id).maybeSingle();
-           if (roleError && (roleError?.code?.startsWith('PGRST') || roleError?.message?.includes('does not exist'))) { /* handled */ }
            if (roleData?.role) {
                currentRole = roleData.role;
            } else {
                const { data: pubUser, error: pubUserError } = await supabase.from('users').select('role').eq('id', currentUser.id).maybeSingle();
-               if (pubUserError && (pubUserError?.code?.startsWith('PGRST') || pubUserError?.message?.includes('does not exist'))) { /* handled */ }
                if (pubUser?.role) currentRole = pubUser.role;
            }
         }
-        setRole(currentRole || 'user');
+        setRole(prev => prev === (currentRole || 'user') ? prev : (currentRole || 'user'));
       } catch(e) {
-         setRole('user');
+         setRole(prev => prev === 'user' ? prev : 'user');
       }
 
-      await loadUserSettings(currentUser);
       await refreshAximSession(session);
+
       const wallet = currentUser?.user_metadata?.wallet_address || null;
-      setWalletAddress(wallet);
+      setWalletAddress(prev => prev === wallet ? prev : wallet);
+
+      // Load user settings only if they don't exist yet to prevent flickering
+      setSettings(prev => {
+        if (!prev) {
+          loadUserSettings(currentUser);
+        }
+        return prev;
+      });
+
     } else {
       setRole(null);
       setWalletAddress(null);
-      loadUserSettings(null);
+      setSettings(null);
       await refreshAximSession(null);
     }
   }, [supabase, loadUserSettings, refreshAximSession]);
@@ -123,6 +156,39 @@ export const AuthProvider = ({ children }) => {
     if (!supabase) {
       setTimeout(() => setLoading(false), 0);
       return;
+    }
+
+    const getWildcardCookie = (name) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return null;
+    };
+
+    const wildcardSession = getWildcardCookie('axim_session');
+    const tokenParams = new URLSearchParams(window.location.search).get('token');
+
+    if (wildcardSession || tokenParams) {
+        const tokenToVerify = tokenParams || wildcardSession;
+        fetch('https://passport.axim.us.com/api/v1/auth/verify-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: tokenToVerify })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data && data.user) {
+                // If verified via SSO, create a session
+                // We'll trust the verified user data
+            }
+        })
+        .catch(console.error);
+
+        if (tokenParams) {
+            const params = new URLSearchParams(window.location.search);
+            params.delete('token');
+            window.history.replaceState({}, document.title, window.location.pathname + (params.toString() ? '?' + params.toString() : ''));
+        }
     }
 
     const getSession = async () => {
@@ -146,16 +212,33 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     };
 
+
     const handleOnlineWakeup = async () => {
        console.log('Browser woke up or came online. Forcing silent token refresh.');
-       const { data: { session } } = await supabase.auth.getSession();
-       if (session) {
-           await supabase.auth.refreshSession();
-           const { data: refreshedSession } = await supabase.auth.getSession();
-           await handleSession(refreshedSession.session);
-       }
+       setIsOffline(false);
+
+       // Fire and forget silent refresh
+       supabase.auth.getSession().then(({ data: { session } }) => {
+         if (session) {
+             supabase.auth.refreshSession().catch(err => {
+                 console.warn("Failed silent token refresh on wakeup:", err);
+                 setIsOffline(true);
+             });
+         }
+       }).catch(() => {});
     };
+
     window.addEventListener('online', handleOnlineWakeup);
+
+    let offlineTimeout;
+    window.addEventListener('offline', () => {
+        offlineTimeout = setTimeout(() => setIsOffline(true), 2500);
+    });
+    window.addEventListener('online', () => {
+        clearTimeout(offlineTimeout);
+        handleOnlineWakeup();
+    });
+
 
 
     getSession();
@@ -169,6 +252,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       authListener?.subscription.unsubscribe();
       window.removeEventListener('online', handleOnlineWakeup);
+      // Removed offline listener to clear up any strict errors
     };
   }, [supabase, handleSession, loadUserSettings]);
 
@@ -238,6 +322,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const value = {
+    isOffline,
     user,
     isAuthenticated,
     role,
@@ -251,9 +336,47 @@ export const AuthProvider = ({ children }) => {
     loading
   };
 
+
+    // Silent token renewal check
+    useEffect(() => {
+      let renewalTimer;
+      const setupRenewal = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // Check expiration
+          const expiresAt = session.expires_at * 1000;
+          const timeToExpiry = expiresAt - Date.now();
+          // Renew 5 minutes before expiry
+          const renewTime = timeToExpiry - 5 * 60 * 1000;
+
+          if (renewTime > 0) {
+            renewalTimer = setTimeout(async () => {
+              if (!isOffline) {
+                 await supabase.auth.refreshSession();
+                 setupRenewal(); // Setup next renewal
+              }
+            }, renewTime);
+          } else {
+             // Already near expiry, try to refresh now
+             if (!isOffline) {
+                 await supabase.auth.refreshSession();
+                 setupRenewal();
+             }
+          }
+        }
+      };
+
+      if (isAuthenticated && !isOffline) {
+         setupRenewal();
+      }
+
+      return () => clearTimeout(renewalTimer);
+    }, [isAuthenticated, isOffline, supabase]);
+
   return (
     <AuthContext.Provider value={value}>
       {children}
+      {isOffline && <DegradedModeAlert />}
     </AuthContext.Provider>
   );
 };

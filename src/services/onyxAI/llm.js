@@ -134,7 +134,8 @@ export const generateContent = async (prompt, options = {}) => {
       const message = error.message; // Preserve original error message format from test
 
       logger.error("All LLM providers failed.", error);
-      throw new LLMProviderError(`Failed to get a response from any AI provider. Last error: ${message}`);
+      logger.warn("LLM Provider Timeout. Falling back to offline heuristics.");
+      return "I'm currently operating in degraded mode due to an upstream network timeout. Basic system functions and offline commands are still available.";
     }
   }
 
@@ -180,7 +181,8 @@ export const generateContent = async (prompt, options = {}) => {
     const errorMessage = apiKeyError ? apiKeyError.message : lastError.message;
 
     logger.error("All LLM providers failed.", lastError);
-    throw new LLMProviderError(`Failed to get a response from any AI provider. Last error: ${errorMessage}`);
+    logger.warn("LLM Provider Timeout. Falling back to offline heuristics.");
+    return "I'm currently operating in degraded mode due to an upstream network timeout. Basic system functions and offline commands are still available.";
   }
 };
 

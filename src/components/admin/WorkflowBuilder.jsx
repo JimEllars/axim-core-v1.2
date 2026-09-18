@@ -314,7 +314,7 @@ const WorkflowBuilder = () => {
   );
 
   const renderHistory = () => (
-    <div className="glass-effect border border-cyan-500/30 rounded-lg overflow-hidden p-4">
+    <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden p-4 shadow-inner">
       <WorkflowExecutionLog />
     </div>
   );
@@ -397,7 +397,7 @@ const WorkflowBuilder = () => {
   );
 
   return (
-    <div className="glass-effect rounded-lg p-6 border border-cyan-500/30 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+    <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-6 shadow-lg min-h-[160px]">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 space-y-4 md:space-y-0">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center">
@@ -408,9 +408,21 @@ const WorkflowBuilder = () => {
         </div>
         {activeTab === 'builder' && (
           <div className="flex gap-3">
-            <button className="flex items-center px-4 py-2 glass-effect hover:bg-onyx-accent/10 text-white text-sm rounded-md transition-colors">
+            <button
+              onClick={async () => {
+                try {
+                  await supabaseApiService.supabase.functions.invoke('trigger-workflow', {
+                    body: { workflow: activeWorkflowId || workflowName }
+                  });
+                  toast.success("Workflow test run initiated");
+                } catch (error) {
+                  console.error("Test run error:", error);
+                  toast.error("Failed to run workflow");
+                }
+              }}
+              className="flex items-center px-4 py-2 glass-effect hover:bg-onyx-accent/10 text-white text-sm rounded-md transition-colors">
               <SafeIcon icon={FiPlay} className="mr-2" />
-              Test Run
+              Run Workflow
             </button>
             <button
               onClick={async () => {
@@ -445,7 +457,7 @@ const WorkflowBuilder = () => {
       </div>
 
       {/* Internal Tabs */}
-      <div className="flex space-x-2 border-b border-cyan-500/30 mb-6">
+      <div className="flex space-x-2 border-b border-slate-800 mb-6">
         {[
           { id: 'builder', label: 'Builder', icon: FiLayers },
           { id: 'templates', label: 'Templates', icon: FiFileText },

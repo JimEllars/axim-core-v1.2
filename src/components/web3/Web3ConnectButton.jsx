@@ -1,11 +1,7 @@
 import React from "react";
-import {
-  ThirdwebProvider,
-  ConnectWallet,
-  embeddedWallet,
-  metamaskWallet,
-  safeWallet
-} from "@thirdweb-dev/react"; // or equivalent Thirdweb Client SDK version
+import { ThirdwebProvider, ConnectButton } from 'thirdweb/react';
+import { createThirdwebClient } from 'thirdweb';
+import { inAppWallet, createWallet } from 'thirdweb/wallets';
 import { useAuth } from "../../contexts/AuthContext";
 
 // Network Target Parameters forced by AXiM Infrastructure Strategy
@@ -14,6 +10,8 @@ const AXIM_CORE_TELEMETRY_URL = "https://pvbcdndqjguzqeafhwhw.supabase.co/functi
 
 export default function Web3ConnectButton({ microAppName = "AXiM-Micro-App-Spoke" }) {
   const { user, isAuthenticated } = useAuth();
+  const clientId = import.meta.env.VITE_THIRDWEB_CLIENT_ID;
+  const client = clientId ? createThirdwebClient({ clientId }) : null;
 
   // Captures and pipes client state transitions back to the Core Spine passively
   const handleWalletConnectionTelemetry = async (walletAddress, walletType) => {
@@ -54,38 +52,46 @@ export default function Web3ConnectButton({ microAppName = "AXiM-Micro-App-Spoke
     buttonText = `Hi ${displayIdentifier}`;
   }
 
+  if (!client) {
+    return <button className="axim-core-btn text-sm font-mono tracking-wider transition-all duration-200 uppercase px-4 py-2">{buttonText}</button>;
+  }
+
   return (
-    <ThirdwebProvider
-      activeChain="arbitrum" // Strictly locks transaction context to Arbitrum One
-      clientId={import.meta.env.VITE_THIRDWEB_CLIENT_ID} // Employs public client key only
-      supportedWallets={[
-        // Web2 to Web3 Bridge: Embedded social logins
-        embeddedWallet({
-          auth: {
-            options: ["google", "apple", "email"],
-          },
-        }),
-        // Traditional Web3 Extension Support
-        metamaskWallet(),
-        // Multisig Vault Handshaking (APF safe contracts pattern)
-        safeWallet(),
-      ]}
-    >
+    <ThirdwebProvider>
       <div className="axim-web3-button-wrapper">
-        <ConnectWallet
+        <ConnectButton
+          client={client}
+          wallets={[
+            // Web2 to Web3 Bridge: Embedded social logins
+            inAppWallet({
+              auth: {
+                options: ["google", "apple", "email"],
+              },
+            }),
+            // Traditional Web3 Extension Support
+            createWallet("io.metamask"),
+            // Multisig Vault Handshaking (APF safe contracts pattern)
+            createWallet("safe"),
+          ]}
           theme="dark"
-          btnTitle={buttonText}
-          className="axim-core-btn text-sm font-mono tracking-wider transition-all duration-200 uppercase"
-          modalTitle="Select AXiM Access Method"
-          modalSize="compact"
-          welcomeScreen={{
-            title: "AXiM Core Link",
-            subtitle: "Accessing decentralized network utility infrastructure.",
+          connectButton={{
+            label: buttonText,
+            className: "axim-core-btn text-sm font-mono tracking-wider transition-all duration-200 uppercase",
+          }}
+          connectModal={{
+            size: "compact",
+            title: "Select AXiM Access Method",
+            welcomeScreen: {
+              title: "AXiM Core Link",
+              subtitle: "Accessing decentralized network utility infrastructure.",
+            }
           }}
           onConnect={async (wallet) => {
-            const address = await wallet.getAddress();
-            const walletId = wallet.getWalletId();
-            await handleWalletConnectionTelemetry(address, walletId);
+            const address = wallet.getAccount()?.address;
+            const walletId = wallet.id;
+            if (address) {
+                await handleWalletConnectionTelemetry(address, walletId);
+            }
           }}
         />
       </div>

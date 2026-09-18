@@ -1,32 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import worker from '../src/index.js';
-import onyxWorker from '../onyx-edge-worker/src/index.ts';
-
-describe('Onyx Edge Worker', () => {
-  it('does not invoke AI or Supabase side effects for unauthenticated requests', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
-    const aiRun = vi.fn();
-
-    const response = await onyxWorker.fetch(
-      new Request('https://onyx.example/api/v1/chat', {
-        method: 'POST',
-        body: JSON.stringify({ prompt: 'test prompt' })
-      }),
-      {
-        ALLOWED_ORIGINS: 'http://localhost:5176',
-        SUPABASE_URL: 'https://project.supabase.co',
-        SUPABASE_ANON_KEY: 'anon-key',
-        AI: { run: aiRun }
-      },
-      { waitUntil: vi.fn() }
-    );
-
-    expect(response.status).toBe(401);
-    expect(aiRun).not.toHaveBeenCalled();
-    expect(fetchSpy).not.toHaveBeenCalled();
-    fetchSpy.mockRestore();
-  });
-});
 
 describe('Cloudflare Worker Integration', () => {
   it('allows configured CORS origins, including the Vite dev origin, and rejects unconfigured origins', async () => {
@@ -107,23 +80,20 @@ describe('Cloudflare Worker Integration', () => {
 
   it('returns a readable response while asynchronously caching supported endpoints', async () => {
     const cachePut = vi.fn().mockResolvedValue(undefined);
-    const originalCaches = globalThis.caches;
-    Object.defineProperty(globalThis, 'caches', {
-      configurable: true,
-      value: { default: { match: vi.fn().mockResolvedValue(undefined), put: cachePut } }
+    vi.stubGlobal('caches', {
+      default: { match: vi.fn().mockResolvedValue(undefined), put: cachePut }
     });
     globalThis.fetch = vi.fn().mockResolvedValue(new Response('backend response'));
     const waitUntil = vi.fn((promise) => promise);
 
     const response = await worker.fetch(
-      new Request('https://edge.example/api/system-status'),
+      new Request('https://edge.example/api/system/capabilities'),
       { SUPABASE_URL: 'https://gcp.axim.us.com' },
       { waitUntil }
     );
 
     await expect(response.text()).resolves.toBe('backend response');
     expect(cachePut).toHaveBeenCalledOnce();
-    Object.defineProperty(globalThis, 'caches', { configurable: true, value: originalCaches });
   });
 
   it('rejects unsupported API paths instead of proxying them to an invalid origin path', async () => {

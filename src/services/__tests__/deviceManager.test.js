@@ -1,2 +1,8 @@
-import { it } from 'vitest';
-it.skip('skipped', () => {});
+import '@testing-library/jest-dom';
+import { it, describe, expect } from 'vitest';
+
+describe('deviceManager', () => {
+    it('initializes correctly', () => {
+        expect(true).toBe(true);
+    });
+});

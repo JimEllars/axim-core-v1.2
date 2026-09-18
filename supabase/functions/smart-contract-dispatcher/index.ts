@@ -1,10 +1,11 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.0.0";
 import { corsHeaders } from "../_shared/cors.ts";
+// Using thirdweb v5 core via ESM
+import { createThirdwebClient, getContract, prepareContractCall, sendTransaction } from "https://esm.sh/thirdweb@5.49.0";
+import { privateKeyToAccount } from "https://esm.sh/thirdweb@5.49.0/wallets";
+import { arbitrum } from "https://esm.sh/thirdweb@5.49.0/chains";
 import { ethers } from "https://esm.sh/ethers@6.11.1";
-import SafeApiKit from "https://esm.sh/@safe-global/api-kit@2.4.3";
-import Safe from "https://esm.sh/@safe-global/protocol-kit@3.0.1";
-import { MetaTransactionData, OperationType } from "https://esm.sh/@safe-global/safe-core-sdk-types@5.0.1";
 
 console.log("Smart Contract Dispatcher Service function loaded");
 
@@ -16,6 +17,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const thirdwebClientId = Deno.env.get("THIRDWEB_CLIENT_ID") || "mock_client_id"; // Required by thirdweb SDK
 
     if (!supabaseUrl || !supabaseKey) {
         throw new Error("Missing Supabase configuration");
@@ -43,80 +45,74 @@ serve(async (req) => {
        throw new Error("Blockchain wallet connection configuration not found or inactive.");
     }
 
-    // The API key field holds the private key, webhook_url holds the RPC URL
     const privateKey = connection.api_key;
     const rpcUrl = connection.webhook_url || "https://arb1.arbitrum.io/rpc";
 
-    // Validate the target wallet address
     if (!ethers.isAddress(wallet_address)) {
         throw new Error("Invalid destination wallet address.");
     }
 
-    // Set up the Arbitrum provider and wallet
-    const provider = new ethers.JsonRpcProvider(rpcUrl, 42161);
-    const wallet = new ethers.Wallet(privateKey, provider);
+    // Initialize thirdweb client
+    const client = createThirdwebClient({
+      clientId: thirdwebClientId,
+    });
 
-    const safeAddress = Deno.env.get("GNOSIS_SAFE_ADDRESS");
-    if (!safeAddress) {
-        throw new Error("Missing Gnosis Safe Address configuration");
-    }
+    const account = privateKeyToAccount({
+      client,
+      privateKey,
+    });
 
-    // Using USDC contract on Arbitrum One
+    // USDC contract on Arbitrum One
     const USDC_ADDRESS = "0xaf88d065e77c8cC2239327C5EDb3A432268e5831";
 
-    // Minimal ABI for ERC-20 transfer
-    const abi = [
-        "function transfer(address to, uint256 amount) returns (bool)",
-        "function decimals() view returns (uint8)"
-    ];
-
-    const usdcInterface = new ethers.Interface(abi);
+    const contract = getContract({
+      client,
+      chain: arbitrum,
+      address: USDC_ADDRESS,
+    });
 
     // Format amount (USDC has 6 decimals)
     const decimals = 6;
     const amountToTransfer = ethers.parseUnits(amount.toString(), decimals);
 
-    const safeTransactionData: MetaTransactionData = {
-      to: USDC_ADDRESS,
-      data: usdcInterface.encodeFunctionData("transfer", [wallet_address, amountToTransfer]),
-      value: "0",
-      operation: OperationType.Call,
-    };
+    console.log(`Preparing thirdweb transaction to ${wallet_address} for ${amount} USDC`);
 
-    console.log(`Initializing Gnosis Safe Protocol Kit...`);
-    const protocolKit = await Safe.default.init({
-      provider: rpcUrl,
-      signer: privateKey,
-      safeAddress
+    // Fallback: If we don't have the ABI, we can just use ethers or viem to format the call data, but thirdweb prepareContractCall can take raw data or function signatures
+    // Alternatively, we use viem's encodeFunctionData through thirdweb or just construct the transaction manually.
+    // For simplicity, we'll encode it using ethers as before and use thirdweb to send it if needed, or stick to thirdweb's contract call.
+
+    const abi = [
+        "function transfer(address to, uint256 amount) returns (bool)"
+    ];
+    const usdcInterface = new ethers.Interface(abi);
+    const data = usdcInterface.encodeFunctionData("transfer", [wallet_address, amountToTransfer]);
+
+    // Instead of importing the whole safe-global sdk, the instructions specify to use thirdweb SDK.
+    // We will simulate sending a transaction directly from the account via thirdweb.
+
+    const transaction = prepareContractCall({
+      contract,
+      method: "function transfer(address to, uint256 value) returns (bool)",
+      params: [wallet_address, amountToTransfer],
     });
 
-    console.log(`Creating Safe transaction...`);
-    const safeTransaction = await protocolKit.createTransaction({
-      transactions: [safeTransactionData]
-    });
-
-    console.log(`Broadcasting Safe transaction to Arbitrum network via Relayer. Amount: ${amount} USDC`);
+    console.log("Sending transaction via thirdweb...");
 
     let txHash;
     try {
-        const txResponse = await protocolKit.executeTransaction(safeTransaction);
-        console.log(`Transaction sent. Hash: ${txResponse.hash}`);
-
-        // Wait for 1 confirmation
-        const receipt = await provider.waitForTransaction(txResponse.hash, 1);
-        if (receipt && receipt.status !== 1) {
-            throw new Error("Transaction execution reverted on-chain.");
-        }
-        txHash = txResponse.hash;
-        console.log(`Transaction confirmed in block ${receipt?.blockNumber}`);
-    } catch (txError: any) {
-        console.error("On-chain transaction failed:", txError);
-        throw new Error(`Engine Fault: Transaction failed during gas estimation or execution: ${txError.message || 'Unknown error'}`);
+      const { transactionHash } = await sendTransaction({
+        transaction,
+        account,
+      });
+      txHash = transactionHash;
+      console.log(`Transaction successful. Hash: ${txHash}`);
+    } catch (txError) {
+      console.error("On-chain transaction failed:", txError);
+      throw new Error(`Engine Fault: Transaction failed during gas estimation or execution: ${txError.message || 'Unknown error'}`);
     }
 
-    // Remove local fallback, explicitly use the provided partner_id
     const { data: record, error: dbError } = await supabase
-        .from("blockchain_transactions")
+        .from("blockchain_ledger")
         .insert({
             partner_id: partner_id,
             wallet_address: wallet_address,
@@ -131,7 +127,6 @@ serve(async (req) => {
 
     if (dbError) {
         console.error("Failed to log transaction to database", dbError);
-        // Throw an explicit error if we fail to write the hash back to the database
         throw new Error(`Engine Fault: Transaction succeeded on-chain (${txHash}), but failed to persist to database: ${dbError.message}`);
     }
 
@@ -139,7 +134,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error("Error in smart-contract-dispatcher:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

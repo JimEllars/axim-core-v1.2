@@ -10,6 +10,24 @@ const DEFAULT_TOPICS = [
   'The Future of Field Service Management'
 ];
 
+const DEVELOPMENT_CATEGORIES = {
+  'business-development': [
+    'How AI Automation Drives Revenue for Service Businesses',
+    'Scaling a Contractor Business with Smart Workflows',
+    'The Future of B2B Lead Generation'
+  ],
+  'personal-development': [
+    'High-Leverage Habits for Tech Founders',
+    'Overcoming Burnout with Systemized Routines',
+    'The Automation Dividend: Reclaiming Your Time'
+  ],
+  'tech-development': [
+    'Integrating Serverless Edge Functions in Legacy Architectures',
+    'The Shift Towards Multi-Agent AI Swarms',
+    'Building Stateless Micro-Apps on Cloudflare Workers'
+  ]
+};
+
 // Helper: Handle Gemini API Call
 async function generateWithGemini(apiKey: string, prompt: string) {
   const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
@@ -239,12 +257,21 @@ Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve
 
     if (topics.length > 0 || (urls.length === 0 && topics.length === 0)) {
         if (topics.length === 0) {
-             const randomTopic = DEFAULT_TOPICS[Math.floor(Math.random() * DEFAULT_TOPICS.length)];
-             topics = [randomTopic];
+            // Select one topic from each of the three development pillars
+            topics = [
+                { title: DEVELOPMENT_CATEGORIES['business-development'][Math.floor(Math.random() * DEVELOPMENT_CATEGORIES['business-development'].length)], category: 'business-development' },
+                { title: DEVELOPMENT_CATEGORIES['personal-development'][Math.floor(Math.random() * DEVELOPMENT_CATEGORIES['personal-development'].length)], category: 'personal-development' },
+                { title: DEVELOPMENT_CATEGORIES['tech-development'][Math.floor(Math.random() * DEVELOPMENT_CATEGORIES['tech-development'].length)], category: 'tech-development' }
+            ];
+        } else {
+             // Map string topics to an object
+             topics = topics.map(t => ({ title: t, category: 'general' }));
         }
 
         console.log(`Processing ${topics.length} topics concurrently...`);
-        await Promise.all(topics.map(async (topic) => {
+        await Promise.all(topics.map(async (topicObj) => {
+             const topic = typeof topicObj === "string" ? topicObj : topicObj.title;
+             const categorySlug = typeof topicObj === "string" ? "general" : topicObj.category;
              console.log(`Processing topic: ${topic}`);
              try {
                 const matchedPartner = matchPartnerToTopic(topic, activePartners);
@@ -276,7 +303,7 @@ Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve
                 }
 
                 const articleContent = await generateWithGemini(apiKey, prompt);
-                await processAndSaveArticle(supabase, articleContent, topic, 'topic_generation', results, matchedPartner);
+                await processAndSaveArticle(supabase, articleContent, topic, 'topic_generation', results, matchedPartner, categorySlug);
 
              } catch (err) {
                  console.error(`Failed to process topic ${topic}:`, err);
@@ -310,7 +337,7 @@ Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve
   }
 });
 
-async function processAndSaveArticle(supabase: any, content: string, source: string, method: string, results: any[], injectedPartner: any) {
+async function processAndSaveArticle(supabase: any, content: string, source: string, method: string, results: any[], injectedPartner: any, categorySlug: string = "general") {
     const articleContent = content;
 
     // Extract Title
@@ -363,6 +390,7 @@ async function processAndSaveArticle(supabase: any, content: string, source: str
                 html_content: articleContent,
                 status: "publish",
                 author_id: 1,
+                category_slug: categorySlug,
                 description: `Publish article: ${title}`
             };
             const { error: hitlError } = await supabase

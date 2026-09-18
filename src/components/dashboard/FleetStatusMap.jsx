@@ -48,8 +48,10 @@ const FleetStatusMap = () => {
     window.addEventListener('axim:exec_update', handleExecUpdate);
 
     const nodesSub = supabase
-      .channel('ecosystem_nodes_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'ecosystem_nodes' }, () => {
+      .channel('ecosystem-mesh')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'ecosystem_nodes' }, (payload) => {
+         // Optionally optimally update just the node state, but fetchEcosystemNodes is simple
+         // updateNodeState(payload.new);
          fetchEcosystemNodes();
       })
       .subscribe();
@@ -113,18 +115,19 @@ const FleetStatusMap = () => {
       ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {fleetStatus.map(node => {
-               const isOffline = node.status === 'offline';
                // eslint-disable-next-line react-hooks/purity
-               const lastPingDelta = node.last_ping ? (Date.now() - new Date(node.last_ping).getTime()) / 1000 / 60 : 0;
-               const isDegraded = !isOffline && lastPingDelta > 3;
+               const lastPingSeconds = node.last_ping ? (Date.now() - new Date(node.last_ping).getTime()) / 1000 : Infinity;
+               const isOffline = node.status === 'offline' || lastPingSeconds > 300;
+               const isDegraded = !isOffline && lastPingSeconds >= 60 && lastPingSeconds <= 300;
 
-               let statusColor = 'bg-green-500/10 border-green-500/30 text-green-400';
+               let statusColor = 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'; // Healthy
                let displayStatus = node.status;
                if (isOffline) {
-                   statusColor = 'bg-red-500/10 border-red-500/30 text-red-400';
+                   statusColor = 'bg-rose-500/10 border-rose-500/30 text-rose-400'; // Crimson
+                   displayStatus = 'Offline';
                } else if (isDegraded) {
-                   statusColor = 'bg-orange-500/10 border-orange-500/30 text-orange-400';
-                   displayStatus = 'Degraded/Unresponsive';
+                   statusColor = 'bg-amber-500/10 border-amber-500/30 text-amber-400'; // Amber
+                   displayStatus = 'Degraded';
                }
                return (
                <motion.div

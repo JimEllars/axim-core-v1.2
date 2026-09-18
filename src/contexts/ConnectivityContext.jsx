@@ -1,5 +1,5 @@
 // src/contexts/ConnectivityContext.jsx
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import connectivityManager from '../services/connectivityManager';
 import offlineManager from '../services/offline';
 
@@ -40,10 +40,19 @@ export const ConnectivityProvider = ({ children }) => {
       }
     };
     window.addEventListener('edge:ratelimit:update', handleEdgeCapacityUpdate);
-    const handleEdgeDegraded = () => setEdgeDegraded(true);
+    let degradedStrikes = 0;
+    const handleEdgeDegraded = () => {
+        degradedStrikes++;
+        if (degradedStrikes >= 2) {
+            setEdgeDegraded(true);
+        }
+    };
     window.addEventListener('edge:degraded', handleEdgeDegraded);
 
-    const handleEdgeHealthy = () => setEdgeDegraded(false);
+    const handleEdgeHealthy = () => {
+        degradedStrikes = 0;
+        setEdgeDegraded(false);
+    };
     window.addEventListener('edge:healthy', handleEdgeHealthy);
 
     const unsubscribe = connectivityManager.subscribe(setIsOnline);
@@ -65,7 +74,6 @@ export const ConnectivityProvider = ({ children }) => {
     }
     return () => { mounted = false; };
   }, [isOnline, clearOfflineTelemetry]);
-
 
   return (
     <ConnectivityContext.Provider value={{

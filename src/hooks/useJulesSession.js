@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { julesApi } from '../services/jules/julesApi';
 import { supabase } from '../services/supabaseClient';
+import { trackEvent } from '../services/telemetry';
+
 
 export const useJulesSession = (sessionId) => {
   const [session, setSession] = useState(null);
@@ -36,7 +38,15 @@ export const useJulesSession = (sessionId) => {
 
         if (isMounted) {
           setSession(data);
-          setState(data.state || data.status);
+          const newState = data.state || data.status;
+          if (newState !== state) {
+            trackEvent('jules_session_state_change', {
+               sessionId,
+               oldState: state,
+               newState: newState
+            });
+          }
+          setState(newState);
           setActivities(activitiesData.activities || []);
 
           if ((data.state === 'AWAITING_PLAN_APPROVAL' || data.state === 'AWAITING_USER_FEEDBACK' || data.status === 'AWAITING_PLAN_APPROVAL' || data.status === 'AWAITING_USER_FEEDBACK') && isMounted) {
@@ -67,6 +77,10 @@ export const useJulesSession = (sessionId) => {
       } catch (err) {
         if (isMounted) {
           setError(err);
+          trackEvent('jules_session_error', {
+             sessionId,
+             error: err.message || 'Unknown error'
+          });
           if (intervalId) {
             clearInterval(intervalId);
           }

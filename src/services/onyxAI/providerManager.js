@@ -22,6 +22,7 @@ class ProviderManager {
   /**
    * Fetches the list of configured providers from the backend.
    */
+
   async loadProviders() {
     if (config.isMockLlmEnabled) {
       this.availableProviders = ['mock'];
@@ -30,11 +31,19 @@ class ProviderManager {
     }
 
     try {
-      const providerNames = await api.getAvailableProviderNames();
+      // Implement strict timeout handling (max 6000ms) that triggers an automated fallback provider
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Provider API timeout")), 6000)
+      );
+
+      const providerNames = await Promise.race([
+        api.getAvailableProviderNames(),
+        timeoutPromise
+      ]);
+
       if (providerNames && providerNames.length > 0) {
         this.availableProviders = providerNames;
       } else {
-        // If no providers are configured, fall back to a default list for UI testing.
         this.availableProviders = ['openai', 'gemini', 'claude', 'deepseek', 'chatbase'];
       }
     } catch (error) {
@@ -42,6 +51,7 @@ class ProviderManager {
       // Fallback on any error to ensure UI is testable
       this.availableProviders = ['openai', 'gemini', 'claude', 'deepseek', 'chatbase'];
     }
+
 
     const storedProvider = localStorage.getItem('llmProvider');
     if (storedProvider && this.availableProviders.includes(storedProvider)) {

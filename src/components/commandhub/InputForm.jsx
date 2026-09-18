@@ -2,6 +2,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FiSend, FiPaperclip, FiX, FiMic } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+import { dispatchCommand } from '../../services/apiClient';
+
 import CommandSuggestions from './CommandSuggestions';
 import onyxAI from '../../services/onyxAI';
 import { useSupabase } from '../../contexts/SupabaseContext';
@@ -277,26 +279,44 @@ const InputForm = ({
     // We emit an event so ChatInterface can render the user message immediately
     window.dispatchEvent(new CustomEvent('onyx-user-message', { detail: { prompt: inputValue, attachments } }));
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/onyx-bridge`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        },
-        body: JSON.stringify({ prompt: inputValue, attachments })
-      });
+    const slashCommandMatch = inputValue.match(/^\/(\w+)(?:\s+(.*))?$/);
 
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
+    if (slashCommandMatch) {
+      const intent = slashCommandMatch[1];
+      const parameters = slashCommandMatch[2] || '';
+
+      // Dispatching to Agent indicator
+      window.dispatchEvent(new CustomEvent('onyx-agent-status', { detail: { status: 'Dispatching to Agent...', isTyping: true } }));
+
+      try {
+        const response = await dispatchCommand({ intent, parameters });
+        window.dispatchEvent(new CustomEvent('onyx-agent-status', { detail: { status: response.message || 'Workflow Triggered Successfully', isTyping: false } }));
+      } catch (error) {
+        console.error('Error dispatching command:', error);
+        window.dispatchEvent(new CustomEvent('onyx-agent-status', { detail: { status: 'Failed to dispatch workflow', isTyping: false, isError: true } }));
       }
+    } else {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/onyx-bridge`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          },
+          body: JSON.stringify({ prompt: inputValue, attachments })
+        });
 
-      // Pass the stream to ChatInterface
-      window.dispatchEvent(new CustomEvent('onyx-stream-response', { detail: { body: response.body, response: response } }));
-    } catch (error) {
-      console.error('Error sending payload to Onyx:', error);
-      window.dispatchEvent(new CustomEvent('onyx-stream-error', { detail: { error: error.message } }));
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+
+        // Pass the stream to ChatInterface
+        window.dispatchEvent(new CustomEvent('onyx-stream-response', { detail: { body: response.body, response: response } }));
+      } catch (error) {
+        console.error('Error sending payload to Onyx:', error);
+        window.dispatchEvent(new CustomEvent('onyx-stream-error', { detail: { error: error.message } }));
+      }
     }
     setLocalIsProcessing(false);
 
@@ -305,7 +325,6 @@ const InputForm = ({
     onInputValueChange(syntheticEvent);
     setAttachments([]);
   };
-
 
   return (
     <form onSubmit={handleSubmit} className="relative">
@@ -352,9 +371,9 @@ const InputForm = ({
           <button
             type="button"
             onClick={isRecording ? stopRecording : startRecording}
-            className={`p-2 mr-1 transition-colors ${isRecording ? 'text-red-500 animate-pulse' : 'text-gray-400 hover:text-purple-400'}`}
+            className={`p-2 mr-1 transition-colors ${isRecording ? 'text-red-500 animate-pulse' : 'text-gray-400 hover:text-purple-400'} disabled:opacity-50`}
             title={isRecording ? "Stop recording" : "Record voice command"}
-            disabled={isProcessing || localIsProcessing}
+            disabled={localIsProcessing}
           >
             <FiMic />
           </button>
@@ -374,15 +393,15 @@ const InputForm = ({
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="flex-grow bg-transparent text-white placeholder-gray-500 focus:outline-none px-2"
-            disabled={isProcessing || localIsProcessing}
+            className="flex-grow bg-transparent text-white placeholder-gray-500 focus:outline-none px-2 disabled:opacity-50"
+            disabled={localIsProcessing}
             autoComplete="off"
           />
           <button
             type="submit"
             aria-label="Send command"
             className="bg-purple-600 text-white rounded-md px-4 py-2 hover:bg-purple-700 disabled:bg-gray-600 flex items-center transition-colors"
-            disabled={isProcessing || localIsProcessing || !inputValue}
+            disabled={localIsProcessing || !inputValue}
           >
             <FiSend className="mr-2" /> Send
           </button>

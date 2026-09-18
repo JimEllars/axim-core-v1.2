@@ -550,7 +550,8 @@ class ApiService {
   }
 
   async sendToOnyxWorker(payload) {
-    const workerUrl = import.meta.env.VITE_ONYX_WORKER_URL;
+    const ONYX_BRIDGE_URL = "https://onyx-bridge.axim.us.com";
+    const workerUrl = ONYX_BRIDGE_URL;
     if (!workerUrl) {
       throw new Error('Onyx Edge Worker URL is not configured.');
     }
@@ -564,7 +565,8 @@ class ApiService {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + session.access_token
+        'Authorization': 'Bearer ' + session.access_token,
+        'X-Axim-Signature': import.meta.env.VITE_ONYX_SECURE_KEY
       },
       body: JSON.stringify(payload)
     });

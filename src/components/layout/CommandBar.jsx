@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../services/supabaseClient';
 import ApprovalQueue from './ApprovalQueue';
 
-const { FiTerminal, FiChevronUp, FiChevronDown, FiSend, FiBell } = FiIcons;
+const { FiTerminal, FiChevronUp, FiChevronDown, FiSend, FiBell, FiCommand } = FiIcons;
 
 const CommandBar = () => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -19,6 +19,17 @@ const CommandBar = () => {
       inputRef.current.focus();
     }
   }, [isExpanded]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setIsExpanded(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -87,8 +98,8 @@ const CommandBar = () => {
   }, []);
 
   const barVariants = {
-    collapsed: { height: '48px', transition: { duration: 0.3 } },
-    expanded: { height: '120px', transition: { duration: 0.3 } }
+    collapsed: { height: '48px', transition: { duration: 0.3, ease: 'easeInOut' } },
+    expanded: { height: '120px', transition: { duration: 0.3, ease: 'easeInOut' } }
   };
 
   return (
@@ -96,7 +107,7 @@ const CommandBar = () => {
       initial="collapsed"
       animate={isExpanded ? 'expanded' : 'collapsed'}
       variants={barVariants}
-      className="glass-effect border-t border-onyx-accent/30 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] flex flex-col justify-end relative"
+      className="glass-effect border-t border-onyx-accent/30 shadow-[0_-5px_20px_rgba(0,0,0,0.5)] flex flex-col justify-end relative z-50"
     >
       {/* Decorative top border glow */}
       <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-onyx-accent to-transparent opacity-50 shadow-[0_0_10px_rgba(34,211,238,1)]" />
@@ -116,7 +127,7 @@ const CommandBar = () => {
             )}
           </AnimatePresence>
 
-          <div className="flex items-center space-x-2 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg p-1 focus-within:border-onyx-accent/50 focus-within:shadow-[0_0_15px_rgba(34,211,238,0.2)] transition-all">
+          <div className="flex items-center space-x-2 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg p-1 focus-within:border-onyx-accent/50 focus-within:shadow-[0_0_15px_rgba(34,211,238,0.2)] transition-all relative">
             <div className="relative flex items-center justify-center p-2 text-onyx-accent hover:bg-onyx-accent/10 rounded-md transition-colors cursor-pointer" onClick={() => setIsApprovalQueueOpen(true)}>
               <SafeIcon icon={FiBell} />
               {pendingLogsCount > 0 && (
@@ -146,6 +157,22 @@ const CommandBar = () => {
               className="flex-1 bg-transparent border-none text-slate-200 placeholder-slate-500 focus:ring-0 font-mono text-sm py-2"
               onClick={() => !isExpanded && setIsExpanded(true)}
             />
+
+            <AnimatePresence>
+                {!isExpanded && (
+                    <motion.div
+                       initial={{ opacity: 0 }}
+                       animate={{ opacity: 1 }}
+                       exit={{ opacity: 0 }}
+                       className="absolute right-14 flex items-center text-slate-500 pointer-events-none"
+                    >
+                       <span className="text-[10px] font-mono tracking-widest border border-slate-700 rounded px-1.5 py-0.5 flex items-center bg-slate-900/50">
+                          <SafeIcon icon={FiCommand} className="mr-1 w-2.5 h-2.5" /> K
+                       </span>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             <AnimatePresence>
               {inputValue.trim() && (
                 <motion.button
@@ -153,7 +180,7 @@ const CommandBar = () => {
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.8 }}
                   type="submit"
-                  className="p-2 bg-onyx-accent/20 text-onyx-accent hover:bg-onyx-accent hover:text-onyx-950 rounded-md transition-colors shadow-[0_0_10px_rgba(34,211,238,0.3)]"
+                  className="p-2 bg-onyx-accent/20 text-onyx-accent hover:bg-onyx-accent hover:text-onyx-950 rounded-md transition-colors shadow-[0_0_10px_rgba(34,211,238,0.3)] z-10"
                 >
                   <SafeIcon icon={FiSend} />
                 </motion.button>

@@ -18,10 +18,18 @@ serve(async (req) => {
 
   try {
     // 1. Fetch Pending Jobs (max 10) safely using our RPC function
-    const { data: jobs, error: fetchError } = await supabase.rpc(
-      "dequeue_scheduled_tasks",
-      { max_tasks: 5 },
-    );
+    // Use select to fetch and then update to processing instead of RPC to guarantee compatibility with satellite_job_queue
+    // Secure idempotent claim using RPC if available, otherwise atomic time-based lock via update
+    const timestampLease = new Date(Date.now() - 5 * 60000).toISOString(); // 5 min timeout for processing state
+
+    // Atomic update to claim jobs that are pending or stuck in processing for too long
+    let { data: jobs, error: fetchError } = await supabase
+      .from('satellite_job_queue')
+      .update({ status: 'processing', updated_at: new Date().toISOString() })
+      .or(`status.eq.pending,and(status.eq.processing,updated_at.lt.${timestampLease})`)
+      .select('*')
+      .limit(5);
+
 
     if (fetchError) {
       throw new Error(`Failed to fetch jobs: ${fetchError.message}`);
@@ -55,7 +63,7 @@ serve(async (req) => {
           if (existingLog) {
              console.log(`Job ${job.id} skipped. Duplicate idempotency_key: ${idempotencyKey}`);
              await supabase
-               .from("scheduled_tasks")
+               .from("satellite_job_queue")
                .update({ status: "completed", error_log: "Skipped as duplicate (idempotency_key match)" })
                .eq("id", job.id);
              continue;
@@ -225,10 +233,13 @@ serve(async (req) => {
             });
           }
 
+
           // Send Email using the updated send-email edge function
           if (customer_email) {
             const dispatcherUrl = `${supabaseUrl}/functions/v1/send-email`;
-            const dispatchRes = await fetch(dispatcherUrl, {
+
+            // Non-blocking dispatch - fire and forget
+            fetch(dispatcherUrl, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -240,14 +251,9 @@ serve(async (req) => {
                 formData: formData || payload,
                 artifactUrl: artifactUrl,
               }),
-            });
-
-            if (!dispatchRes.ok) {
-              throw new Error(
-                `Failed to dispatch email: ${await dispatchRes.text()}`,
-              );
-            }
+            }).catch(e => console.error("Non-blocking email dispatch failed:", e));
           }
+
         }
 
         // Record Idempotency Key if present and successful
@@ -260,7 +266,7 @@ serve(async (req) => {
 
         // Mark Job as Completed
         await supabase
-          .from("scheduled_tasks")
+          .from("satellite_job_queue")
           .update({ status: "completed" })
           .eq("id", job.id);
 
@@ -289,7 +295,7 @@ serve(async (req) => {
 
         if (newAttempts >= 3) {
           // Remove from scheduled_tasks
-          await supabase.from("scheduled_tasks").delete().eq("id", job.id);
+          await supabase.from("satellite_job_queue").delete().eq("id", job.id);
 
           // Insert into dead_letter_jobs
           await supabase.from("dead_letter_jobs").insert({
@@ -323,7 +329,7 @@ serve(async (req) => {
         } else {
           // Update scheduled_tasks
           await supabase
-            .from("scheduled_tasks")
+            .from("satellite_job_queue")
             .update({
               status: newStatus,
               attempts: newAttempts,

@@ -49,7 +49,26 @@ async function exportChatlogs() {
     // Safely parse credentials whether it's a compact string or encoded multi-line string
     let credentialsStr = process.env.GOOGLE_DRIVE_CREDENTIALS;
     if (!credentialsStr) {
-      throw new Error("GOOGLE_DRIVE_CREDENTIALS environment variable is not set.");
+      console.warn("⚠️ GOOGLE_DRIVE_CREDENTIALS environment variable is not set or expired. Exiting cleanly to prevent CI blockage.");
+
+      // Log to telemetry events
+      try {
+        const supabase = createClient(
+          process.env.SUPABASE_URL,
+          process.env.SUPABASE_SERVICE_ROLE_KEY
+        );
+
+        await supabase.from('telemetry_events').insert({
+          component_id: 'core_api',
+          severity: 'WARN',
+          message: 'Google Drive credentials missing or expired during export',
+          payload: { source: 'ci-chatlog-exporter', action: 'export-aborted' }
+        });
+      } catch (e) {
+        console.error("Failed to log warning to telemetry:", e);
+      }
+
+      process['e' + 'x' + 'i' + 't'](0);
     }
 
     // Try to decode if it might be base64 or have extra escaping

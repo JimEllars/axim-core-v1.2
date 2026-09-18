@@ -6,7 +6,7 @@ describe('Onyx Edge Bridge', () => {
     vi.unstubAllGlobals();
     vi.stubEnv('VITE_ONYX_WORKER_URL', 'https://onyx.edge.test');
     vi.stubEnv('VITE_ONYX_SECURE_KEY', 'test_secure_key');
-    api.supabase = { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: null } }) } };
+    api.supabase = { auth: { getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 'mock-token' } } }) } };
   });
 
   it('routes correctly through sendToOnyxWorker on success', async () => {
@@ -21,11 +21,12 @@ describe('Onyx Edge Bridge', () => {
 
     const result = await api.sendToOnyxWorker(mockPayload);
 
-    expect(fetchMock).toHaveBeenCalledWith('https://onyx.edge.test/api/v1/chat', {
+    expect(fetchMock).toHaveBeenCalledWith('https://onyx-bridge.axim.us.com/api/v1/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer test_secure_key'
+        'Authorization': 'Bearer mock-token',
+        'X-Axim-Signature': 'test_secure_key'
       },
       body: JSON.stringify(mockPayload)
     });

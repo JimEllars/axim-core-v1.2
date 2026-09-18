@@ -2,7 +2,7 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.0.0';
 import { corsHeaders } from '../_shared/cors.ts';
 
-function chunkText(text: string, maxLen = 1000, overlap = 100): string[] {
+function chunkText(text: string, maxLen = 2000, overlap = 200): string[] {
     const chunks = [];
     let i = 0;
     while (i < text.length) {
@@ -46,7 +46,8 @@ serve(async (req) => {
         );
 
         const payload = await req.json();
-        let { title, text, source_type = 'text', file_path, category = null, partner = null } = payload;
+        let { title, content, text, tags, source_app, source_type = 'text', file_path, category = null, partner = null } = payload;
+        text = content || text;
 
         // If file_path is provided (from bucket upload), fetch the content first
         if (file_path && source_type === 'storage') {
@@ -76,30 +77,30 @@ serve(async (req) => {
         for (const chunk of chunks) {
             let embedding = null;
 
-            if (!openAIApiKey) {
-                // Mock embedding
-                embedding = new Array(1536).fill(0.01);
-            } else {
-                const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
+            try {
+                const embeddingReq = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/generate-embedding`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer ${openAIApiKey}`,
+                        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        input: chunk,
-                        model: 'text-embedding-ada-002'
-                    })
+                    body: JSON.stringify({ input: chunk })
                 });
 
-                if (!embeddingResponse.ok) {
-                    const err = await embeddingResponse.text();
-                    console.error("Embedding API Error:", err);
-                    continue; // Skip failed chunk or decide to throw
+                if (embeddingReq.ok) {
+                    const result = await embeddingReq.json();
+                    if (result.embedding) {
+                        embedding = result.embedding;
+                    }
+                } else {
+                    console.error("Embedding function failed:", await embeddingReq.text());
                 }
+            } catch(e) {
+                console.error("Failed to generate embedding", e);
+            }
 
-                const embeddingData = await embeddingResponse.json();
-                embedding = embeddingData.data[0].embedding;
+            if (!embedding) {
+                embedding = new Array(1536).fill(0.01);
             }
 
             if (partner) {
@@ -126,7 +127,7 @@ serve(async (req) => {
                 }
             } else {
                 // Insert into executive_knowledge_base
-                const { error: insertError } = await supabaseAdmin
+                const { data: insertedData, error: insertError } = await supabaseAdmin
                     .from('executive_knowledge_base')
                     .insert({
                         title,
@@ -134,17 +135,17 @@ serve(async (req) => {
                         embedding,
                         source_type,
                         category
-                    });
+                    }).select('id');
 
                 if (insertError) {
                     console.error("Failed to insert chunk into knowledge base:", insertError);
                 } else {
-                    results.push({ chunk_length: chunk.length, status: 'success' });
+                    results.push({ id: insertedData?.[0]?.id, chunk_length: chunk.length, status: 'success' });
                 }
             }
         }
 
-        return new Response(JSON.stringify({ success: true, processed_chunks: results.length }), {
+        return new Response(JSON.stringify({ success: true, article_id: results.length > 0 ? results[0].id : null, chunks_indexed: results.length }), {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
 

@@ -1,23 +1,46 @@
-import { expect, vi, afterEach } from 'vitest';
-import { cleanup } from '@testing-library/react';
-import * as matchers from '@testing-library/jest-dom/matchers';
+import { vi } from 'vitest';
+import React from 'react';
 
-expect.extend(matchers);
-
-afterEach(() => {
-  cleanup();
-});
-
+// Mock matchMedia
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: vi.fn().mockImplementation(query => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
+    addListener: vi.fn(), // deprecated
+    removeListener: vi.fn(), // deprecated
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(),
   })),
 });
+
+// Basic mocks for framer-motion to avoid testing actual animations
+vi.mock('framer-motion', () => ({
+  motion: {
+    div: React.forwardRef((props, ref) => <div ref={ref} {...props} />),
+    span: React.forwardRef((props, ref) => <span ref={ref} {...props} />),
+    tr: React.forwardRef((props, ref) => <tr ref={ref} {...props} />),
+  },
+  AnimatePresence: ({ children }) => <>{children}</>,
+}));
+
+
+
+vi.mock('react-hot-toast', () => ({
+  default: {
+    success: vi.fn(),
+    error: vi.fn(),
+    loading: vi.fn(),
+    dismiss: vi.fn(),
+    promise: vi.fn(),
+  },
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    loading: vi.fn(),
+    dismiss: vi.fn(),
+    promise: vi.fn(),
+  }
+}));

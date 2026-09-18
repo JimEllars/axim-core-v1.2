@@ -11,7 +11,7 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  const internalKey = req.headers.get('x-axim-internal-service-key');
+  const internalKey = req.headers.get('x-axim-internal-service-key') || req.headers.get('x-axim-signature') || req.headers.get('x-satellite-signature');
   const expectedKey = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY');
 
   if (!internalKey || internalKey !== expectedKey) {
@@ -23,7 +23,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { app_id, event_type, execution_ms, error_stack } = body;
+    const { app_id, event_type, execution_ms, error_stack, provider, prompt_tokens, completion_tokens, total_tokens, estimated_cost_usd } = body;
 
     if (!app_id || !event_type) {
       return new Response(JSON.stringify({ error: 'Missing required fields app_id or event_type' }), {
@@ -32,31 +32,93 @@ serve(async (req) => {
       });
     }
 
-    const supabaseAdmin = createClient(
+    const processSatelliteTelemetry = async () => {
+      try {
+        const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { error } = await supabaseAdmin
-      .from('telemetry_logs')
+    const { error: telemetryError } = await supabaseAdmin
+      .from('telemetry_events')
       .insert({
-        app_type: app_id,
-        event: event_type,
-        timestamp: new Date().toISOString(),
-        details: {
-          execution_ms,
-          error_stack,
-        },
+        component_id: app_id,
+        severity: (body.severity && body.severity.toUpperCase()) || 'INFO',
+        message: event_type,
+        payload: body
       });
+    if (telemetryError) console.error("Error inserting into telemetry_events:", telemetryError);
 
-    if (error) throw error;
+    const { error: nodeError } = await supabaseAdmin
+      .from('ecosystem_nodes')
+      .upsert({
+          node_id: app_id,
+          status: 'healthy',
+          last_heartbeat: new Date().toISOString(),
+          metadata: body.metrics || {}
+      }, { onConflict: 'node_id' });
 
-    return new Response(JSON.stringify({ success: true }), {
+    if (nodeError) console.error("Error upserting into ecosystem_nodes:", nodeError);
+
+    // Check if high severity and route to universal-dispatcher
+    if ((body.severity && body.severity.toLowerCase() === 'critical') || event_type.includes('DDoS') || event_type.includes('RCA')) {
+        try {
+            const url = new URL(req.url);
+            const dispatcherUrl = `${url.protocol}//${url.host}/universal-dispatcher`;
+            await fetch(dispatcherUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Axim-Internal-Service-Key': Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+                },
+                body: JSON.stringify({
+                    action_type: 'ecosystem_incident_triage',
+                    source: app_id,
+                    payload: body.data || body
+                })
+            });
+        } catch (dispatchError) {
+            console.error("Failed to route to universal-dispatcher", dispatchError);
+        }
+    }
+
+    const duration = body.duration_ms || body.execution_ms || body.execution_time_ms;
+    if (provider || total_tokens || estimated_cost_usd || duration !== undefined) {
+      const { error: usageError } = await supabaseAdmin
+        .from('api_usage_logs')
+        .insert({
+          app_id: app_id,
+          endpoint: 'satellite-telemetry',
+          provider: provider || 'satellite_job',
+          prompt_tokens: prompt_tokens || 0,
+          completion_tokens: completion_tokens || 0,
+          token_count: total_tokens || 0,
+          estimated_cost_usd: estimated_cost_usd || 0,
+          execution_time_ms: duration ? Math.round(duration) : null,
+          status_code: body.status === 'error' || body.status === 'failed' ? 500 : 200,
+          metadata: body.metadata || {},
+          created_at: new Date().toISOString(),
+        });
+      if (usageError) console.error("Error inserting into api_usage_logs:", usageError);
+    }
+
+      } catch (err) {
+        console.error("Satellite telemetry processing error:", err);
+      }
+    };
+
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      EdgeRuntime.waitUntil(processSatelliteTelemetry());
+    } else {
+      processSatelliteTelemetry();
+    }
+
+    return new Response(JSON.stringify({ success: true, edge_queued: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
+      status: 202,
     });
   } catch (error) {
-    console.error('Error processing telemetry:', error);
+    console.error('Error in telemetry handler:', error);
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

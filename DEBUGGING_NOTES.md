@@ -207,3 +207,50 @@ During `npm install`, several deprecation warnings are visible:
 ## [Wave 56] Drift Reconciliation Notes (2026-06-25)
 * **ApiKeyManager Test Skip:** Confirmed that `ApiKeyManager` UI tests were skipping timeout-prone checks with a documented `it.skip` and explicit reasons.
 * **DLQ to Telemetry Loop:** Verified that the Dead Letter Queue error handling drops a telemetry payload, correctly alerting the immune system via the telemetry database table.
+## Increment 1 - Production Hardening
+- Implemented edge telemetry buffering and jitter backoff in `cloudflare-workers/src/telemetry-consumer.js`.
+- Configured Cloudflare index to forward CF geo headers for telemetry endpoints.
+- Added silent session refresh logic directly in `AuthContext.jsx` using `useEffect` and `setTimeout`.
+- Stabilized `PassportListener.jsx` to prevent overlapping subscriptions.
+- Made UI alerts (`DatabaseUplinkError.jsx`, `DegradedModeAlert.jsx`) non-obstructive.
+- Fallback timeouts incorporated to `ProviderManager.js`.
+- `QueueDepthPanel` and `CloudflareEdgeHealth` UI matched to tokens, implemented graceful loading states and error boundaries.
+
+## Phase 1: Cloudflare Edge & Telemetry Buffer Consolidation
+* Deleted ad-hoc test patches `fix_cf_test6.cjs` and `fix_cf_test7.cjs`.
+* Updated `cloudflare-workers/wrangler.toml` queue `telemetry-queue` binding to set `max_batch_size = 50` and `max_batch_timeout = 5`.
+* Validated `cloudflare-workers/src/telemetry-consumer.js` to correctly batch events and fall back to KV caching on upstream 5xx errors instead of retrying endlessly.
+* Hardened `src/services/telemetry.js` to gracefully fall back to `localStorage` buffer if Cloudflare Edge/telemetry ingress returns 5xx errors, preventing unhandled exceptions and dropped events.
+* Ran and passed telemetry-pipeline tests (`npx vitest run tests/telemetry-pipeline.test.js`) and cloudflare-worker integration tests (`npm run test:integration`).
+
+## Phase 2: Live User Session Protection & Zero-Flicker Auth
+* Hardened `src/contexts/AuthContext.jsx` by making `handleOnlineWakeup` refresh session asynchronously (fire and forget) rather than awaiting and blocking, ensuring zero-flicker on token refreshes.
+* Refactored `loadUserSettings` inside `AuthContext.jsx` to gracefully apply default permissions if `get_user_settings_array_rpc` returns an error or empty data instead of crashing/logging out.
+* Updated `src/components/PassportListener.jsx` to catch and ignore network fetch exceptions during token verification, rather than exposing unhandled promise rejections.
+* Executed and passed `src/contexts/AuthContext.test.jsx` and `tests/user-profile.test.jsx`.
+
+## Phase 3: Dashboard Telemetry Optimization & Realtime Scaffolding
+* Refactored `CloudflareEdgeHealth.jsx` to subscribe to the shared Supabase realtime broadcast channel (`system_health_channel`) for status updates, rather than exclusively listening to window events, and maintained the 60-second fallback polling jitter.
+* Refactored `JobQueueMonitor.jsx` to also subscribe to the `system_health_channel` for `queue_depth_update` broadcasts instead of aggressively polling every 10 seconds. Added a 60-second fallback poll.
+* Verified design tokens across metric components adhere to Tailwind CSS enterprise dark-mode patterns (subtle borders, glass effects).
+* Executed and passed `src/components/dashboard/CloudflareEdgeHealth.test.jsx` and `tests/metrics-grid.test.jsx` successfully.
+
+## Phase 4: Onyx AI & Automation Pipeline Continuity
+* Added `executeCommandWithTimeout` to `src/services/onyxAI/commandRouter.js` to ensure downstream LLM timeouts trigger an immediate handoff to cached task definitions, preventing agent worker queue halts.
+* Updated `supabase/functions/job-processor/index.ts` to dispatch non-blocking jobs (like emails) using a fire-and-forget fetch strategy so they don't hold open connection slots during peak traffic.
+* Executed and passed `src/services/onyxAI/onyxAI.test.js` and `tests/job-processor.test.js`.
+
+## [2026-09-13] CI Failure on Cloudflare Pages Deployment
+- **Issue**: The Cloudflare Pages deployment failed during CI with `Configuration file for Pages projects does not support "assets"` and `Configuration file for Pages projects does not support "observability"`. Additionally, running `npx wrangler deploy` on a Pages project produced unwanted results.
+- **Root Cause**: `wrangler.jsonc` contained `assets` and `observability` keys which are meant for standard Cloudflare Workers, not Cloudflare Pages projects. Furthermore, `package.json` had incorrect scripts executing `npx wrangler deploy` for the dashboard deployment instead of `npx wrangler pages deploy`.
+- **Resolution**:
+  - Stripped `assets` and `observability` properties from `wrangler.jsonc`, leaving only `$schema`, `name`, `compatibility_date`, and `pages_build_output_dir`.
+  - Updated `package.json` deployment scripts (`deploy:dashboard` and `dry-run`) to properly use `npx wrangler pages deploy ./dist` instead of the generic `npx wrangler deploy`.
+## Sprint 2.4 Notes
+
+- Identified and removed bad Cloudflare Worker configurations (`assets`, `enable_containers`, etc.) from the global `wrangler.jsonc` file, to enforce proper Pages-only building metrics.
+- Added `.assetsignore` to prevent Vite from copying `wrangler.json` to the output `dist` folder.
+- Remedied Vite build dual-import and chunk splitting conflicts by refactoring dynamic imports to static ES module imports in heavily utilized `src/services/offline.js`, `src/services/workflows/engine.js`, and `src/services/onyxAI/commands/systemCommands.js`.
+- Cleaned up React component errors in test scenarios specifically the `MetricsGrid` suite by isolating Supabase channel usage and wrapping components with explicit `AuthProvider` stubs.
+- Updated `src/components/dashboard/CloudflareEdgeHealth.jsx` to dynamically fetch endpoint metrics accurately from `/api/mcp-bridge/status` gracefully replacing hard-coded assumptions and falling back dynamically via mocked parameters.
+- Re-architectured `src/contexts/AuthContext.jsx` session caching via standard `sessionStorage` hooks resulting in improved offline session survival preventing white screens in degraded zones, properly nested under `<ErrorBoundary>` shells directly inside the primary navigation component (`MainLayout.jsx`).

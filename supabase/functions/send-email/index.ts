@@ -7,6 +7,8 @@ import {
 import { notifyOnyx } from "../_shared/telemetry.ts";
 import { validateMicroAppSession } from "../_shared/auth.ts";
 import { generatePdf } from "../_shared/pdf-generators/index.ts";
+import { EmailDispatchManager } from "../_shared/EmailDispatchManager.ts";
+
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get(
@@ -139,10 +141,11 @@ serve(async (req) => {
       });
     }
 
-    // 4. Send Email via EmailIt
-    // Pull EMAILIT_API_KEY and EMAILIT_SENDER_DOMAIN from the secure vault configuration
+    // 4. Send Email via Dual-Provider Dispatch Manager
+    // Pull required API keys and domain configuration
     const emailItApiKey = Deno.env.get("EMAILIT_API_KEY");
     const emailItSenderDomain = Deno.env.get("EMAILIT_SENDER_DOMAIN");
+    const resendApiKey = Deno.env.get("RESEND_API_KEY") || "dummy_fallback"; // Ensure a fallback exists for testing if not set
 
     if (!emailItApiKey || !emailItSenderDomain) {
       throw new Error(
@@ -150,31 +153,19 @@ serve(async (req) => {
       );
     }
 
-    // Dispatch structured JSON message payloads mapped to the official EmailIt endpoint
-    const emailItUrl = "https://api.emailit.com/v1/emails";
     const senderEmail = `missioncontrol@${emailItSenderDomain}`;
 
-    const emailItPayload: any = {
-      from: senderEmail,
-      to: [toEmail],
-      subject: emailSubject,
-      html: sanitizedHtmlContent,
-      text: emailTextContent,
-    };
+    const dispatchManager = new EmailDispatchManager(emailItApiKey, resendApiKey);
 
-    if (attachments.length > 0) {
-      emailItPayload.attachments = attachments;
-    }
-
-    let emailItResponse;
+    let dispatchResult;
     try {
-      emailItResponse = await fetch(emailItUrl, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${emailItApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(emailItPayload),
+      dispatchResult = await dispatchManager.send({
+        from: senderEmail,
+        to: [toEmail],
+        subject: emailSubject,
+        html: sanitizedHtmlContent,
+        text: emailTextContent,
+        attachments: attachments.length > 0 ? attachments : undefined
       });
     } catch (networkError: any) {
       // Wrap the operational email execution inside a robust try/catch diagnostic block.
@@ -203,7 +194,7 @@ serve(async (req) => {
       });
 
       return new Response(
-        JSON.stringify({ error: `EmailIt API Error: Network drop or timeout` }),
+        JSON.stringify({ error: `Email Dispatch Error: ${networkError.message}` }),
         {
           status: 502,
           headers: edgeHeaders,
@@ -211,15 +202,15 @@ serve(async (req) => {
       );
     }
 
-    if (!emailItResponse.ok) {
-      const errorText = await emailItResponse.text();
-      // If EmailIt responds with an edge error or timeout flag, write a failure trace row directly into public.api_usage_logs containing the response code.
+    if (!dispatchResult.success) {
+      const errorText = dispatchResult.rawResponse ? JSON.stringify(dispatchResult.rawResponse) : 'Unknown error';
+      // If dispatch responds with an edge error or timeout flag, write a failure trace row directly into public.api_usage_logs containing the response code.
       const computeMs = Date.now() - startTime;
       await supabaseAdmin.from("api_usage_logs").insert({
         endpoint: "/send-email",
         app_id: appSource,
         compute_ms: computeMs,
-        status_code: emailItResponse.status,
+        status_code: 502,
         payload: { error: errorText }
       });
       await supabaseAdmin.from("telemetry_events").insert({
@@ -238,7 +229,7 @@ serve(async (req) => {
       });
       // return 502 Bad Gateway to the caller
       return new Response(
-        JSON.stringify({ error: `EmailIt API Error: ${errorText}` }),
+        JSON.stringify({ error: `Email Dispatch Error: ${errorText}` }),
         {
           status: 502,
           headers: edgeHeaders,
@@ -246,22 +237,21 @@ serve(async (req) => {
       );
     }
 
-    const emailItData = await emailItResponse.json();
-
     const computeMs = Date.now() - startTime;
     await supabaseAdmin.from("api_usage_logs").insert({
       endpoint: "/send-email",
       status_code: 200,
       compute_ms: computeMs,
       app_id: appSource,
-      payload: { success: true, to: toEmail, subject: emailSubject, id: emailItData.id }
+      payload: { success: true, to: toEmail, subject: emailSubject, id: dispatchResult.messageId, provider: dispatchResult.provider }
     });
 
     return new Response(
       JSON.stringify({
         success: true,
-        message: `Email successfully sent to ${toEmail}`,
-        id: emailItData.id,
+        message: `Email successfully sent to ${toEmail} via ${dispatchResult.provider}`,
+        id: dispatchResult.messageId,
+        provider: dispatchResult.provider
       }),
       {
         headers: edgeHeaders,

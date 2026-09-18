@@ -1,7 +1,9 @@
-import React from 'react';
+import '@testing-library/jest-dom';
+
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import MetricsGrid from '../src/components/dashboard/MetricsGrid';
+
 
 // Mock contexts
 vi.mock('../src/hooks/useMetrics', () => ({
@@ -25,6 +27,10 @@ vi.mock('../src/hooks/useMetrics', () => ({
 vi.mock('../src/contexts/SupabaseContext', () => ({
   useSupabase: () => ({
     supabase: {
+      auth: {
+        getSession: vi.fn().mockResolvedValue({ data: { session: null } }),
+        onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } })
+      },
       channel: vi.fn().mockReturnThis(),
       on: vi.fn().mockReturnThis(),
       subscribe: vi.fn().mockReturnThis(),
@@ -48,6 +54,6 @@ describe('MetricsGrid Component', () => {
     expect(screen.getByText('25.0%')).toBeInTheDocument();
 
     // Check if the subtext is formatted properly
-    expect(screen.getByText('SAVINGS: $12.34 | TOKENS: 123,456')).toBeInTheDocument();
+    expect(screen.getByText('SAVINGS: 12.34 | TOKENS: 123,456')).toBeInTheDocument();
   });
 });

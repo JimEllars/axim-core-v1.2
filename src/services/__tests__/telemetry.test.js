@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { trackEvent } from '../telemetry';
 
 describe('Telemetry Ingress Test Routine', () => {
   it('should autonomously spawn support ticket on simulated system failure overriding human latency', async () => {

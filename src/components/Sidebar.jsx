@@ -9,7 +9,7 @@ import { supabase } from '../services/supabaseClient';
 
 const { 
   FiHome, FiTerminal, FiLogOut, FiShield, FiActivity, 
-  FiBarChart3, FiUsers, FiSettings, FiZap, FiGlobe, FiUserCheck, FiUploadCloud, FiUser, FiChevronRight, FiChevronLeft
+  FiBarChart3, FiUsers, FiSettings, FiZap, FiGlobe, FiUserCheck, FiUploadCloud, FiUser, FiChevronRight, FiChevronLeft, FiDollarSign
 } = FiIcons;
 
 const Sidebar = () => {
@@ -53,6 +53,13 @@ const Sidebar = () => {
       icon: FiUserCheck,
       description: 'User Management',
       path: '/admin'
+    },
+    {
+      id: 'cfo-dashboard',
+      label: 'CFO Dashboard',
+      icon: FiDollarSign,
+      description: 'Financial Approvals',
+      path: '/admin/cfo'
     }] : [])
   ];
 

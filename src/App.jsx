@@ -1,20 +1,24 @@
+import RedirectToPassport from "./components/RedirectToPassport";
 import React, { useEffect, Suspense } from 'react';
 import { HashRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Toaster } from 'react-hot-toast';
-import { ThirdwebProvider, embeddedWallet, metamaskWallet, safeWallet } from '@thirdweb-dev/react';
+import { ThirdwebProvider } from 'thirdweb/react';
+import { createThirdwebClient } from 'thirdweb';
+import { inAppWallet, createWallet } from 'thirdweb/wallets';
 import { SupabaseProvider } from './contexts/SupabaseContext.jsx';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { ConnectivityProvider } from './contexts/ConnectivityContext.jsx';
 import { ApiProvider } from './contexts/ApiContext.jsx';
 import { RealtimeProvider } from './contexts/RealtimeContext.jsx';
 import { DashboardProvider } from './contexts/DashboardContext.jsx';
-import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 const CommandHub = React.lazy(() => import('./components/CommandHub'));
 const AdminDashboard = React.lazy(() => import('./components/admin/AdminDashboard'));
+const CFODashboard = React.lazy(() => import('./components/admin/CFODashboard'));
 const Ingest = React.lazy(() => import('./components/ingest/Ingest'));
 const Settings = React.lazy(() => import('./components/settings/Settings'));
+import AuthOffline from './pages/AuthOffline';
 const UserProfile = React.lazy(() => import('./components/UserProfile'));
 const Support = React.lazy(() => import('./pages/Support'));
 
@@ -107,7 +111,8 @@ function AppContent() {
       <AnimatePresence mode="wait">
         <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-onyx-950 via-purple-900 to-onyx-950 flex items-center justify-center"><div className="text-white text-xl flex items-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mr-4"></div>Loading View...</div></div>}>
         <Routes location={location} key={location.pathname}>
-          <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} />
+          <Route path="/auth-offline" element={<AuthOffline />} />
+          <Route path="/login" element={<RedirectToPassport />} />
 
         <Route
           path="/"
@@ -131,6 +136,14 @@ function AppContent() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="admin/cfo"
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <CFODashboard />
+              </ProtectedRoute>
+            }
+          />
 
           <Route
             path="support/*"
@@ -142,7 +155,7 @@ function AppContent() {
           />
         </Route>
 
-        <Route path="*" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Navigate to="/login" />} />
+        <Route path="*" element={isAuthenticated ? <Navigate to="/dashboard" /> : <RedirectToPassport />} />
         </Routes>
         </Suspense>
       </AnimatePresence>
@@ -151,42 +164,49 @@ function AppContent() {
 }
 
 function App() {
+  const clientId = import.meta.env.VITE_THIRDWEB_CLIENT_ID;
+  const appTree = (
+    <HashRouter>
+      <SupabaseProvider>
+        <AuthProvider>
+          <ConnectivityProvider>
+            <ApiProvider>
+              <RealtimeProvider>
+                <AppContent />
+              </RealtimeProvider>
+            </ApiProvider>
+            <Toaster
+              position="top-right"
+              toastOptions={{
+                style: {
+                  borderRadius: '10px',
+                  background: '#1e293b',
+                  color: '#e2e8f0',
+                  border: '1px solid #334155',
+                },
+              }}
+            />
+          </ConnectivityProvider>
+        </AuthProvider>
+      </SupabaseProvider>
+    </HashRouter>
+  );
+
+  if (!clientId) {
+    return appTree;
+  }
+
   return (
     <ThirdwebProvider
-      activeChain="arbitrum"
-      clientId={import.meta.env.VITE_THIRDWEB_CLIENT_ID}
-      supportedWallets={[
-        embeddedWallet({ auth: { options: ["google", "apple", "email"] } }),
-        metamaskWallet(),
-        safeWallet(),
+
+      client={createThirdwebClient({ clientId })}
+      wallets={[
+        inAppWallet({ auth: { options: ["google", "apple", "email"] } }),
+        createWallet("io.metamask"),
+        createWallet("safe"),
       ]}
     >
-      <HashRouter>
-        <SupabaseProvider>
-          <AuthProvider>
-            <ConnectivityProvider>
-              <ApiProvider>
-
-                <RealtimeProvider>
-                  <AppContent />
-                </RealtimeProvider>
-
-              </ApiProvider>
-              <Toaster
-                position="top-right"
-                toastOptions={{
-                  style: {
-                    borderRadius: '10px',
-                    background: '#1e293b', // slate-800
-                    color: '#e2e8f0', // slate-200
-                    border: '1px solid #334155', // slate-700
-                  },
-                }}
-              />
-            </ConnectivityProvider>
-          </AuthProvider>
-        </SupabaseProvider>
-      </HashRouter>
+      {appTree}
     </ThirdwebProvider>
   );
 }

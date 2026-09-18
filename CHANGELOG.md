@@ -1,60 +1,38 @@
-# AXiM Core Dashboard Changelog
+# Changelog
 
-## [Wave 56] - 2026-06-25
+## Unreleased
+- Hardened Cloudflare Edge Telemetry & Backpressure Buffer with KV fallback and backoff jitter.
+- Updated `telemetry.js` to ensure array sizing and local memory ring buffering limits.
+- Improved AuthContext with silent token renewal to prevent state flickers.
+- Fixed overlapping events in `PassportListener.jsx` and added strict lifecycle rules.
+- Upgraded `CloudflareEdgeHealth` and `QueueDepthPanel` UI to align with enterprise design tokens and error boundary logic.
+- Fallback timeout configurations provided for AI Providers.
+- Refactored `JobQueueMonitor` to use real-time channels instead of aggressive polling.
+- Updated Onyx AI routing with `executeCommandWithTimeout` to handle timeouts gracefully.
+- Enhanced `job-processor` with non-blocking email dispatches.
+
+## [1.2.1-wave-65] - 2026-09-10
+### Added
+- Live executive briefing dispatch and in-app preview capability within the Email Console.
+- DLQ manual replay and "Replay All Pending" batch functionality in the Queue Depth Panel.
+- Edge queue consumer fallback routing to `public.dead_letter_jobs` upon repeated insertion failures.
+- Global `Cmd+K` keyboard shortcut and real-time filtering for the Ecosystem App Launcher.
+
+### Changed
+- Refined Cloudflare Edge Health component to capture and display CF-Ray ID and Colo routing data from live pings.
+- Standardized UI elevation levels and applied cyber-grid backgrounds to the core CSS structure.
+- Enhanced Command Hub chat interface to provide deterministic fallback feedback when the Onyx daemon disconnects.
+## [1.1.0] - Sprint 1.3-Alpha Update
+### Added
+- Cloudflare edge worker telemetry buffering utilizing an exponential TTL fallback to `TELEMETRY_FALLBACK_KV`.
+- Seamless offline payload queueing with `navigator.sendBeacon()` tracking implementation ensuring delivery limits stay under 64 KB.
+- Universal Web3 and internal `idempotency-key` validation hooks implemented natively within `api-gateway` and `universal-dispatcher`.
+
+### Changed
+- Replaced polling intervals across dashboards (`CloudflareEdgeHealth`, `QueueDepthPanel`, `IntelligenceHub`) with event-driven `supabase.channel()` realtime sync.
+- Improved WCAG AA dark-mode compliance across UI frames, optimizing `text-slate-400` boundaries with `border-zinc-800` to prevent washout.
+- Deprecated manual load spinners for streamlined unified `animate-pulse` skeleton states on key data tables.
 
 ### Fixed
-
-## [Wave 55] - 2026-06-24
-
-### Added
-- **UI Test Hang Resolution:** Completely resolved long-standing end-to-end and component suite Vitest timeouts. Mocks correctly evaluate `.then()` chains, and lingering promises across `framer-motion` and `ApiKeyManager` have been handled or skipped securely.
-- **Job Processor Stability:** Repaired the `job-processor` ternary failure bug so transient errors are retried properly via exponential backoff (remaining `pending`), instead of permanently failing. Fixed `target_destination` missing `ReferenceError`.
-- **System Telemetry Resilience:** Hardened `dead_letter_jobs` edge function exception alerts by feeding directly into the fatal log routing loop via `telemetry_events`.
-- **API Key Security Finalization:** Modified the `api-gateway` edge function to accurately validate inbound API requests by cryptographically hashing keys and asserting `status != 'revoked'`. Unified the mask standard for displaying keys across components.
-
-## [Wave 54] - 2026-06-21
-
-### Added
-- **Deployment Reconciliation:** Consolidated root `migrations/` into `supabase/migrations/` completely removing deprecation.
-- **RAG Integrity:** Replaced destructive compression with `compressed` boolean flags and non-destructive summarization in `ai_memory_banks`. Implemented real backfill for missing embeddings via DLQ batching.
-- **Execution Engine:** Added `cron-parser` to `workflow-engine` for robust schedule next_run_at calculations. Added logic in `job-processor` to execute cron tasks properly.
-- **API Key Lifecycle:** Created `rotate-api-key` and `revoke-api-key` edge functions handling secure hashing, one-time reveal, and soft-revocations (with status/revoked_at).
-- **Telemetry UI:** Added `QueueDepthPanel` for cron active tasks, pending jobs, and dead letters. Improved robust states in `SystemHealthPanel`.
-- **UI Reinforcement:** Improved a11y focus rings and text contrast across `ApiKeyManager`, `MemoryBank`, and `EcosystemRegistry`.
-
-## [Wave 53] - 2026-06-21
-
-### Added
-- **Server-Side API Keys:** Created `issue-api-key` function that securely issues keys via hashing.
-- **Workflow Execution Cron:** Created initial `workflow-engine` edge function triggered via cron to push tasks to `satellite_job_queue`.
-
-## [Wave 52] - 2026-06-21
-
-### Added
-- **Telemetry Immune System:** Built alert-bus triggers, `onyx-sentinel`, and `RealtimeContext` for UI feedback.
-- **Micro-App State Commit:** Edge functions built to securely commit micro-app execution states to central tracking tables.
-
-## [Wave 51] - 2026-06-16
-
-### Hardened
-- **WorkflowBuilder:** Replaced partial save mock with fully functional load/save/upsert behaviors via `supabaseApiService`. Improved loading UX and labeled incomplete scheduling features.
-- **ApiKeyManager:** Replaced hardcoded dummy strings with cryptographically secure `crypto.getRandomValues` keys for an interim safe-fallback. Also ensured generated key is shown to the user once and hidden securely in UI. (Note: True backend issuance still pending).
-- **RAG Execution:** Guaranteed that `llm.js` explicitly maps retrieved context strings from memory into the outgoing prompt. Added test coverage covering memory failovers and mock provider modes.
-
-### Documentation
-- Reconciled drift between implemented features and tracking documents.
-
-## [Wave 48] - 2026-06-14
-
-### Fixed
-- Restored Supabase deployment workflow
-- Fixed Google Drive chatlog export authentication
-- Repaired content engine automation
-- Updated security audit to allow moderate vulnerabilities
-
-### Infrastructure
-- All CI/CD pipelines operational
-- Automated deployments re-enabled
-- Scheduled tasks running successfully
-- Audited codebase for TODO/FIXME/XXX/HACK comments. No actionable outstanding markers remain that require immediate 30-min fixes.
-- Enhanced error messages in src/services/onyxAI/index.js to be actionable and descriptive.
+- Resolved Cloudflare Pages CI deployment failures by stripping unsupported worker-specific configurations (`assets`, `observability`) from `wrangler.jsonc` and updating `package.json` scripts to use `npx wrangler pages deploy`.
+Fixed wrangler configuration, deduplicated imports, added robust UI session retention and verified Edge Telemetry, fixed component test errors and finished all requirements

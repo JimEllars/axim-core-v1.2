@@ -51,10 +51,19 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
     };
 
     const handleStreamError = (e) => {
+      let content = { title: 'Stream Error', details: e.detail.error };
+      let errorMessage = String(e.detail.error || '');
+      if (errorMessage.includes('timeout') || errorMessage.includes('rate-limit') || errorMessage.includes('429')) {
+         content = {
+            title: 'Agent Disconnected',
+            details: 'Connection timed out or rate limit reached. Retrying on fallback edge...'
+         };
+      }
+
       setLocalMessages(prev => [...prev, {
         id: crypto.randomUUID(),
         timestamp: new Date(),
-        content: { title: 'Stream Error', details: e.detail.error },
+        content: content,
         type: 'error'
       }]);
       setIsStreaming(false);
@@ -197,6 +206,31 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
     window.addEventListener('onyx-stream-response', handleStreamResponse);
     window.addEventListener('onyx-stream-error', handleStreamError);
 
+    const handleAgentStatus = (e) => {
+      const { status, isTyping, isError } = e.detail;
+      setLocalMessages(prev => {
+         const newMsgs = [...prev];
+         const lastMsg = newMsgs[newMsgs.length - 1];
+         if (lastMsg && lastMsg.agentName === 'System Dispatcher' && lastMsg.isTyping) {
+             lastMsg.content = status;
+             lastMsg.isTyping = isTyping;
+             lastMsg.type = isError ? 'error' : 'assistant';
+             return newMsgs;
+         } else {
+             return [...prev, {
+                id: crypto.randomUUID(),
+                timestamp: new Date(),
+                content: status,
+                type: isError ? 'error' : 'assistant',
+                agentName: 'System Dispatcher',
+                isTyping
+             }];
+         }
+      });
+    };
+    window.addEventListener('onyx-agent-status', handleAgentStatus);
+
+
     const handleActionApproval = async (e) => {
       const { approved, toolCall } = e.detail;
       const logAction = async () => {
@@ -300,7 +334,7 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
              setLocalMessages(prev => [...prev, {
                  id: crypto.randomUUID(),
                  timestamp: new Date(),
-                 content: { title: 'Execution Error', details: error.message },
+                 content: { title: 'Execution Error', details: error.message + '. System is operating in degraded mode. Please try again later.' },
                  type: 'error'
              }]);
          }
@@ -321,6 +355,7 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
       window.removeEventListener('onyx-user-message', handleUserMessage);
       window.removeEventListener('onyx-stream-response', handleStreamResponse);
       window.removeEventListener('onyx-stream-error', handleStreamError);
+window.removeEventListener('onyx-agent-status', handleAgentStatus);
       window.removeEventListener('onyx-action-approval', handleActionApproval);
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -341,11 +376,11 @@ const ChatInterface = ({ state, handlers, messagesEndRef }) => {
 
 
   return (
-  <div className="glass-effect p-4 rounded-lg mb-4 h-[60vh] flex flex-col bg-onyx-950/80 backdrop-blur-md border border-onyx-accent/20 relative overflow-hidden">
+  <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800/80 shadow-lg p-4 rounded-xl mb-4 h-[60vh] flex flex-col relative overflow-hidden">
     {/* Decorative Scanline */}
     <div className="absolute inset-0 pointer-events-none opacity-[0.03] bg-[linear-gradient(transparent_50%,rgba(34,211,238,1)_50%)] bg-[length:100%_4px]" />
 
-    <div className="flex justify-between items-center mb-2 border-b border-onyx-accent/20 pb-2 relative z-10">
+    <div className="flex justify-between items-center mb-2 border-b border-slate-800 pb-2 relative z-10">
       <div className="flex items-center space-x-2">
         <h2 className="text-sm font-bold text-slate-200 uppercase tracking-widest flex items-center">
           <SafeIcon icon={FiActivity} className="mr-2 text-onyx-accent" />

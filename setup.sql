@@ -387,3 +387,11 @@ INSERT INTO workflows_ax2024 (name, description, slug) VALUES
 ('Complete System Data Synchronization', 'A complete data synchronization for the system.', 'data_sync'),
 ('API Integration Health Check', 'A health check for all API integrations.', 'api_health_check')
 ON CONFLICT (slug) DO NOTHING;
+
+CREATE OR REPLACE FUNCTION get_satellite_job_queue()
+RETURNS SETOF satellite_job_queue
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT * FROM public.satellite_job_queue ORDER BY created_at DESC LIMIT 100;
+$$;

@@ -81,3 +81,4 @@ This document tracks all active Edge Functions, their required secrets, and asso
 
 To verify all functions are responding, run:
 `npm run test:functions`
+| `email-reply-parser` | Parses inbound email webhooks and halts active BD sequences automatically | `SUPABASE_SERVICE_ROLE_KEY` | None |

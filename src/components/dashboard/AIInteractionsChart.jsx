@@ -3,12 +3,13 @@ import { motion } from 'framer-motion';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 import * as FiIcons from 'react-icons/fi';
 import SafeIcon from '../../common/SafeIcon';
+import ErrorBoundary from '../ErrorBoundary';
 import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 
 const { FiCpu, FiAlertTriangle } = FiIcons;
 
 const AIInteractionsChart = () => {
-  const { data, loading, error } = useSupabaseQuery('get_ai_interactions_over_time');
+  const { data, loading, error } = useSupabaseQuery('get_rag_telemetry_over_time');
 
   const averageInteractions = useMemo(() => {
     if (!data || data.length === 0) return 0;
@@ -21,15 +22,16 @@ const AIInteractionsChart = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.4 }}
-      className="glass-effect rounded-xl p-6 col-span-1 lg:col-span-2 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}
+      className="glass-effect rounded-2xl p-6 col-span-1 lg:col-span-2 min-h-[160px] shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md"
     >
+      <ErrorBoundary>
       <div className="flex items-center space-x-3 mb-6">
         <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-600 rounded-lg flex items-center justify-center">
           <SafeIcon icon={FiCpu} className="text-white" />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-white">AI Interactions Over Time</h3>
-          <p className="text-sm text-slate-400">Daily command usage</p>
+          <h3 className="text-lg font-semibold text-white">AI Usage Over Time</h3>
+          <p className="text-sm text-slate-400">RAG telemetry (Last 7 days)</p>
         </div>
       </div>
 
@@ -47,7 +49,14 @@ const AIInteractionsChart = () => {
         </div>
       )}
 
-      {!loading && !error && (
+      {!loading && !error && (!data || data.length === 0) && (
+        <div className="h-64 flex flex-col items-center justify-center text-slate-400">
+          <p className="font-semibold">No telemetry data available.</p>
+          <p className="text-sm text-slate-500 mt-1">AI interactions will appear here once recorded.</p>
+        </div>
+      )}
+
+      {!loading && !error && data && data.length > 0 && (
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={data}>
              <defs>
@@ -77,6 +86,7 @@ const AIInteractionsChart = () => {
           </LineChart>
         </ResponsiveContainer>
       )}
+        </ErrorBoundary>
     </motion.div>
   );
 };

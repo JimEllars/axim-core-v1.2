@@ -10,9 +10,9 @@
     "dev": "wrangler dev",
     "deploy": "npx wrangler deploy -c wrangler.toml",
     "dry-run": "npx wrangler deploy --dry-run -c wrangler.toml",
-    "deploy:onyx": "npx wrangler deploy -c onyx-edge-worker/wrangler.toml",
-    "dry-run:onyx": "npx wrangler deploy --dry-run -c onyx-edge-worker/wrangler.toml",
-    "check": "npm run test && npm run dry-run && npm run dry-run:onyx",
+
+
+    "check": "npm run test && npm run dry-run",
     "tail": "wrangler tail",
     "test:integration": "vitest run tests/integration.test.js",
     "build": "npx wrangler deploy --dry-run -c wrangler.toml",
@@ -20,6 +20,8 @@
     "deploy:dry-run": "npx wrangler deploy --dry-run -c wrangler.toml"
   },
   "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.1",
+    "@vitest/coverage-v8": "^2.1.9",
     "jsdom": "^29.1.1",
     "vitest": "^2.1.9",
     "wrangler": "^4.95.0"

@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { trackEvent } from '../services/telemetry';
 
 // 1. Construct a clean cryptographic SIWE handshake within our gateway layers.
 export const generateSIWEMessage = (domain, address, statement, uri, version, chainId, nonce, issuedAt) => {
@@ -36,10 +37,12 @@ export const verifySIWESignatureAndGetJWT = async (message, signature, address) 
     }
 
     const data = await response.json();
+    trackEvent('sso_handoff_success', { address });
     return data;
 
   } catch (err) {
       console.error("[SIWE Verification] Error:", err);
+      trackEvent('sso_handoff_failure', { address, error: err.message });
       throw err;
   }
 };
@@ -51,4 +54,39 @@ export const generateCrossDomainHandoffUrl = (targetDomain, aximSessionToken) =>
   const url = new URL(targetDomain);
   url.searchParams.set('handoff_token', aximSessionToken);
   return url.toString();
+};
+
+// Handle session state preservation gracefully when URL parameters are cleansed
+export const cleanseUrlHandoffToken = () => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('handoff_token')) {
+        url.searchParams.delete('handoff_token');
+        window.history.replaceState({}, '', url.toString());
+    }
+};
+
+// Pre-Flight SSO Health Check
+export const checkSsoHealth = async (ssoUrl) => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+    // Attempt a lightweight fetch to the passport domain.
+    const response = await fetch(ssoUrl, {
+      method: 'HEAD',
+      mode: 'no-cors',
+      signal: controller.signal
+    });
+
+    clearTimeout(timeoutId);
+
+    // Because of 'no-cors', response.ok will be false and status will be 0.
+    // As long as the fetch completes without throwing an error (like a network timeout or DNS failure),
+    // we consider the domain reachable.
+    return true;
+  } catch (error) {
+    console.warn('[SSO Health Check] Pre-flight ping failed:', error);
+    return false;
+  }
 };

@@ -312,7 +312,7 @@ class SupabaseApiService {
       await this.supabase.from('events_ax2024').insert({
         type: 'bulk_import',
         source: 'csv_import',
-        data: { count: contacts.length },
+        data: { count: contacts.length, error_code: null, error: null, message: "Bulk import" },
         user_id: userId,
       });
       return data;

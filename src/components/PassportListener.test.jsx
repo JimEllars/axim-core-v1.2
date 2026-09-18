@@ -1,3 +1,4 @@
+import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -35,7 +36,7 @@ describe('PassportListener', () => {
 
   it('should render and show empty state initially', () => {
     render(<PassportListener />);
-    expect(screen.getByText('Passport Verifications')).toBeInTheDocument();
+    expect(screen.getAllByText('Passport Verifications')[0]).toBeInTheDocument();
     expect(screen.getByText('No recent verifications.')).toBeInTheDocument();
   });
 
@@ -71,3 +72,7 @@ describe('PassportListener', () => {
     expect(screen.getByText('User: user-123')).toBeInTheDocument();
   });
 });
+
+vi.mock('../contexts/AuthContext', () => ({
+  useAuth: vi.fn(() => ({ isOffline: false }))
+}));

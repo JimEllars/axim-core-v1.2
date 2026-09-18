@@ -19,59 +19,17 @@ function getCorsHeaders(request, env) {
   return {
     ...(isAllowedOrigin ? { 'Access-Control-Allow-Origin': origin } : {}),
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Idempotency-Key, x-axim-app-id',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Idempotency-Key, x-axim-app-id, X-Emailit-Signature',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
   };
 }
 
-const rateLimitMap = new Map();
 const apiRoutes = new Map([
   ['/api/system/capabilities', '/functions/v1/api-capabilities'],
   ['/api/providers/status', '/functions/v1/system-status'],
   ['/api/system-status', '/functions/v1/system-status'],
 ]);
-
-function checkRateLimit(ip) {
-  if (!ip) return true; // Can't limit if no IP
-
-  const now = Date.now();
-  cleanupRateLimitMap(now);
-  const windowMs = 60 * 1000; // 1 minute
-  const maxRequests = 100;
-
-  let record = rateLimitMap.get(ip);
-  if (!record) {
-    record = { count: 1, resetAt: now + windowMs };
-    rateLimitMap.set(ip, record);
-    return true;
-  }
-
-  if (now > record.resetAt) {
-    record.count = 1;
-    record.resetAt = now + windowMs;
-    return true;
-  }
-
-  record.count++;
-  if (record.count > maxRequests) {
-    return false;
-  }
-
-  return true;
-}
-
-let lastCleanup = Date.now();
-function cleanupRateLimitMap(now) {
-  if (now - lastCleanup > 60 * 1000) {
-    for (const [key, record] of rateLimitMap.entries()) {
-      if (now > record.resetAt) {
-        rateLimitMap.delete(key);
-      }
-    }
-    lastCleanup = now;
-  }
-}
 
 export default {
   async fetch(request, env, ctx) {
@@ -79,6 +37,21 @@ export default {
 
     if (request.method === 'OPTIONS') {
       if (request.headers.get('Origin') && !corsHeaders['Access-Control-Allow-Origin']) {
+        const rejectionCountKey = `403_rejections_${Math.floor(Date.now() / 60000)}`;
+        let count = 1;
+        if (env.KV) {
+          count = parseInt(await env.KV.get(rejectionCountKey) || '0', 10) + 1;
+          ctx.waitUntil(env.KV.put(rejectionCountKey, count.toString(), { expirationTtl: 120 }));
+        }
+
+        if (count > 50 && env.ALERT_WEBHOOK_URL) {
+           ctx.waitUntil(fetch(env.ALERT_WEBHOOK_URL, {
+             method: 'POST',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ text: `High number of 403 rejections detected at edge (${count} in the last minute).` })
+           }).catch(err => console.error("Alert webhook failed:", err)));
+        }
+
         return new Response('Origin not allowed', { status: 403, headers: corsHeaders });
       }
 
@@ -87,16 +60,71 @@ export default {
 
     const url = new URL(request.url);
 
-    // Rate Limiting
-    const ip = request.headers.get('CF-Connecting-IP');
-    if (!checkRateLimit(ip)) {
-      return new Response("Too Many Requests", { status: 429, headers: Object.assign({}, corsHeaders, { "X-AXiM-Edge-Throttled": rateLimitMap.has(ip) ? rateLimitMap.get(ip).count.toString() : "1" }) });
+    // Rate Limiting using Cloudflare Rate Limiting binding
+    const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+
+    // Bypass rate limiter for telemetry to prevent user-facing 429s from background polling
+    const isTelemetryEndpoint = url.pathname.endsWith('/telemetry-ingress') ||
+                               url.pathname.endsWith('/satellite-telemetry') ||
+                               url.pathname.endsWith('/email-tracking-webhook') ||
+                               url.pathname.endsWith('/system-status') ||
+                               url.pathname.includes('/system-status');
+
+    if (env.RATE_LIMITER && !isTelemetryEndpoint) {
+      const { success } = await env.RATE_LIMITER.limit({ key: ip });
+      if (!success) {
+        return new Response(JSON.stringify({ error: "Too Many Requests", message: "Rate limit exceeded." }), {
+          status: 429,
+          headers: Object.assign({}, corsHeaders, {
+            "Content-Type": "application/json",
+            "X-AXiM-Edge-Throttled": "true"
+          })
+        });
+      }
     }
 
     // Health Check Endpoint
+
+    // Instant Telemetry Acknowledgment and Webhooks
+    if (url.pathname.endsWith('/telemetry-ingress') || url.pathname.endsWith('/satellite-telemetry') || url.pathname.endsWith('/email-tracking-webhook')) {
+      try {
+        const targetUrl = new URL(request.url);
+        const backendUrlStr = env.SUPABASE_URL;
+        if (!backendUrlStr) {
+          return new Response('API backend is not configured', { status: 503, headers: corsHeaders });
+        }
+
+        const backendUrl = new URL(backendUrlStr);
+        targetUrl.hostname = backendUrl.hostname;
+        targetUrl.port = backendUrl.port || '';
+        targetUrl.protocol = backendUrl.protocol;
+
+        const modifiedRequest = new Request(targetUrl, request.clone());
+        modifiedRequest.headers.set('x-forwarded-host', request.headers.get('host') || '');
+
+        // Ensure edge payloads attach normalized geo-headers
+        modifiedRequest.headers.set('x-cf-ipcountry', request.cf?.country || 'XX');
+        modifiedRequest.headers.set('x-cf-region', request.cf?.region || null);
+        modifiedRequest.headers.set('x-cf-city', request.cf?.city || null);
+        modifiedRequest.headers.set('x-cf-asn', request.cf?.asn || null);
+        modifiedRequest.headers.set('x-cf-colo', request.cf?.colo || 'UNKNOWN');
+        modifiedRequest.headers.set('x-cf-ray', request.headers.get('cf-ray') || null);
+
+        // Push the processing to the background
+        ctx.waitUntil(fetch(modifiedRequest).catch(err => console.error("Telemetry/Webhook forward failed:", err)));
+
+        // Instantly return 202 Accepted to prevent UI blocking
+        return new Response(JSON.stringify({ success: true, edge_queued: true }), {
+          status: 202,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (e) {
+        // Fallback gracefully
+        console.error("Failed to queue telemetry/webhook at edge", e);
+      }
+    }
+
     if (url.pathname === '/api/edge/healthz' && request.method === 'GET') {
-      const record = rateLimitMap.get(ip);
-      const limitRemaining = record ? Math.max(0, 100 - record.count) : 100;
       // memory stats (not fully available in V8 isolates without specific bindings, mock or return limited info)
       const memoryStats = { usage: 'unknown', available: 'unknown' };
 
@@ -105,7 +133,6 @@ export default {
           status: 'active',
           edge_location: request.cf?.colo || 'unknown',
           memory_stats: memoryStats,
-          rate_limit_capacity: limitRemaining
         }),
         {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -121,7 +148,7 @@ export default {
       }
 
       // Edge Caching
-      const cacheableEndpoints = ['/api/system/capabilities', '/api/providers/status', '/api/system-status'];
+      const cacheableEndpoints = ['/api/system/capabilities', '/api/providers/status']; // Removed /api/system-status to avoid serving stale telemetry data
       if (request.method === 'GET' && cacheableEndpoints.includes(url.pathname)) {
         const cache = caches.default;
         const cachedResponse = await cache.match(request);
@@ -152,9 +179,6 @@ export default {
           proxyResponse.headers.set(key, corsHeaders[key]);
         });
         proxyResponse.headers.set('X-AXiM-Edge-Location', request.cf?.colo || 'unknown');
-        const record = rateLimitMap.get(ip);
-        const limitRemaining = record ? Math.max(0, 100 - record.count) : 100;
-        proxyResponse.headers.set('X-AXiM-RateLimit-Remaining', limitRemaining.toString());
 
         // Bypass edge cache if no Cache-Control header is present from origin
         if (!proxyResponse.headers.has('Cache-Control')) {
@@ -175,6 +199,34 @@ export default {
         return proxyResponse;
       } catch (error) {
         return new Response("API Proxy Error", { status: 502, headers: corsHeaders });
+      }
+    }
+
+
+    // 2. Static Asset Caching
+    const isStaticAsset = url.pathname.match(/\.(js|css|png|woff2|jpg|jpeg|gif|svg|ico)$/i) ||
+                          url.pathname.startsWith('/assets/') ||
+                          url.pathname.startsWith('/static/');
+
+    const isBypassedRoute = url.pathname.includes('/api/') ||
+                            url.pathname.includes('/telemetry-ingress') ||
+                            url.pathname.includes('/system-status') ||
+                            url.pathname.includes('/auth/');
+
+    if (isStaticAsset && !isBypassedRoute && request.method === 'GET') {
+      try {
+        // Since Cloudflare Pages handles the actual serving, we don't have ASSETS binding by default in a standard worker.
+        // If this worker sits in front of a site, we usually fetch the origin.
+        // Wait, normally if this is just a proxy worker on a route, if we return fetch(request) we pass it to the origin.
+        const response = await fetch(request);
+        const staticResponse = new Response(response.body, response);
+        staticResponse.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        Object.keys(corsHeaders).forEach(key => {
+          staticResponse.headers.set(key, corsHeaders[key]);
+        });
+        return staticResponse;
+      } catch (err) {
+        // Fallback
       }
     }
 

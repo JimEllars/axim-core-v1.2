@@ -1,0 +1,34 @@
+name: Update Changelog on Merge
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  update-changelog:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Update Changelog
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/generate_pr_changelog.cjs
+
+      - name: Commit changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add CHANGELOG.md
+          git commit -m "docs: Update CHANGELOG.md for PR #${{ github.event.pull_request.number }} [skip ci]" || echo "No changes to commit"
+          # Typically push here using a token, simplified for now

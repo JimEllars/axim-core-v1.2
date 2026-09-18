@@ -71,11 +71,66 @@ serve(async (req: Request) => {
                headers: { ...corsHeaders, "Content-Type": "application/json" }
            });
        } catch(e) {
+           // Push to dead_letter_jobs on failure
+           try {
+               await supabaseAdmin.from('dead_letter_jobs').insert({
+                   job_type: 'lead_capture',
+                   payload: body,
+                   error_details: e.message,
+                   status: 'failed'
+               });
+           } catch (dlqErr) {
+               console.error("Failed to insert into dead_letter_jobs", dlqErr);
+           }
            throw e;
        }
     }
 
     const { action_type, payload } = body;
+
+    let target_department = body?.target_department ?? payload?.target_department;
+    if (target_department === null || target_department === undefined || typeof target_department !== 'string') {
+        target_department = 'CORE';
+    }
+
+    const VALID_DEPARTMENTS = ['CEO', 'CFO', 'COO', 'CORE'];
+    if (!VALID_DEPARTMENTS.includes(target_department)) {
+        return new Response(
+            JSON.stringify({
+                error: "Bad Request",
+                message: "Invalid target department specified",
+            }),
+            {
+                status: 400,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
+        );
+    }
+
+    if (target_department !== 'CORE') {
+        console.log(`[Dispatcher] Routing payload to department: ${target_department}`);
+        const useCfQueue = Deno.env.get('USE_CF_TELEMETRY_QUEUE') === 'true';
+        const payloadToLog = {
+            event: 'department_dispatch',
+            app_type: 'universal-dispatcher',
+            details: { department: target_department, original_payload: body },
+            timestamp: new Date().toISOString()
+        };
+        if (useCfQueue) {
+            const workerUrl = Deno.env.get('TELEMETRY_WORKER_URL');
+            if (workerUrl) {
+                await fetch(workerUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payloadToLog)
+                }).catch(e => console.error('Failed to queue telemetry', e));
+            } else {
+                await supabaseAdmin.from('telemetry_logs').insert(payloadToLog);
+            }
+        } else {
+            await supabaseAdmin.from('telemetry_logs').insert(payloadToLog);
+        }
+    }
 
     if (!action_type || !payload) {
       return new Response(
@@ -138,6 +193,60 @@ serve(async (req: Request) => {
         });
     }
 
+    if (req.method === 'POST' && req.url.endsWith('/api/v1/groundgame/leads')) {
+      const { lead_name, email, phone, location, notes, appointment_date } = payload;
+
+      // Basic E.164 sanitization (very simplified for example)
+      let sanitizedPhone = phone;
+      if (phone) {
+        const digits = phone.replace(/\D/g, '');
+        if (digits.length === 10) {
+          sanitizedPhone = '+1' + digits;
+        } else if (digits.length === 11 && digits.startsWith('1')) {
+          sanitizedPhone = '+' + digits;
+        }
+      }
+
+      // Geo-coding mock or handling if location provided (simplified)
+      const lat = location?.lat || null;
+      const lng = location?.lng || null;
+
+      const { data: leadData, error: leadError } = await supabaseAdmin.from('customer_leads').insert({
+        source_channel: 'ground_game_canvassing',
+        lead_status: 'Pending_Review',
+        encrypted_payload: JSON.stringify({
+          lead_name,
+          email,
+          phone: sanitizedPhone,
+          lat,
+          lng,
+          notes
+        }), // Note: Should ideally be actually encrypted as per spec, keeping simple for this update if crypto not readily available in scope
+        created_at: new Date().toISOString()
+      }).select().single();
+
+      if (leadError) {
+        return new Response(JSON.stringify({ error: 'Failed to insert lead', details: leadError }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      }
+
+      if (appointment_date) {
+        await supabaseAdmin.from('scheduled_tasks').insert({
+          task_type: 'high_priority_deal',
+          target_id: leadData.id,
+          scheduled_for: appointment_date,
+          status: 'pending'
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true, message: 'Ground Game lead ingested successfully', lead_id: leadData.id }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     if (action_type === 'spawn_sub_agents') {
         console.log('[Dispatcher] Detected spawn_sub_agents payload. Initializing Swarm Blackboard...');
 
@@ -177,14 +286,29 @@ serve(async (req: Request) => {
         const results = await Promise.all(agentPromises);
 
         // Write findings to Blackboard (telemetry_logs as mock Blackboard)
-        await supabaseAdmin.from('telemetry_logs').insert({
+        const useCfQueue = Deno.env.get('USE_CF_TELEMETRY_QUEUE') === 'true';
+        const payloadToLog = {
             event: 'swarm_blackboard_update',
             app_type: 'universal-dispatcher',
             details: {
                 blackboard_id: blackboardId,
                 results: results
             }
-        });
+        };
+        if (useCfQueue) {
+            const workerUrl = Deno.env.get('TELEMETRY_WORKER_URL');
+            if (workerUrl) {
+                await fetch(workerUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payloadToLog)
+                }).catch(e => console.error('Failed to queue telemetry', e));
+            } else {
+                await supabaseAdmin.from('telemetry_logs').insert(payloadToLog);
+            }
+        } else {
+            await supabaseAdmin.from('telemetry_logs').insert(payloadToLog);
+        }
 
         // Feed aggregated context back to main brain
         let synthesisPrompt = `The sub-agents have completed their tasks for prompt: "${prompt}".\n\nHere are their findings:\n`;
@@ -231,6 +355,37 @@ serve(async (req: Request) => {
     }
 
 
+    if (action_type === 'ecosystem_incident_triage') {
+        const url = new URL(req.url);
+        const onyxEdgeUrl = Deno.env.get('ONYX_EDGE_URL') || `${url.protocol}//${url.host}/onyx-bridge`;
+
+        try {
+             const res = await fetch(onyxEdgeUrl, {
+                 method: 'POST',
+                 headers: {
+                     'Content-Type': 'application/json',
+                     'Authorization': `Bearer ${AXIM_SERVICE_KEY}`
+                 },
+                 body: JSON.stringify({
+                     prompt: `[URGENT ECOSYSTEM INCIDENT]: Analyze the following telemetry payload and suggest a remediation strategy:\n\n${JSON.stringify(payload, null, 2)}`,
+                     agent_id: 'onyx-coordinator',
+                     context: { source: payload.source }
+                 })
+             });
+
+             if (!res.ok) throw new Error(`Onyx edge returned ${res.status}`);
+
+             const data = await res.json();
+
+             return new Response(JSON.stringify({ success: true, message: 'Incident triage initiated', response: data.response || data.text || JSON.stringify(data) }), {
+                 status: 200,
+                 headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+             });
+        } catch (e) {
+            throw new Error(`Failed to dispatch to Onyx for triage: ${e.message}`);
+        }
+    }
+
     if (action_type === "generate_pdf_artifact") {
         const { content, bucket, filename } = payload;
         try {
@@ -263,10 +418,15 @@ serve(async (req: Request) => {
       let adminId = users?.users?.[0]?.id;
 
       // We will serialize payload in the action or tool_called field since hitl_audit_logs lacks a payload col
+      const toolCalledPayload = {
+        ...payload,
+        target_department: target_department
+      };
+
       const { error: hitlError } = await supabaseAdmin.from("hitl_audit_logs").insert({
         admin_id: adminId || "00000000-0000-0000-0000-000000000000",
         action: action_type,
-        tool_called: JSON.stringify(payload).substring(0, 500), // store payload representation in tool_called temporarily
+        tool_called: JSON.stringify(toolCalledPayload).substring(0, 500), // store payload representation in tool_called temporarily
         status: 'pending'
       });
 
@@ -288,7 +448,7 @@ serve(async (req: Request) => {
 
       const { error: jobError } = await supabaseAdmin.from("satellite_job_queue").insert({
         app_id: "universal-dispatcher",
-        payload: { action_type, payload },
+        payload: { action_type, payload: { ...payload, target_department } },
         status: 'pending',
         task_type: action_type
       });
@@ -311,6 +471,15 @@ serve(async (req: Request) => {
     console.error("Universal Dispatcher Error:", error);
 
     if (error.name === 'SyntaxError' || error.message.includes('malformed') || error.message.includes('signature')) {
+        await supabaseAdmin.from('dead_letter_jobs').insert({
+            job_type: 'unparseable_webhook',
+            payload: typeof body !== 'undefined' ? body : null,
+            error_details: error.message,
+            status: 'failed'
+        }).catch(err => {
+            console.error('Failed to log to dead_letter_jobs', err);
+        });
+
         await supabaseAdmin.from('hitl_dead_letter_logs').insert({
             raw_payload: typeof body !== 'undefined' ? body : null,
             rejection_reason: error.message,
@@ -329,13 +498,28 @@ serve(async (req: Request) => {
     }
 
 
-    await supabaseAdmin.from("telemetry_logs").insert({
+    const useCfQueueError = Deno.env.get('USE_CF_TELEMETRY_QUEUE') === 'true';
+    const payloadToLog = {
       event: "integration_failure",
       app_type: "universal-dispatcher",
       status_code: 500,
       timestamp: new Date().toISOString(),
       details: { error: error.message },
-    });
+    };
+    if (useCfQueueError) {
+        const workerUrl = Deno.env.get('TELEMETRY_WORKER_URL');
+        if (workerUrl) {
+            await fetch(workerUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payloadToLog)
+            }).catch(e => console.error('Failed to queue telemetry', e));
+        } else {
+            await supabaseAdmin.from("telemetry_logs").insert(payloadToLog);
+        }
+    } else {
+        await supabaseAdmin.from("telemetry_logs").insert(payloadToLog);
+    }
 
     return new Response(
       JSON.stringify({

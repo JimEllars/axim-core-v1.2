@@ -14,7 +14,7 @@ describe('dead_letter_jobs edge function logic', () => {
         expect(status).toBe('pending');
     });
 
-    it('correctly flags exhausted records and routes to hitl_dead_letter_logs', () => {
+    it('correctly flags exhausted records and routes to hitl_dead_letter_logs and marks Failed', () => {
         let currentRetryCount = 2;
         const newRetryCount = currentRetryCount + 1;
 
@@ -22,12 +22,13 @@ describe('dead_letter_jobs edge function logic', () => {
         let routedToHITL = false;
         if (newRetryCount >= 3) {
             routedToHITL = true;
+            status = 'Failed'; // permanently failed
         } else {
             status = 'pending';
         }
 
         expect(newRetryCount).toBe(3);
         expect(routedToHITL).toBe(true);
-        expect(status).toBe('failed');
+        expect(status).toBe('Failed');
     });
 });

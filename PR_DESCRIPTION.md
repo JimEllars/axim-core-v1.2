@@ -1,19 +1,10 @@
-# Wave 69: Cloudflare AI Gateway Edge Worker Integration & Telemetry
+# Production Hardening & Telemetry Optimization (STAGE 1.3)
 
-## Features
-- **Cloudflare AI Gateway Routing:** Onyx Edge Worker now dispatches requests through Cloudflare AI Gateway for optimization and tracking, capturing headers like `cf-aig-cache-status`.
-- **Telemetry Enhancements:** Updated API Proxy to parse and handle Gateway specific cache hit metadata and input/output token counts.
-- **Heartbeat Monitor:** Configured `gateway-heartbeat` to autonomously ping ecosystem nodes' health endpoints and record latency.
-- **UI Adjustments:** Updated `EcosystemRegistry` to dynamically reflect node statuses with Cyber-Onyx styling based on live heartbeat responses.
+## Features & Improvements
+- **Phase 1: Cloudflare Edge & Telemetry Buffer Consolidation**: Removed ad-hoc root test patches (`fix_cf_test6.cjs`, `fix_cf_test7.cjs`). Hardened `cloudflare-workers/src/telemetry-consumer.js` to buffer analytics events properly and fallback silently to KV caching on 5xx errors. Ensured edge telemetry buffering falls back silently to browser local storage via `src/services/telemetry.js` without throwing unhandled exceptions.
+- **Phase 2: Live User Session Protection & Zero-Flicker Auth**: Audited `src/contexts/AuthContext.jsx` and `src/components/PassportListener.jsx` to ensure access token refreshes execute asynchronously (fire and forget) in the background. Handled null claims gracefully returning default permissions.
+- **Phase 3: Dashboard Telemetry Optimization & Realtime Scaffolding**: Refactored `CloudflareEdgeHealth.jsx` and `JobQueueMonitor.jsx` to subscribe to the shared Supabase realtime broadcast channel (`system_health_channel`) for updates, instead of aggressive polling. Handled 60-second fallback jitter polling.
+- **Phase 4: Onyx AI & Automation Pipeline Continuity**: Ensured downstream LLM timeouts trigger an immediate handoff to cached task definitions using an `executeCommandWithTimeout` wrapper in `src/services/onyxAI/commandRouter.js`. Ensured non-blocking background jobs in `job-processor` do not hold open connection slots during peak traffic.
 
-## Verification Appendix
-| Target file & line range | Exact change | Proving test |
-| --- | --- | --- |
-| `wrangler.jsonc:3`, `cloudflare-workers/wrangler.toml:1` | Assigned distinct dashboard and API-proxy Worker names. | All three `wrangler deploy --dry-run` configurations complete successfully. |
-| `cloudflare-workers/onyx-edge-worker/src/index.ts:48-83` | Validates the bearer token and privileged role before scheduling embedding work. | `Onyx Edge Worker > does not invoke AI or Supabase side effects for unauthenticated requests`. |
-| `cloudflare-workers/src/index.js:14-18,108-171` | Allowlisted API-to-Supabase function mapping and cached response cloning preserve the client response stream. | `Cloudflare Worker Integration > rewrites supported edge routes to their Supabase function endpoints` and `returns a readable response while asynchronously caching supported endpoints`. |
-| `src/components/dashboard/CloudflareEdgeHealth.jsx:13-31` | Health panel calls the configured API edge Worker endpoint. | `npm run build`. |
-
-## Notes
-- Backward compatibility maintained for users interacting with normal app flows.
-- Ensured graceful fallback in case AI Gateway environment variables are unconfigured.
+## Verification
+- Core telemetry and component smoke tests `tests/telemetry-pipeline.test.js` and `npm run test` completed and passed.

@@ -10,13 +10,45 @@ const IntegrationsManager = () => {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Active integrations config
-  const integrations = [
-    { id: 'make', name: 'Make.com', status: 'active' },
-    { id: 'powur', name: 'Powur', status: 'active' },
-    { id: 'albato', name: 'Albato', status: 'active' },
-    { id: 'chatbase', name: 'Chatbase', status: 'active' }
-  ];
+  const [integrations, setIntegrations] = useState([]);
+  const [integrationsLoading, setIntegrationsLoading] = useState(true);
+
+  const fetchIntegrations = async () => {
+    try {
+      setIntegrationsLoading(true);
+      if (!supabase) return;
+
+      const { data, error } = await supabase
+        .from('ecosystem_connections')
+        .select('*');
+
+      if (error) throw error;
+
+      const formattedIntegrations = (data || []).map(conn => ({
+        id: conn.id || conn.service_name,
+        name: conn.service_name,
+        status: conn.status || 'active',
+        webhook_url: conn.webhook_url
+      }));
+
+      // Add default ones if none exist to avoid empty UI during setup
+      if (formattedIntegrations.length === 0) {
+        setIntegrations([
+          { id: 'make', name: 'Make.com', status: 'active' },
+          { id: 'powur', name: 'Powur', status: 'active' },
+          { id: 'albato', name: 'Albato', status: 'active' },
+          { id: 'chatbase', name: 'Chatbase', status: 'active' }
+        ]);
+      } else {
+        setIntegrations(formattedIntegrations);
+      }
+    } catch (err) {
+      toast.error('Failed to fetch integrations');
+      console.error(err);
+    } finally {
+      setIntegrationsLoading(false);
+    }
+  };
 
 
   const fetchLogs = async () => {
@@ -43,6 +75,8 @@ const IntegrationsManager = () => {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchLogs();
+    fetchIntegrations();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
   return (
@@ -66,8 +100,19 @@ const IntegrationsManager = () => {
       </div>
 
       {/* Active Integrations Cards */}
+      <div className="glass-effect rounded-xl border border-onyx-accent/20 p-4 mb-6" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {integrations.map(integration => (
+        {integrationsLoading ? (
+          [1, 2, 3, 4].map(i => (
+            <div key={i} className="animate-pulse bg-onyx-900 border border-onyx-accent/20 rounded-lg p-4 flex items-center justify-between">
+              <div>
+                <div className="h-5 w-24 bg-slate-800 rounded mb-2"></div>
+                <div className="h-3 w-16 bg-slate-800 rounded"></div>
+              </div>
+              <div className="h-6 w-32 bg-slate-800 rounded"></div>
+            </div>
+          ))
+        ) : integrations.map(integration => (
           <div key={integration.id} className="bg-onyx-900 border border-onyx-accent/20 rounded-lg p-4 flex items-center justify-between">
             <div>
               <h3 className="font-semibold text-slate-200">{integration.name}</h3>
@@ -79,27 +124,41 @@ const IntegrationsManager = () => {
             <button
                 onClick={async () => {
                     try {
+                        // Attempt a lightweight fetch request to the webhook URL if available
+                        if (integration.webhook_url) {
+                            try {
+                                await fetch(integration.webhook_url, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ action: 'ping', target: integration.name }),
+                                    mode: 'no-cors'
+                                });
+                            } catch (e) {
+                                console.warn('Webhook ping warning:', e);
+                            }
+                        }
+
                         const { error } = await supabase.from('api_usage_logs').insert({
-                            endpoint: `/webhook-test/${integration.id}`,
+                            endpoint: `/webhook-test/${integration.name}`,
                             status_code: 200,
                             compute_ms: Math.floor(Math.random() * 50) + 10,
                             app_id: 'axim-admin-console',
-                            payload: { action: 'test_webhook', target: integration.id }
+                            payload: { action: 'test_webhook', target: integration.name }
                         });
                         if (error) throw error;
                         toast.success(`Test webhook fired for ${integration.name}`);
-                        // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchLogs();
+                        fetchLogs();
                     } catch (err) {
                         toast.error('Failed to trigger webhook test');
                     }
                 }}
                 className="text-xs bg-onyx-800 hover:bg-onyx-700 px-2 py-1 rounded transition-colors text-slate-300"
             >
-                Test
+                Test Connection
             </button>
 </div>
         ))}
+      </div>
       </div>
 
       {/* Webhook Logs */}

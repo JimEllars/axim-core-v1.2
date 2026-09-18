@@ -2,7 +2,7 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.0.0';
 import { corsHeaders } from '../_shared/cors.ts';
 
-serve(async (req) => {
+export const handleRequest = async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -62,12 +62,42 @@ serve(async (req) => {
     if (llm_provider) insertData.llm_provider = llm_provider;
     if (execution_time_ms) insertData.execution_time_ms = execution_time_ms;
 
-    const { error: insertError } = await supabaseAdmin
+    const { data: insertedData, error: insertError } = await supabaseAdmin
       .from('ai_interactions_ax2024')
-      .insert(insertData);
+      .insert(insertData)
+      .select('id');
 
     if (insertError) {
       console.error('Failed to log interaction:', insertError);
+    } else if (embedding && insertedData && insertedData.length > 0) {
+      const cfAccountId = Deno.env.get('CF_ACCOUNT_ID');
+      const cfVectorizeIndexName = Deno.env.get('CF_VECTORIZE_INDEX_NAME');
+      const cfApiToken = Deno.env.get('CF_API_TOKEN');
+
+      if (cfAccountId && cfVectorizeIndexName && cfApiToken) {
+        try {
+          const vectorizeUrl = `https://api.cloudflare.com/client/v4/accounts/${cfAccountId}/vectorize/indexes/${cfVectorizeIndexName}/insert`;
+          const ndjsonPayload = JSON.stringify({
+            id: insertedData[0].id,
+            values: embedding
+          });
+
+          const vectorizeResponse = await fetch(vectorizeUrl, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${cfApiToken}`,
+              'Content-Type': 'application/x-ndjson'
+            },
+            body: ndjsonPayload
+          });
+
+          if (!vectorizeResponse.ok) {
+            console.error(`Vectorize API Error: ${vectorizeResponse.status} ${await vectorizeResponse.text()}`);
+          }
+        } catch (cfError) {
+          console.error('Vectorize dual-write failed, gracefully degrading:', cfError);
+        }
+      }
     }
 
     return new Response(JSON.stringify({ embedding, logged: !insertError }), {
@@ -79,4 +109,9 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-});
+};
+
+// Only serve if this is the main module
+if (import.meta.main) {
+  serve(handleRequest);
+}

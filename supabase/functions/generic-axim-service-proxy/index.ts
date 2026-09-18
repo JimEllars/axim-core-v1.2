@@ -1,7 +1,8 @@
 // supabase/functions/generic-axim-service-proxy/index.ts
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { corsHeaders as CORS_HEADERS } from '../_shared/cors.ts';
+import { corsHeaders as CORS_HEADERS, corsHeaders } from '../_shared/cors.ts';
+import { logTelemetry } from '../_shared/telemetry.ts';
 
 // A simple in-memory mapping of service names to their base URLs.
 // In a real-world scenario, this could be stored in a Supabase table or environment variables.
@@ -55,7 +56,7 @@ serve(async (req) => {
 
 
     // Forward the request to the target AXiM service.
-    const response = await fetch(targetUrl, {
+    const fetchPromise = fetch(targetUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -64,6 +65,29 @@ serve(async (req) => {
       },
       body: JSON.stringify(payload),
     });
+
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Integration timeout')), 5000);
+    });
+
+    let response;
+    try {
+      response = await Promise.race([fetchPromise, timeoutPromise]);
+    } catch (err) {
+      if (err.message === 'Integration timeout') {
+        await logTelemetry(
+          'generic-axim-service-proxy',
+          504,
+          { action: 'integration_timeout', targetUrl, serviceName },
+          'WARNING'
+        );
+        return new Response(
+          JSON.stringify({ error: 'Gateway Timeout: The upstream service did not respond in time.' }),
+          { status: 504, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      throw err;
+    }
 
     if (!response.ok) {
       const errorBody = await response.text();

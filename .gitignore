@@ -12,3 +12,4 @@ test_migration.sql
 .wrangler/
 cloudflare-workers/.wrangler/
 cloudflare-workers/onyx-edge-worker/.wrangler/
+*.patch
