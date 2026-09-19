@@ -96,6 +96,104 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
     }
   };
 
+
+  const handleBulkApprove = async () => {
+    if (selectedLogs.size === 0) return;
+    setIsBulkProcessing(true);
+
+    const logsToProcess = pendingLogs.filter(log => selectedLogs.has(log.id));
+
+    setPendingLogs(prev => prev.filter(log => !selectedLogs.has(log.id)));
+    setSelectedLogs(new Set());
+
+    const failedLogs = [];
+
+    for (const log of logsToProcess) {
+      try {
+        let parsedPayload = null;
+        try {
+          parsedPayload = log.tool_called ? JSON.parse(log.tool_called) : null;
+        } catch (e) {}
+
+        const actionPayload = parsedPayload;
+        const finalPayload = editedPayloads[log.id] !== undefined
+          ? { ...actionPayload, html_content: editedPayloads[log.id] }
+          : actionPayload;
+
+        if (log.action === 'jules_plan_approval') {
+          await julesApi.approvePlan(log.session_id);
+          await supabase.from('hitl_audit_logs').update({ status: 'approved' }).eq('id', log.id);
+        } else if (log.action === 'jules_user_feedback') {
+           await api.resolveHitlAction(log.id, 'Resolved', { user_message: editedPayloads[log.id] || "" });
+        } else {
+          await api.resolveHitlAction(log.id, 'Approved', finalPayload);
+        }
+      } catch (err) {
+        failedLogs.push(log);
+        toast.error(`Failed to approve log ${log.id}: ${err.message}`);
+      }
+    }
+
+    if (failedLogs.length > 0) {
+      setPendingLogs(prev => [...failedLogs, ...prev]);
+    } else {
+      toast.success('Bulk approve successful.');
+    }
+
+    setIsBulkProcessing(false);
+  };
+
+  const handleBulkReject = async () => {
+    if (selectedLogs.size === 0) return;
+    setIsBulkProcessing(true);
+
+    const logsToProcess = pendingLogs.filter(log => selectedLogs.has(log.id));
+
+    setPendingLogs(prev => prev.filter(log => !selectedLogs.has(log.id)));
+    setSelectedLogs(new Set());
+
+    const failedLogs = [];
+
+    for (const log of logsToProcess) {
+      try {
+        if (log.action === 'jules_plan_approval' || log.action === 'jules_user_feedback') {
+           await api.resolveHitlAction(log.id, 'Rejected');
+        } else {
+           await api.resolveHitlAction(log.id, 'Rejected');
+        }
+      } catch (err) {
+        failedLogs.push(log);
+        toast.error(`Failed to reject log ${log.id}: ${err.message}`);
+      }
+    }
+
+    if (failedLogs.length > 0) {
+      setPendingLogs(prev => [...failedLogs, ...prev]);
+    } else {
+      toast.success('Bulk reject successful.');
+    }
+
+    setIsBulkProcessing(false);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedLogs.size === pendingLogs.length) {
+      setSelectedLogs(new Set());
+    } else {
+      setSelectedLogs(new Set(pendingLogs.map(log => log.id)));
+    }
+  };
+
+  const toggleSelect = (id) => {
+    const newSet = new Set(selectedLogs);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setSelectedLogs(newSet);
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       {/* Backdrop */}

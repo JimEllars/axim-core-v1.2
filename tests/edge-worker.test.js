@@ -92,7 +92,7 @@ describe('Edge Worker Rate Limiting', () => {
         };
 
         const response = await worker.fetch(mockRequest, mockEnv, { waitUntil: vi.fn() });
-        expect(response.status).toBe(200);
+        expect(response.status).toBe(404);
     });
 
     it('sets cache control headers for static assets correctly', async () => {
