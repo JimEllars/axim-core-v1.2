@@ -10,8 +10,6 @@
     "dev": "wrangler dev",
     "deploy": "npx wrangler deploy src/index.js -c wrangler.toml",
     "dry-run": "npx wrangler deploy src/index.js --dry-run -c wrangler.toml",
-
-
     "check": "npm run test && npm run dry-run",
     "tail": "wrangler tail",
     "test:integration": "vitest run tests/integration.test.js",
@@ -20,8 +18,10 @@
     "deploy:dry-run": "npx wrangler deploy src/index.js --dry-run -c wrangler.toml"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@vitejs/plugin-react": "^6.1.1",
     "@vitest/coverage-v8": "^2.1.9",
+    "eslint": "^10.11.0",
     "jsdom": "^29.1.1",
     "vitest": "^2.1.9",
     "wrangler": "^4.95.0"

@@ -25,7 +25,6 @@
     "electron:build:mac": "npm run build && electron-builder --mac --publish never",
     "deploy:dashboard": "npm run build && npx wrangler pages deploy ./dist",
     "deploy:edge": "cd cloudflare-workers && npm run deploy",
-
     "deploy": "npm run deploy:dashboard && npm run deploy:edge",
     "dry-run": "npm run build && cd cloudflare-workers && npx wrangler deploy src/index.js --dry-run -c wrangler.toml",
     "test:functions": "node scripts/smoke-test-functions.js"
@@ -71,7 +70,7 @@
     "uuid": "^14.0.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.3",
+    "@eslint/js": "^9.39.5",
     "@supabase/supabase-js": "^2.108.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -87,7 +86,7 @@
     "electron": "^41.3.0",
     "electron-builder": "^26.8.1",
     "eslint": "^9.39.3",
-    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.4.26",
     "express": "^5.2.1",
