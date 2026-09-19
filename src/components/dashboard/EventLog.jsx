@@ -190,16 +190,16 @@ const EventLog = () => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.4 }}
-      className="glass-effect rounded-2xl shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md"
+      className="glass-effect rounded-2xl shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-[#0B0F17] backdrop-blur-md"
     >
       <ErrorBoundary>
-      <div className="flex items-center justify-between p-6 border-b border-onyx-accent/20">
+      <div className="flex items-center justify-between p-6 border-b border-[#111827]">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
-            <SafeIcon icon={FiActivity} className="text-white" />
+            <SafeIcon icon={FiActivity} className="text-[#00FFFF]" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold text-white">Live Event Log</h3>
+            <h3 className="text-lg font-semibold text-[#00FFFF]">Live Event Log</h3>
             <p className="text-sm text-slate-400">Real-time system activity</p>
           </div>
         </div>
@@ -214,10 +214,10 @@ const EventLog = () => {
           <div className="space-y-4">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="animate-pulse flex items-center space-x-4">
-                <div className="w-10 h-10 bg-onyx-950 rounded-lg"></div>
+                <div className="w-10 h-10 bg-[#111827] rounded-lg"></div>
                 <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-onyx-950 rounded w-3/4"></div>
-                  <div className="h-3 bg-onyx-950 rounded w-1/2"></div>
+                  <div className="h-4 bg-[#111827] rounded w-3/4"></div>
+                  <div className="h-3 bg-[#111827] rounded w-1/2"></div>
                 </div>
               </div>
             ))}
@@ -238,7 +238,7 @@ const EventLog = () => {
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.05 }}
-                  className={`flex items-center space-x-4 p-4 rounded-lg ${eventConfig.bg} border ${typeKey === 'error' ? 'border-red-500/50' : 'border-onyx-accent/20'} hover:border-onyx-accent/50 transition-colors`}
+                  className={`flex items-center space-x-4 p-4 rounded-lg ${eventConfig.bg} border ${typeKey === 'error' ? 'border-red-500/50' : 'border-[#111827]'} hover:border-onyx-accent/50 transition-colors`}
                 >
                   <div className={`w-10 h-10 ${eventConfig.bg} rounded-lg flex items-center justify-center`}>
                     <SafeIcon icon={eventConfig.icon} className={`${eventConfig.color}`} />
@@ -246,9 +246,9 @@ const EventLog = () => {
                   
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <h4 className={`text-sm font-medium capitalize flex items-center gap-2 ${typeKey === 'error' ? 'text-red-400' : 'text-white'}`}>
+                      <h4 className={`text-sm font-medium capitalize flex items-center gap-2 ${typeKey === 'error' ? 'text-red-400' : 'text-[#00FFFF]'}`}>
                         {event.type.replace('_', ' ')}
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-onyx-950 border border-onyx-accent/20">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-[#111827] border border-[#111827]">
                           {event.source === 'onyx_local' || event.data?.origin === 'onyx_local' ? '🟢 Onyx Local (Rust)' :
                            event.source === 'axim_support' || event.data?.origin === 'axim_support' ? '🔵 AXiM Support (Web)' :
                            event.source === 'core_cron' || event.data?.origin === 'core_cron' ? '🟣 Core Background (Cron)' :

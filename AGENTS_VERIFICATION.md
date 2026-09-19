@@ -230,3 +230,16 @@ Test Passed!
 - [x] Verified Deno syntax and handler fallbacks for modified Edge Functions.
 - [x] Executed production frontend compilation (\`npm run build\`).
 - **Sprint 1.3-Alpha**: Hardened Edge Worker telemetry buffers, refined offline batch queues via sendBeacon, tuned Tailwind dark mode aesthetics for strict contrast, and ensured idempotent Edge Function routing.
+
+## Sprint 1.5 - MCP Bridge Production Tool Suite & Telemetry Ingress Activation
+**Date:** 2026-09-19
+**Changes:**
+1. Upgraded `cloudflare-workers/mcp-bridge/src/index.js` to enforce Bearer token and custom header authentication against `AXIM_GATEWAY_TOKEN`. Added JSON-RPC production tools: `core_health_check`, `telemetry_lookup`, `workflow_dispatch`, and `hitl_queue_status`.
+2. Expanded `cloudflare-workers/src/telemetry-consumer.js` with batch POST processing and validation logic, handling Cloudflare Queue batches or generic HTTP arrays. Successfully logs output into both `public.telemetry_events` and, for LLM-related invocations, `public.api_usage_logs`. Hardened the fallback routines using Cloudflare KV.
+3. Updated `src/components/dashboard/CloudflareEdgeHealth.jsx` to dynamically subscribe to `telemetry_events` through `system_health_channel`, ensuring realtime latency, provider (DeepSeek), and queue statistics are synced seamlessly. Corrected cybernetic UI tokens (`#0B0F17`, `#111827`, `#00FFFF`, `#F59E0B`).
+4. Touched `src/components/dashboard/EventLog.jsx` to enforce accurate color-theme rendering with the new cybernetic palette and ensured animated, non-blocking telemetry appends.
+
+**Checks Completed:**
+- [x] Confirmed tests pass via `npm test` across main frontend suite.
+- [x] Validated `mcp-bridge` JSON-RPC edge tests execute properly in `cloudflare-workers/mcp-bridge`.
+- [x] Verified zero downtime or session disruptions.
