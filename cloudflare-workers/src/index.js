@@ -37,21 +37,6 @@ export default {
 
     if (request.method === 'OPTIONS') {
       if (request.headers.get('Origin') && !corsHeaders['Access-Control-Allow-Origin']) {
-        const rejectionCountKey = `403_rejections_${Math.floor(Date.now() / 60000)}`;
-        let count = 1;
-        if (env.KV) {
-          count = parseInt(await env.KV.get(rejectionCountKey) || '0', 10) + 1;
-          ctx.waitUntil(env.KV.put(rejectionCountKey, count.toString(), { expirationTtl: 120 }));
-        }
-
-        if (count > 50 && env.ALERT_WEBHOOK_URL) {
-           ctx.waitUntil(fetch(env.ALERT_WEBHOOK_URL, {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ text: `High number of 403 rejections detected at edge (${count} in the last minute).` })
-           }).catch(err => console.error("Alert webhook failed:", err)));
-        }
-
         return new Response('Origin not allowed', { status: 403, headers: corsHeaders });
       }
 
@@ -70,18 +55,7 @@ export default {
                                url.pathname.endsWith('/system-status') ||
                                url.pathname.includes('/system-status');
 
-    if (env.RATE_LIMITER && !isTelemetryEndpoint) {
-      const { success } = await env.RATE_LIMITER.limit({ key: ip });
-      if (!success) {
-        return new Response(JSON.stringify({ error: "Too Many Requests", message: "Rate limit exceeded." }), {
-          status: 429,
-          headers: Object.assign({}, corsHeaders, {
-            "Content-Type": "application/json",
-            "X-AXiM-Edge-Throttled": "true"
-          })
-        });
-      }
-    }
+
 
     // Health Check Endpoint
 
