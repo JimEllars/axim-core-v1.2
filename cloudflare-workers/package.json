@@ -8,14 +8,14 @@
   "main": "src/index.js",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "npx wrangler deploy src/index.js -c wrangler.toml",
-    "dry-run": "npx wrangler deploy src/index.js --dry-run -c wrangler.toml",
+    "deploy": "npx wrangler deploy --dry-run -c wrangler.toml",
+    "dry-run": "npx wrangler deploy --dry-run -c wrangler.toml",
     "check": "npm run test && npm run dry-run",
     "tail": "wrangler tail",
     "test:integration": "vitest run tests/integration.test.js",
-    "build": "npx wrangler deploy src/index.js --dry-run -c wrangler.toml",
+    "build": "npx wrangler deploy --dry-run -c wrangler.toml",
     "test": "npm run test:integration",
-    "deploy:dry-run": "npx wrangler deploy src/index.js --dry-run -c wrangler.toml"
+    "deploy:dry-run": "npx wrangler deploy --dry-run -c wrangler.toml"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
