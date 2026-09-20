@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 export default {
     async fetch(request, env) {
         if (request.method !== 'POST') {
