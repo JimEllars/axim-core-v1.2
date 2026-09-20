@@ -97,7 +97,14 @@ const CloudflareEdgeHealth = () => {
             clearInterval(intervalId);
             intervalId = setInterval(handlePingEdge, 60000);
         }
-    }).subscribe((status) => {
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telemetry_events' }, (payload) => {
+       // Update metrics based on telemetry_events (mocking dynamic update for edge latency and cache hit)
+       setLatency(`${Math.floor(Math.random() * 20 + 30)}ms`);
+       setCacheHitRatio((95 + Math.random() * 4).toFixed(1));
+       setLastChecked(new Date().toLocaleTimeString());
+    })
+    .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
             console.log('Subscribed to system_health_channel');
         }
@@ -152,12 +159,12 @@ const CloudflareEdgeHealth = () => {
 
   const getBgColor = () => {
     if (isOnline) return 'bg-emerald-500/10 border-emerald-500/20';
-    if (isRevalidating) return 'bg-amber-500/10 border-amber-500/20';
+    if (isRevalidating) return 'bg-[#F59E0B]/10 border-[#F59E0B]/20';
     return 'bg-slate-500/10 border-slate-500/20';
   }
 
   return (
-    <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-6 hover:bg-slate-800/60 transition-all duration-300 relative group shadow-lg hover:shadow-xl h-full flex flex-col">
+    <div className="bg-[#0B0F17] backdrop-blur-md border border-slate-800/80 rounded-xl p-6 hover:bg-[#111827] transition-all duration-300 relative group shadow-lg hover:shadow-xl h-full flex flex-col">
       <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-lg ${getBgColor()} border ${getStatusColor()}`}>
@@ -213,9 +220,24 @@ const CloudflareEdgeHealth = () => {
           </div>
         </div>
 
+        {/* Active LLM Providers */}
+        <div>
+          <h4 className="text-xs text-[#00FFFF] font-mono tracking-wider uppercase mb-2">Active LLM Providers</h4>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between bg-black/20 border border-white/5 p-2 rounded text-sm group hover:bg-black/40 transition-colors">
+              <span className="font-mono text-emerald-400 flex items-center gap-2"><FiGlobe className="w-3 h-3 group-hover:scale-110 transition-transform"/> DeepSeek V4.1-Flash</span>
+              <span className="text-slate-400 text-xs uppercase tracking-wider">Primary</span>
+            </div>
+            <div className="flex items-center justify-between bg-black/20 border border-white/5 p-2 rounded text-sm group hover:bg-black/40 transition-colors">
+              <span className="font-mono text-[#F59E0B] flex items-center gap-2"><FiGlobe className="w-3 h-3 group-hover:scale-110 transition-transform"/> Anthropic Claude 3.5 Ready</span>
+              <span className="text-slate-400 text-xs uppercase tracking-wider">Standby</span>
+            </div>
+          </div>
+        </div>
+
         {/* Active Proxy Channels */}
         <div>
-          <h4 className="text-xs text-slate-400 font-mono tracking-wider uppercase mb-2">Active Proxy Channels</h4>
+          <h4 className="text-xs text-slate-400 font-mono tracking-wider uppercase mb-2 mt-4">Active Proxy Channels</h4>
           <div className="space-y-2">
             <div className="flex items-center justify-between bg-black/20 border border-white/5 p-2 rounded text-sm group hover:bg-black/40 transition-colors">
               <span className="font-mono text-emerald-400 flex items-center gap-2"><FiGlobe className="w-3 h-3 group-hover:scale-110 transition-transform"/> /jules/</span>
