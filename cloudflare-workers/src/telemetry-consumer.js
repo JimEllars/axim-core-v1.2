@@ -69,6 +69,41 @@ export default {
             let body = msg.body;
 
             const processEvent = (event) => {
+                if (event.app_id === 'speedreport' && event.event_type === 'speed_test_completed') {
+                    const requiredFields = ['download_mbps', 'upload_mbps', 'ping_ms', 'jitter_ms', 'bufferbloat_grade', 'isp', 'colo'];
+                    const payloadMetadata = event.metadata || event.details || {};
+                    let isValid = true;
+                    for (const field of requiredFields) {
+                        if (payloadMetadata[field] === undefined && event[field] === undefined) {
+                            isValid = false;
+                        }
+                    }
+                    if (isValid) {
+                        // Sanitize metadata
+                        const sanitizedMetadata = {};
+                        for (const field of requiredFields) {
+                            sanitizedMetadata[field] = payloadMetadata[field] !== undefined ? payloadMetadata[field] : event[field];
+                            if (typeof sanitizedMetadata[field] === 'string') {
+                                // Strip query params or potentially identifying info from strings
+                                sanitizedMetadata[field] = sanitizedMetadata[field].split('?')[0].replace(/[<>&"']/g, '');
+                            }
+                        }
+
+                        telemetryMessages.push({
+                            app_id: 'speedreport',
+                            event_type: 'speed_test_completed',
+                            component_id: 'speedreport',
+                            severity: 'INFO',
+                            message: 'speed_test_completed',
+                            payload: sanitizedMetadata,
+                            metadata: sanitizedMetadata,
+                            idempotency_key: event.trace_id || null,
+                            geo: body.geo || { colo: sanitizedMetadata.colo || 'UNKNOWN', country: 'XX' },
+                            created_at: event.timestamp || new Date().toISOString()
+                        });
+                    }
+                    return;
+                }
                 // Ensure payload structure: { app_id, event_type, timestamp, metadata } -> mappings
                 const payloadMetadata = event.metadata || event.details || {};
 
