@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 import { motion } from 'framer-motion';
+import toast from 'react-hot-toast';
 
 const JobQueueMonitor = () => {
   const { data: fetchedJobs = [], loading, error, refetch: fetchJobs } = useSupabaseQuery('get_satellite_job_queue', { autoFetch: true });
@@ -33,36 +34,19 @@ const JobQueueMonitor = () => {
         job.id === jobId ? { ...job, status: 'pending', attempts: 0, error_log: null } : job
       ));
 
-      const { error: updateError } = await supabase
-        .from('satellite_job_queue')
-        .update({ status: 'pending', attempts: 0, error_log: null })
-        .eq('id', jobId);
+      const { error } = await supabase.functions.invoke('dead_letter_jobs', {
+         body: { action: 'retry', jobId }
+      });
 
-      if (updateError) {
+      if (error) {
         // Revert on error
         fetchJobs();
-        throw updateError;
+        throw error;
       }
 
-      // Trigger the job processor immediately
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-
-      try {
-          await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/resolve_hitl_action`, {
-              method: 'POST',
-              headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json'
-              }
-          });
-      } catch (e) {
-          console.warn("Failed to invoke job-processor immediately", e);
-      }
-
-      // fetchJobs(); // Not needed immediately because of optimistic update
+      toast.success('Job retry triggered successfully');
     } catch (err) {
-      alert(`Failed to retry job: ${err.message}`);
+      toast.error(`Failed to retry job: ${err.message}`);
     }
   };
 
@@ -72,7 +56,7 @@ const JobQueueMonitor = () => {
           if (error) throw error;
           fetchJobs();
       } catch(err) {
-          alert(`Failed to cancel job: ${err.message}`);
+          toast.error(`Failed to cancel job: ${err.message}`);
       }
   };
 

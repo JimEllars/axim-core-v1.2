@@ -1,6 +1,8 @@
 # Changelog
 
 ## Unreleased
+- **Added:** DeepSeek testing console active in `APITestConsole.jsx` for direct verification.
+- **Changed:** Edge telemetry metrics in `CloudflareEdgeHealth.jsx` now rely on actual Postgres database payload (`telemetry_events`) avoiding randomization (mock data removed).
 - Hardened Cloudflare Edge Telemetry & Backpressure Buffer with KV fallback and backoff jitter.
 - Updated `telemetry.js` to ensure array sizing and local memory ring buffering limits.
 - Improved AuthContext with silent token renewal to prevent state flickers.

@@ -99,9 +99,22 @@ const CloudflareEdgeHealth = () => {
         }
     })
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telemetry_events' }, (payload) => {
-       // Update metrics based on telemetry_events (mocking dynamic update for edge latency and cache hit)
-       setLatency(`${Math.floor(Math.random() * 20 + 30)}ms`);
-       setCacheHitRatio((95 + Math.random() * 4).toFixed(1));
+       if (payload.new && payload.new.payload) {
+           const telemetryData = payload.new.payload;
+           if (telemetryData.latency_ms !== undefined) {
+               setLatency(`${telemetryData.latency_ms}ms`);
+           }
+
+           if (telemetryData.prompt_cache_hit_tokens !== undefined && telemetryData.total_tokens) {
+               const ratio = (telemetryData.prompt_cache_hit_tokens / telemetryData.total_tokens) * 100;
+               setCacheHitRatio(ratio.toFixed(1));
+           } else {
+               setCacheHitRatio((prev) => prev); // fallback to last known
+           }
+       } else {
+           setCacheHitRatio((prev) => prev); // fallback to last known
+       }
+
        setLastChecked(new Date().toLocaleTimeString());
     })
     .subscribe((status) => {
