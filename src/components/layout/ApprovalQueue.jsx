@@ -10,6 +10,8 @@ import { julesApi } from '../../services/jules/julesApi';
 const { FiX, FiCheckCircle, FiClock } = FiIcons;
 
 const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
+  const [selectedLogs, setSelectedLogs] = useState(new Set());
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [editedPayloads, setEditedPayloads] = useState({});
   useEffect(() => {
     if (!supabase) return;
@@ -113,7 +115,7 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
         let parsedPayload = null;
         try {
           parsedPayload = log.tool_called ? JSON.parse(log.tool_called) : null;
-        } catch (e) {}
+        } catch (e) { return null; }
 
         const actionPayload = parsedPayload;
         const finalPayload = editedPayloads[log.id] !== undefined
