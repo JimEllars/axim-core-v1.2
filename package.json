@@ -15,7 +15,7 @@
     "build:cloud": "vite build",
     "lint": "eslint .",
     "lint:error": "eslint . --quiet",
-    "preview": "npm run build && npx wrangler dev -c wrangler.jsonc",
+    "preview": "npm run build && npx wrangler dev -c wrangler.pages.jsonc",
     "test": "node --max-old-space-size=4096 ./node_modules/vitest/vitest.mjs run --coverage",
     "electron:dev": "concurrently \"npm run dev\" \"electron .\"",
     "preelectron:build": "npm run lint",
