@@ -243,3 +243,9 @@ Test Passed!
 - [x] Confirmed tests pass via `npm test` across main frontend suite.
 - [x] Validated `mcp-bridge` JSON-RPC edge tests execute properly in `cloudflare-workers/mcp-bridge`.
 - [x] Verified zero downtime or session disruptions.
+
+### Phase 2.4 - Edge Telemetry Hardening, UI Polish, and Zero-Downtime Session Guard
+- **Session Wakeup & Recovery:** Verified via unit tests (`AuthContext.test.jsx`) and local simulated network toggle that `handleOnlineWakeup` uses silent background retries without kicking the user.
+- **Failover Visual State:** Onyx provider fallback verified to emit `onyx-agent-status` event on timeout (>12s), which `ChatInterface` captures cleanly.
+- **Glassmorphic UI & Layout Stability:** Rendered the `/dashboard` route. `CloudflareEdgeHealth`, `SystemHealthPanel`, and `QueueDepthPanel` all use modern `backdrop-blur-md` styles.
+- **Telemetry Buffer Flush:** Telemetry logic flushes on 25 events or after 5 seconds of inactivity. Tested via mock events in unit tests.
