@@ -7,3 +7,6 @@ compatibility_flags = ["nodejs_compat"]
 SUPABASE_URL = "https://pvbcdndqjguzqeafhwhw.supabase.co"
 ALLOWED_ORIGINS = "https://axim.us.com,http://localhost:5176"
 
+[[kv_namespaces]]
+binding = "TELEMETRY_RETRY_KV"
+id = "YOUR_KV_NAMESPACE_ID"

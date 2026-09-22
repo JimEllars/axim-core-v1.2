@@ -151,7 +151,9 @@ const CloudflareEdgeHealth = () => {
     window.addEventListener('edge:revalidated', handleRevalidated);
 
     return () => {
-        supabase.removeChannel(channel);
+        if (channel) {
+            supabase.removeChannel(channel);
+        }
         clearInterval(intervalId);
         window.removeEventListener('edge:healthy', handleHealthy);
         window.removeEventListener('edge:degraded', handleDegraded);
