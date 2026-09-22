@@ -165,19 +165,19 @@ const CloudflareEdgeHealth = () => {
   const isRevalidating = status === 'REVALIDATING';
 
   const getStatusColor = () => {
-      if (isOnline) return 'text-emerald-400';
-      if (isRevalidating) return 'text-amber-400';
-      return 'text-slate-400'; // Degraded or Bypassed
+      if (isOnline) return 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.8)]';
+      if (isRevalidating) return 'text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]';
+      return 'text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]'; // Degraded or Bypassed
   }
 
   const getBgColor = () => {
-    if (isOnline) return 'bg-emerald-500/10 border-emerald-500/20';
-    if (isRevalidating) return 'bg-[#F59E0B]/10 border-[#F59E0B]/20';
-    return 'bg-slate-500/10 border-slate-500/20';
+    if (isOnline) return 'bg-emerald-500/10 border-emerald-500/30';
+    if (isRevalidating) return 'bg-amber-500/10 border-amber-500/30';
+    return 'bg-red-500/10 border-red-500/30';
   }
 
   return (
-    <div className="bg-[#0B0F17] backdrop-blur-md border border-slate-800/80 rounded-xl p-6 hover:bg-[#111827] transition-all duration-300 relative group shadow-lg hover:shadow-xl h-full flex flex-col">
+    <div className="backdrop-blur-md bg-slate-900/60 border border-slate-800 rounded-xl p-6 hover:bg-slate-900/80 transition-all duration-300 relative group shadow-lg hover:shadow-xl h-full flex flex-col">
       <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-lg ${getBgColor()} border ${getStatusColor()}`}>
@@ -273,10 +273,11 @@ const CloudflareEdgeHealth = () => {
         <button
           onClick={handlePingEdge}
           disabled={isPinging}
-          className="px-3 py-1.5 rounded bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-all font-mono text-xs font-bold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50 hover:shadow-[0_0_10px_rgba(59,130,246,0.3)]"
+          className="px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 transition-all font-mono text-xs font-bold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50 hover:shadow-[0_0_15px_rgba(59,130,246,0.4)] active:scale-95"
+          title="Quick-action Latency Probe"
         >
-          <FiActivity className={isPinging ? "animate-pulse" : ""} />
-          {isPinging ? 'Pinging...' : 'Refresh Diagnostics'}
+          <FiActivity className={`${isPinging ? "animate-spin" : ""} w-4 h-4`} />
+          {isPinging ? 'Probing Edge...' : 'Probe Latency'}
         </button>
       </div>
     </div>

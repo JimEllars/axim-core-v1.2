@@ -153,16 +153,36 @@ export const trackEvent = (() => {
 
   return async (eventName, payload = {}) => {
     try {
+      let tenantId = 'anonymous';
+      try {
+          const authData = localStorage.getItem('axim_session_token');
+          if (authData) tenantId = 'authenticated'; // Placeholder logic, should parse JWT ideally
+          const supabaseToken = localStorage.getItem('supabase.auth.token');
+          if (supabaseToken) {
+              const session = JSON.parse(supabaseToken);
+              if (session.currentSession?.user?.id) {
+                  tenantId = session.currentSession.user.id;
+              }
+          }
+      } catch(e) {}
+
       const enrichedPayload = {
         event: eventName,
         details: {
           ...payload,
           path: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
           url: typeof window !== 'undefined' ? window.location.href : 'unknown',
+          tenant_id: tenantId,
+          latency_timestamp: performance.now(),
         },
         timestamp: new Date().toISOString(),
         trace_id: generateTraceId(),
-        app_id: 'axim_core_frontend'
+        app_id: 'axim_core_frontend',
+        geo: {
+            // Note: client side we don't have accurate colo/country without external IP service,
+            // the worker typically overwrites this with cf.colo / cf.country
+            client_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        }
       };
 
       queue.push(enrichedPayload);
@@ -175,9 +195,25 @@ export const trackEvent = (() => {
         queue.shift();
       }
 
-      if (queue.length >= 5 || consecutiveFailures === 0) {
+      // 25-event buffer batching mechanism
+      if (queue.length >= 25) {
          // Flush asynchronously without blocking the main thread
-         setTimeout(flushQueue, 100);
+         if (window.__axim_telemetry_timer) {
+             clearTimeout(window.__axim_telemetry_timer);
+             window.__axim_telemetry_timer = null;
+         }
+         // Use setTimeout with 0 to just yield to the event loop
+         setTimeout(flushQueue, 0);
+      } else {
+         // Fallback 5-second flush timer
+         if (!window.__axim_telemetry_timer) {
+             window.__axim_telemetry_timer = setTimeout(() => {
+                 if (queue.length > 0 && !isFlushing) {
+                     flushQueue();
+                 }
+                 window.__axim_telemetry_timer = null;
+             }, 5000);
+         }
       }
 
     } catch (error) {

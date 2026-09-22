@@ -177,33 +177,48 @@ const QueueDepthPanel = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="glass-effect bg-black/30 border border-white/5 p-4 rounded-xl">
-          <div className="flex items-center text-slate-400 mb-2">
-            <SafeIcon icon={FiList} className="mr-2" />
-            <span className="text-sm uppercase tracking-wider">Pending Jobs</span>
+        <div className="glass-effect bg-black/30 border border-white/5 p-4 rounded-xl flex flex-col justify-between h-full min-h-[120px]">
+          <div>
+            <div className="flex items-center text-slate-400 mb-2">
+              <SafeIcon icon={FiList} className="mr-2" />
+              <span className="text-sm uppercase tracking-wider">Pending Jobs</span>
+            </div>
+            <div className="text-2xl font-mono text-cyan-400">
+              {queueData.pendingJobs}
+            </div>
           </div>
-          <div className="text-2xl font-mono text-cyan-400">
-            {queueData.pendingJobs}
-          </div>
-        </div>
-
-        <div className="glass-effect bg-black/30 border border-white/5 p-4 rounded-xl">
-          <div className="flex items-center text-slate-400 mb-2">
-            <SafeIcon icon={FiClock} className="mr-2" />
-            <span className="text-sm uppercase tracking-wider">Active Cron Tasks</span>
-          </div>
-          <div className="text-2xl font-mono text-cyan-400">
-            {queueData.activeTasks}
+          <div className="w-full bg-slate-800 rounded-full h-1 mt-auto overflow-hidden">
+             <div className="bg-cyan-500 h-1 rounded-full transition-all duration-500" style={{ width: `${Math.min((queueData.pendingJobs / 100) * 100, 100)}%` }}></div>
           </div>
         </div>
 
-        <div className="glass-effect bg-black/30 border border-white/5 p-4 rounded-xl">
-          <div className="flex items-center text-slate-400 mb-2">
-            <SafeIcon icon={FiAlertCircle} className="mr-2" />
-            <span className="text-sm uppercase tracking-wider">Dead Letters (DLQ)</span>
+        <div className="glass-effect bg-black/30 border border-white/5 p-4 rounded-xl flex flex-col justify-between h-full min-h-[120px]">
+          <div>
+            <div className="flex items-center text-slate-400 mb-2">
+              <SafeIcon icon={FiClock} className="mr-2" />
+              <span className="text-sm uppercase tracking-wider">Active Cron Tasks</span>
+            </div>
+            <div className="text-2xl font-mono text-cyan-400">
+              {queueData.activeTasks}
+            </div>
           </div>
-          <div className={`text-2xl font-mono ${queueData.deadLetters > 0 ? 'text-red-500' : 'text-cyan-400'}`}>
-            {queueData.deadLetters}
+          <div className="w-full bg-slate-800 rounded-full h-1 mt-auto overflow-hidden">
+             <div className="bg-emerald-500 h-1 rounded-full transition-all duration-500" style={{ width: `${Math.min((queueData.activeTasks / 20) * 100, 100)}%` }}></div>
+          </div>
+        </div>
+
+        <div className="glass-effect bg-black/30 border border-white/5 p-4 rounded-xl flex flex-col justify-between h-full min-h-[120px]">
+          <div>
+            <div className="flex items-center text-slate-400 mb-2">
+              <SafeIcon icon={FiAlertCircle} className="mr-2" />
+              <span className="text-sm uppercase tracking-wider">Dead Letters (DLQ)</span>
+            </div>
+            <div className={`text-2xl font-mono ${queueData.deadLetters > 0 ? 'text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]' : 'text-emerald-400'}`}>
+              {queueData.deadLetters}
+            </div>
+          </div>
+          <div className="w-full bg-slate-800 rounded-full h-1 mt-auto overflow-hidden">
+             <div className={`${queueData.deadLetters > 0 ? 'bg-red-500 animate-pulse' : 'bg-slate-700'} h-1 rounded-full transition-all duration-500`} style={{ width: `${Math.min((queueData.deadLetters / 10) * 100, 100)}%` }}></div>
           </div>
         </div>
 
