@@ -9,4 +9,4 @@ ALLOWED_ORIGINS = "https://axim.us.com,http://localhost:5176"
 
 [[kv_namespaces]]
 binding = "TELEMETRY_RETRY_KV"
-id = "00000000000000000000000000000000"
+id = "0123456789abcdef0123456789abcdef"
