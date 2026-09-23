@@ -23,7 +23,7 @@ export default {
                 }))
             };
             await this.queue(mockBatch, env);
-            return new Response('OK', { status: 200 });
+            return new Response('Accepted', { status: 202 });
         } catch (e) {
             return new Response('Bad request', { status: 400 });
         }
@@ -150,6 +150,10 @@ export default {
             while (attempts < maxAttempts && !success) {
                 try {
                     const url = `${env.SUPABASE_URL}/rest/v1/${endpoint}`;
+
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
                     const response = await fetch(url, {
                         method: 'POST',
                         headers: {
@@ -158,8 +162,11 @@ export default {
                             'apikey': env.SUPABASE_SERVICE_ROLE_KEY,
                             'Prefer': 'resolution=ignore-duplicates'
                         },
-                        body: JSON.stringify(data)
+                        body: JSON.stringify(data),
+                        signal: controller.signal
                     });
+
+                    clearTimeout(timeoutId);
 
                     if (response.ok || response.status === 409) {
                         success = true;
@@ -181,12 +188,35 @@ export default {
             return success;
         };
 
-        const telemetrySuccess = await insertToSupabase('telemetry_events', telemetryMessages);
-
-        if (!telemetrySuccess && env.KV && telemetryMessages.length > 0) {
+        let retryData = [];
+        if (env.TELEMETRY_RETRY_KV) {
             try {
-                const bufferKey = `telemetry_buffer_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-                await env.KV.put(bufferKey, JSON.stringify(telemetryMessages), { expirationTtl: 86400 });
+                const list = await env.TELEMETRY_RETRY_KV.list({ prefix: 'retry_batch_' });
+                for (const key of list.keys) {
+                    const value = await env.TELEMETRY_RETRY_KV.get(key.name);
+                    if (value) {
+                        try {
+                            retryData.push(...JSON.parse(value));
+                            await env.TELEMETRY_RETRY_KV.delete(key.name);
+                        } catch (e) {
+                            console.error('Failed to parse retry data', e);
+                        }
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to list retry_batch_ keys', e);
+            }
+        }
+
+        const allTelemetryMessages = [...retryData, ...telemetryMessages];
+
+        const telemetrySuccess = await insertToSupabase('telemetry_events', allTelemetryMessages);
+
+        if (!telemetrySuccess && env.TELEMETRY_RETRY_KV && allTelemetryMessages.length > 0) {
+            try {
+                const bufferKey = `retry_batch_${Date.now()}`;
+                await env.TELEMETRY_RETRY_KV.put(bufferKey, JSON.stringify(allTelemetryMessages), { expirationTtl: 86400 });
+                console.warn(`[telemetry-consumer] Supabase PostgREST unavailable. Buffered ${allTelemetryMessages.length} events to KV.`);
             } catch (kvError) {
                 console.error('Failed to buffer to KV', kvError);
             }
