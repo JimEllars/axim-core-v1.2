@@ -8,8 +8,11 @@ const JobQueueMonitor = () => {
   const { data: fetchedJobs = [], loading, error, refetch: fetchJobs } = useSupabaseQuery('get_satellite_job_queue', { autoFetch: true });
   // We keep a local state to allow optimistic updates (e.g. handleForceRetry)
   const [jobs, setJobs] = useState([]);
+  const [activeTab, setActiveTab] = useState("active");
+  const { data: dlqJobs = [], refetch: fetchDlqJobs } = useSupabaseQuery("get_dead_letter_jobs", { autoFetch: true });
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setJobs(fetchedJobs);
   }, [fetchedJobs]);
 
@@ -27,24 +30,32 @@ const JobQueueMonitor = () => {
     };
   }, [fetchJobs]);
 
-  const handleForceRetry = async (jobId) => {
+  const handleForceRetry = async (jobId, isDlq = false) => {
     try {
-      // Optimistic UI update
-      setJobs(currentJobs => currentJobs.map(job =>
-        job.id === jobId ? { ...job, status: 'pending', attempts: 0, error_log: null } : job
-      ));
-
-      const { error } = await supabase.functions.invoke('dead_letter_jobs', {
-         body: { action: 'retry', jobId }
-      });
-
-      if (error) {
-        // Revert on error
+      if (isDlq) {
+        const { error } = await supabase.rpc("retry_dead_letter_job", { target_job_id: jobId });
+        if (error) throw error;
+        toast.success("DLQ Job retry triggered successfully");
         fetchJobs();
-        throw error;
-      }
+        fetchDlqJobs();
+      } else {
+        // Optimistic UI update
+        setJobs(currentJobs => currentJobs.map(job =>
+          job.id === jobId ? { ...job, status: 'pending', attempts: 0, error_log: null } : job
+        ));
 
-      toast.success('Job retry triggered successfully');
+        const { error } = await supabase.functions.invoke('dead_letter_jobs', {
+           body: { action: 'retry', jobId }
+        });
+
+        if (error) {
+          // Revert on error
+          fetchJobs();
+          throw error;
+        }
+
+        toast.success('Job retry triggered successfully');
+      }
     } catch (err) {
       toast.error(`Failed to retry job: ${err.message}`);
     }
@@ -85,7 +96,23 @@ const JobQueueMonitor = () => {
 
   return (
     <div className="p-6 text-white min-h-[160px] rounded-2xl shadow-[0_0_25px_rgba(0,0,0,0.5)] bg-onyx-900/40 backdrop-blur-md border border-white/5">
-      <h1 className="text-2xl font-bold mb-6 text-blue-400 border-b border-blue-900 pb-2">Mission Control: Job Queue</h1>
+      <div className="flex justify-between items-center mb-6 border-b border-blue-900 pb-2">
+        <h1 className="text-2xl font-bold text-blue-400">Mission Control: Job Queue</h1>
+        <div className="flex bg-onyx-950/50 rounded-lg p-1 border border-onyx-accent/20">
+          <button
+            onClick={() => setActiveTab("active")}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === "active" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"}`}
+          >
+            Active Queue
+          </button>
+          <button
+            onClick={() => setActiveTab("dlq")}
+            className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === "dlq" ? "bg-red-600 text-white" : "text-slate-400 hover:text-white"}`}
+          >
+            Dead Letter Queue (DLQ)
+          </button>
+        </div>
+      </div>
 
       {/* Summary Ribbon */}
       <div className="grid grid-cols-4 gap-4 mb-8">
@@ -136,7 +163,7 @@ const JobQueueMonitor = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
-            {jobs.map((job) => (
+            {(activeTab === "active" ? jobs : dlqJobs).map((job) => (
               <motion.tr
                 key={job.id}
                 initial={{ opacity: 0 }}
@@ -145,67 +172,71 @@ const JobQueueMonitor = () => {
               >
                 <td className="px-6 py-4">
                   <div className="font-mono text-xs text-gray-400 truncate w-32" title={job.id}>{job.id.substring(0,8)}...</div>
-                  <div className="font-semibold mt-1 text-blue-300">{job.app_id}</div>
+                  <div className="font-semibold mt-1 text-blue-300">{job.app_id || job.workflow_type}</div>
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold tracking-wide border
-                    ${job.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_10px_rgba(52,211,153,0.1)]' :
-                      job.status === 'failed' ? 'bg-rose-500/10 text-rose-400 border-rose-500/20 shadow-[0_0_10px_rgba(251,113,133,0.1)]' :
-                      job.status === 'processing' ? 'bg-sky-500/10 text-sky-400 border-sky-500/20 shadow-[0_0_10px_rgba(14,165,233,0.2)] animate-pulse' :
-                      'bg-amber-500/10 text-amber-400 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.1)]'}`}
+                    ${activeTab === "dlq" ? "bg-red-500/10 text-red-400 border-red-500/20 shadow-[0_0_10px_rgba(248,113,113,0.1)]" :
+                      job.status === "completed" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_10px_rgba(52,211,153,0.1)]" :
+                      job.status === "failed" ? "bg-rose-500/10 text-rose-400 border-rose-500/20 shadow-[0_0_10px_rgba(251,113,133,0.1)]" :
+                      job.status === "processing" ? "bg-sky-500/10 text-sky-400 border-sky-500/20 shadow-[0_0_10px_rgba(14,165,233,0.2)] animate-pulse" :
+                      "bg-amber-500/10 text-amber-400 border-amber-500/20 shadow-[0_0_10px_rgba(245,158,11,0.1)]"}`}
                   >
-                    {job.status}
+                    {activeTab === "dlq" ? "DEAD LETTER" : job.status}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-gray-300">
-                  {job.attempts} / {job.max_attempts}
+                  {activeTab === "dlq" ? "FAILED" : `${job.attempts} / ${job.max_attempts}`}
                 </td>
                 <td className="px-6 py-4 text-gray-400 text-xs">
-                  {new Date(job.created_at).toLocaleString()}
+                  {new Date(activeTab === "dlq" ? job.failed_at : job.created_at).toLocaleString()}
                 </td>
-                                <td className="px-6 py-4">
+                <td className="px-6 py-4">
                   <div className="text-xs text-gray-400 mb-1">
-                    Email: {job.payload?.customer_email || 'N/A'}
+                    Email: {job.payload?.customer_email || "N/A"}
                   </div>
-                  {job.error_log && (
+                  {(job.error_log || job.error_message) && (
                     <div className="text-xs text-red-400 bg-red-900/20 p-2 rounded max-h-32 overflow-y-auto w-80">
-                      <pre className="whitespace-pre-wrap break-words">{typeof job.error_log === 'object' ? JSON.stringify(job.error_log, null, 2) : job.error_log}</pre>
+                      <pre className="whitespace-pre-wrap break-words">{typeof (job.error_log || job.error_message) === "object" ? JSON.stringify((job.error_log || job.error_message), null, 2) : (job.error_log || job.error_message)}</pre>
                     </div>
                   )}
-                  {job.status === 'failed' && job.payload && (
+                  {(job.status === "failed" || activeTab === "dlq") && job.payload && (
                     <div className="mt-2 text-xs text-blue-300 bg-blue-900/20 p-2 rounded max-h-32 overflow-y-auto w-80">
                       <pre className="whitespace-pre-wrap break-words">{JSON.stringify(job.payload, null, 2)}</pre>
                     </div>
                   )}
                 </td>
                 <td className="px-6 py-4 text-right">
-                  {job.status === 'failed' && (
+                  {(job.status === "failed" || activeTab === "dlq") && (
                     <div className="flex justify-end space-x-2">
                         <button
-                          onClick={() => handleForceRetry(job.id)}
+                          onClick={() => handleForceRetry(job.id, activeTab === "dlq")}
                           className="bg-red-600 hover:bg-red-500 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
                         >
                           Retry Job
                         </button>
-                        <button
-                          onClick={() => handleCancelJob(job.id)}
-                          className="bg-slate-600 hover:bg-slate-500 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
-                        >
-                          Cancel Job
-                        </button>
+                        {activeTab !== "dlq" && (
+                          <button
+                            onClick={() => handleCancelJob(job.id)}
+                            className="bg-slate-600 hover:bg-slate-500 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                          >
+                            Cancel Job
+                          </button>
+                        )}
                     </div>
                   )}
                 </td>
               </motion.tr>
             ))}
-            {jobs.length === 0 && (
+            {(activeTab === "active" ? jobs : dlqJobs).length === 0 && (
               <tr>
                 <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
-                  No jobs found in the queue.
+                  No jobs found in the {activeTab === "active" ? "active queue" : "dead letter queue"}.
                 </td>
               </tr>
             )}
           </tbody>
+
         </table>
       </div>
     </div>

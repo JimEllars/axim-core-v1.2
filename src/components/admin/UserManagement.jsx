@@ -4,6 +4,7 @@ import api from '../../services/onyxAI/api';
 import { supabase } from '../../services/supabaseClient';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
+const { FiShield } = FiIcons;
 import RoleManagementModal from './RoleManagementModal';
 import InviteUserModal from './InviteUserModal';
 
@@ -192,7 +193,16 @@ const UserManagement = ({ currentUser }) => {
               paginatedUsers.map((user) => (
                 <tr key={user.id} className="border-b border-onyx-accent/20 hover:bg-onyx-accent/10">
                   <th scope="row" className="px-6 py-4 font-medium text-white whitespace-nowrap">
-                    {user.email}
+                  <th scope="row" className="px-6 py-4 font-medium text-white whitespace-nowrap">
+                    <div className="flex items-center">
+                      {user.email}
+                      {(user.email === "james.ellars@axim.us.com" || user.email === "jrellars@gmail.com") && (
+                        <span className="ml-3 px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/50 text-yellow-400 text-xs rounded-full flex items-center shadow-[0_0_10px_rgba(234,179,8,0.2)]" title="Super User (Root Protected)">
+                          <SafeIcon icon={FiShield} className="mr-1" /> Super User
+                        </span>
+                      )}
+                    </div>
+                  </th>
                   </th>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -226,7 +236,7 @@ const UserManagement = ({ currentUser }) => {
                             : 'text-yellow-400 hover:bg-yellow-600/20'
                         }`}
                         aria-label={`Edit user ${user.email}`}
-                        title={user.id === currentUser?.id ? "You cannot edit your own role." : ""}
+                        title={user.id === currentUser?.id ? "You cannot edit your own role." : (user.email === "james.ellars@axim.us.com" || user.email === "jrellars@gmail.com") ? "Super User role cannot be changed." : ""}
                       >
                         <SafeIcon icon={FiEdit} />
                       </button>
@@ -245,10 +255,14 @@ const UserManagement = ({ currentUser }) => {
                             ? `Confirm delete user ${user.email}`
                             : `Delete user ${user.email}`
                         }
-                        title={user.id === currentUser?.id ? "You cannot delete your own account." : ""}
+                        title={user.id === currentUser?.id ? "You cannot delete your own account." : (user.email === "james.ellars@axim.us.com" || user.email === "jrellars@gmail.com") ? "Super User account cannot be deleted." : ""}
                       >
                         <SafeIcon icon={FiTrash2} />
                       </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
                     </div>
                   </td>
                 </tr>

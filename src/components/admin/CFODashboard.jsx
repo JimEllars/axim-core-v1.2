@@ -12,6 +12,7 @@ import { supabase } from '../../services/supabaseClient';
 const { FiCheck, FiX, FiDollarSign, FiClock, FiShield, FiAlertTriangle } = FiIcons;
 
 const CFODashboard = () => {
+  const { data: aiCostData, loading: aiCostLoading, error: aiCostError } = useSupabaseQuery('get_ai_cost_and_savings_summary');
   const { data: pendingRequests, loading, error, refetch } = useSupabaseQuery('get_cfo_pending_approvals');
   const [processingId, setProcessingId] = useState(null);
   const [confirmModal, setConfirmModal] = useState({ isOpen: false, requestId: null, status: null, details: null });
@@ -106,6 +107,43 @@ const CFODashboard = () => {
             <div className="p-6 border-b border-onyx-accent/20 flex justify-between items-center bg-onyx-900/60">
               <h2 className="text-xl font-bold text-white flex items-center">
                 <SafeIcon icon={FiClock} className="mr-3 text-onyx-accent" />
+        {/* AI Infrastructure & Context Cache Savings Card */}
+        <ErrorBoundary>
+          <div className="bg-onyx-900/40 backdrop-blur-md rounded-2xl border border-onyx-accent/20 shadow-xl overflow-hidden mb-8">
+            <div className="p-6 border-b border-onyx-accent/20 flex justify-between items-center bg-onyx-900/60">
+              <h2 className="text-xl font-bold text-white flex items-center">
+                <SafeIcon icon={FiDollarSign} className="mr-3 text-emerald-400" />
+                AI Infrastructure & Context Cache Savings
+              </h2>
+              <span className="px-3 py-1 bg-blue-900/40 border border-blue-500/30 text-blue-300 rounded-full text-xs font-semibold">
+                DeepSeek V4.1 Disk KV Optimized ($0.007/1M hit vs $0.22/1M miss)
+              </span>
+            </div>
+            <div className="p-6">
+              {aiCostLoading ? (
+                <div className="flex justify-center p-4"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-500"></div></div>
+              ) : aiCostError ? (
+                <div className="text-red-400 p-4">Error loading AI cost data</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-onyx-800/50 rounded-xl p-6 border border-emerald-500/30 flex flex-col items-center justify-center text-center">
+                    <h3 className="text-sm font-medium text-slate-400 mb-2 uppercase tracking-wide">Estimated Dollars Saved via KV Cache</h3>
+                    <div className="text-4xl font-bold text-emerald-400">${aiCostData?.estimated_dollars_saved || "0.00"}</div>
+                  </div>
+                  <div className="bg-onyx-800/50 rounded-xl p-6 border border-blue-500/30 flex flex-col items-center justify-center text-center">
+                    <h3 className="text-sm font-medium text-slate-400 mb-2 uppercase tracking-wide">Context Cache Hit Ratio</h3>
+                    <div className="text-4xl font-bold text-blue-400">{aiCostData?.cache_hit_ratio || "0"}%</div>
+                  </div>
+                  <div className="bg-onyx-800/50 rounded-xl p-6 border border-purple-500/30 flex flex-col items-center justify-center text-center">
+                    <h3 className="text-sm font-medium text-slate-400 mb-2 uppercase tracking-wide">Total Net Model Spend</h3>
+                    <div className="text-4xl font-bold text-purple-400">${aiCostData?.estimated_actual_spend || "0.00"}</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </ErrorBoundary>
+
                 Pending Affiliate Commissions
               </h2>
             </div>
