@@ -51,9 +51,10 @@ npm run dev
 
 ```bash
 npm run dry-run        # Validate axim-core-api-proxy
-npm run deploy         # Deploy axim-core-api-proxy
+npm run deploy         # Validate axim-core-api-proxy for Cloudflare Git Builds
+npm run deploy:production # Manually deploy axim-core-api-proxy
 npm run check          # Integration test + dry-run
-cd mcp-bridge && npm run test && npm run dry-run
+cd mcp-bridge && npm run test && npm run deploy:production
 ```
 
 Tail logs with:
