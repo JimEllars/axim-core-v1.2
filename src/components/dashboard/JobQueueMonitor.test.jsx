@@ -7,7 +7,12 @@ import { DashboardProvider } from '../../contexts/DashboardContext';
 import { SupabaseProvider } from '../../contexts/SupabaseContext';
 
 vi.mock('../../hooks/useSupabaseQuery', () => ({
-  useSupabaseQuery: vi.fn().mockReturnValue({ data: [], loading: false, error: null, refetch: vi.fn() })
+  useSupabaseQuery: vi.fn((key) => {
+    if (key === 'get_dead_letter_jobs') {
+        return { data: [], loading: false, error: null, refetch: vi.fn() }
+    }
+    return { data: [], loading: false, error: null, refetch: vi.fn() }
+  })
 }));
 
 vi.mock('../../services/supabaseClient', () => ({
@@ -26,7 +31,11 @@ vi.mock('../../services/supabaseClient', () => ({
   supabaseClient: {
     from: vi.fn().mockReturnThis(),
     select: vi.fn().mockReturnThis(),
-  }
+  },
+  functions: {
+    invoke: vi.fn().mockResolvedValue({ data: null, error: null })
+  },
+  rpc: vi.fn().mockResolvedValue({ data: null, error: null })
 }));
 
 import { act } from '@testing-library/react';

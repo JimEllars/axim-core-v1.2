@@ -215,7 +215,14 @@ const UserManagement = ({ currentUser }) => {
               paginatedUsers.map((user) => (
                 <tr key={user.id} className="border-b border-onyx-accent/20 hover:bg-onyx-accent/10">
                   <th scope="row" className="px-6 py-4 font-medium text-white whitespace-nowrap">
-                    {user.email}
+                    <div className="flex items-center">
+                      {user.email}
+                      {isRootProtected(user) && (
+                        <span className="ml-3 px-2 py-0.5 bg-yellow-500/20 border border-yellow-500/50 text-yellow-400 text-xs rounded-full flex items-center shadow-[0_0_10px_rgba(234,179,8,0.2)]" title="Super User (Root Protected)">
+                          Super User
+                        </span>
+                      )}
+                    </div>
                   </th>
                   <td className="px-6 py-4">
                     {isRootProtected(user) ? (

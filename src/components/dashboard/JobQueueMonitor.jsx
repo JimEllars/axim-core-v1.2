@@ -7,13 +7,11 @@ import { useSupabaseQuery } from '../../hooks/useSupabaseQuery';
 const formatDate = (value) => (value ? new Date(value).toLocaleString() : 'N/A');
 
 const JobQueueMonitor = () => {
-  const { data: fetchedJobs = [], loading, error, refetch: fetchJobs } = useSupabaseQuery('get_satellite_job_queue', { autoFetch: true });
+  const { data: jobs = [], loading, error, refetch: fetchJobs } = useSupabaseQuery('get_satellite_job_queue', { autoFetch: true });
   const [deadLetterJobs, setDeadLetterJobs] = useState([]);
   const [deadLetterLoading, setDeadLetterLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('active');
   const [retryingJobId, setRetryingJobId] = useState(null);
-
-  const jobs = fetchedJobs;
 
   const fetchDeadLetterJobs = useCallback(async () => {
     setDeadLetterLoading(true);
@@ -78,6 +76,7 @@ const JobQueueMonitor = () => {
     }
     await fetchJobs();
   };
+
   const summary = {
     pending: jobs.filter((job) => job.status === 'pending').length,
     processing: jobs.filter((job) => job.status === 'processing').length,
@@ -124,11 +123,7 @@ const JobQueueMonitor = () => {
                   <td className="px-6 py-4 text-gray-300">{job.attempts} / {job.max_attempts}</td>
                   <td className="px-6 py-4 text-gray-400 text-xs">{formatDate(job.created_at)}</td>
                   <td className="px-6 py-4 text-xs text-red-400">{job.error_log || 'None'}</td>
-                  <td className="px-6 py-4 text-right">
-                    {job.status === 'failed' && (
-                      <button type="button" onClick={() => handleCancelJob(job.id)} className="bg-slate-600 hover:bg-slate-500 text-white px-3 py-1 rounded text-xs font-medium transition-colors">Cancel Job</button>
-                    )}
-                  </td>
+                  <td className="px-6 py-4 text-right">{job.status === 'failed' && <button type="button" onClick={() => handleCancelJob(job.id)} className="bg-slate-600 hover:bg-slate-500 text-white px-3 py-1 rounded text-xs font-medium transition-colors">Cancel Job</button>}</td>
                 </tr>
               ))}
               {jobs.length === 0 && <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-500">No jobs found in the queue.</td></tr>}
