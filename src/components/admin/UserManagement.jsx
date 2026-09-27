@@ -134,6 +134,7 @@ const UserManagement = ({ currentUser }) => {
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCurrentPage(1);
   }, [searchTerm]);
 
@@ -193,7 +194,6 @@ const UserManagement = ({ currentUser }) => {
               paginatedUsers.map((user) => (
                 <tr key={user.id} className="border-b border-onyx-accent/20 hover:bg-onyx-accent/10">
                   <th scope="row" className="px-6 py-4 font-medium text-white whitespace-nowrap">
-                  <th scope="row" className="px-6 py-4 font-medium text-white whitespace-nowrap">
                     <div className="flex items-center">
                       {user.email}
                       {(user.email === "james.ellars@axim.us.com" || user.email === "jrellars@gmail.com") && (
@@ -202,7 +202,6 @@ const UserManagement = ({ currentUser }) => {
                         </span>
                       )}
                     </div>
-                  </th>
                   </th>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -259,10 +258,6 @@ const UserManagement = ({ currentUser }) => {
                       >
                         <SafeIcon icon={FiTrash2} />
                       </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
                     </div>
                   </td>
                 </tr>
