@@ -21,6 +21,8 @@ const CFODashboard = () => {
   const [logs, setLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(true);
   const [logsError, setLogsError] = useState(null);
+  const [aiCostSummary, setAiCostSummary] = useState(null);
+  const [aiCostError, setAiCostError] = useState(null);
 
   React.useEffect(() => {
     const fetchLogs = async () => {
@@ -57,6 +59,20 @@ const CFODashboard = () => {
     fetchLogs();
   }, []);
 
+  React.useEffect(() => {
+    const fetchAiCostSummary = async () => {
+      const { data, error: rpcError } = await supabase.rpc('get_ai_cost_and_savings_summary');
+
+      if (rpcError) {
+        setAiCostError(rpcError);
+        return;
+      }
+
+      setAiCostSummary(data);
+    };
+
+    fetchAiCostSummary().catch(setAiCostError);
+  }, []);
 
   const handleApproval = async () => {
     const { requestId, status } = confirmModal;
@@ -100,6 +116,41 @@ const CFODashboard = () => {
             <p className="text-slate-400">Financial approvals and affiliate commission management</p>
           </div>
         </div>
+
+        <section className="bg-onyx-900/40 backdrop-blur-md rounded-2xl border border-emerald-500/20 shadow-xl p-6">
+          <div className="flex flex-col gap-3 mb-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-white">AI Infrastructure &amp; Context Cache Savings</h2>
+              <p className="text-sm text-slate-400">DeepSeek V4.1 Disk KV Optimized ($0.007/1M hit vs $0.22/1M miss)</p>
+            </div>
+            <span className="self-start px-3 py-1 text-xs font-medium text-emerald-300 border border-emerald-500/30 rounded-full bg-emerald-500/10">
+              Cache efficiency
+            </span>
+          </div>
+          {aiCostError ? (
+            <p className="text-sm text-red-400">Failed to load AI cost metrics: {aiCostError.message}</p>
+          ) : !aiCostSummary ? (
+            <p className="text-sm text-slate-400">Loading AI cost metrics...</p>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4">
+                <p className="text-xs uppercase tracking-wider text-emerald-300">Estimated cache savings</p>
+                <p className="mt-2 text-2xl font-bold text-emerald-400">${Number(aiCostSummary.estimated_dollars_saved || 0).toFixed(2)} saved</p>
+              </div>
+              <div className="rounded-xl bg-sky-500/10 border border-sky-500/20 p-4">
+                <p className="text-xs uppercase tracking-wider text-sky-300">Context cache hit ratio</p>
+                <p className="mt-2 text-2xl font-bold text-sky-300">{Number(aiCostSummary.cache_hit_ratio || 0).toFixed(2)}%</p>
+              </div>
+              <div className="rounded-xl bg-violet-500/10 border border-violet-500/20 p-4">
+                <p className="text-xs uppercase tracking-wider text-violet-300">Net model spend</p>
+                <p className="mt-2 text-2xl font-bold text-violet-300">${Number(aiCostSummary.estimated_actual_spend || 0).toFixed(2)}</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  DeepSeek ${Number(aiCostSummary.deepseek_spend || 0).toFixed(2)} / Anthropic failover ${Number(aiCostSummary.anthropic_failover_spend || 0).toFixed(2)}
+                </p>
+              </div>
+            </div>
+          )}
+        </section>
 
         <ErrorBoundary>
           <div className="bg-onyx-900/40 backdrop-blur-md rounded-2xl border border-onyx-accent/20 shadow-xl overflow-hidden">

@@ -4,15 +4,19 @@ import api from '../../services/onyxAI/api';
 import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 
-const { FiSave, FiX, FiShield } = FiIcons;
+const { FiCheck, FiX, FiShield } = FiIcons;
 
-const RoleManagementModal = ({ user, onClose, onRoleUpdate }) => {
+const RoleManagementModal = ({ user, onClose, onRoleUpdate, isRootProtected = false }) => {
   const [newRole, setNewRole] = useState(user.role);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isRootProtected) {
+      setError('This Super User role is root protected and cannot be changed.');
+      return;
+    }
     setIsSubmitting(true);
     setError(null);
     try {
@@ -43,6 +47,11 @@ const RoleManagementModal = ({ user, onClose, onRoleUpdate }) => {
         <p className="text-slate-300 mb-4">
           Change the role for <span className="font-semibold text-white">{user.email}</span>
         </p>
+        {isRootProtected && (
+          <div className="text-amber-300 text-sm bg-amber-900/20 p-3 rounded-lg mb-4">
+            Super User (Root Protected): role changes are disabled.
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
@@ -52,6 +61,7 @@ const RoleManagementModal = ({ user, onClose, onRoleUpdate }) => {
             </label>
             <select
               value={newRole}
+              disabled={isRootProtected}
               onChange={(e) => setNewRole(e.target.value)}
               className="w-full bg-onyx-950/50 border border-onyx-accent/20 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-blue-500"
             >
@@ -67,25 +77,21 @@ const RoleManagementModal = ({ user, onClose, onRoleUpdate }) => {
           )}
 
           <div className="flex justify-end space-x-4 pt-6">
-            <motion.button
+            <button
               type="button"
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
               onClick={onClose}
               className="px-6 py-2 bg-onyx-950/50 hover:bg-onyx-accent/20 text-slate-300 rounded-lg transition-colors"
             >
               Cancel
-            </motion.button>
-            <motion.button
+            </button>
+            <button
               type="submit"
-              disabled={isSubmitting}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
+              disabled={isSubmitting || isRootProtected}
               className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50"
             >
-              <SafeIcon icon={FiSave} className="inline mr-2" />
-              {isSubmitting ? 'Saving...' : 'Save Changes'}
-            </motion.button>
+              <SafeIcon icon={FiCheck} className="inline mr-2" />
+              {isRootProtected ? 'Root Protected' : isSubmitting ? 'Saving...' : 'Save Changes'}
+            </button>
           </div>
         </form>
       </motion.div>

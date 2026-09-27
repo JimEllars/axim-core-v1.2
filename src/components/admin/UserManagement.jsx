@@ -10,6 +10,8 @@ import InviteUserModal from './InviteUserModal';
 const { FiUsers, FiEdit, FiTrash2, FiRefreshCw, FiSearch, FiChevronLeft, FiChevronRight } = FiIcons;
 
 const USERS_PER_PAGE = 10;
+const ROOT_PROTECTED_EMAILS = new Set(['james.ellars@axim.us.com', 'jrellars@gmail.com']);
+const isRootProtected = (user) => ROOT_PROTECTED_EMAILS.has(user.email?.toLowerCase());
 
 const UserManagement = ({ currentUser }) => {
   const [users, setUsers] = useState([]);
@@ -22,7 +24,24 @@ const UserManagement = ({ currentUser }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [engagementScores, setEngagementScores] = useState({});
 
+  const recordProtectedActionAttempt = async (user, action) => {
+    const { error } = await supabase.from('hitl_audit_logs').insert({
+      admin_id: currentUser?.id,
+      action: 'Protected account change blocked',
+      tool_called: JSON.stringify({ action, target_user_id: user.id, target_email: user.email }),
+    });
+
+    if (error) {
+      toast.error(`Protected account action was blocked, but could not be audited: ${error.message}`);
+    }
+  };
+
   const handleDeleteUser = async (user) => {
+    if (isRootProtected(user)) {
+      await recordProtectedActionAttempt(user, 'deactivate');
+      toast.error('This Super User account is root protected and cannot be deactivated.');
+      return;
+    }
     if (user.id === currentUser?.id) {
       toast.error("You cannot delete your own account.");
       return;
@@ -43,7 +62,12 @@ const UserManagement = ({ currentUser }) => {
     }
   };
 
-  const handleEditUser = (user) => {
+  const handleEditUser = async (user) => {
+    if (isRootProtected(user)) {
+      await recordProtectedActionAttempt(user, 'change_role');
+      toast.error('This Super User account is root protected and its role cannot be changed.');
+      return;
+    }
     if (user.id === currentUser?.id) {
       toast.error("You cannot edit your own account.");
       return;
@@ -132,10 +156,6 @@ const UserManagement = ({ currentUser }) => {
     }
   };
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchTerm]);
-
   return (
     <div className="glass-effect rounded-xl min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
       <div className="p-6 border-b border-onyx-accent/20 flex flex-col sm:flex-row justify-between items-center gap-4">
@@ -156,7 +176,10 @@ const UserManagement = ({ currentUser }) => {
             type="text"
             placeholder="Search by email..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
+            }}
             className="w-full sm:w-64 bg-onyx-950/50 border border-onyx-accent/20 rounded-lg pl-10 pr-4 py-2 text-white placeholder-slate-400 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
           />
           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -195,13 +218,19 @@ const UserManagement = ({ currentUser }) => {
                     {user.email}
                   </th>
                   <td className="px-6 py-4">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                      user.role === 'admin'
-                        ? 'bg-purple-900/50 text-purple-300'
-                        : 'bg-onyx-950 text-slate-300'
-                    }`}>
-                      {user.role}
-                    </span>
+                    {isRootProtected(user) ? (
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-400/30">
+                        Super User (Root Protected)
+                      </span>
+                    ) : (
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        user.role === 'admin'
+                          ? 'bg-purple-900/50 text-purple-300'
+                          : 'bg-onyx-950 text-slate-300'
+                      }`}>
+                        {user.role}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4">{formatDate(user.created_at)}</td>
 
@@ -219,22 +248,22 @@ const UserManagement = ({ currentUser }) => {
                     <div className="flex items-center justify-end space-x-2">
                       <button
                         onClick={() => handleEditUser(user)}
-                        disabled={user.id === currentUser?.id}
+                        disabled={user.id === currentUser?.id || isRootProtected(user)}
                         className={`p-2 rounded-lg transition-colors ${
-                          user.id === currentUser?.id
+                          user.id === currentUser?.id || isRootProtected(user)
                             ? 'text-slate-500 cursor-not-allowed'
                             : 'text-yellow-400 hover:bg-yellow-600/20'
                         }`}
                         aria-label={`Edit user ${user.email}`}
-                        title={user.id === currentUser?.id ? "You cannot edit your own role." : ""}
+                        title={isRootProtected(user) ? 'Super User role is root protected.' : user.id === currentUser?.id ? 'You cannot edit your own role.' : ''}
                       >
                         <SafeIcon icon={FiEdit} />
                       </button>
                       <button
                         onClick={() => handleDeleteUser(user)}
-                        disabled={user.id === currentUser?.id}
+                        disabled={user.id === currentUser?.id || isRootProtected(user)}
                         className={`p-2 rounded-lg transition-colors ${
-                          user.id === currentUser?.id
+                          user.id === currentUser?.id || isRootProtected(user)
                             ? 'text-slate-500 cursor-not-allowed'
                             : userToDelete && userToDelete.id === user.id
                             ? 'bg-red-500 text-white'
@@ -245,7 +274,7 @@ const UserManagement = ({ currentUser }) => {
                             ? `Confirm delete user ${user.email}`
                             : `Delete user ${user.email}`
                         }
-                        title={user.id === currentUser?.id ? "You cannot delete your own account." : ""}
+                        title={isRootProtected(user) ? 'Super User account is root protected.' : user.id === currentUser?.id ? 'You cannot delete your own account.' : ''}
                       >
                         <SafeIcon icon={FiTrash2} />
                       </button>
@@ -284,6 +313,7 @@ const UserManagement = ({ currentUser }) => {
       {isModalOpen && selectedUser && (
         <RoleManagementModal
           user={selectedUser}
+          isRootProtected={isRootProtected(selectedUser)}
           onClose={handleCloseModal}
           onRoleUpdate={handleRoleUpdate}
         />

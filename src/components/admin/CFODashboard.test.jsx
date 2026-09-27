@@ -15,6 +15,7 @@ vi.mock('../../services/supabaseClient', () => ({
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     order: vi.fn().mockResolvedValue({ data: [], error: null }),
+    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
   }
 }));
 vi.mock('../../services/onyxAI/api', () => ({
@@ -117,6 +118,35 @@ describe('CFODashboard', () => {
 
     await waitFor(() => {
         expect(screen.getByText(/Failed to load approval requests:/)).toBeInTheDocument();
+    });
+  });
+
+  it('renders AI cache savings from the cost summary RPC', async () => {
+    useSupabaseQueryMock.useSupabaseQuery.mockReturnValue({
+      data: null,
+      loading: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    supabase.order.mockResolvedValueOnce({ data: [], error: null });
+    supabase.rpc.mockResolvedValueOnce({
+      data: {
+        estimated_dollars_saved: 248.5,
+        cache_hit_ratio: 88.4,
+        estimated_actual_spend: 12.34,
+        deepseek_spend: 10,
+        anthropic_failover_spend: 2.34,
+      },
+      error: null,
+    });
+
+    render(<CFODashboard />);
+
+    await waitFor(() => {
+      expect(screen.getByText('AI Infrastructure & Context Cache Savings')).toBeInTheDocument();
+      expect(screen.getByText('$248.50 saved')).toBeInTheDocument();
+      expect(screen.getByText('88.40%')).toBeInTheDocument();
+      expect(supabase.rpc).toHaveBeenCalledWith('get_ai_cost_and_savings_summary');
     });
   });
 
