@@ -66,6 +66,18 @@ const JobQueueMonitor = () => {
     setRetryingJobId(null);
   };
 
+  const handleCancelJob = async (jobId) => {
+    const { error: cancelError } = await supabase
+      .from('satellite_job_queue')
+      .update({ status: 'cancelled' })
+      .eq('id', jobId);
+
+    if (cancelError) {
+      toast.error(`Failed to cancel job: ${cancelError.message}`);
+      return;
+    }
+    await fetchJobs();
+  };
   const summary = {
     pending: jobs.filter((job) => job.status === 'pending').length,
     processing: jobs.filter((job) => job.status === 'processing').length,
@@ -103,7 +115,7 @@ const JobQueueMonitor = () => {
       {activeTab === 'active' ? (
         <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-900 text-gray-400 uppercase text-xs"><tr><th className="px-6 py-3">ID / App</th><th className="px-6 py-3">Status</th><th className="px-6 py-3">Attempts</th><th className="px-6 py-3">Created At</th><th className="px-6 py-3">Details / Errors</th></tr></thead>
+            <thead className="bg-gray-900 text-gray-400 uppercase text-xs"><tr><th className="px-6 py-3">ID / App</th><th className="px-6 py-3">Status</th><th className="px-6 py-3">Attempts</th><th className="px-6 py-3">Created At</th><th className="px-6 py-3">Details / Errors</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
             <tbody className="divide-y divide-gray-700">
               {jobs.map((job) => (
                 <tr key={job.id} className="hover:bg-gray-750 transition-colors">
@@ -112,9 +124,14 @@ const JobQueueMonitor = () => {
                   <td className="px-6 py-4 text-gray-300">{job.attempts} / {job.max_attempts}</td>
                   <td className="px-6 py-4 text-gray-400 text-xs">{formatDate(job.created_at)}</td>
                   <td className="px-6 py-4 text-xs text-red-400">{job.error_log || 'None'}</td>
+                  <td className="px-6 py-4 text-right">
+                    {job.status === 'failed' && (
+                      <button type="button" onClick={() => handleCancelJob(job.id)} className="bg-slate-600 hover:bg-slate-500 text-white px-3 py-1 rounded text-xs font-medium transition-colors">Cancel Job</button>
+                    )}
+                  </td>
                 </tr>
               ))}
-              {jobs.length === 0 && <tr><td colSpan="5" className="px-6 py-8 text-center text-gray-500">No jobs found in the queue.</td></tr>}
+              {jobs.length === 0 && <tr><td colSpan="6" className="px-6 py-8 text-center text-gray-500">No jobs found in the queue.</td></tr>}
             </tbody>
           </table>
         </div>

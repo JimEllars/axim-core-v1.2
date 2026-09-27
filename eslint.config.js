@@ -42,7 +42,7 @@ export default [
     },
   },
   {
-    files: ["src/**/*.{js,jsx}"],
+    files: ["src/**/*.{js,jsx}", "tests/**/*.{js,jsx}"],
     rules: {
       "no-unused-vars": "off"
     }

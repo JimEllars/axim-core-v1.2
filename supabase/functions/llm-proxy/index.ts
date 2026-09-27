@@ -177,21 +177,54 @@ serve(async (req) => {
       }
     }
 
-    const messages = [{ role: 'user', content: finalPrompt }];
+    let messages = options.messages || [{ role: 'user', content: finalPrompt }];
+    // Ensure deterministic ordering for KV cache
+    messages.sort((a: any, b: any) => {
+       if (a.role === 'system' && b.role !== 'system') return -1;
+       if (b.role === 'system' && a.role !== 'system') return 1;
+       return 0;
+    });
+    // Ensure reasoning_content is preserved in multi-turn
+    messages = messages.map((m: any) => {
+        const msg = { ...m };
+        if (msg.role === 'assistant' && msg.reasoning_content !== undefined) {
+             // Keep reasoning_content
+        }
+        return msg;
+    });
     const stream = options.stream === true;
+
+    let tools = options.tools;
+    if (tools && Array.isArray(tools)) {
+        tools = tools.map((t: any) => {
+            if (t.function && t.function.parameters) {
+                const params = t.function.parameters;
+                if (params.properties) {
+                    for (const key in params.properties) {
+                        delete params.properties[key].minItems;
+                        delete params.properties[key].maxItems;
+                    }
+                    params.additionalProperties = false;
+                    params.required = Object.keys(params.properties);
+                }
+            }
+            return t;
+        });
+    }
+
 
     // Dispatch to DeepSeek directly
     let response;
     let respondingProvider = 'deepseek';
     let failedOver = false;
 
-    const deepseekBaseUrl = Deno.env.get('DEEPSEEK_BASE_URL') || 'https://api.deepseek.com/v1';
+    const deepseekBaseUrl = Deno.env.get('DEEPSEEK_BASE_URL') || 'https://api.deepseek.com';
 
     const abortController = new AbortController();
     const timeoutId = setTimeout(() => abortController.abort(), 15000);
 
     const startTime = Date.now();
-    let directUrl = `${deepseekBaseUrl}/chat/completions`;
+    let directUrl = tools && tools.length > 0 ? `${deepseekBaseUrl}/beta/chat/completions` : `${deepseekBaseUrl}/chat/completions`;
 
     try {
         console.log(`[${request_id}] Dispatching to DeepSeek (${directUrl})...`);
@@ -202,11 +235,13 @@ serve(async (req) => {
                 'Authorization': `Bearer ${apiKey}`
             },
             body: JSON.stringify({
-                model: options.model || 'deepseek-chat',
+                model: options.model || 'deepseek-flash', // default to flash or chat? "deepseek-flash (default)"
                 messages: messages,
+                tools: tools,
                 max_tokens: options.max_tokens || 1024,
                 temperature: options.temperature || 0.7,
-                stream: stream
+                stream: stream,
+                user_id: user.id
             }),
             signal: abortController.signal
         });
@@ -238,7 +273,7 @@ serve(async (req) => {
 
         // Transform for Anthropic
         let systemMessage = undefined;
-        let anthropicMessages = messages.map(m => {
+        let anthropicMessages = messages.map((m: any) => {
            if (m.role === 'system') {
                systemMessage = m.content;
                return null;
@@ -262,6 +297,7 @@ serve(async (req) => {
                 model: 'claude-3-5-sonnet-20241022',
                 messages: anthropicMessages,
                 system: systemMessage,
+                tools: tools,
                 max_tokens: options.max_tokens || 1024,
                 temperature: options.temperature || 0.7,
                 stream: stream
@@ -291,7 +327,9 @@ serve(async (req) => {
                      const text = decoder.decode(chunk);
                      const lines = text.split('\n');
 
-                     for (const line of lines) {
+                     for (let line of lines) {
+                         line = line.trimStart();
+                         if (line.startsWith(': keep-alive')) continue;
                          if (line.startsWith('data: ')) {
                              try {
                                  const data = JSON.parse(line.substring(6));
@@ -344,7 +382,19 @@ serve(async (req) => {
           status_code: 200,
           compute_ms: executionLatency,
           app_id: 'axim-llm-proxy',
-          payload: { provider: respondingProvider, failedOver, token_usage: data.usage || null }
+          payload: {
+            provider: respondingProvider,
+            model: options.model || (respondingProvider === 'deepseek' ? 'deepseek-flash' : 'claude-3-5-sonnet-20241022'),
+            prompt_tokens: data.usage?.prompt_tokens || 0,
+            completion_tokens: data.usage?.completion_tokens || 0,
+            prompt_cache_hit_tokens: data.usage?.prompt_cache_hit_tokens || 0,
+            prompt_cache_miss_tokens: data.usage?.prompt_cache_miss_tokens || 0,
+            cache_hit_ratio: data.usage?.prompt_cache_hit_tokens ? (data.usage.prompt_cache_hit_tokens / ((data.usage.prompt_cache_hit_tokens || 0) + (data.usage.prompt_cache_miss_tokens || 0))) : 0,
+            failedOver,
+            failover_occurred: failedOver,
+            latency_ms: executionLatency,
+            token_usage: data.usage || null
+          }
         });
 
         if (user.id !== 'internal-system') {

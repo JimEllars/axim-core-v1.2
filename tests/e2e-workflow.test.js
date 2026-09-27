@@ -7,11 +7,11 @@ describe('End-to-End Workflow Validation', () => {
       const module = await import('../supabase/functions/universal-dispatcher/sanitization.ts');
       sanitizePayload = module.sanitizePayload;
     } catch (err) {
-      // eslint-disable-next-line no-unused-vars
+
       const _ignore = err;
       // Mock if module not found due to ts execution contexts
       sanitizePayload = (payload) => {
-      // eslint-disable-next-line no-unused-vars
+
       const _ignore = payload;
         return {
           data: {

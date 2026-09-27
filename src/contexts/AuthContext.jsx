@@ -230,8 +230,29 @@ export const AuthProvider = ({ children }) => {
        supabase.auth.getSession().then(({ data: { session } }) => {
          if (session) {
              supabase.auth.refreshSession().catch(err => {
-                 console.warn("Failed silent token refresh on wakeup:", err);
+                 console.warn("Failed silent token refresh on wakeup, entering retry queue:", err);
                  setIsOffline(true);
+                 // Background retry queue
+                 let retryCount = 0;
+                 const maxRetries = 3;
+                 const retryRefresh = () => {
+                     if (retryCount >= maxRetries) {
+                         console.error("Max retries reached for silent token refresh.");
+                         return;
+                     }
+                     retryCount++;
+                     setTimeout(() => {
+                         supabase.auth.refreshSession().then(({data, error}) => {
+                             if (!error && data?.session) {
+                                 console.log("Successfully recovered session after retry.");
+                                 setIsOffline(false);
+                             } else {
+                                 retryRefresh();
+                             }
+                         });
+                     }, 5000 * retryCount);
+                 };
+                 retryRefresh();
              });
          }
        }).catch(() => {});
@@ -361,15 +382,65 @@ export const AuthProvider = ({ children }) => {
           if (renewTime > 0) {
             renewalTimer = setTimeout(async () => {
               if (!isOffline) {
-                 await supabase.auth.refreshSession();
-                 setupRenewal(); // Setup next renewal
+                 const { error } = await supabase.auth.refreshSession();
+                 if (error) {
+                     console.warn("Silent renewal failed, entering background retry.");
+                     setIsOffline(true);
+                     let retryCount = 0;
+                     const maxRetries = 3;
+                     const retryRefresh = () => {
+                         if (retryCount >= maxRetries) {
+                             console.error("Max retries reached for silent token renewal.");
+                             return;
+                         }
+                         retryCount++;
+                         setTimeout(async () => {
+                             const { data, error } = await supabase.auth.refreshSession();
+                             if (!error && data?.session) {
+                                 console.log("Successfully recovered session after renewal retry.");
+                                 setIsOffline(false);
+                                 setupRenewal();
+                             } else {
+                                 retryRefresh();
+                             }
+                         }, 5000 * retryCount);
+                     };
+                     retryRefresh();
+                 } else {
+                     setupRenewal(); // Setup next renewal
+                 }
               }
             }, renewTime);
           } else {
              // Already near expiry, try to refresh now
              if (!isOffline) {
-                 await supabase.auth.refreshSession();
-                 setupRenewal();
+                 const { error } = await supabase.auth.refreshSession();
+                 if (error) {
+                     console.warn("Immediate silent renewal failed, entering background retry.");
+                     setIsOffline(true);
+                     let retryCount = 0;
+                     const maxRetries = 3;
+                     const retryRefresh = () => {
+                         if (retryCount >= maxRetries) {
+                             console.error("Max retries reached for immediate silent token renewal.");
+                             return;
+                         }
+                         retryCount++;
+                         setTimeout(async () => {
+                             const { data, error } = await supabase.auth.refreshSession();
+                             if (!error && data?.session) {
+                                 console.log("Successfully recovered session after immediate renewal retry.");
+                                 setIsOffline(false);
+                                 setupRenewal();
+                             } else {
+                                 retryRefresh();
+                             }
+                         }, 5000 * retryCount);
+                     };
+                     retryRefresh();
+                 } else {
+                     setupRenewal();
+                 }
              }
           }
         }

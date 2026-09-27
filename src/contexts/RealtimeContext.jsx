@@ -111,7 +111,7 @@ export const RealtimeProvider = ({ children }) => {
             console.warn('RealtimeContext: WebSocket connection closed/error (hitl_audit_logs)', err || status);
             if (hitlRetries < MAX_RETRIES) {
               hitlRetries++;
-              const backoffTime = Math.pow(2, hitlRetries) * 1000;
+              const backoffTime = Math.min(Math.pow(2, hitlRetries) * 1000, 30000);
               currentReconnectTimeouts.hitl = setTimeout(setupHitlChannel, backoffTime);
             } else {
               toast.error('Disconnected from HITL live updates.', { id: 'offline-hitl' });
@@ -148,7 +148,7 @@ export const RealtimeProvider = ({ children }) => {
             console.warn('RealtimeContext: WebSocket connection closed/error (telemetry_events)', err || status);
             if (telemetryRetries < MAX_RETRIES) {
               telemetryRetries++;
-              const backoffTime = Math.pow(2, telemetryRetries) * 1000;
+              const backoffTime = Math.min(Math.pow(2, telemetryRetries) * 1000, 30000);
               currentReconnectTimeouts.telemetry = setTimeout(setupTelemetryChannel, backoffTime);
             } else {
               toast.error('Disconnected from telemetry live updates.', { id: 'offline-telemetry' });
@@ -179,7 +179,7 @@ export const RealtimeProvider = ({ children }) => {
             console.warn('RealtimeContext: WebSocket connection closed/error (revenue_changes)', err || status);
             if (revenueRetries < MAX_RETRIES) {
               revenueRetries++;
-              const backoffTime = Math.pow(2, revenueRetries) * 1000;
+              const backoffTime = Math.min(Math.pow(2, revenueRetries) * 1000, 30000);
               currentReconnectTimeouts.revenue = setTimeout(setupRevenueChannel, backoffTime);
             }
           }
@@ -208,7 +208,7 @@ export const RealtimeProvider = ({ children }) => {
             console.warn('RealtimeContext: WebSocket connection closed/error (micro_app_executions)', err || status);
             if (execRetries < MAX_RETRIES) {
               execRetries++;
-              const backoffTime = Math.pow(2, execRetries) * 1000;
+              const backoffTime = Math.min(Math.pow(2, execRetries) * 1000, 30000);
               currentReconnectTimeouts.exec = setTimeout(setupExecChannel, backoffTime);
             }
           }
@@ -237,7 +237,7 @@ export const RealtimeProvider = ({ children }) => {
               console.warn('RealtimeContext: WebSocket connection closed/error (telemetry_events)', err || status);
               if (workflowRetries < MAX_RETRIES) {
                 workflowRetries++;
-                const backoffTime = Math.pow(2, workflowRetries) * 1000;
+                const backoffTime = Math.min(Math.pow(2, workflowRetries) * 1000, 30000);
                 currentReconnectTimeouts.workflow = setTimeout(setupWorkflowChannel, backoffTime);
               } else {
                 toast.error('Disconnected from workflow live updates.', { id: 'offline-workflow' });

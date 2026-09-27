@@ -21,6 +21,7 @@ export default {
     }
 
     const authHeader = request.headers.get("Authorization");
+    const aximGatewayToken = request.headers.get("x-axim-gateway-token");
     const keyHeader = request.headers.get("X-Axim-Gateway-Token");
 
     // Check MCP Bridge Authentication
@@ -68,7 +69,7 @@ export default {
                 {
                   name: "workflow_dispatch",
                   description: "Dispatches a predefined workflow.",
-                  inputSchema: { type: "object", properties: { workflow_id: { type: "string" } } }
+                  inputSchema: { type: "object", properties: { workflow_type: { type: "string" }, payload: { type: "object" }, trigger_source: { type: "string" } } }
                 },
                 {
                   name: "core_health_check",
@@ -82,7 +83,7 @@ export default {
                     type: "object",
                     properties: {
                       limit: { type: "number", description: "Number of events to return" },
-                      threat_level: { type: "string", description: "Severity filter (e.g., WARN, ERROR, FATAL)" }
+                      app_id: { type: "string", description: "Filter by App ID" }
                     }
                   }
                 },
@@ -124,12 +125,40 @@ export default {
         }
 
         if (toolName === "workflow_dispatch") {
+          let dispatchStatus = "Failed";
+          if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
+             try {
+                 const { workflow_type, payload, trigger_source } = toolArgs;
+                 const response = await fetch(`${env.SUPABASE_URL}/rest/v1/satellite_job_queue`, {
+                   method: 'POST',
+                   headers: {
+                      "Content-Type": "application/json",
+                      "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
+                      "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
+                      "Prefer": "return=minimal"
+                   },
+                   body: JSON.stringify({
+                       workflow_type,
+                       payload,
+                       trigger_source,
+                       status: 'pending'
+                   })
+                 });
+                 if (response.ok) {
+                     dispatchStatus = `Dispatched workflow ${workflow_type || 'unknown'}`;
+                 } else {
+                     dispatchStatus = `Error: ${response.status}`;
+                 }
+             } catch(e) {
+                 dispatchStatus = `Error: ${e.message}`;
+             }
+          }
           return new Response(
             JSON.stringify({
               jsonrpc: "2.0",
               result: {
-                content: [{ type: "text", text: `Dispatched workflow ${toolArgs.workflow_id || 'unknown'}` }],
-                isError: false
+                content: [{ type: "text", text: dispatchStatus }],
+                isError: dispatchStatus.startsWith('Error')
               },
               id
             }),
@@ -143,6 +172,7 @@ export default {
             status: "simulated",
             db_connectivity: "unknown",
             latency_ms: 0,
+            active_llm_provider: "deepseek",
             queues: {}
           };
 
@@ -202,8 +232,8 @@ export default {
              try {
                 const limit = toolArgs.limit || 10;
                 let url = `${env.SUPABASE_URL}/rest/v1/telemetry_events?select=*&order=created_at.desc&limit=${limit}`;
-                if (toolArgs.threat_level) {
-                   url += `&severity=eq.${encodeURIComponent(toolArgs.threat_level)}`;
+                if (toolArgs.app_id) {
+                   url += `&component_id=eq.${encodeURIComponent(toolArgs.app_id)}`;
                 }
                 const response = await fetch(url, {
                    headers: {
@@ -239,7 +269,7 @@ export default {
           if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
              try {
                 // Check both lowercase and PascalCase 'Pending' depending on how it was inserted
-                const url = `${env.SUPABASE_URL}/rest/v1/hitl_audit_logs?select=id,status,action,created_at&or=(status.eq.Pending,status.eq.pending)`;
+                const url = `${env.SUPABASE_URL}/rest/v1/hitl_audit_logs?select=id,status,action,created_at,risk_level&or=(status.eq.Pending,status.eq.pending)`;
                 const response = await fetch(url, {
                    headers: {
                       "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
@@ -250,7 +280,8 @@ export default {
                 if (response.ok) {
                    const count = response.headers.get("content-range")?.split("/")?.[1] || "0";
                    const data = await response.json();
-                   queueStatus = JSON.stringify({ count: parseInt(count, 10), pending_items: data }, null, 2);
+                   const highRiskCount = data.filter(d => d.risk_level === 'high' || d.action?.toLowerCase().includes('high')).length;
+                   queueStatus = JSON.stringify({ pending_count: parseInt(count, 10), high_risk_count: highRiskCount, pending_items: data }, null, 2);
                 } else {
                    queueStatus = `Error fetching HITL queue: ${response.status}`;
                 }

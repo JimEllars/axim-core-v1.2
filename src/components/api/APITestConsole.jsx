@@ -8,7 +8,7 @@ import CodeBlock from './CodeBlock';
 
 const { 
   FiPlay, FiCode, FiClock, FiCheckCircle, FiXCircle, 
-  FiRefreshCw, FiDownload, FiCopy, FiSettings
+  FiRefreshCw, FiDownload, FiCopy, FiSettings, FiGlobe
 } = FiIcons;
 
 const APITestConsole = ({ integrations, selectedIntegration, onIntegrationChange }) => {
@@ -136,8 +136,81 @@ const APITestConsole = ({ integrations, selectedIntegration, onIntegrationChange
     URL.revokeObjectURL(url);
   };
 
+
+  const executeDeepSeekPing = async () => {
+    setIsLoading(true);
+    const startTime = Date.now();
+    try {
+      const { data, error } = await supabase.functions.invoke('llm-proxy', {
+        body: { provider: "deepseek", prompt: [{ role: "user", content: "PING" }] }
+      });
+      const responseTime = Date.now() - startTime;
+      if (error) throw error;
+
+      setTestResults(prev => [{
+        id: Date.now(),
+        endpoint: 'DeepSeek LLM Proxy Ping',
+        method: 'POST',
+        status_code: 200,
+        response_time_ms: responseTime,
+        success: true,
+        timestamp: new Date(),
+        request_data: { provider: "deepseek", prompt: [{ role: "user", content: "PING" }] },
+        response_data: data
+      }, ...prev.slice(0, 9)]);
+    } catch (err) {
+      const responseTime = Date.now() - startTime;
+      setTestResults(prev => [{
+        id: Date.now(),
+        endpoint: 'DeepSeek LLM Proxy Ping',
+        method: 'POST',
+        status_code: err.status || 500,
+        response_time_ms: responseTime,
+        success: false,
+        timestamp: new Date(),
+        request_data: { provider: "deepseek", prompt: [{ role: "user", content: "PING" }] },
+        response_data: { error: err.message }
+      }, ...prev.slice(0, 9)]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
+
+      {/* DeepSeek Ping Console */}
+      <div className="glass-effect rounded-xl p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white flex items-center space-x-2">
+              <SafeIcon icon={FiGlobe} className="text-emerald-400" />
+              <span>DeepSeek Direct Gateway</span>
+            </h3>
+            <p className="text-sm text-slate-400 mt-1">Verify direct LLM Proxy connectivity to the DeepSeek provider</p>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={executeDeepSeekPing}
+            disabled={isLoading}
+            className="flex items-center space-x-2 px-4 py-2 bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 rounded-lg hover:bg-emerald-600/30 transition-all font-mono text-sm uppercase tracking-wider"
+          >
+            {isLoading ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-400"></div>
+                <span>Pinging...</span>
+              </>
+            ) : (
+              <>
+                <SafeIcon icon={FiPlay} />
+                <span>Send Test Ping</span>
+              </>
+            )}
+          </motion.button>
+        </div>
+      </div>
+
       {/* Integration & Endpoint Selection */}
       <div className="glass-effect rounded-xl p-6">
         <h2 className="text-xl font-semibold text-white mb-6">API Test Console</h2>

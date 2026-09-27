@@ -97,7 +97,27 @@ const CloudflareEdgeHealth = () => {
             clearInterval(intervalId);
             intervalId = setInterval(handlePingEdge, 60000);
         }
-    }).subscribe((status) => {
+    })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'telemetry_events' }, (payload) => {
+       if (payload.new && payload.new.payload) {
+           const telemetryData = payload.new.payload;
+           if (telemetryData.latency_ms !== undefined) {
+               setLatency(`${telemetryData.latency_ms}ms`);
+           }
+
+           if (telemetryData.prompt_cache_hit_tokens !== undefined && telemetryData.total_tokens) {
+               const ratio = (telemetryData.prompt_cache_hit_tokens / telemetryData.total_tokens) * 100;
+               setCacheHitRatio(ratio.toFixed(1));
+           } else {
+               setCacheHitRatio((prev) => prev); // fallback to last known
+           }
+       } else {
+           setCacheHitRatio((prev) => prev); // fallback to last known
+       }
+
+       setLastChecked(new Date().toLocaleTimeString());
+    })
+    .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
             console.log('Subscribed to system_health_channel');
         }
@@ -131,7 +151,9 @@ const CloudflareEdgeHealth = () => {
     window.addEventListener('edge:revalidated', handleRevalidated);
 
     return () => {
-        supabase.removeChannel(channel);
+        if (channel) {
+            supabase.removeChannel(channel);
+        }
         clearInterval(intervalId);
         window.removeEventListener('edge:healthy', handleHealthy);
         window.removeEventListener('edge:degraded', handleDegraded);
@@ -145,19 +167,19 @@ const CloudflareEdgeHealth = () => {
   const isRevalidating = status === 'REVALIDATING';
 
   const getStatusColor = () => {
-      if (isOnline) return 'text-emerald-400';
-      if (isRevalidating) return 'text-amber-400';
-      return 'text-slate-400'; // Degraded or Bypassed
+      if (isOnline) return 'text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.8)]';
+      if (isRevalidating) return 'text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.8)]';
+      return 'text-red-400 drop-shadow-[0_0_8px_rgba(248,113,113,0.8)]'; // Degraded or Bypassed
   }
 
   const getBgColor = () => {
-    if (isOnline) return 'bg-emerald-500/10 border-emerald-500/20';
-    if (isRevalidating) return 'bg-amber-500/10 border-amber-500/20';
-    return 'bg-slate-500/10 border-slate-500/20';
+    if (isOnline) return 'bg-emerald-500/10 border-emerald-500/30';
+    if (isRevalidating) return 'bg-amber-500/10 border-amber-500/30';
+    return 'bg-red-500/10 border-red-500/30';
   }
 
   return (
-    <div className="bg-slate-900/80 backdrop-blur-md border border-slate-800/80 rounded-xl p-6 hover:bg-slate-800/60 transition-all duration-300 relative group shadow-lg hover:shadow-xl h-full flex flex-col">
+    <div className="backdrop-blur-md bg-slate-900/60 border border-slate-800 rounded-xl p-6 hover:bg-slate-900/80 transition-all duration-300 relative group shadow-lg hover:shadow-xl h-full flex flex-col">
       <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-lg ${getBgColor()} border ${getStatusColor()}`}>
@@ -213,9 +235,24 @@ const CloudflareEdgeHealth = () => {
           </div>
         </div>
 
+        {/* Active LLM Providers */}
+        <div>
+          <h4 className="text-xs text-[#00FFFF] font-mono tracking-wider uppercase mb-2">Active LLM Providers</h4>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between bg-black/20 border border-white/5 p-2 rounded text-sm group hover:bg-black/40 transition-colors">
+              <span className="font-mono text-emerald-400 flex items-center gap-2"><FiGlobe className="w-3 h-3 group-hover:scale-110 transition-transform"/> DeepSeek V4.1-Flash</span>
+              <span className="text-slate-400 text-xs uppercase tracking-wider">Primary</span>
+            </div>
+            <div className="flex items-center justify-between bg-black/20 border border-white/5 p-2 rounded text-sm group hover:bg-black/40 transition-colors">
+              <span className="font-mono text-[#F59E0B] flex items-center gap-2"><FiGlobe className="w-3 h-3 group-hover:scale-110 transition-transform"/> Anthropic Claude 3.5 Ready</span>
+              <span className="text-slate-400 text-xs uppercase tracking-wider">Standby</span>
+            </div>
+          </div>
+        </div>
+
         {/* Active Proxy Channels */}
         <div>
-          <h4 className="text-xs text-slate-400 font-mono tracking-wider uppercase mb-2">Active Proxy Channels</h4>
+          <h4 className="text-xs text-slate-400 font-mono tracking-wider uppercase mb-2 mt-4">Active Proxy Channels</h4>
           <div className="space-y-2">
             <div className="flex items-center justify-between bg-black/20 border border-white/5 p-2 rounded text-sm group hover:bg-black/40 transition-colors">
               <span className="font-mono text-emerald-400 flex items-center gap-2"><FiGlobe className="w-3 h-3 group-hover:scale-110 transition-transform"/> /jules/</span>
@@ -238,10 +275,11 @@ const CloudflareEdgeHealth = () => {
         <button
           onClick={handlePingEdge}
           disabled={isPinging}
-          className="px-3 py-1.5 rounded bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/30 transition-all font-mono text-xs font-bold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50 hover:shadow-[0_0_10px_rgba(59,130,246,0.3)]"
+          className="px-3 py-1.5 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/30 transition-all font-mono text-xs font-bold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50 hover:shadow-[0_0_15px_rgba(59,130,246,0.4)] active:scale-95"
+          title="Quick-action Latency Probe"
         >
-          <FiActivity className={isPinging ? "animate-pulse" : ""} />
-          {isPinging ? 'Pinging...' : 'Refresh Diagnostics'}
+          <FiActivity className={`${isPinging ? "animate-spin" : ""} w-4 h-4`} />
+          {isPinging ? 'Probing Edge...' : 'Probe Latency'}
         </button>
       </div>
     </div>

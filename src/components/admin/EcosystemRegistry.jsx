@@ -11,6 +11,7 @@ const { FiCheckCircle, FiXCircle, FiShield, FiAlertTriangle, FiPlus, FiTrash2 } 
 
 const EcosystemRegistry = () => {
   const [nodes, setNodes] = useState([]);
+  const [apps, setApps] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newNode, setNewNode] = useState({ app_name: '', health_endpoint_url: '' });
@@ -18,10 +19,15 @@ const EcosystemRegistry = () => {
 const fetchNodes = async () => {
     setIsLoading(true);
     try {
-      const [nodesRes, logsRes] = await Promise.all([
+      const [nodesRes, logsRes, appsRes] = await Promise.all([
         supabase.from('ecosystem_nodes').select('*').order('app_name', { ascending: true }),
-        supabase.from('api_usage_logs').select('app_id, timestamp').order('timestamp', { ascending: false }).limit(100)
+        supabase.from('api_usage_logs').select('app_id, timestamp').order('timestamp', { ascending: false }).limit(100),
+        supabase.from('app_registry').select('*').order('app_name', { ascending: true })
       ]);
+
+      if (appsRes && appsRes.data) {
+        setApps(appsRes.data);
+      }
 
       if (nodesRes.error) throw nodesRes.error;
 
@@ -146,6 +152,40 @@ const fetchNodes = async () => {
 
   return (
     <div className="space-y-6 min-h-[160px]" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+
+      {apps.length > 0 && (
+        <div className="mb-8">
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+            <SafeIcon icon={FiShield} className="mr-2 text-blue-400" />
+            Registered Ecosystem Apps
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {apps.map(app => (
+              <div key={app.app_id} className="rounded-lg p-5 border border-onyx-accent/20 transition-all shadow-lg" style={{ background: 'rgba(10, 10, 12, 0.45)', backdropFilter: 'blur(16px)' }}>
+                <div className="flex justify-between items-start mb-4">
+                  <h3 className="text-lg font-medium text-white truncate pr-4">{app.app_name}</h3>
+                  <span className="inline-flex items-center text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-full text-xs font-medium">
+                    {app.status === 'active' ? 'Active' : app.status} / {app.category === 'network_utility' ? 'Network Utility' : app.category}
+                  </span>
+                </div>
+                <div className="mb-4">
+                  <p className="text-xs text-slate-400 truncate mb-1">
+                    Target Domain: <a href={`https://${app.domain}`} target="_blank" rel="noreferrer" className="text-blue-400 hover:underline">https://{app.domain}</a>
+                  </p>
+                  <p className="text-xs text-slate-400 truncate mb-1">
+                    Telemetry: <span className="text-slate-300">{app.telemetry_enabled ? 'Uplink Active (Non-Blocking)' : 'Disabled'}</span>
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <h3 className="text-lg font-semibold text-white mb-4 flex items-center mt-8">
+        <SafeIcon icon={FiShield} className="mr-2 text-onyx-accent" />
+        Edge Nodes Status
+      </h3>
       <div className="flex justify-between items-center mb-6">
         <div>
           <h2 className="text-xl font-semibold text-white flex items-center">

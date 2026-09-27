@@ -408,7 +408,7 @@ window.removeEventListener('onyx-agent-status', handleAgentStatus);
 
     <div className="flex-grow overflow-y-auto pr-2 custom-scrollbar relative z-10">
       {displayMessages.map((msg, index) => (
-        <ChatMessage key={index} message={msg} onCopyContent={onCopyContent} />
+        <ChatMessage key={msg.id || index} message={msg} onCopyContent={onCopyContent} />
       ))}
       <div ref={messagesEndRef} />
     </div>

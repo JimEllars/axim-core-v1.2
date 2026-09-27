@@ -115,8 +115,11 @@ const FleetStatusMap = () => {
       ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
             {fleetStatus.map(node => {
+               const nodeName = node.name || node.app_name;
+               const lastPingValue = node.last_heartbeat || node.last_ping;
+               const endpointUrl = node.endpoint || node.health_endpoint_url;
                // eslint-disable-next-line react-hooks/purity
-               const lastPingSeconds = node.last_ping ? (Date.now() - new Date(node.last_ping).getTime()) / 1000 : Infinity;
+               const lastPingSeconds = lastPingValue ? (Date.now() - new Date(lastPingValue).getTime()) / 1000 : Infinity;
                const isOffline = node.status === 'offline' || lastPingSeconds > 300;
                const isDegraded = !isOffline && lastPingSeconds >= 60 && lastPingSeconds <= 300;
 
@@ -141,16 +144,16 @@ const FleetStatusMap = () => {
                     className={`p-4 rounded-lg border flex flex-col items-center justify-center h-24 transition-all duration-500 relative ${statusColor}`}
                   >
                       <SafeIcon icon={FiServer} className="mb-2 text-xl" />
-                      <span className="text-xs font-semibold truncate w-full text-center">{node.app_name}</span>
+                      <span className="text-xs font-semibold truncate w-full text-center">{nodeName}</span>
                   </motion.div>
 
                   {/* Tooltip on Hover */}
                   <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-zinc-950 border border-slate-800 rounded-lg shadow-xl p-3 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                     <h4 className="text-white text-xs font-bold mb-2 border-b border-slate-800 pb-1">{node.app_name}</h4>
+                     <h4 className="text-white text-xs font-bold mb-2 border-b border-slate-800 pb-1">{nodeName}</h4>
                      <ul className="space-y-1 text-xs text-slate-300">
                         <li>Status: {displayStatus}</li>
-                        <li>URL: {node.health_endpoint_url}</li>
-                        {node.last_ping && <li>Last Ping: {new Date(node.last_ping).toLocaleTimeString()}</li>}
+                        <li>URL: {endpointUrl}</li>
+                        {lastPingValue && <li>Last Ping: {new Date(lastPingValue).toLocaleTimeString()}</li>}
                      </ul>
                   </div>
                </motion.div>

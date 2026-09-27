@@ -39,8 +39,9 @@ class ProviderManager {
 
     try {
       // Implement strict timeout handling (max 6000ms) that triggers an automated fallback provider
+      // Extend timeout to 12s and ensure fallback mechanism
       const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("Provider API timeout")), 6000)
+        setTimeout(() => reject(new Error("Provider API timeout")), 12000)
       );
 
       const providerNames = await Promise.race([
@@ -55,8 +56,24 @@ class ProviderManager {
       }
     } catch (error) {
       logger.error("Failed to load LLM providers, using fallback list:", error);
+
+      // Attempt to dispatch a telemetry/toast notification for user-visible failover
+      if (typeof window !== 'undefined') {
+          const evt = new CustomEvent('onyx-agent-status', {
+              detail: {
+                  status: 'Routing via failover model...',
+                  isTyping: true,
+                  isError: false
+              }
+          });
+          window.dispatchEvent(evt);
+      }
+
       // Fallback on any error to ensure UI is testable
       this.availableProviders = ['deepseek', 'anthropic', 'openai', 'gemini', 'chatbase'];
+
+      // Automatically switch to the secondary fallback provider immediately
+      this.activeProviderName = PROVIDER_CONFIG.backup;
     }
 
 

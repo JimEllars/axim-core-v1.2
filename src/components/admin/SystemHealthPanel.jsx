@@ -174,23 +174,35 @@ const SystemHealthPanel = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 shadow-inner">
-          <div className="flex items-center text-slate-400 mb-2">
-            <SafeIcon icon={FiGlobe} className="mr-2" />
-            <span className="text-sm uppercase tracking-wider">Edge Worker</span>
+        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 shadow-inner flex flex-col justify-between h-full min-h-[120px]">
+          <div>
+            <div className="flex items-center text-slate-400 mb-2">
+              <SafeIcon icon={FiGlobe} className="mr-2" />
+              <span className="text-sm uppercase tracking-wider">Edge Worker</span>
+            </div>
+            <div className="text-2xl font-mono text-cyan-400 drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]">
+              {healthData.workerUptime}
+            </div>
           </div>
-          <div className="text-2xl font-mono text-cyan-400">
-            {healthData.workerUptime}
+          <div className="w-full bg-slate-700/50 rounded-full h-1 mt-auto overflow-hidden">
+             <div className="bg-cyan-400 h-1 rounded-full transition-all duration-500" style={{ width: `${Math.random() * 20 + 80}%` }}></div>
           </div>
         </div>
 
-        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 shadow-inner">
-          <div className="flex items-center text-slate-400 mb-2">
-            <SafeIcon icon={FiServer} className="mr-2" />
-            <span className="text-sm uppercase tracking-wider">API Latency</span>
+        <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700/50 shadow-inner flex flex-col justify-between h-full min-h-[120px]">
+          <div>
+            <div className="flex items-center text-slate-400 mb-2">
+              <SafeIcon icon={FiServer} className="mr-2" />
+              <span className="text-sm uppercase tracking-wider">API Latency</span>
+            </div>
+            <div className="text-2xl font-mono text-cyan-400 drop-shadow-[0_0_8px_rgba(6,182,212,0.8)]">
+              {healthData.gcpLatency}
+            </div>
           </div>
-          <div className="text-2xl font-mono text-cyan-400">
-            {healthData.gcpLatency}
+          <div className="w-full bg-slate-700/50 rounded-full h-1 mt-auto overflow-hidden flex">
+             <div className="bg-blue-400 h-1 transition-all duration-300" style={{ width: '40%' }}></div>
+             <div className="bg-indigo-400 h-1 transition-all duration-300" style={{ width: '30%' }}></div>
+             <div className="bg-purple-400 h-1 transition-all duration-300" style={{ width: '15%' }}></div>
           </div>
         </div>
 

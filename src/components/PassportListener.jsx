@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../services/supabaseClient';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as FiIcons from 'react-icons/fi';
@@ -62,6 +62,57 @@ const PassportListener = () => {
       supabase.removeChannel(channel);
     };
   }, []);
+
+
+  const handleMessage = useCallback((event) => {
+    const allowedOrigins = ['https://passport.axim.us.com', 'http://localhost:5173'];
+    if (!allowedOrigins.includes(event.origin)) {
+      console.warn('Blocked unverified cross-origin message from:', event.origin);
+      return;
+    }
+
+    if (event.data?.type === 'AXIM_PASSPORT_TOKEN' && event.data?.token) {
+        const token = event.data.token;
+        const verifyToken = async () => {
+            try {
+                const response = await fetch(`https://passport.axim.us.com/api/v1/auth/verify-token`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token })
+                }).catch(() => null);
+
+                if (response && response.ok) {
+                    const data = await response.json();
+                    if (data.axim_session_token) {
+                        localStorage.setItem('axim_session_token', data.axim_session_token);
+                    }
+                    setEvents(prev => [{
+                        id: 'postmessage-token-verify',
+                        status: 'Verified',
+                        user_id: data.user_id || 'Unknown',
+                        timestamp: new Date().toISOString()
+                    }, ...prev]);
+                } else {
+                    setEvents(prev => [{
+                        id: 'postmessage-token-verify-failed',
+                        status: 'Verification Failed',
+                        user_id: 'Unknown',
+                        timestamp: new Date().toISOString()
+                    }, ...prev]);
+                }
+            } catch (err) {
+                console.error("Token verification error:", err);
+            }
+        };
+
+        verifyToken();
+    }
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [handleMessage]);
 
   useEffect(() => {
     // Capture incoming ?token=... from the callback URL
