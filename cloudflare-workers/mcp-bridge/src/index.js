@@ -32,9 +32,9 @@ export default {
       isAuthenticated = keyHeader === env.AXIM_GATEWAY_TOKEN;
     }
 
-    // Default key for testing if env var not set
+    // A missing secret must never grant access to a test credential.
     if (!env.AXIM_GATEWAY_TOKEN && (authHeader === "Bearer test-key" || keyHeader === "test-key")) {
-      isAuthenticated = true;
+      isAuthenticated = false;
     }
 
     if (!isAuthenticated) {
