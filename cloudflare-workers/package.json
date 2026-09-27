@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "npx wrangler deploy src/index.js --dry-run -c wrangler.toml",
+    "deploy:production": "npx wrangler deploy -c wrangler.toml",
     "dry-run": "npx wrangler deploy src/index.js --dry-run -c wrangler.toml",
     "check": "npm run test && npm run dry-run",
     "tail": "wrangler tail",

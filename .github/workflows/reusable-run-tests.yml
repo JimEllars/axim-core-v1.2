@@ -20,7 +20,10 @@ jobs:
         run: npm ci
 
       - name: Install Cloudflare Worker Dependencies
-        run: cd cloudflare-workers && npm install
+        run: cd cloudflare-workers && npm ci
+
+      - name: Install MCP Bridge Dependencies
+        run: cd cloudflare-workers/mcp-bridge && npm ci
 
       - name: Run main project tests
         run: npm run test
@@ -29,5 +32,9 @@ jobs:
         run: npm run build
 
       - name: Verify Cloudflare Worker Build
-        working-directory: cloudflare-workers
-        run: rm -rf .wrangler && npm install && mkdir -p ../dist && npx wrangler deploy src/index.js --dry-run -c wrangler.toml
+        run: |
+          cd cloudflare-workers
+          npm run check
+          cd mcp-bridge
+          npm test
+          npm run dry-run
