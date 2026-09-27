@@ -25,6 +25,12 @@ function getCorsHeaders(request, env) {
   };
 }
 
+function setHeaderIfPresent(headers, name, value) {
+  if (value !== null && value !== undefined && value !== '') {
+    headers.set(name, String(value));
+  }
+}
+
 const apiRoutes = new Map([
   ['/api/system/capabilities', '/functions/v1/api-capabilities'],
   ['/api/providers/status', '/functions/v1/system-status'],
@@ -77,12 +83,12 @@ export default {
         modifiedRequest.headers.set('x-forwarded-host', request.headers.get('host') || '');
 
         // Ensure edge payloads attach normalized geo-headers
-        modifiedRequest.headers.set('x-cf-ipcountry', request.cf?.country || 'XX');
-        modifiedRequest.headers.set('x-cf-region', request.cf?.region || null);
-        modifiedRequest.headers.set('x-cf-city', request.cf?.city || null);
-        modifiedRequest.headers.set('x-cf-asn', request.cf?.asn || null);
-        modifiedRequest.headers.set('x-cf-colo', request.cf?.colo || 'UNKNOWN');
-        modifiedRequest.headers.set('x-cf-ray', request.headers.get('cf-ray') || null);
+        setHeaderIfPresent(modifiedRequest.headers, 'x-cf-ipcountry', request.cf?.country || 'XX');
+        setHeaderIfPresent(modifiedRequest.headers, 'x-cf-region', request.cf?.region);
+        setHeaderIfPresent(modifiedRequest.headers, 'x-cf-city', request.cf?.city);
+        setHeaderIfPresent(modifiedRequest.headers, 'x-cf-asn', request.cf?.asn);
+        setHeaderIfPresent(modifiedRequest.headers, 'x-cf-colo', request.cf?.colo || 'UNKNOWN');
+        setHeaderIfPresent(modifiedRequest.headers, 'x-cf-ray', request.headers.get('cf-ray'));
 
         // Push the processing to the background
         ctx.waitUntil(fetch(modifiedRequest).catch(err => console.error("Telemetry/Webhook forward failed:", err)));

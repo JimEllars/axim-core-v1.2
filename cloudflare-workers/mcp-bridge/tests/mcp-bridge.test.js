@@ -17,6 +17,21 @@ describe('MCP Bridge Worker', () => {
     expect(data.error.code).toBe(-32001);
   });
 
+  it('does not permit a fallback test credential when the gateway secret is absent', async () => {
+    const request = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer test-gateway-token'
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 })
+    });
+
+    const response = await worker.fetch(request, {}, {});
+
+    expect(response.status).toBe(401);
+  });
+
   it('accepts authorized requests and lists tools', async () => {
     const request = new Request('http://localhost/mcp', {
       method: 'POST',
