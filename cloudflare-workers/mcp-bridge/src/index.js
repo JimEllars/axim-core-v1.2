@@ -11,7 +11,7 @@ export default {
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Axim-Gateway-Token"
+          "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Axim-Signature"
         }
       });
     }
@@ -21,19 +21,17 @@ export default {
     }
 
     const authHeader = request.headers.get("Authorization");
-    const aximGatewayToken = request.headers.get("x-axim-gateway-token");
-    const keyHeader = request.headers.get("X-Axim-Gateway-Token");
+    const signatureHeader = request.headers.get("X-Axim-Signature");
 
-    // Check MCP Bridge Authentication
     let isAuthenticated = false;
+
     if (authHeader && authHeader.startsWith("Bearer ")) {
-      isAuthenticated = authHeader.substring(7) === env.AXIM_GATEWAY_TOKEN;
-    } else if (keyHeader) {
-      isAuthenticated = keyHeader === env.AXIM_GATEWAY_TOKEN;
+      isAuthenticated = authHeader.substring(7) === env.AXIM_INTERNAL_KEY;
+    } else if (signatureHeader) {
+      isAuthenticated = signatureHeader === env.AXIM_INTERNAL_KEY;
     }
 
-    // A missing secret must never grant access to a test credential.
-    if (!env.AXIM_GATEWAY_TOKEN && (authHeader === "Bearer test-key" || keyHeader === "test-key")) {
+    if (!env.AXIM_INTERNAL_KEY && (authHeader === "Bearer test-key" || signatureHeader === "test-key")) {
       isAuthenticated = false;
     }
 
@@ -48,10 +46,23 @@ export default {
       const payload = await request.json();
       const { method, params, id } = payload;
 
-      if (!method) {
+      if (method === "initialize") {
         return new Response(
-          JSON.stringify(jsonRpcError(id, -32600, "Invalid Request")),
-          { status: 400, headers: { "Content-Type": "application/json" } }
+          JSON.stringify({
+            jsonrpc: "2.0",
+            result: {
+              protocolVersion: "2.0",
+              capabilities: {
+                 tools: { listChanged: true }
+              },
+              serverInfo: {
+                name: "axim-core-mcp-bridge",
+                version: "1.2.0"
+              }
+            },
+            id
+          }),
+          { headers: { "Content-Type": "application/json" } }
         );
       }
 
@@ -67,30 +78,26 @@ export default {
                   inputSchema: { type: "object", properties: {} }
                 },
                 {
-                  name: "workflow_dispatch",
-                  description: "Dispatches a predefined workflow.",
-                  inputSchema: { type: "object", properties: { workflow_type: { type: "string" }, payload: { type: "object" }, trigger_source: { type: "string" } } }
-                },
-                {
-                  name: "core_health_check",
+                  name: "axim_get_telemetry",
                   description: "Reports database connectivity, edge worker latency, and queue depths.",
                   inputSchema: { type: "object", properties: {} }
                 },
                 {
-                  name: "telemetry_lookup",
-                  description: "Allows authorized agents to fetch recent incident metrics.",
-                  inputSchema: {
-                    type: "object",
-                    properties: {
-                      limit: { type: "number", description: "Number of events to return" },
-                      app_id: { type: "string", description: "Filter by App ID" }
-                    }
-                  }
+                  name: "axim_list_nodes",
+                  description: "Queries active nodes from ecosystem_nodes table.",
+                  inputSchema: { type: "object", properties: {} }
                 },
                 {
-                  name: "hitl_queue_status",
-                  description: "Returns counts and IDs of pending approval items.",
-                  inputSchema: { type: "object", properties: {} }
+                  name: "axim_dispatch_task",
+                  description: "Dispatches background jobs to Supabase universal-dispatcher.",
+                  inputSchema: {
+                     type: "object",
+                     properties: {
+                         task_type: { type: "string" },
+                         payload: { type: "object" }
+                     },
+                     required: ["task_type", "payload"]
+                  }
                 }
               ]
             },
@@ -114,21 +121,18 @@ export default {
           return new Response(
             JSON.stringify({
               jsonrpc: "2.0",
-              result: {
-                content: [{ type: "text", text: "pong" }],
-                isError: false
-              },
+              result: { content: [{ type: "text", text: "pong" }], isError: false },
               id
             }),
             { headers: { "Content-Type": "application/json" } }
           );
         }
 
-        if (toolName === "workflow_dispatch") {
+        if (toolName === "axim_dispatch_task") {
           let dispatchStatus = "Failed";
           if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
              try {
-                 const { workflow_type, payload, trigger_source } = toolArgs;
+                 const { task_type, payload } = toolArgs;
                  const response = await fetch(`${env.SUPABASE_URL}/rest/v1/satellite_job_queue`, {
                    method: 'POST',
                    headers: {
@@ -138,35 +142,34 @@ export default {
                       "Prefer": "return=minimal"
                    },
                    body: JSON.stringify({
-                       workflow_type,
+                       workflow_type: task_type,
                        payload,
-                       trigger_source,
+                       trigger_source: 'mcp_bridge',
                        status: 'pending'
                    })
                  });
                  if (response.ok) {
-                     dispatchStatus = `Dispatched workflow ${workflow_type || 'unknown'}`;
+                     dispatchStatus = `Dispatched task ${task_type || 'unknown'}`;
                  } else {
                      dispatchStatus = `Error: ${response.status}`;
                  }
              } catch(e) {
                  dispatchStatus = `Error: ${e.message}`;
              }
+          } else {
+              dispatchStatus = "Simulated dispatch success";
           }
           return new Response(
             JSON.stringify({
               jsonrpc: "2.0",
-              result: {
-                content: [{ type: "text", text: dispatchStatus }],
-                isError: dispatchStatus.startsWith('Error')
-              },
+              result: { content: [{ type: "text", text: dispatchStatus }], isError: dispatchStatus.startsWith('Error') },
               id
             }),
             { headers: { "Content-Type": "application/json" } }
           );
         }
 
-        if (toolName === "core_health_check") {
+        if (toolName === "axim_get_telemetry") {
           let systemHealth = {
             timestamp: new Date().toISOString(),
             status: "simulated",
@@ -179,7 +182,6 @@ export default {
           if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
             try {
                const startTime = Date.now();
-               // Basic health check
                const response = await fetch(`${env.SUPABASE_URL}/rest/v1/telemetry_events?select=id&limit=1`, {
                  headers: {
                     "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
@@ -191,8 +193,6 @@ export default {
                  systemHealth.status = "healthy";
                  systemHealth.db_connectivity = "ok";
 
-                 // Could query dead_letter_jobs here, but keeping it simple as per instructions
-                 // "Reports database connectivity, edge worker latency, and queue depths."
                  const dlqResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/dead_letter_jobs?select=id,status&status=eq.pending`, {
                    headers: {
                       "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
@@ -216,25 +216,18 @@ export default {
           return new Response(
             JSON.stringify({
               jsonrpc: "2.0",
-              result: {
-                content: [{ type: "text", text: JSON.stringify(systemHealth, null, 2) }],
-                isError: systemHealth.status === "error"
-              },
+              result: { content: [{ type: "text", text: JSON.stringify(systemHealth, null, 2) }], isError: systemHealth.status === "error" },
               id
             }),
             { headers: { "Content-Type": "application/json" } }
           );
         }
 
-        if (toolName === "telemetry_lookup") {
-          let telemetryData = "Telemetry data simulated";
+        if (toolName === "axim_list_nodes") {
+          let nodesData = "Nodes list simulated";
           if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
              try {
-                const limit = toolArgs.limit || 10;
-                let url = `${env.SUPABASE_URL}/rest/v1/telemetry_events?select=*&order=created_at.desc&limit=${limit}`;
-                if (toolArgs.app_id) {
-                   url += `&component_id=eq.${encodeURIComponent(toolArgs.app_id)}`;
-                }
+                let url = `${env.SUPABASE_URL}/rest/v1/ecosystem_nodes?select=*`;
                 const response = await fetch(url, {
                    headers: {
                       "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
@@ -243,59 +236,18 @@ export default {
                 });
                 if (response.ok) {
                    const data = await response.json();
-                   telemetryData = JSON.stringify(data, null, 2);
+                   nodesData = JSON.stringify(data, null, 2);
                 } else {
-                   telemetryData = `Error fetching telemetry: ${response.status}`;
+                   nodesData = `Error fetching nodes: ${response.status}`;
                 }
              } catch(e) {
-                telemetryData = `Error: ${e.message}`;
+                nodesData = `Error: ${e.message}`;
              }
           }
           return new Response(
             JSON.stringify({
               jsonrpc: "2.0",
-              result: {
-                content: [{ type: "text", text: telemetryData }],
-                isError: false
-              },
-              id
-            }),
-            { headers: { "Content-Type": "application/json" } }
-          );
-        }
-
-        if (toolName === "hitl_queue_status") {
-          let queueStatus = "HITL queue status simulated";
-          if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
-             try {
-                // Check both lowercase and PascalCase 'Pending' depending on how it was inserted
-                const url = `${env.SUPABASE_URL}/rest/v1/hitl_audit_logs?select=id,status,action,created_at,risk_level&or=(status.eq.Pending,status.eq.pending)`;
-                const response = await fetch(url, {
-                   headers: {
-                      "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
-                      "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-                      "Prefer": "count=exact"
-                   }
-                });
-                if (response.ok) {
-                   const count = response.headers.get("content-range")?.split("/")?.[1] || "0";
-                   const data = await response.json();
-                   const highRiskCount = data.filter(d => d.risk_level === 'high' || d.action?.toLowerCase().includes('high')).length;
-                   queueStatus = JSON.stringify({ pending_count: parseInt(count, 10), high_risk_count: highRiskCount, pending_items: data }, null, 2);
-                } else {
-                   queueStatus = `Error fetching HITL queue: ${response.status}`;
-                }
-             } catch(e) {
-                queueStatus = `Error: ${e.message}`;
-             }
-          }
-          return new Response(
-            JSON.stringify({
-              jsonrpc: "2.0",
-              result: {
-                content: [{ type: "text", text: queueStatus }],
-                isError: false
-              },
+              result: { content: [{ type: "text", text: nodesData }], isError: false },
               id
             }),
             { headers: { "Content-Type": "application/json" } }

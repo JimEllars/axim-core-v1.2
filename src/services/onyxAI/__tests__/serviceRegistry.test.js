@@ -1,12 +1,26 @@
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import serviceRegistry from '../serviceRegistry';
 import api from '../api';
 
-// Mock the api dependency
 vi.mock('../api', () => ({
   default: {
     listAPIIntegrations: vi.fn(),
   },
+}));
+
+vi.mock('../../supabaseClient', () => ({
+  supabase: {
+    from: vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        eq: vi.fn().mockResolvedValue({ data: [], error: null })
+      })
+    })
+  }
+}));
+
+vi.mock('../../mcp/mcpClient', () => ({
+  listTools: vi.fn().mockResolvedValue([])
 }));
 
 describe('ServiceRegistry', () => {
