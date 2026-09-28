@@ -221,3 +221,5 @@ export const trackEvent = (() => {
     }
   };
 })();
+
+export const logTelemetry = trackEvent;
