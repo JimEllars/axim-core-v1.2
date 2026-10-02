@@ -65,6 +65,84 @@ export default {
 
     // Health Check Endpoint
 
+    if (url.pathname.endsWith('/telemetry')) {
+      try {
+        const targetUrl = new URL(request.url);
+        const backendUrlStr = env.SUPABASE_URL;
+        if (!backendUrlStr) {
+          return new Response('API backend is not configured', { status: 503, headers: corsHeaders });
+        }
+
+        const backendUrl = new URL(backendUrlStr);
+        targetUrl.hostname = backendUrl.hostname;
+        targetUrl.port = backendUrl.port || '';
+        targetUrl.protocol = backendUrl.protocol;
+        targetUrl.pathname = '/functions/v1/telemetry-ingress';
+
+        const modifiedRequest = new Request(targetUrl, request.clone());
+        modifiedRequest.headers.set('x-forwarded-host', request.headers.get('host') || '');
+
+        setHeaderIfPresent(modifiedRequest.headers, 'x-cf-ipcountry', request.cf?.country || 'XX');
+        setHeaderIfPresent(modifiedRequest.headers, 'x-cf-region', request.cf?.region);
+        setHeaderIfPresent(modifiedRequest.headers, 'x-cf-city', request.cf?.city);
+        setHeaderIfPresent(modifiedRequest.headers, 'x-cf-asn', request.cf?.asn);
+        setHeaderIfPresent(modifiedRequest.headers, 'x-cf-colo', request.cf?.colo || 'UNKNOWN');
+        setHeaderIfPresent(modifiedRequest.headers, 'x-cf-ray', request.headers.get('cf-ray'));
+
+        ctx.waitUntil(fetch(modifiedRequest).catch(err => console.error("Telemetry forward failed:", err)));
+
+        return new Response(JSON.stringify({ success: true, edge_queued: true }), {
+          status: 202,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
+      } catch (e) {
+        console.error("Failed to queue telemetry at edge", e);
+        return new Response('Edge failure', { status: 500, headers: corsHeaders });
+      }
+    }
+
+
+
+    if (url.pathname.endsWith('/api-proxy')) {
+      try {
+        const targetUrl = new URL(request.url);
+        const backendUrlStr = env.SUPABASE_URL;
+        if (!backendUrlStr) {
+          return new Response('API backend is not configured', { status: 503, headers: corsHeaders });
+        }
+
+        const backendUrl = new URL(backendUrlStr);
+        targetUrl.hostname = backendUrl.hostname;
+        targetUrl.port = backendUrl.port || '';
+        targetUrl.protocol = backendUrl.protocol;
+        targetUrl.pathname = '/functions/v1/api-proxy';
+
+        const modifiedRequest = new Request(targetUrl, request);
+        modifiedRequest.headers.set('x-forwarded-host', request.headers.get('host') || '');
+        const response = await fetch(modifiedRequest);
+
+        const proxyResponse = new Response(response.body, response);
+        Object.keys(corsHeaders).forEach(key => {
+          proxyResponse.headers.set(key, corsHeaders[key]);
+        });
+
+        return proxyResponse;
+      } catch (e) {
+        return new Response("API Proxy Error", { status: 502, headers: corsHeaders });
+      }
+    }
+
+    if (url.pathname.endsWith('/api/health')) {
+        return new Response(
+          JSON.stringify({
+            status: 'active',
+            colo: request.cf?.colo || 'unknown'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+    }
+
+
     // Instant Telemetry Acknowledgment and Webhooks
     if (url.pathname.endsWith('/telemetry-ingress') || url.pathname.endsWith('/satellite-telemetry') || url.pathname.endsWith('/email-tracking-webhook')) {
       try {
