@@ -34,6 +34,8 @@ function setHeaderIfPresent(headers, name, value) {
 const apiRoutes = new Map([
   ['/api-proxy', '/functions/v1/api-proxy'],
   ['/telemetry', '/functions/v1/telemetry-ingress'],
+  ['/api-proxy', '/functions/v1/api-proxy'],
+  ['/telemetry', '/functions/v1/telemetry-ingress'],
   ['/api/system/capabilities', '/functions/v1/api-capabilities'],
   ['/api/providers/status', '/functions/v1/system-status'],
   ['/api/system-status', '/functions/v1/system-status'],
