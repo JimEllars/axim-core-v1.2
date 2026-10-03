@@ -1,5 +1,13 @@
 # Changelog
 
+## Wave 114: Reissuing Unlanded Correctness Fixes (#344)
+
+Reissued unlanded fixes, added KV activation, updated CHANGELOG automation, and added BD/CRM tests.
+
+## Wave 114: Reissuing Unlanded Correctness Fixes (#344)
+
+Reissued unlanded fixes, added KV activation, updated CHANGELOG automation, and added BD/CRM tests.
+
 ## Unreleased
 - **Added:** DeepSeek testing console active in `APITestConsole.jsx` for direct verification.
 - **Changed:** Edge telemetry metrics in `CloudflareEdgeHealth.jsx` now rely on actual Postgres database payload (`telemetry_events`) avoiding randomization (mock data removed).

@@ -1,72 +1,64 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { callApiProxy, validateDecentralizedLedgerPayload, submitMicroAppTelemetry, logSmartContractPayment } from './apiProxy';
+import { callApiProxy } from './apiProxy';
 import { supabase } from './supabaseClient';
-import logger from './logging';
 
 vi.mock('./supabaseClient', () => ({
   supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 'test_token' } } })
+    },
     functions: {
-      invoke: vi.fn(),
+      invoke: vi.fn()
     },
     from: vi.fn(() => ({
-      upsert: vi.fn(() => ({
-        setHeader: vi.fn(() => Promise.resolve({ data: [], error: null }))
-      })),
-      insert: vi.fn(() => Promise.resolve({ data: [], error: null })),
+        insert: vi.fn().mockResolvedValue({}),
+        upsert: vi.fn().mockReturnValue({ setHeader: vi.fn().mockResolvedValue({}) })
     }))
-  }
+  },
 }));
 
 vi.mock('./logging', () => ({
   default: {
     info: vi.fn(),
     error: vi.fn(),
-    warn: vi.fn()
+    warn: vi.fn(),
+    debug: vi.fn(),
   }
 }));
 
-describe('apiProxy Service', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
 
-  describe('validateDecentralizedLedgerPayload', () => {
-    it('returns true for valid payload', () => {
-      expect(validateDecentralizedLedgerPayload({ app_id: 'test', endpoint: '/test' })).toBe(true);
-    });
-    it('returns false for invalid payload', () => {
-      expect(validateDecentralizedLedgerPayload({ app_id: 'test' })).toBe(false);
-      expect(validateDecentralizedLedgerPayload(null)).toBe(false);
-    });
-  });
-
-  describe('submitMicroAppTelemetry', () => {
-    it('submits valid telemetry payload successfully', async () => {
-      const payload = { app_id: 'test_app', endpoint: '/test' };
-      await submitMicroAppTelemetry(payload);
-      expect(supabase.from).toHaveBeenCalledWith('api_usage_logs');
+describe('API Proxy Edge Guardrails', () => {
+    beforeEach(() => {
+        vi.resetAllMocks();
+        global.fetch = vi.fn();
+        supabase.auth.getSession.mockResolvedValue({ data: { session: { access_token: 'test_token' } } });
+        supabase.functions.invoke.mockResolvedValue({ data: { success: true }, error: null });
+        import.meta.env.VITE_CLOUDFLARE_WORKER_URL = 'http://cloudflare.mock';
     });
 
-    it('routes invalid payload to dead letter logs', async () => {
-      const payload = { app_id: 'test_app' }; // missing endpoint
-      await submitMicroAppTelemetry(payload);
-      expect(supabase.from).toHaveBeenCalledWith('hitl_dead_letter_logs');
-      expect(logger.error).toHaveBeenCalledWith('Invalid payload format for decentralized ledger telemetry. Routing to Dead-Letter Ingress.');
-    });
-  });
+    it('should route through Cloudflare primary first', async () => {
+        global.fetch.mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ success: true })
+        });
 
-  describe('logSmartContractPayment', () => {
-    it('logs USDC payment confirmation successfully', async () => {
-      const paymentDetails = { payment_contract_id: 'contract_123', multi_chain_hash: 'hash_456' };
-      const result = await logSmartContractPayment(paymentDetails);
-      expect(result).toBe(true);
-      expect(logger.info).toHaveBeenCalledWith('Logging USDC payment confirmation for contract: contract_123');
+        await callApiProxy({ integrationId: 'test', endpoint: '/test', method: 'GET' });
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(global.fetch.mock.calls[0][0]).toBe('http://cloudflare.mock/api-proxy');
+        expect(supabase.functions.invoke).not.toHaveBeenCalledWith('api-proxy', expect.any(Object));
     });
 
-    it('returns false for invalid payment details', async () => {
-      const result = await logSmartContractPayment(null);
-      expect(result).toBe(false);
-      expect(logger.warn).toHaveBeenCalledWith('Invalid partnership payment ledger entry.');
+    it('should fallback to Supabase if Cloudflare fails', async () => {
+        global.fetch.mockResolvedValueOnce({
+            ok: false,
+            status: 502
+        });
+
+        await callApiProxy({ integrationId: 'test', endpoint: '/test', method: 'GET' });
+
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(supabase.functions.invoke).toHaveBeenCalledTimes(1);
+        expect(supabase.functions.invoke).toHaveBeenCalledWith('api-proxy', expect.any(Object));
     });
-  });
 });

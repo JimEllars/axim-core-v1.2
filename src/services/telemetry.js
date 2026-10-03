@@ -59,73 +59,82 @@ export const trackEvent = (() => {
     queue = [];
 
     try {
-      const primaryUrl = import.meta.env?.VITE_CLOUDFLARE_WORKER_URL ? `${import.meta.env.VITE_CLOUDFLARE_WORKER_URL}/api/telemetry` : '/api/telemetry';
+      const primaryUrl = import.meta.env?.VITE_CLOUDFLARE_WORKER_URL ? `${import.meta.env.VITE_CLOUDFLARE_WORKER_URL}/telemetry` : '/api/telemetry';
       const fallbackUrl = import.meta.env?.VITE_SUPABASE_URL ? `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/telemetry-ingress` : '/api/telemetry';
 
-      let telemetryUrl = primaryUrl;
-      let useFallback = consecutiveFailures > 2; // Trip circuit breaker after 2 failures
-      if (useFallback) {
-         telemetryUrl = fallbackUrl;
-      }
-
+      let delivered = false;
       const startTime = performance.now();
-
       const traceId = generateTraceId();
 
+      const payloadObj = { batch: batch };
+      const payloadStr = JSON.stringify(payloadObj);
+
+      const headers = {
+        'Content-Type': 'application/json',
+        'x-trace-id': traceId,
+        'x-client-timestamp': new Date().toISOString()
+      };
+
       if (isUnload && typeof navigator !== 'undefined' && navigator.sendBeacon) {
-        const blob = new Blob([JSON.stringify({ events: batch })], { type: 'application/json' });
-        navigator.sendBeacon(telemetryUrl, blob);
+        const blob = new Blob([payloadStr], { type: 'application/json' });
+        navigator.sendBeacon(primaryUrl, blob);
+        // We can't know if sendBeacon succeeded but we assume it for unload
         return;
       }
-      const response = await fetch(telemetryUrl, {
-        keepalive: isUnload,
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-trace-id': traceId,
-          'x-client-timestamp': new Date().toISOString()
-        },
-        body: JSON.stringify({ events: batch })
-      });
 
-      const latency = performance.now() - startTime;
+      try {
+        const response = await fetch(primaryUrl, {
+          keepalive: true,
+          method: 'POST',
+          headers: headers,
+          body: payloadStr
+        });
 
-
-      if (!response.ok) {
-        if (response.status >= 500) {
-           consecutiveFailures++;
-           // Fallback silently to local storage
-           if (typeof window !== 'undefined') {
-             const stored = getStoredEvents();
-             const newStored = [...stored, ...batch];
-             storeEvents(newStored.slice(-MAX_QUEUE_SIZE)); // keep last MAX_QUEUE_SIZE
+        if (response.ok) {
+           delivered = true;
+           consecutiveFailures = 0;
+           const latency = performance.now() - startTime;
+           if (latency > LATENCY_THRESHOLD) {
+             console.warn('[Telemetry] High latency on primary URL', latency);
            }
-           return;
-        } else if (response.status === 429) {
-           consecutiveFailures++;
-           if (!useFallback && consecutiveFailures > 2) {
-              // Re-queue to immediately retry with fallback
-              queue = [...batch, ...queue];
-              setTimeout(flushQueue, 100);
-              return;
-           }
+        } else {
+            console.warn(`[Telemetry] Primary Cloudflare Worker failed with status ${response.status}, falling back to Supabase`);
+            if (response.status >= 500 || response.status === 429) {
+                consecutiveFailures++;
+            }
         }
-        throw new Error(`Telemetry dispatch failed with status ${response.status}`);
-      }
-
-
-      if (latency > LATENCY_THRESHOLD) {
+      } catch (err) {
+        console.warn('[Telemetry] Cloudflare Worker network failure, falling back to Supabase', err);
         consecutiveFailures++;
-        lastFailureTime = Date.now();
-      } else {
-        consecutiveFailures = 0;
       }
+
+      if (!delivered) {
+          const fallbackResponse = await fetch(fallbackUrl, {
+             keepalive: true,
+             method: 'POST',
+             headers: headers,
+             body: payloadStr
+          });
+
+          if (!fallbackResponse.ok) {
+              throw new Error(`Telemetry fallback failed with status ${fallbackResponse.status}`);
+          }
+          consecutiveFailures = 0;
+      }
+
     } catch (err) {
-      console.debug('Telemetry dispatch failed (network error):', err);
+      console.debug('Telemetry dispatch failed (both primary and fallback):', err);
       consecutiveFailures++;
       lastFailureTime = Date.now();
 
-      // Re-queue events, but limit size
+      // Fallback silently to local storage
+      if (typeof window !== 'undefined') {
+        const stored = getStoredEvents();
+        const newStored = [...stored, ...batch];
+        storeEvents(newStored.slice(-MAX_QUEUE_SIZE)); // keep last MAX_QUEUE_SIZE
+      }
+
+      // Re-queue events, but limit size in memory too
       queue = [...batch, ...queue];
       while (queue.length > MAX_QUEUE_SIZE) {
         queue.shift();
@@ -164,7 +173,7 @@ export const trackEvent = (() => {
                   tenantId = session.currentSession.user.id;
               }
           }
-      } catch(e) {}
+      } catch(e) { /* ignore */ }
 
       const enrichedPayload = {
         event: eventName,
@@ -187,10 +196,6 @@ export const trackEvent = (() => {
 
       queue.push(enrichedPayload);
 
-      // We implement local in-memory ring buffering, up to MAX_QUEUE_SIZE.
-      // Already implemented: dropping the oldest if over MAX_QUEUE_SIZE in flushQueue
-      // when failures are happening. Let's make sure it drops them here too if over
-      // max size before flush can process.
       while (queue.length > MAX_QUEUE_SIZE) {
         queue.shift();
       }
@@ -203,16 +208,16 @@ export const trackEvent = (() => {
              window.__axim_telemetry_timer = null;
          }
          // Use setTimeout with 0 to just yield to the event loop
-         setTimeout(flushQueue, 0);
+         setTimeout(() => flushQueue(false), 0);
       } else {
-         // Fallback 5-second flush timer
+         // Fallback 15-second flush timer (debounce interval as requested)
          if (!window.__axim_telemetry_timer) {
              window.__axim_telemetry_timer = setTimeout(() => {
                  if (queue.length > 0 && !isFlushing) {
-                     flushQueue();
+                     flushQueue(false);
                  }
                  window.__axim_telemetry_timer = null;
-             }, 5000);
+             }, 15000);
          }
       }
 

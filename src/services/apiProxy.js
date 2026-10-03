@@ -85,17 +85,49 @@ export const callApiProxy = async ({ integrationId, endpoint, method, body, head
         error = err;
       }
     } else {
-      const result = await supabase.functions.invoke('api-proxy', {
-        body: {
-          integrationId,
-          endpoint,
-          method,
-          body,
-          headers,
-        },
-      });
-      data = result.data;
-      error = result.error;
+      let result;
+      const primaryUrl = import.meta.env?.VITE_CLOUDFLARE_WORKER_URL ? `${import.meta.env.VITE_CLOUDFLARE_WORKER_URL}/api-proxy` : null;
+      let usedFallback = false;
+
+      if (primaryUrl) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const fetchHeaders = { 'Content-Type': 'application/json' };
+          if (session?.access_token) fetchHeaders['Authorization'] = `Bearer ${session.access_token}`;
+
+          const response = await fetch(primaryUrl, {
+            method: 'POST',
+            headers: fetchHeaders,
+            body: JSON.stringify({ integrationId, endpoint, method, body, headers })
+          });
+
+          if (!response.ok) {
+            throw new Error(`CF Edge failed with status ${response.status}`);
+          }
+          result = { data: await response.json(), error: null };
+        } catch (err) {
+          console.warn('[apiProxy] Primary Cloudflare Edge failed, falling back to Supabase', err);
+          usedFallback = true;
+          if (typeof window !== "undefined") {
+              try { window.dispatchEvent(new CustomEvent("edge:fallback")); } catch(e) { /* ignore */ }
+          }
+        }
+      }
+
+      if (!primaryUrl || usedFallback) {
+        result = await supabase.functions.invoke('api-proxy', {
+          body: {
+            integrationId,
+            endpoint,
+            method,
+            body,
+            headers,
+          },
+        });
+      }
+
+      data = result?.data;
+      error = result?.error;
     }
 
 

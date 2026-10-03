@@ -32,6 +32,10 @@ function setHeaderIfPresent(headers, name, value) {
 }
 
 const apiRoutes = new Map([
+  ['/api-proxy', '/functions/v1/api-proxy'],
+  ['/telemetry', '/functions/v1/telemetry-ingress'],
+  ['/api-proxy', '/functions/v1/api-proxy'],
+  ['/telemetry', '/functions/v1/telemetry-ingress'],
   ['/api/system/capabilities', '/functions/v1/api-capabilities'],
   ['/api/providers/status', '/functions/v1/system-status'],
   ['/api/system-status', '/functions/v1/system-status'],
@@ -66,7 +70,7 @@ export default {
     // Health Check Endpoint
 
     // Instant Telemetry Acknowledgment and Webhooks
-    if (url.pathname.endsWith('/telemetry-ingress') || url.pathname.endsWith('/satellite-telemetry') || url.pathname.endsWith('/email-tracking-webhook')) {
+    if (url.pathname === '/telemetry' || url.pathname.endsWith('/telemetry-ingress') || url.pathname.endsWith('/satellite-telemetry') || url.pathname.endsWith('/email-tracking-webhook')) {
       try {
         const targetUrl = new URL(request.url);
         const backendUrlStr = env.SUPABASE_URL;
@@ -121,7 +125,7 @@ export default {
     }
 
     // 1. API Proxy Routing
-    if (url.pathname.startsWith('/api/')) {
+    if (url.pathname.startsWith('/api/') || url.pathname === '/telemetry' || url.pathname === '/api-proxy') {
       const backendUrlStr = env.SUPABASE_URL;
       if (!backendUrlStr) {
         return new Response('API backend is not configured', { status: 503, headers: corsHeaders });
