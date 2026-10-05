@@ -91,7 +91,15 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const handleSession = useCallback(async (session) => {
+  const handleSession = useCallback(async (session, error = null) => {
+    // Session Shield for transient 5xx edge errors
+    if (error && (error?.status >= 500 || error?.code === 'PGRST' || error?.message?.includes('Failed to fetch'))) {
+       console.warn("[AuthContext] Transient edge worker failure detected. Engaging Session Shield to preserve UI state.", error);
+       setIsOffline(true);
+       // Do not clear user/role state during a transient backend outage
+       return;
+    }
+
     const currentUser = session?.user ?? null;
 
     // Check if the user is identical to prevent state flickers on token refresh
@@ -217,7 +225,7 @@ export const AuthProvider = ({ children }) => {
 
       const { data: { session }, error } = await supabase.auth.getSession();
       if (error && (error?.code?.startsWith('PGRST') || error?.message?.includes('does not exist'))) { /* handled */ }
-      await handleSession(session);
+      await handleSession(session, error);
       setLoading(false);
     };
 
@@ -275,7 +283,7 @@ export const AuthProvider = ({ children }) => {
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        await handleSession(session);
+        await handleSession(session, null);
       }
     );
 

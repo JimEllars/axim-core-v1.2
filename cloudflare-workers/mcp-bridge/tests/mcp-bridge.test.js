@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import worker from '../src/index.js';
 
 describe('MCP Bridge Worker', () => {
-  const env = { AXIM_INTERNAL_KEY: 'test-key' };
+  const env = { MCP_GATEWAY_SECRET: 'test-key' };
 
   it('rejects unauthorized requests', async () => {
     const request = new Request('http://localhost/mcp', {
@@ -48,17 +48,18 @@ describe('MCP Bridge Worker', () => {
     expect(data.result.tools).toBeDefined();
     expect(data.result.tools.length).toBeGreaterThan(0);
     const toolNames = data.result.tools.map(t => t.name);
-    expect(toolNames).toContain('axim_get_telemetry');
-    expect(toolNames).toContain('axim_list_nodes');
-    expect(toolNames).toContain('axim_dispatch_task');
+    expect(toolNames).toContain('axim_ping');
+    expect(toolNames).toContain('core_health_check');
+    expect(toolNames).toContain('telemetry_lookup');
+    expect(toolNames).toContain('hitl_queue_status');
   });
 
-  it('accepts authorized requests via Signature header', async () => {
+  it('accepts authorized requests via X-Axim-Gateway-Token header', async () => {
     const request = new Request('http://localhost/mcp', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Axim-Signature': 'test-key'
+        'X-Axim-Gateway-Token': 'test-key'
       },
       body: JSON.stringify({ jsonrpc: '2.0', method: 'initialize', id: 1 })
     });
@@ -69,51 +70,19 @@ describe('MCP Bridge Worker', () => {
     expect(data.result.protocolVersion).toBe("2.0");
   });
 
-  it('executes axim_get_telemetry tool', async () => {
+  it('executes axim_ping tool', async () => {
     const request = new Request('http://localhost/mcp', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer test-key'
       },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/call', params: { name: 'axim_get_telemetry' }, id: 2 })
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/call', params: { name: 'axim_ping' }, id: 2 })
     });
 
     const response = await worker.fetch(request, env, {});
     expect(response.status).toBe(200);
     const data = await response.json();
-    expect(data.result.content[0].text).toContain('simulated');
-  });
-
-  it('executes axim_list_nodes tool', async () => {
-    const request = new Request('http://localhost/mcp', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer test-key'
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/call', params: { name: 'axim_list_nodes' }, id: 3 })
-    });
-
-    const response = await worker.fetch(request, env, {});
-    expect(response.status).toBe(200);
-    const data = await response.json();
-    expect(data.result.content[0].text).toContain('simulated');
-  });
-
-  it('executes axim_dispatch_task tool', async () => {
-    const request = new Request('http://localhost/mcp', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer test-key'
-      },
-      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/call', params: { name: 'axim_dispatch_task', arguments: { task_type: 'test', payload: {} } }, id: 4 })
-    });
-
-    const response = await worker.fetch(request, env, {});
-    expect(response.status).toBe(200);
-    const data = await response.json();
-    expect(data.result.content[0].text).toContain('Simulated dispatch success');
+    expect(data.result.content[0].text).toContain('pong');
   });
 });

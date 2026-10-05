@@ -1,6 +1,10 @@
 // Script to trigger content engine
 const https = require('https');
 
+if (!process.env.CONTENT_ENGINE_API_KEY || !process.env.AXIM_INTERNAL_KEY) {
+  console.warn("[WARN] Content Engine secrets are not configured in this environment. Exiting gracefully.");
+  process.exit(0);
+}
 const req = https.request(
   `https://${process.env.SUPABASE_PROJECT_ID}.supabase.co/functions/v1/axim-content-engine`,
   {
