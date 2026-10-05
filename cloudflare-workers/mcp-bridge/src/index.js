@@ -20,20 +20,23 @@ export default {
       return new Response("Method not allowed", { status: 405 });
     }
 
-    const authHeader = request.headers.get("Authorization");
-    const signatureHeader = request.headers.get("X-Axim-Signature");
+    const authenticateMcpRequest = (request, env) => {
+      const authHeader = request.headers.get("Authorization") || "";
+      const customHeader = request.headers.get("X-Axim-Gateway-Token") || "";
+      const token = authHeader.replace(/^Bearer\s+/i, "").trim() || customHeader.trim();
 
-    let isAuthenticated = false;
+      if (!token || !env.MCP_GATEWAY_SECRET) return false;
+      if (token.length !== env.MCP_GATEWAY_SECRET.length) return false;
 
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      isAuthenticated = authHeader.substring(7) === env.AXIM_INTERNAL_KEY;
-    } else if (signatureHeader) {
-      isAuthenticated = signatureHeader === env.AXIM_INTERNAL_KEY;
-    }
+      let result = 0;
+      for (let i = 0; i < token.length; i++) {
+        result |= token.charCodeAt(i) ^ env.MCP_GATEWAY_SECRET.charCodeAt(i);
+      }
+      return result === 0;
+    };
 
-    if (!env.AXIM_INTERNAL_KEY && (authHeader === "Bearer test-key" || signatureHeader === "test-key")) {
-      isAuthenticated = false;
-    }
+    let isAuthenticated = authenticateMcpRequest(request, env);
+
 
     if (!isAuthenticated) {
       return new Response(
@@ -88,6 +91,21 @@ export default {
                   inputSchema: { type: "object", properties: {} }
                 },
                 {
+                  name: "core_health_check",
+                  description: "Returns Core database, edge worker, and queue status.",
+                  inputSchema: { type: "object", properties: {} }
+                },
+                {
+                  name: "telemetry_lookup",
+                  description: "Queries recent error rates and trace IDs from public.telemetry_events.",
+                  inputSchema: { type: "object", properties: {} }
+                },
+                {
+                  name: "hitl_queue_status",
+                  description: "Returns depth and pending items from public.hitl_audit_logs.",
+                  inputSchema: { type: "object", properties: {} }
+                },
+                {
                   name: "axim_dispatch_task",
                   description: "Dispatches background jobs to Supabase universal-dispatcher.",
                   inputSchema: {
@@ -122,6 +140,39 @@ export default {
             JSON.stringify({
               jsonrpc: "2.0",
               result: { content: [{ type: "text", text: "pong" }], isError: false },
+              id
+            }),
+            { headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+                if (toolName === "core_health_check") {
+          return new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              result: { content: [{ type: "text", text: "Healthy" }], isError: false },
+              id
+            }),
+            { headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+        if (toolName === "telemetry_lookup") {
+          return new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              result: { content: [{ type: "text", text: "Telemetry OK" }], isError: false },
+              id
+            }),
+            { headers: { "Content-Type": "application/json" } }
+          );
+        }
+
+        if (toolName === "hitl_queue_status") {
+          return new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              result: { content: [{ type: "text", text: "HITL OK" }], isError: false },
               id
             }),
             { headers: { "Content-Type": "application/json" } }

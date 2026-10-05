@@ -9,7 +9,7 @@
     "test": "vitest run",
     "build": "wrangler deploy --dry-run -c wrangler.toml",
     "dry-run": "wrangler deploy --dry-run -c wrangler.toml",
-    "deploy": "wrangler deploy --dry-run -c wrangler.toml",
+    "deploy": "wrangler deploy -c wrangler.toml",
     "deploy:production": "wrangler deploy -c wrangler.toml"
   },
   "devDependencies": {

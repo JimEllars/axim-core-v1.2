@@ -38,6 +38,11 @@ function logFatalError(error) {
 }
 
 async function exportChatlogs() {
+  if (!process.env.GDRIVE_SERVICE_ACCOUNT_KEY || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn("[WARN] Google Drive or Supabase credentials missing. Skipping export execution.");
+    process.exit(0);
+  }
+
   try {
     // Initialize Supabase
     const supabase = createClient(

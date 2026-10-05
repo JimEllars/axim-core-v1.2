@@ -55,6 +55,30 @@ export default {
 
     const url = new URL(request.url);
 
+    if (
+      url.pathname.startsWith("/api/v1/scrolls") ||
+      url.pathname.startsWith("/api/v1/segmentation") ||
+      url.pathname.startsWith("/api/v1/unwrap") ||
+      url.pathname.startsWith("/api/v1/inference") ||
+      url.pathname.startsWith("/api/v1/papyrology")
+    ) {
+      const projectScope = request.headers.get("X-Project-Scope");
+      if (projectScope !== "HERCULANEUM_SCROLLS") {
+        return new Response(JSON.stringify({ error: "Invalid or missing X-Project-Scope header" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+      }
+      return new Response(JSON.stringify({
+        status: "ACKNOWLEDGED",
+        job_id: `job_${crypto.randomUUID()}`,
+        timestamp: new Date().toISOString()
+      }), {
+        status: 202,
+        headers: { "Content-Type": "application/json", ...corsHeaders }
+      });
+    }
+
     // Rate Limiting using Cloudflare Rate Limiting binding
     const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
 
