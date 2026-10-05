@@ -2,6 +2,16 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+
+vi.mock('../../contexts/AuthContext', () => ({
+  useAuth: vi.fn(() => ({
+    role: 'super_user',
+    user: { is_super_user: true }
+  })),
+}));
+
+
 import ApprovalQueue from './ApprovalQueue';
 import { supabase } from '../../services/supabaseClient';
 import api from '../../services/onyxAI/api';

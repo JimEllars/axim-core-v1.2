@@ -9,7 +9,8 @@ import SafeIcon from '../../common/SafeIcon';
 const { FiLogOut, FiActivity, FiShield, FiCpu, FiAlertTriangle } = FiIcons;
 
 const Header = () => {
-  const { logout } = useAuth();
+  const { logout, role, user } = useAuth();
+  const isSuperUser = role === 'super_user' || user?.is_super_user;
   const { edgeCapacity, edgeDegraded } = useConnectivity();
   const { connectionError } = useSupabase();
 
@@ -45,6 +46,14 @@ const Header = () => {
           </div>
 
           <div className="flex items-center space-x-4">
+
+
+            {isSuperUser && (
+              <div className="hidden md:flex items-center space-x-2 text-[#FDD023] bg-[#FDD023]/10 px-3 py-1.5 rounded-full border border-[#FDD023]/30 shadow-sm">
+                <SafeIcon icon={FiShield} />
+                <span className="text-xs font-mono font-bold tracking-wider">SUPER USER</span>
+              </div>
+            )}
 
             {globalHealth === 'OPERATIONAL' && (
               <div className="hidden md:flex items-center space-x-2 text-emerald-400 bg-emerald-900/20 px-3 py-1.5 rounded-full border border-emerald-500/30 shadow-sm">
