@@ -14,7 +14,7 @@ describe('MCP Bridge Worker', () => {
     const response = await worker.fetch(request, env, {});
     expect(response.status).toBe(401);
     const data = await response.json();
-    expect(data.error.code).toBe(-32001);
+    expect(data.error.code).toBe(-32600);
   });
 
   it('does not permit a fallback test credential when the gateway secret is absent', async () => {

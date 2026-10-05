@@ -4,12 +4,15 @@ import SafeIcon from '../../common/SafeIcon';
 import * as FiIcons from 'react-icons/fi';
 import { supabase } from '../../services/supabaseClient';
 import api from '../../services/onyxAI/api';
+import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { julesApi } from '../../services/jules/julesApi';
 
 const { FiX, FiCheckCircle, FiClock } = FiIcons;
 
 const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
+  const { role, user } = useAuth();
+  const isSuperUser = role === 'super_user' || user?.is_super_user;
   const [selectedLogs, setSelectedLogs] = useState(new Set());
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [editedPayloads, setEditedPayloads] = useState({});
@@ -53,6 +56,10 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
   if (!isOpen) return null;
 
     const handleApprove = async (logId, actionPayload) => {
+    if (!isSuperUser && role !== 'admin') {
+      toast.error('Super User or Admin clearance required to approve tasks.');
+      return;
+    }
       const finalPayload = editedPayloads[logId] !== undefined ? { ...actionPayload, html_content: editedPayloads[logId] } : actionPayload;
     try {
       const log = pendingLogs.find(l => l.id === logId);
@@ -85,6 +92,10 @@ const ApprovalQueue = ({ isOpen, onClose, pendingLogs, setPendingLogs }) => {
   };
 
   const handleReject = async (logId) => {
+    if (!isSuperUser && role !== 'admin') {
+      toast.error('Super User or Admin clearance required to reject tasks.');
+      return;
+    }
     try {
       setPendingLogs((prev) => prev.filter((log) => log.id !== logId));
 

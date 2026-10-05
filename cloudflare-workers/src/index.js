@@ -1,15 +1,8 @@
-/* eslint-disable no-unused-vars */
-/**
- * AXiM Core Cloudflare Worker
- *
- * This edge worker serves as a high-performance proxy and caching layer for AXiM Core,
- * reducing latency and origin server load.
- */
-
-function getCorsHeaders(request, env) {
+const getCorsHeaders = (request, env) => {
   const origin = request.headers.get('Origin');
+  const allowedOriginsString = env.ALLOWED_ORIGINS || 'https://axim.us.com,http://localhost:5176';
   const allowedOrigins = new Set(
-    (env.ALLOWED_ORIGINS || '')
+    allowedOriginsString
       .split(',')
       .map((allowedOrigin) => allowedOrigin.trim())
       .filter(Boolean)
@@ -19,11 +12,11 @@ function getCorsHeaders(request, env) {
   return {
     ...(isAllowedOrigin ? { 'Access-Control-Allow-Origin': origin } : {}),
     'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Idempotency-Key, x-axim-app-id, X-Emailit-Signature',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Idempotency-Key, x-axim-app-id, X-Emailit-Signature, X-Project-Scope',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin',
   };
-}
+};
 
 function setHeaderIfPresent(headers, name, value) {
   if (value !== null && value !== undefined && value !== '') {
@@ -32,8 +25,6 @@ function setHeaderIfPresent(headers, name, value) {
 }
 
 const apiRoutes = new Map([
-  ['/api-proxy', '/functions/v1/api-proxy'],
-  ['/telemetry', '/functions/v1/telemetry-ingress'],
   ['/api-proxy', '/functions/v1/api-proxy'],
   ['/telemetry', '/functions/v1/telemetry-ingress'],
   ['/api/system/capabilities', '/functions/v1/api-capabilities'],
