@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import worker from '../src/index.js';
+import worker from '../src/index.ts';
 
 describe('MCP Bridge Worker', () => {
   const env = {
