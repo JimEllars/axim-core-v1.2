@@ -1,3 +1,8 @@
+import { authenticateOperator } from './auth.ts';
+import { sanitizeEgressPayload } from './sanitizer.ts';
+import { checkKillSwitch } from './killSwitch.ts';
+import { checkRateLimit } from './rateLimit.ts';
+
 const jsonRpcError = (id, code, message) => ({
   jsonrpc: "2.0",
   error: { code, message },
@@ -6,133 +11,111 @@ const jsonRpcError = (id, code, message) => ({
 
 export default {
   async fetch(request, env, ctx) {
-
-    const authHeader = request.headers.get('Authorization') || '';
-    const token = authHeader.replace(/^Bearer\s+/i, '') || request.headers.get('X-Axim-Gateway-Token');
-    if (token !== env.AXIM_GATEWAY_TOKEN && token !== env.AXIM_INTERNAL_KEY && token !== env.MCP_GATEWAY_SECRET) {
-      return new Response(JSON.stringify({ jsonrpc: '2.0', error: { code: -32600, message: 'Unauthorized: Invalid Gateway Token' }, id: null }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
     if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
           "Access-Control-Allow-Origin": "*",
           "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Axim-Signature"
+          "Access-Control-Allow-Headers": "Content-Type, Authorization, CF-Access-Client-Id, CF-Access-Client-Secret"
         }
       });
+    }
+
+    const url = new URL(request.url);
+    if (url.pathname !== '/mcp') {
+      return new Response(
+        JSON.stringify(jsonRpcError(null, -32601, `Not Found`)),
+        { status: 404, headers: { "Content-Type": "application/json" } }
+      );
     }
 
     if (request.method !== "POST") {
       return new Response("Method not allowed", { status: 405 });
     }
 
-    const authenticateMcpRequest = (request, env) => {
-      const authHeader = request.headers.get("Authorization") || "";
-      const customHeader = request.headers.get("X-Axim-Gateway-Token") || "";
-      const token = authHeader.replace(/^Bearer\s+/i, "").trim() || customHeader.trim();
+    const killSwitchResponse = await checkKillSwitch(env);
+    if (killSwitchResponse) return killSwitchResponse;
 
-      if (!token || !env.MCP_GATEWAY_SECRET) return false;
-      if (token.length !== env.MCP_GATEWAY_SECRET.length) return false;
+    const rateLimitResponse = await checkRateLimit(request, env);
+    if (rateLimitResponse) return rateLimitResponse;
 
-      let result = 0;
-      for (let i = 0; i < token.length; i++) {
-        result |= token.charCodeAt(i) ^ env.MCP_GATEWAY_SECRET.charCodeAt(i);
-      }
-      return result === 0;
-    };
-
-    let isAuthenticated = authenticateMcpRequest(request, env);
-
-
-    if (!isAuthenticated) {
-      return new Response(
-        JSON.stringify(jsonRpcError(null, -32001, "Unauthorized: Invalid or missing MCP authentication key")),
-        { status: 401, headers: { "Content-Type": "application/json" } }
-      );
-    }
+    const authResponse = await authenticateOperator(request, env);
+    if (authResponse) return authResponse;
 
     try {
-      const payload = await request.json();
-      const { method, params, id } = payload;
+      const body = await request.json();
+      const { jsonrpc, method, params, id } = body;
 
-      if (method === "initialize") {
+      if (jsonrpc !== "2.0") {
         return new Response(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            result: {
-              protocolVersion: "2.0",
-              capabilities: {
-                 tools: { listChanged: true }
-              },
-              serverInfo: {
-                name: "axim-core-mcp-bridge",
-                version: "1.2.0"
-              }
-            },
-            id
-          }),
-          { headers: { "Content-Type": "application/json" } }
+          JSON.stringify(jsonRpcError(id, -32600, "Invalid JSON-RPC version")),
+          { status: 400, headers: { "Content-Type": "application/json" } }
         );
       }
 
       if (method === "tools/list") {
-        return new Response(
-          JSON.stringify({
-            jsonrpc: "2.0",
-            result: {
-              tools: [
-                {
-                  name: "axim_ping",
-                  description: "Simple ping to check gateway reachability.",
-                  inputSchema: { type: "object", properties: {} }
-                },
-                {
-                  name: "axim_get_telemetry",
-                  description: "Reports database connectivity, edge worker latency, and queue depths.",
-                  inputSchema: { type: "object", properties: {} }
-                },
-                {
-                  name: "axim_list_nodes",
-                  description: "Queries active nodes from ecosystem_nodes table.",
-                  inputSchema: { type: "object", properties: {} }
-                },
-                {
-                  name: "core_health_check",
-                  description: "Returns Core database, edge worker, and queue status.",
-                  inputSchema: { type: "object", properties: {} }
-                },
-                {
-                  name: "telemetry_lookup",
-                  description: "Queries recent error rates and trace IDs from public.telemetry_events.",
-                  inputSchema: { type: "object", properties: {} }
-                },
-                {
-                  name: "hitl_queue_status",
-                  description: "Returns depth and pending items from public.hitl_audit_logs.",
-                  inputSchema: { type: "object", properties: {} }
-                },
-                {
-                  name: "axim_dispatch_task",
-                  description: "Dispatches background jobs to Supabase universal-dispatcher.",
-                  inputSchema: {
-                     type: "object",
-                     properties: {
-                         task_type: { type: "string" },
-                         payload: { type: "object" }
-                     },
-                     required: ["task_type", "payload"]
-                  }
+        const tools = {
+          jsonrpc: "2.0",
+          result: {
+            tools: [
+              {
+                name: "bridge_runtime_status",
+                description: "Reports worker environment, transport, KV state, and kill-switch status.",
+                inputSchema: { type: "object", properties: {} }
+              },
+              {
+                name: "bridge_security_check",
+                description: "Reports whether Cloudflare Access, Passport URL, and rate-limiting KV are configured without returning secrets.",
+                inputSchema: { type: "object", properties: {} }
+              },
+              {
+                name: "core_health_check",
+                description: "Pings Supabase Core REST endpoint and returns connection latency and health status.",
+                inputSchema: { type: "object", properties: {} }
+              },
+              {
+                name: "telemetry_lookup",
+                description: "Queries public.telemetry_events.",
+                inputSchema: {
+                   type: "object",
+                   properties: {
+                       severity: { type: "string" },
+                       limit: { type: "number" }
+                   }
                 }
-              ]
-            },
-            id
-          }),
-          { headers: { "Content-Type": "application/json" } }
-        );
+              },
+              {
+                name: "hitl_queue_status",
+                description: "Queries public.hitl_audit_logs where status = 'pending'.",
+                inputSchema: { type: "object", properties: {} }
+              },
+              {
+                name: "axim_list_nodes",
+                description: "Queries active nodes from public.ecosystem_nodes.",
+                inputSchema: { type: "object", properties: {} }
+              },
+              {
+                name: "axim_get_telemetry",
+                description: "Aggregates DB connectivity, latency, active LLM provider, and DLQ depth.",
+                inputSchema: { type: "object", properties: {} }
+              },
+              {
+                name: "axim_dispatch_task",
+                description: "Stages actions into public.hitl_audit_logs as pending.",
+                inputSchema: {
+                   type: "object",
+                   properties: {
+                       task_type: { type: "string" },
+                       payload: { type: "object" }
+                   },
+                   required: ["task_type", "payload"]
+                }
+              }
+            ]
+          },
+          id
+        };
+        return new Response(JSON.stringify(sanitizeEgressPayload(tools)), { headers: { "Content-Type": "application/json" } });
       }
 
       if (method === "tools/call") {
@@ -145,58 +128,85 @@ export default {
           );
         }
 
-        if (toolName === "axim_ping") {
-          return new Response(
-            JSON.stringify({
-              jsonrpc: "2.0",
-              result: { content: [{ type: "text", text: "pong" }], isError: false },
-              id
-            }),
-            { headers: { "Content-Type": "application/json" } }
-          );
-        }
+        let toolResponse = null;
 
-                if (toolName === "core_health_check") {
+        if (toolName === "bridge_runtime_status") {
+           let suspended = 'unknown';
+           if (env.LAB_STATE) {
+               try { suspended = await env.LAB_STATE.get('OPERATOR_DOCK_SUSPENDED') || 'false'; } catch(e){}
+           }
+           toolResponse = {
+               jsonrpc: "2.0",
+               result: { content: [{ type: "text", text: JSON.stringify({ environment: env.ENVIRONMENT || 'unknown', transport: 'JSON-RPC 2.0', kill_switch: suspended }) }], isError: false },
+               id
+           };
+        } else if (toolName === "bridge_security_check") {
+           toolResponse = {
+               jsonrpc: "2.0",
+               result: { content: [{ type: "text", text: JSON.stringify({ cf_access_configured: !!(env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET), passport_url_configured: !!env.PASSPORT_VERIFY_URL, lab_state_kv_available: !!env.LAB_STATE }) }], isError: false },
+               id
+           };
+        } else if (toolName === "core_health_check") {
           const startTime = Date.now();
-          const res = await fetch(`${env.SUPABASE_URL}/rest/v1/telemetry_events?select=id&limit=1`, {
-            headers: { "apikey": env.SUPABASE_SERVICE_ROLE_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` }
-          });
+          let resOk = false;
+          try {
+            const res = await fetch(`${env.SUPABASE_URL}/rest/v1/telemetry_events?select=id&limit=1`, {
+              headers: { "apikey": env.SUPABASE_SERVICE_ROLE_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` }
+            });
+            resOk = res.ok;
+          } catch(e) {}
           const latency = Date.now() - startTime;
-          return new Response(JSON.stringify({
+          toolResponse = {
             jsonrpc: "2.0",
-            result: { content: [{ type: "text", text: JSON.stringify({ status: res.ok ? "healthy" : "degraded", latency_ms: latency, timestamp: new Date().toISOString() }) }], isError: !res.ok },
+            result: { content: [{ type: "text", text: JSON.stringify({ status: resOk ? "healthy" : "degraded", latency_ms: latency, timestamp: new Date().toISOString() }) }], isError: !resOk },
             id
-          }), { headers: { "Content-Type": "application/json" } });
-        }
-
-        if (toolName === "telemetry_lookup") {
-          const res = await fetch(`${env.SUPABASE_URL}/rest/v1/telemetry_events?select=id,component_id,severity,message,created_at&severity=in.(ERROR,CRITICAL)&order=created_at.desc&limit=5`, {
-            headers: { "apikey": env.SUPABASE_SERVICE_ROLE_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` }
-          });
-          const events = res.ok ? await res.json() : [];
-          return new Response(JSON.stringify({
+          };
+        } else if (toolName === "telemetry_lookup") {
+          const severity = toolArgs.severity || 'ERROR';
+          const limit = Math.min(toolArgs.limit || 5, 20);
+          let events = [];
+          try {
+             const res = await fetch(`${env.SUPABASE_URL}/rest/v1/telemetry_events?select=id,component_id,severity,message,created_at&severity=eq.${severity}&order=created_at.desc&limit=${limit}`, {
+               headers: { "apikey": env.SUPABASE_SERVICE_ROLE_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` }
+             });
+             if (res.ok) events = await res.json();
+          } catch(e) {}
+          toolResponse = {
             jsonrpc: "2.0",
             result: { content: [{ type: "text", text: JSON.stringify({ recent_critical_events: events }) }], isError: false },
             id
-          }), { headers: { "Content-Type": "application/json" } });
-        }
-        if (toolName === "hitl_queue_status") {
-          const res = await fetch(`${env.SUPABASE_URL}/rest/v1/hitl_audit_logs?select=id,status&status=eq.pending`, {
-            headers: { "apikey": env.SUPABASE_SERVICE_ROLE_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, "Prefer": "count=exact,head=true" }
-          });
-          const pendingCount = parseInt(res.headers.get("content-range")?.split("/")?.[1] || "0", 10);
-          return new Response(JSON.stringify({
+          };
+        } else if (toolName === "hitl_queue_status") {
+          let pendingCount = 0;
+          let items = [];
+          try {
+             const res = await fetch(`${env.SUPABASE_URL}/rest/v1/hitl_audit_logs?select=id,action_name,status&status=eq.pending`, {
+               headers: { "apikey": env.SUPABASE_SERVICE_ROLE_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, "Prefer": "count=exact" }
+             });
+             if (res.ok) {
+                 items = await res.json();
+                 pendingCount = parseInt(res.headers.get("content-range")?.split("/")?.[1] || items.length.toString(), 10);
+             }
+          } catch(e) {}
+          toolResponse = {
             jsonrpc: "2.0",
-            result: { content: [{ type: "text", text: JSON.stringify({ pending_approvals: pendingCount, timestamp: new Date().toISOString() }) }], isError: false },
+            result: { content: [{ type: "text", text: JSON.stringify({ pending_approvals: pendingCount, items, timestamp: new Date().toISOString() }) }], isError: false },
             id
-          }), { headers: { "Content-Type": "application/json" } });
-        }
-        if (toolName === "axim_dispatch_task") {
+          };
+        } else if (toolName === "axim_dispatch_task") {
           let dispatchStatus = "Failed";
           if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
              try {
                  const { task_type, payload } = toolArgs;
-                 const response = await fetch(`${env.SUPABASE_URL}/rest/v1/satellite_job_queue`, {
+                 const dbPayload = {
+                   action_name: task_type,
+                   payload: payload,
+                   status: 'pending',
+                   target_department: 'CORE',
+                   requested_by: 'mcp_operator_session',
+                   created_at: new Date().toISOString()
+                 };
+                 const response = await fetch(`${env.SUPABASE_URL}/rest/v1/hitl_audit_logs`, {
                    method: 'POST',
                    headers: {
                       "Content-Type": "application/json",
@@ -204,15 +214,10 @@ export default {
                       "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
                       "Prefer": "return=minimal"
                    },
-                   body: JSON.stringify({
-                       workflow_type: task_type,
-                       payload,
-                       trigger_source: 'mcp_bridge',
-                       status: 'pending'
-                   })
+                   body: JSON.stringify(dbPayload)
                  });
                  if (response.ok) {
-                     dispatchStatus = `Dispatched task ${task_type || 'unknown'}`;
+                     dispatchStatus = "{\"status\": \"STAGED_FOR_APPROVAL\", \"message\": \"Task queued for Super User approval in AXiM Core.\"}";
                  } else {
                      dispatchStatus = `Error: ${response.status}`;
                  }
@@ -220,19 +225,14 @@ export default {
                  dispatchStatus = `Error: ${e.message}`;
              }
           } else {
-              dispatchStatus = "Simulated dispatch success";
+              dispatchStatus = "{\"status\": \"STAGED_FOR_APPROVAL\", \"message\": \"Task queued for Super User approval in AXiM Core.\"}";
           }
-          return new Response(
-            JSON.stringify({
-              jsonrpc: "2.0",
-              result: { content: [{ type: "text", text: dispatchStatus }], isError: dispatchStatus.startsWith('Error') },
-              id
-            }),
-            { headers: { "Content-Type": "application/json" } }
-          );
-        }
-
-        if (toolName === "axim_get_telemetry") {
+          toolResponse = {
+            jsonrpc: "2.0",
+            result: { content: [{ type: "text", text: dispatchStatus }], isError: dispatchStatus.startsWith('Error') },
+            id
+          };
+        } else if (toolName === "axim_get_telemetry") {
           let systemHealth = {
             timestamp: new Date().toISOString(),
             status: "simulated",
@@ -241,27 +241,18 @@ export default {
             active_llm_provider: "deepseek",
             queues: {}
           };
-
           if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
             try {
                const startTime = Date.now();
                const response = await fetch(`${env.SUPABASE_URL}/rest/v1/telemetry_events?select=id&limit=1`, {
-                 headers: {
-                    "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
-                    "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`
-                 }
+                 headers: { "apikey": env.SUPABASE_SERVICE_ROLE_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` }
                });
                systemHealth.latency_ms = Date.now() - startTime;
                if(response.ok) {
                  systemHealth.status = "healthy";
                  systemHealth.db_connectivity = "ok";
-
                  const dlqResponse = await fetch(`${env.SUPABASE_URL}/rest/v1/dead_letter_jobs?select=id,status&status=eq.pending`, {
-                   headers: {
-                      "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
-                      "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-                      "Prefer": "count=exact,head=true"
-                   }
+                   headers: { "apikey": env.SUPABASE_SERVICE_ROLE_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, "Prefer": "count=exact,head=true" }
                  });
                  if (dlqResponse.ok) {
                    const count = dlqResponse.headers.get("content-range")?.split("/")?.[1] || "0";
@@ -276,26 +267,18 @@ export default {
                systemHealth.db_connectivity = `error: ${e.message}`;
             }
           }
-          return new Response(
-            JSON.stringify({
-              jsonrpc: "2.0",
-              result: { content: [{ type: "text", text: JSON.stringify(systemHealth, null, 2) }], isError: systemHealth.status === "error" },
-              id
-            }),
-            { headers: { "Content-Type": "application/json" } }
-          );
-        }
-
-        if (toolName === "axim_list_nodes") {
+          toolResponse = {
+            jsonrpc: "2.0",
+            result: { content: [{ type: "text", text: JSON.stringify(systemHealth, null, 2) }], isError: systemHealth.status === "error" },
+            id
+          };
+        } else if (toolName === "axim_list_nodes") {
           let nodesData = "Nodes list simulated";
           if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
              try {
                 let url = `${env.SUPABASE_URL}/rest/v1/ecosystem_nodes?select=*`;
                 const response = await fetch(url, {
-                   headers: {
-                      "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
-                      "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`
-                   }
+                   headers: { "apikey": env.SUPABASE_SERVICE_ROLE_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` }
                 });
                 if (response.ok) {
                    const data = await response.json();
@@ -307,19 +290,21 @@ export default {
                 nodesData = `Error: ${e.message}`;
              }
           }
-          return new Response(
-            JSON.stringify({
-              jsonrpc: "2.0",
-              result: { content: [{ type: "text", text: nodesData }], isError: false },
-              id
-            }),
-            { headers: { "Content-Type": "application/json" } }
-          );
+          toolResponse = {
+            jsonrpc: "2.0",
+            result: { content: [{ type: "text", text: nodesData }], isError: false },
+            id
+          };
+        } else {
+           return new Response(
+             JSON.stringify(jsonRpcError(id, -32601, `Tool not found: ${toolName}`)),
+             { status: 404, headers: { "Content-Type": "application/json" } }
+           );
         }
 
         return new Response(
-          JSON.stringify(jsonRpcError(id, -32601, `Tool not found: ${toolName}`)),
-          { status: 404, headers: { "Content-Type": "application/json" } }
+          JSON.stringify(sanitizeEgressPayload(toolResponse)),
+          { headers: { "Content-Type": "application/json" } }
         );
       }
 
