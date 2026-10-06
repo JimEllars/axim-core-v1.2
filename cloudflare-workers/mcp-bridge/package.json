@@ -13,7 +13,7 @@
     "deploy:production": "npx wrangler deploy -c wrangler.toml"
   },
   "devDependencies": {
-    "vitest": "^0.34.6",
+    "vitest": "^4.1.11",
     "wrangler": "^4.95.0"
   }
 }
