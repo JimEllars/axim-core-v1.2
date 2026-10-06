@@ -2,13 +2,13 @@
   "name": "axim-core-mcp",
   "version": "1.0.0",
   "description": "AXiM Core MCP Bridge",
-  "main": "src/index.js",
+  "main": "src/index.ts",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "test": "vitest run",
     "build": "echo 'MCP build ready'",
-    "dry-run": "npx wrangler deploy src/index.js --dry-run -c wrangler.toml",
+    "dry-run": "npx wrangler deploy src/index.ts --dry-run -c wrangler.toml",
     "deploy": "npx wrangler deploy -c wrangler.toml",
     "deploy:production": "npx wrangler deploy -c wrangler.toml"
   },
