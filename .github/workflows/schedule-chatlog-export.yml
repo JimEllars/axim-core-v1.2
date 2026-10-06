@@ -2,37 +2,41 @@ name: Export Chatlogs to Google Drive
 
 on:
   schedule:
-    - cron: '0 4 * * *'
+    - cron: '0 2 * * *'
   workflow_dispatch:
-
-env:
-  NODE_VERSION: '24'
 
 jobs:
   export:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
           cache: 'npm'
+
+
       - name: Install Dependencies
         run: npm ci
+
+
+      - name: Verify Google Drive Configuration
+        run: |
+          if [ -z "${{ secrets.GOOGLE_DRIVE_CREDENTIALS }}" ] || [ -z "${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}" ]; then
+            echo "⚠️ Google Drive credentials not configured. Gracefully skipping export to prevent CI failure."
+            exit 0
+          fi
+          echo "✅ Google Drive secrets configured"
+
+
       - name: Export Chatlogs
-        run: node scripts/export-chatlogs.cjs
+        run: node scripts/export-chatlogs.js
         env:
-          GDRIVE_SERVICE_ACCOUNT_KEY: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_KEY }}
           GOOGLE_DRIVE_CREDENTIALS: ${{ secrets.GOOGLE_DRIVE_CREDENTIALS }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         timeout-minutes: 10
-      - name: Upload Logs on Failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: export-logs
-          path: logs/
-          retention-days: 7

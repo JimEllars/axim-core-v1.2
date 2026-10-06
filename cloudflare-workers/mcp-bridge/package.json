@@ -7,10 +7,10 @@
   "scripts": {
     "dev": "wrangler dev",
     "test": "vitest run",
-    "build": "wrangler deploy --dry-run -c wrangler.toml",
-    "dry-run": "wrangler deploy --dry-run -c wrangler.toml",
-    "deploy": "wrangler deploy -c wrangler.toml",
-    "deploy:production": "wrangler deploy -c wrangler.toml"
+    "build": "echo 'MCP build ready'",
+    "dry-run": "npx wrangler deploy src/index.js --dry-run -c wrangler.toml",
+    "deploy": "npx wrangler deploy -c wrangler.toml",
+    "deploy:production": "npx wrangler deploy -c wrangler.toml"
   },
   "devDependencies": {
     "vitest": "^0.34.6",

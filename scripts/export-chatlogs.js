@@ -1,7 +1,7 @@
-const { google } = require("googleapis");
-const { createClient } = require("@supabase/supabase-js");
-const fs = require("fs/promises");
-const path = require("path");
+import { google } from "googleapis";
+import { createClient } from "@supabase/supabase-js";
+import fs from "fs/promises";
+import path from "path";
 
 const MAX_RETRIES = 5;
 const INITIAL_RETRY_DELAY = 1000;

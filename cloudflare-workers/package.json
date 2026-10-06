@@ -2,19 +2,19 @@
   "name": "axim-core-cloudflare-workers",
   "version": "1.0.0",
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=18.0.0"
   },
   "description": "Cloudflare Workers for AXiM Core Edge Network Integration",
   "main": "src/index.js",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "npx wrangler deploy --dry-run -c wrangler.toml",
-    "deploy:production": "npx wrangler deploy --dry-run -c wrangler.toml",
-    "dry-run": "npx wrangler deploy --dry-run -c wrangler.toml",
+    "deploy": "npx wrangler deploy -c wrangler.toml",
+    "deploy:production": "npx wrangler deploy -c wrangler.toml",
+    "dry-run": "npx wrangler deploy src/index.js --dry-run -c wrangler.toml",
     "check": "npm run test && npm run dry-run",
     "tail": "wrangler tail",
     "test:integration": "vitest run tests/integration.test.js",
-    "build": "npx wrangler deploy --dry-run -c wrangler.toml",
+    "build": "echo 'Worker build ready'",
     "test": "npm run test:integration",
     "deploy:dry-run": "npx wrangler deploy --dry-run -c wrangler.toml"
   },

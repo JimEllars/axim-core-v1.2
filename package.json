@@ -27,7 +27,7 @@
     "deploy:edge": "cd cloudflare-workers && npm run deploy && cd mcp-bridge && npm run deploy",
     "deploy:edge:production": "cd cloudflare-workers && npm run deploy:production && cd mcp-bridge && npm run deploy:production",
     "deploy": "npm run deploy:dashboard && npm run deploy:edge:production",
-    "dry-run": "npm run build && cd cloudflare-workers && npm run dry-run && cd mcp-bridge && npm run dry-run",
+    "dry-run": "npx wrangler deploy src/index.js --dry-run -c wrangler.toml",
     "test:functions": "node scripts/smoke-test-functions.js"
   },
   "dependencies": {
@@ -77,7 +77,7 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
     "@vitejs/plugin-react": "^5.2.0",
-    "@vitest/coverage-v8": "^1.4.0",
+    "@vitest/coverage-v8": "^1.6.1",
     "autoprefixer": "^10.4.20",
     "baseline-browser-mapping": "^2.10.0",
     "bcryptjs": "^3.0.3",
@@ -104,7 +104,7 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "vite": "^6.0.0",
-    "vitest": "^1.4.0",
+    "vitest": "^1.6.1",
     "wrangler": "^4.76.0"
   },
   "build": {

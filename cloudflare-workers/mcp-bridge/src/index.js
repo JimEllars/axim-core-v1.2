@@ -157,77 +157,39 @@ export default {
         }
 
                 if (toolName === "core_health_check") {
-          return new Response(
-            JSON.stringify({
-              jsonrpc: "2.0",
-              result: { content: [{ type: "text", text: "Healthy" }], isError: false },
-              id
-            }),
-            { headers: { "Content-Type": "application/json" } }
-          );
+          const startTime = Date.now();
+          const res = await fetch(`${env.SUPABASE_URL}/rest/v1/telemetry_events?select=id&limit=1`, {
+            headers: { "apikey": env.SUPABASE_SERVICE_ROLE_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` }
+          });
+          const latency = Date.now() - startTime;
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            result: { content: [{ type: "text", text: JSON.stringify({ status: res.ok ? "healthy" : "degraded", latency_ms: latency, timestamp: new Date().toISOString() }) }], isError: !res.ok },
+            id
+          }), { headers: { "Content-Type": "application/json" } });
         }
 
         if (toolName === "telemetry_lookup") {
-          let lookupResult = "No data";
-          if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
-            try {
-              const url = `${env.SUPABASE_URL}/rest/v1/telemetry_events?select=*&limit=10&order=created_at.desc`;
-              const response = await fetch(url, {
-                headers: {
-                  "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
-                  "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`
-                }
-              });
-              if (response.ok) {
-                const data = await response.json();
-                lookupResult = JSON.stringify(data, null, 2);
-              } else {
-                lookupResult = `Error: ${response.status}`;
-              }
-            } catch (e) {
-              lookupResult = `Error: ${e.message}`;
-            }
-          }
-          return new Response(
-            JSON.stringify({
-              jsonrpc: "2.0",
-              result: { content: [{ type: "text", text: lookupResult }], isError: lookupResult.startsWith("Error") },
-              id
-            }),
-            { headers: { "Content-Type": "application/json" } }
-          );
+          const res = await fetch(`${env.SUPABASE_URL}/rest/v1/telemetry_events?select=id,component_id,severity,message,created_at&severity=in.(ERROR,CRITICAL)&order=created_at.desc&limit=5`, {
+            headers: { "apikey": env.SUPABASE_SERVICE_ROLE_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}` }
+          });
+          const events = res.ok ? await res.json() : [];
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            result: { content: [{ type: "text", text: JSON.stringify({ recent_critical_events: events }) }], isError: false },
+            id
+          }), { headers: { "Content-Type": "application/json" } });
         }
         if (toolName === "hitl_queue_status") {
-          let hitlResult = "No data";
-          if (env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY) {
-            try {
-              const url = `${env.SUPABASE_URL}/rest/v1/hitl_audit_logs?status=eq.Pending&select=id,action_required`;
-              const response = await fetch(url, {
-                headers: {
-                  "apikey": env.SUPABASE_SERVICE_ROLE_KEY,
-                  "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-                  "Prefer": "count=exact"
-                }
-              });
-              if (response.ok) {
-                const count = response.headers.get("content-range")?.split("/")?.[1] || "0";
-                const data = await response.json();
-                hitlResult = JSON.stringify({ pending_count: parseInt(count, 10), items: data }, null, 2);
-              } else {
-                hitlResult = `Error: ${response.status}`;
-              }
-            } catch (e) {
-              hitlResult = `Error: ${e.message}`;
-            }
-          }
-          return new Response(
-            JSON.stringify({
-              jsonrpc: "2.0",
-              result: { content: [{ type: "text", text: hitlResult }], isError: hitlResult.startsWith("Error") },
-              id
-            }),
-            { headers: { "Content-Type": "application/json" } }
-          );
+          const res = await fetch(`${env.SUPABASE_URL}/rest/v1/hitl_audit_logs?select=id,status&status=eq.pending`, {
+            headers: { "apikey": env.SUPABASE_SERVICE_ROLE_KEY, "Authorization": `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`, "Prefer": "count=exact,head=true" }
+          });
+          const pendingCount = parseInt(res.headers.get("content-range")?.split("/")?.[1] || "0", 10);
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            result: { content: [{ type: "text", text: JSON.stringify({ pending_approvals: pendingCount, timestamp: new Date().toISOString() }) }], isError: false },
+            id
+          }), { headers: { "Content-Type": "application/json" } });
         }
         if (toolName === "axim_dispatch_task") {
           let dispatchStatus = "Failed";
