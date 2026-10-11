@@ -5,6 +5,9 @@ describe('MCP Bridge Worker', () => {
   const env = {
     CF_ACCESS_CLIENT_ID: 'test-client-id',
     CF_ACCESS_CLIENT_SECRET: 'test-client-secret',
+    AXIM_GATEWAY_TOKEN: 'valid-token',
+    AXIM_INTERNAL_KEY: 'internal-token',
+    MCP_GATEWAY_SECRET: 'mcp-token',
     PASSPORT_VERIFY_URL: 'http://localhost/verify',
     ENVIRONMENT: 'production',
     LAB_STATE: {
@@ -59,11 +62,16 @@ describe('MCP Bridge Worker', () => {
   });
 
   it('rejects requests with missing CF Access headers', async () => {
+    // Replaced by unified authentication
     const request = new Request('http://localhost/mcp', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer valid-token' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 })
     });
+
+    const response = await worker.fetch(request, env, {});
+    expect(response.status).toBe(401);
+  });
 
     const response = await worker.fetch(request, env, {});
     expect(response.status).toBe(403);
@@ -91,12 +99,14 @@ describe('MCP Bridge Worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'CF-Access-Client-Id': 'test-client-id',
-        'CF-Access-Client-Secret': 'test-client-secret',
         'Authorization': 'Bearer invalid-token'
       },
       body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 })
     });
+
+    const response = await worker.fetch(request, env, {});
+    expect(response.status).toBe(401);
+  });
 
     const response = await worker.fetch(request, env, {});
     expect(response.status).toBe(403);
@@ -107,23 +117,68 @@ describe('MCP Bridge Worker', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'CF-Access-Client-Id': 'test-client-id',
-        'CF-Access-Client-Secret': 'test-client-secret',
         'Authorization': 'Bearer unauthorized-email-token'
       },
       body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 })
     });
 
     const response = await worker.fetch(request, env, {});
+    expect(response.status).toBe(401);
+  });
+
+    const response = await worker.fetch(request, env, {});
     expect(response.status).toBe(403);
   });
 
-  it('accepts authorized operator requests (james.ellars@axim.us.com)', async () => {
+
+  it('accepts authorized operator requests (valid-token)', async () => {
     const request = new Request('http://localhost/mcp', {
       method: 'POST',
-      headers: getAuthorizedHeaders(),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer valid-token'
+      },
       body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 })
     });
+
+    const response = await worker.fetch(request, env, {});
+    expect(response.status).toBe(200);
+    const data = await response.json();
+    expect(data.result.tools).toBeDefined();
+
+    const toolNames = data.result.tools.map(t => t.name);
+    expect(toolNames).toContain('bridge_runtime_status');
+    expect(toolNames).toContain('axim_dispatch_task');
+  });
+
+  it('accepts authorized operator requests (internal-token)', async () => {
+    const request = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer internal-token'
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 })
+    });
+
+    const response = await worker.fetch(request, env, {});
+    expect(response.status).toBe(200);
+  });
+
+  it('accepts authorized operator requests (mcp-token)', async () => {
+    const request = new Request('http://localhost/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer mcp-token'
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'tools/list', id: 1 })
+    });
+
+    const response = await worker.fetch(request, env, {});
+    expect(response.status).toBe(200);
+  });
+
 
     const response = await worker.fetch(request, env, {});
     expect(response.status).toBe(200);

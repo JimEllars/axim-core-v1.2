@@ -72,8 +72,7 @@ describe('MCP Client', () => {
 
       const result = await callTool(mockServerUrl, mockToken, 'test_tool', { arg1: 'val1' });
       expect(result.content[0].text).toBe('Success');
-      expect(telemetry.logTelemetry).toHaveBeenCalledWith(expect.objectContaining({
-        type: 'mcp_tool_call',
+      expect(telemetry.logTelemetry).toHaveBeenCalledWith('mcp_tool_call', expect.objectContaining({
         status: 'success',
         app_id: 'test_tool'
       }));

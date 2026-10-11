@@ -108,8 +108,7 @@ export const callTool = async (serverUrl, authToken, toolName, argumentsObj) => 
       arguments: argumentsObj
     }, 2);
 
-    logTelemetry({
-      type: 'mcp_tool_call',
+    logTelemetry('mcp_tool_call', {
       status: 'success',
       endpoint: serverUrl,
       app_id: toolName,
@@ -118,8 +117,7 @@ export const callTool = async (serverUrl, authToken, toolName, argumentsObj) => 
 
     return result;
   } catch (error) {
-    logTelemetry({
-      type: 'mcp_tool_call',
+    logTelemetry('mcp_tool_call', {
       status: 'error',
       endpoint: serverUrl,
       app_id: toolName,

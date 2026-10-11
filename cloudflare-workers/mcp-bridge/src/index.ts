@@ -1,4 +1,4 @@
-import { authenticateOperator } from './auth.ts';
+import { authenticateMcpRequest } from './auth.ts';
 import { sanitizeEgressPayload } from './sanitizer.ts';
 import { checkKillSwitch } from './killSwitch.ts';
 import { checkRateLimit } from './rateLimit.ts';
@@ -39,8 +39,8 @@ export default {
     const rateLimitResponse = await checkRateLimit(request, env);
     if (rateLimitResponse) return rateLimitResponse;
 
-    const authResponse = await authenticateOperator(request, env);
-    if (authResponse) return authResponse;
+    const isAuthenticated = authenticateMcpRequest(request, env);
+    if (!isAuthenticated) return new Response(JSON.stringify(jsonRpcError(null, -32001, "Unauthorized: Invalid or missing MCP authentication key")), { status: 401, headers: { "Content-Type": "application/json" } });
 
     try {
       const body = await request.json();
@@ -199,11 +199,11 @@ export default {
              try {
                  const { task_type, payload } = toolArgs;
                  const dbPayload = {
-                   action_name: task_type,
-                   payload: payload,
+                   action_name: task_type || 'unknown_task',
+                   payload: payload || {},
                    status: 'pending',
                    target_department: 'CORE',
-                   requested_by: 'mcp_operator_session',
+                   requested_by: 'mcp_bridge_client',
                    created_at: new Date().toISOString()
                  };
                  const response = await fetch(`${env.SUPABASE_URL}/rest/v1/hitl_audit_logs`, {
@@ -217,7 +217,7 @@ export default {
                    body: JSON.stringify(dbPayload)
                  });
                  if (response.ok) {
-                     dispatchStatus = "{\"status\": \"STAGED_FOR_APPROVAL\", \"message\": \"Task queued for Super User approval in AXiM Core.\"}";
+                     dispatchStatus = "{\"status\": \"STAGED_FOR_APPROVAL\", \"message\": \"Task queued in AXiM Core HITL Approval Queue. Requires Super User sign-off before execution.\"}";
                  } else {
                      dispatchStatus = `Error: ${response.status}`;
                  }
@@ -225,7 +225,7 @@ export default {
                  dispatchStatus = `Error: ${e.message}`;
              }
           } else {
-              dispatchStatus = "{\"status\": \"STAGED_FOR_APPROVAL\", \"message\": \"Task queued for Super User approval in AXiM Core.\"}";
+              dispatchStatus = "{\"status\": \"STAGED_FOR_APPROVAL\", \"message\": \"Task queued in AXiM Core HITL Approval Queue. Requires Super User sign-off before execution.\"}";
           }
           toolResponse = {
             jsonrpc: "2.0",
