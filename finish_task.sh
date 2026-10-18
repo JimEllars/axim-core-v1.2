@@ -1,1 +1,3 @@
-echo 'Task completed.'
+#!/bin/bash
+# Mock finish task
+echo "Task completed successfully"
