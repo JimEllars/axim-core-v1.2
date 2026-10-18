@@ -58,9 +58,17 @@ export const useVectorSearch = () => {
       // Calculate Vector Match Confidence if possible
       // Mathematical formulation: Vector Match Confidence = (A . B) / (||A|| ||B||)
       // The similarity returned from backend is typically cosine similarity.
-      if (data && data.length > 0 && data[0].similarity !== undefined) {
-         const A_dot_B = data[0].similarity; // Assume the backend provides cosine distance/similarity
-         setConfidenceMetric(A_dot_B);
+      if (data && typeof data === 'object') {
+        const allHits = [
+          ...(data.executive_knowledge_base || []),
+          ...(data.strategic_context || []),
+          ...(data.chat_context || [])
+        ];
+        if (allHits.length > 0 && allHits[0].similarity !== undefined) {
+          setConfidenceMetric(allHits[0].similarity);
+        } else {
+          setConfidenceMetric(null);
+        }
       }
 
       return data;

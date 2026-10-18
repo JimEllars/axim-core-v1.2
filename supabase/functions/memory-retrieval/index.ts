@@ -139,13 +139,16 @@ serve(async (req) => {
       console.warn("match_memory_banks failed:", stratError);
     }
 
-    const { data: knowledgeBaseContext, error: kbError } = await supabaseAdmin.rpc("match_knowledge_base", {
+    let knowledgeBaseContext: any[] = [];
+    const { data: kbData, error: kbError } = await supabaseAdmin.rpc("match_knowledge_base", {
       query_embedding: embedding,
       match_threshold: threshold,
       match_count: limit
     });
     if (kbError) {
       console.warn("match_knowledge_base failed:", kbError);
+    } else if (kbData) {
+      knowledgeBaseContext = kbData;
     }
 
     // If Vectorize had good hits, we can prepend or use them

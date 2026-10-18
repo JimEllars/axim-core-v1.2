@@ -80,6 +80,26 @@ class ConversationHistory {
     this.history.push(message);
     this._saveToCache();
 
+    // Fire and forget logging and vector embedding generation
+    if (type === 'user') {
+      import('./llm.js').then(({ generateEmbedding }) => {
+        generateEmbedding(typeof content === 'string' ? content : JSON.stringify(content)).then((embedding) => {
+          supabase.from('ai_interactions_ax2024').insert({
+            user_id: this.userId,
+            conversation_id: this.conversationId,
+            command: typeof content === 'string' ? content : JSON.stringify(content),
+            embedding: embedding
+          }).then(({ error }) => {
+             if (error) {
+               logger.warn('Failed to log interaction vector in memory.js', error);
+             }
+          });
+        }).catch((err) => {
+           logger.warn('Failed to generate embedding in memory.js addMessage', err);
+        });
+      });
+    }
+
     // Check for rolling summary
     await this._checkAndPerformRollingSummary();
   }
