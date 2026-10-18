@@ -86,6 +86,21 @@ class ServiceRegistry {
     }
   }
 
+  registerEcosystemNodes(nodes) {
+    if (!nodes || !Array.isArray(nodes)) return;
+    nodes.forEach(node => {
+      if (node.mcp_endpoint) {
+        const key = `mcp:${node.name}`.toLowerCase().replace(/\s+/g, '-');
+        this.register(key, {
+          name: node.name,
+          type: 'mcp_tool',
+          endpoint: node.mcp_endpoint,
+          description: `Dynamically registered MCP node: ${node.name}`
+        });
+      }
+    });
+  }
+
   register(key, serviceDefinition) {
     this.services.set(key, serviceDefinition);
   }
