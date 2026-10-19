@@ -126,7 +126,6 @@ serve(async (req) => {
             }
 
             totalCompressed += uLogs.length;
-        }`);
         }
 
         return new Response(JSON.stringify({
