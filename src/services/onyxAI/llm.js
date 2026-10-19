@@ -73,7 +73,7 @@ export const generateContent = async (prompt, options = {}) => {
       const similarMemories = await supabaseApiService.searchMemory(queryEmbedding, 3, userId);
 
       if (similarMemories && similarMemories.length > 0) {
-        const memoryContext = similarMemories.map(m => m.content).join("\n");
+        const memoryContext = similarMemories.map(m => m.content || `User: ${m.command} -> Assistant: ${m.response}`).join("\n");
         finalPrompt = `Context from system memory:\n${memoryContext}\n\nUser Request: ${prompt}`;
       }
     } catch (ragError) {
