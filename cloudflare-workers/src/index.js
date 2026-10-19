@@ -82,6 +82,61 @@ export default {
 
 
 
+
+    if (url.pathname === '/capabilities' && request.method === 'GET') {
+      const catalog = {
+        "status": "OPERATIONAL",
+        "timestamp": new Date().toISOString(),
+        "capabilities": [
+          {
+            "id": "transcription",
+            "name": "AXiM Audio Transcription Service",
+            "endpoint": "/api/v1/transcribe",
+            "auth_requirement": "Bearer Token / Partner API Key",
+            "status": "OPERATIONAL",
+            "schema_description": "Accepts audio file buffers or URLs, returns transcribed JSON text payload."
+          },
+          {
+            "id": "ground-game",
+            "name": "Canvassing and field assignment engine",
+            "endpoint": "/api/v1/groundgame/assign",
+            "auth_requirement": "Bearer Token / Partner API Key",
+            "status": "OPERATIONAL",
+            "schema_description": "Accepts geography data, assigns turf areas to canvasser reps."
+          },
+          {
+            "id": "crm-sync",
+            "name": "Universal contact and lead synchronization",
+            "endpoint": "/api/v1/crm/sync",
+            "auth_requirement": "Bearer Token / Partner API Key",
+            "status": "OPERATIONAL",
+            "schema_description": "Accepts lead JSON payloads, pushes normalized data into internal CRMs."
+          },
+          {
+            "id": "demand-letter",
+            "name": "Headless JSON-to-PDF legal generator",
+            "endpoint": "/api/v1/legal/demand-letter",
+            "auth_requirement": "Bearer Token / Partner API Key",
+            "status": "OPERATIONAL",
+            "schema_description": "Accepts structured JSON claim data, returns generated PDF artifact URL."
+          },
+          {
+            "id": "vector-search",
+            "name": "Semantic memory retrieval",
+            "endpoint": "/api/v1/search",
+            "auth_requirement": "Bearer Token / Partner API Key",
+            "status": "OPERATIONAL",
+            "schema_description": "Accepts natural language queries, returns vectorized similarity matches."
+          }
+        ]
+      };
+
+      return new Response(JSON.stringify(catalog), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200
+      });
+    }
+
     // Health Check Endpoint
 
     // Instant Telemetry Acknowledgment and Webhooks

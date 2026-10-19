@@ -412,7 +412,12 @@ const WorkflowBuilder = () => {
               onClick={async () => {
                 try {
                   await supabaseApiService.supabase.functions.invoke('trigger-workflow', {
-                    body: { workflow: activeWorkflowId || workflowName }
+                    body: {
+                      workflowId: activeWorkflowId,
+                      workflowName: workflowName,
+                      userId: user.id,
+                      context: { source: 'workflow_builder_ui' }
+                    }
                   });
                   toast.success("Workflow test run initiated");
                 } catch (error) {

@@ -47,6 +47,7 @@ describe('Workflow Engine', () => {
     // First run - should pause
     const runResult = await runWorkflow('test-wf', 'system-user');
     expect(runResult.status).toBe('paused');
+    expect(api.logWorkflowExecution).toHaveBeenCalled();
     expect(runResult.results[0].message).toContain('1 rows found');
     expect(runResult.results[1].status).toBe('paused');
 
