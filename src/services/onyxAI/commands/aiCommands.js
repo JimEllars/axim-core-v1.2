@@ -48,9 +48,28 @@ const aiCommands = [
       if (context && context.aximCore && context.aximCore.api) {
         try {
           const queryEmbedding = await llm.generateEmbedding(prompt);
-          const relevantMemories = await context.aximCore.api.searchMemory(queryEmbedding, 5, context.userId); // fetching 5 deep contexts
+          let relevantMemories = [];
+
+          if (queryEmbedding) {
+            relevantMemories = await context.aximCore.api.searchMemory(queryEmbedding, 5, context.userId); // fetching 5 deep contexts
+          }
+
+          if (!relevantMemories || relevantMemories.length === 0) {
+            relevantMemories = await context.aximCore.api.searchChatHistory(prompt, context.userId);
+          }
+
           if (relevantMemories && relevantMemories.length > 0) {
-             ragContextText = relevantMemories.map(m => `Prior Context (${m.created_at}): User asked "${m.command}". Response: "${m.response}"`).join('\n');
+             // Deduplicate retrieved memories
+             const uniqueMemories = [];
+             const seen = new Set();
+             for (const m of relevantMemories) {
+               const key = m.content || (m.command + "|" + m.response);
+               if (!seen.has(key)) {
+                 seen.add(key);
+                 uniqueMemories.push(m);
+               }
+             }
+             ragContextText = uniqueMemories.map(m => `Prior Context (${m.created_at || ''}): ${m.content ? m.content : `User asked "${m.command}". Response: "${m.response}"`}`).join('\n');
           }
         } catch (error) {
           console.warn("Failed to retrieve RAG context:", error);

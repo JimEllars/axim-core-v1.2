@@ -648,7 +648,7 @@ class SupabaseApiService {
       const combined = [...results, ...(data || [])].slice(0, limit);
       return combined.map(item => ({
         ...item,
-        is_compressed: item.is_compressed || false
+        is_compressed: item.compressed ?? item.is_compressed ?? false
       }));
     } catch (error) {
       logger.error('Failed to execute searchMemory:', error);
@@ -668,7 +668,7 @@ class SupabaseApiService {
 
       const safeData = (data || []).map(item => ({
         ...item,
-        is_compressed: item.is_compressed || false
+        is_compressed: item.compressed ?? item.is_compressed ?? false
       }));
 
       return safeData;
