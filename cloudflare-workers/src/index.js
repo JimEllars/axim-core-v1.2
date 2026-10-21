@@ -109,7 +109,11 @@ export default {
         setHeaderIfPresent(modifiedRequest.headers, 'x-cf-city', request.cf?.city);
         setHeaderIfPresent(modifiedRequest.headers, 'x-cf-asn', request.cf?.asn);
         setHeaderIfPresent(modifiedRequest.headers, 'x-cf-colo', request.cf?.colo || 'UNKNOWN');
-        setHeaderIfPresent(modifiedRequest.headers, 'x-cf-ray', request.headers.get('cf-ray'));
+        // Handle cf-ray separately as it's from headers
+        const cfRay = request.headers.get('cf-ray');
+        if (cfRay) {
+          modifiedRequest.headers.set('x-cf-ray', cfRay);
+        }
 
         // Push the processing to the background
         ctx.waitUntil(fetch(modifiedRequest).catch(err => console.error("Telemetry/Webhook forward failed:", err)));
