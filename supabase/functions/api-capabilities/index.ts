@@ -38,6 +38,38 @@ serve(async (req: Request) => {
         },
         required: ['partyOne', 'partyTwo', 'purpose']
       }
+    },
+    {
+      product_id: 'transcription',
+      name: 'AXiM Audio Transcription Service',
+      endpoint: '/api/v1/transcribe',
+      auth_requirement: 'Bearer Token / Partner API Key',
+      status: 'OPERATIONAL',
+      schema_description: 'Accepts audio file buffers or URLs, returns transcribed JSON text payload.'
+    },
+    {
+      product_id: 'ground-game',
+      name: 'Canvassing and field assignment engine',
+      endpoint: '/api/v1/groundgame/assign',
+      auth_requirement: 'Bearer Token / Partner API Key',
+      status: 'OPERATIONAL',
+      schema_description: 'Accepts geography data, assigns turf areas to canvasser reps.'
+    },
+    {
+      product_id: 'crm-sync',
+      name: 'Universal contact and lead synchronization',
+      endpoint: '/api/v1/crm/sync',
+      auth_requirement: 'Bearer Token / Partner API Key',
+      status: 'OPERATIONAL',
+      schema_description: 'Accepts lead JSON payloads, pushes normalized data into internal CRMs.'
+    },
+    {
+      product_id: 'vector-search',
+      name: 'Semantic memory retrieval',
+      endpoint: '/api/v1/search',
+      auth_requirement: 'Bearer Token / Partner API Key',
+      status: 'OPERATIONAL',
+      schema_description: 'Accepts natural language queries, returns vectorized similarity matches.'
     }
   ];
 
