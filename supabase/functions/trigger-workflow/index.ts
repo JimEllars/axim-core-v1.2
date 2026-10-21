@@ -23,7 +23,7 @@ serve(async (req) => {
       query = query.eq('slug', workflowSlug);
     } else if (body.workflow) {
       // support legacy payload
-      query = query.eq('slug', body.workflow).or(`id.eq.${body.workflow}`);
+      query = query.or(`id.eq.${body.workflow},slug.eq.${body.workflow},name.eq.${body.workflow}`);
     } else {
       return new Response(JSON.stringify({ error: 'Missing workflowId or workflowSlug' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
