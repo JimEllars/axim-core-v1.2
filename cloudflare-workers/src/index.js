@@ -1,28 +1,8 @@
-const getCorsHeaders = (request, env) => {
-  const origin = request.headers.get('Origin');
-  const allowedOriginsString = env.ALLOWED_ORIGINS || 'https://axim.us.com,http://localhost:5176';
-  const allowedOrigins = new Set(
-    allowedOriginsString
-      .split(',')
-      .map((allowedOrigin) => allowedOrigin.trim())
-      .filter(Boolean)
-  );
-  const isAllowedOrigin = origin && allowedOrigins.has(origin);
-
-  return {
-    ...(isAllowedOrigin ? { 'Access-Control-Allow-Origin': origin } : {}),
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Idempotency-Key, x-axim-app-id, X-Emailit-Signature, X-Project-Scope',
-    'Access-Control-Max-Age': '86400',
-    'Vary': 'Origin',
-  };
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET,HEAD,POST,OPTIONS",
+  "Access-Control-Max-Age": "86400",
 };
-
-function setHeaderIfPresent(headers, name, value) {
-  if (value !== null && value !== undefined && value !== '') {
-    headers.set(name, String(value));
-  }
-}
 
 const apiRoutes = new Map([
   ['/api-proxy', '/functions/v1/api-proxy'],
@@ -34,37 +14,56 @@ const apiRoutes = new Map([
   ['/api/system-status', '/functions/v1/system-status'],
 ]);
 
+function setHeaderIfPresent(headers, key, value) {
+  if (value) {
+    headers.set(key, value);
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
-    const corsHeaders = getCorsHeaders(request, env);
-
-    if (request.method === 'OPTIONS') {
-      if (request.headers.get('Origin') && !corsHeaders['Access-Control-Allow-Origin']) {
-        return new Response('Origin not allowed', { status: 403, headers: corsHeaders });
-      }
-
-      return new Response(null, { status: 204, headers: corsHeaders });
-    }
-
     const url = new URL(request.url);
 
-    if (
-      url.pathname.startsWith("/api/v1/scrolls") ||
-      url.pathname.startsWith("/api/v1/segmentation") ||
-      url.pathname.startsWith("/api/v1/unwrap") ||
-      url.pathname.startsWith("/api/v1/inference") ||
-      url.pathname.startsWith("/api/v1/papyrology")
-    ) {
-      const projectScope = request.headers.get("X-Project-Scope");
-      if (projectScope !== "HERCULANEUM_SCROLLS") {
-        return new Response(JSON.stringify({ error: "Invalid or missing X-Project-Scope header" }), {
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders }
+    // Hardcoded origin check
+    const allowedOrigins = env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(',') : ['*'];
+    const origin = request.headers.get('Origin');
+
+    if (origin && allowedOrigins[0] !== '*' && !allowedOrigins.includes(origin)) {
+       return new Response('Forbidden', { status: 403 });
+    }
+
+    // CORS Headers for all responses
+    if (origin && (allowedOrigins.includes(origin) || allowedOrigins[0] === '*')) {
+      corsHeaders['Access-Control-Allow-Origin'] = origin;
+    }
+
+    if (request.method === "OPTIONS") {
+      let headers = request.headers;
+      if (
+        headers.get("Origin") !== null &&
+        headers.get("Access-Control-Request-Method") !== null &&
+        headers.get("Access-Control-Request-Headers") !== null
+      ) {
+        let respHeaders = {
+          ...corsHeaders,
+          "Access-Control-Allow-Headers": headers.get("Access-Control-Request-Headers") || "",
+        };
+
+        return new Response(null, {
+          headers: respHeaders,
+        });
+      } else {
+        return new Response(null, {
+          headers: {
+            Allow: "GET, HEAD, POST, OPTIONS",
+          },
         });
       }
+    }
+
+    if (url.pathname === '/health' && request.method === 'GET') {
       return new Response(JSON.stringify({
-        status: "ACKNOWLEDGED",
-        job_id: `job_${crypto.randomUUID()}`,
+        status: 'UP',
         timestamp: new Date().toISOString()
       }), {
         status: 202,
@@ -84,60 +83,6 @@ export default {
 
 
 
-
-    if (url.pathname === '/capabilities' && request.method === 'GET') {
-      const catalog = {
-        "status": "OPERATIONAL",
-        "timestamp": new Date().toISOString(),
-        "capabilities": [
-          {
-            "id": "transcription",
-            "name": "AXiM Audio Transcription Service",
-            "endpoint": "/api/v1/transcribe",
-            "auth_requirement": "Bearer Token / Partner API Key",
-            "status": "OPERATIONAL",
-            "schema_description": "Accepts audio file buffers or URLs, returns transcribed JSON text payload."
-          },
-          {
-            "id": "ground-game",
-            "name": "Canvassing and field assignment engine",
-            "endpoint": "/api/v1/groundgame/assign",
-            "auth_requirement": "Bearer Token / Partner API Key",
-            "status": "OPERATIONAL",
-            "schema_description": "Accepts geography data, assigns turf areas to canvasser reps."
-          },
-          {
-            "id": "crm-sync",
-            "name": "Universal contact and lead synchronization",
-            "endpoint": "/api/v1/crm/sync",
-            "auth_requirement": "Bearer Token / Partner API Key",
-            "status": "OPERATIONAL",
-            "schema_description": "Accepts lead JSON payloads, pushes normalized data into internal CRMs."
-          },
-          {
-            "id": "demand-letter",
-            "name": "Headless JSON-to-PDF legal generator",
-            "endpoint": "/api/v1/legal/demand-letter",
-            "auth_requirement": "Bearer Token / Partner API Key",
-            "status": "OPERATIONAL",
-            "schema_description": "Accepts structured JSON claim data, returns generated PDF artifact URL."
-          },
-          {
-            "id": "vector-search",
-            "name": "Semantic memory retrieval",
-            "endpoint": "/api/v1/search",
-            "auth_requirement": "Bearer Token / Partner API Key",
-            "status": "OPERATIONAL",
-            "schema_description": "Accepts natural language queries, returns vectorized similarity matches."
-          }
-        ]
-      };
-
-      return new Response(JSON.stringify(catalog), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200
-      });
-    }
 
     // Health Check Endpoint
 
@@ -197,14 +142,14 @@ export default {
     }
 
     // 1. API Proxy Routing
-    if (url.pathname.startsWith('/api/') || url.pathname === '/telemetry' || url.pathname === '/api-proxy') {
+    if (url.pathname.startsWith('/api/') || url.pathname === '/telemetry' || url.pathname === '/api-proxy' || url.pathname === '/capabilities') {
       const backendUrlStr = env.SUPABASE_URL;
       if (!backendUrlStr) {
         return new Response('API backend is not configured', { status: 503, headers: corsHeaders });
       }
 
       // Edge Caching
-      const cacheableEndpoints = ['/api/system/capabilities', '/api/providers/status']; // Removed /api/system-status to avoid serving stale telemetry data
+      const cacheableEndpoints = ['/api/system/capabilities', '/api/providers/status', '/capabilities', '/api/v1/capabilities']; // Removed /api/system-status to avoid serving stale telemetry data
       if (request.method === 'GET' && cacheableEndpoints.includes(url.pathname)) {
         const cache = caches.default;
         const cachedResponse = await cache.match(request);
