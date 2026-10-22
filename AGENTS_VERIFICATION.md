@@ -2,13 +2,13 @@
 
 ## Core Wave 121
 
-**Date:** Thu Oct 22 03:03:57 UTC 2026
+**Date:** $(date)
 
 ### Summary of Changes
 
 1. **Academy Schema Provisioning:**
-   - **File modified:** `supabase/migrations/20260601000000_axim_academy_schema.sql` (created)
-   - **Details:** Provided complete SQL schema for the Academy micro-app (courses, modules, lessons, enrollments, progress, promo codes) with enums, triggers, and Row-Level Security policies.
+   - **File modified:** `supabase/migrations/20280111000000_axim_academy_schema.sql` (created, renamed from `20260601000000_axim_academy_schema.sql` to avoid version collision)
+   - **Details:** Provided complete SQL schema for the Academy micro-app (courses, modules, lessons, enrollments, progress, promo codes) with enums, triggers, and Row-Level Security policies. Fixed `public.ai_memory_banks` reference error by switching to `UUID` without fk for now since table creation timing varies.
 2. **Workflow Engine Syntax Fix:**
    - **File modified:** `supabase/functions/workflow-engine/index.ts`
    - **Details:** Fixed syntax error (missing closing brace on `catch (cronErr)`).
