@@ -62,7 +62,7 @@ export const handleRequest = async (req: Request): Promise<Response> => {
             const data = await fallbackResponse.json();
             const rawVector = data.result.data[0];
             if (rawVector && rawVector.length === 768) {
-              embedding = [...rawVector, ...new Array(1536 - 768).fill(0)];
+              embedding = [...rawVector, ...new Array(768).fill(0)];
             } else {
               embedding = rawVector;
             }
