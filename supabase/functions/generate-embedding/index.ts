@@ -62,7 +62,7 @@ export const handleRequest = async (req: Request): Promise<Response> => {
             const data = await fallbackResponse.json();
             const rawVector = data.result.data[0];
             if (rawVector && rawVector.length === 768) {
-              embedding = [...rawVector, ...new Array(768).fill(0)];
+              embedding = [...rawVector, ...new Array(1536 - 768).fill(0)];
             } else {
               embedding = rawVector;
             }
@@ -76,6 +76,9 @@ export const handleRequest = async (req: Request): Promise<Response> => {
         console.warn('Cloudflare credentials not set, skipping fallback generation');
       }
     }
+
+    // If still null despite having credentials, maybe we shouldn't fail but return it
+    // But we should ensure it's not strictly null if we can avoid it.
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') as string,

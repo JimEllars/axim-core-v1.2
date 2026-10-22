@@ -11,11 +11,19 @@ serve(async (req) => {
   try {
     const { endpoint, payload } = await req.json();
 
-    if (!endpoint || (endpoint !== '/posts' && endpoint !== '/media')) {
+    if (!endpoint || (endpoint !== '/posts' && endpoint !== '/media' && endpoint !== '/categories')) {
       return new Response(JSON.stringify({ error: "Invalid endpoint" }), {
-        status: 400,
+        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Explicitly reject .php files, wp-admin, or xmlrpc.php
+    if (endpoint.includes('.php') || endpoint.includes('/wp-admin') || endpoint.includes('xmlrpc.php')) {
+        return new Response(JSON.stringify({ error: "Forbidden path" }), {
+            status: 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
     }
 
     let url = `${WP_API_BASE_URL}${endpoint}`;
@@ -26,6 +34,15 @@ serve(async (req) => {
       const whitelistedParams = new URLSearchParams();
 
       const allowedKeys = ['slug', 'per_page', 'page', '_embed', 'include'];
+
+      const queryStringRaw = payload.query.toLowerCase();
+      const hasSuspiciousCgi = ['?-d', 'auto_prepend_file', 'auto_append_file', 'allow_url_include', 'disable_functions'].some(pattern => queryStringRaw.includes(pattern));
+      if (hasSuspiciousCgi) {
+          return new Response(JSON.stringify({ error: "Forbidden query pattern" }), {
+              status: 403,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+      }
 
       for (const key of allowedKeys) {
         if (urlParams.has(key)) {
