@@ -15,7 +15,8 @@ This verifies the completion of Wave 122 which addresses:
 ## Changes Made
 - `supabase/functions/wordpress-proxy/index.ts`: Added exact allowlisting for endpoints and rejected PHP paths / wp-admin / xmlrpc.php. Screened payload queries for CGI injection strings (`?-d`, `auto_prepend_file`, etc).
 - `workers/wp-proxy-worker.js`: Created to strictly proxy traffic on `/wp/` paths, blocking `.php`, `/wp-admin`, and suspicious CGI parameters with 403 Forbidden and logging to telemetry.
-- `supabase/migrations/20260601000000_axim_academy_schema.sql`: Provisioned.
+- `workers/wrangler.toml`: Configured deployment settings for the new WordPress proxy worker, resolving CI build errors on the Cloudflare side.
+- `supabase/migrations/20280111000000_axim_academy_schema.sql`: Provisioned. Made sure `ai_memory_banks` isn't rigidly enforced as a foreign key on creation to prevent schema drift crashes.
 - `supabase/functions/workflow-engine/index.ts`: Fixed the syntax error in the catch block on lines 55-75.
 - `supabase/functions/generate-embedding/index.ts`: Added Cloudflare Workers AI fallback with 0-padding for dimensions mismatch.
 - `src/services/workflows/engine.js`: Added DAG graph execution using Kahn's topological sort and evaluating condition nodes.
