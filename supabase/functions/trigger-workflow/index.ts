@@ -152,10 +152,9 @@ serve(async (req) => {
              result = { data: { conditionMet } };
 
              adjList[node.id].forEach(e => {
-               const edgeLabel = e.label || (e.data && e.data.label);
-               if (conditionMet && edgeLabel === 'False') {
+               if (conditionMet && (e.sourceHandle === 'false' || e.label === 'False')) {
                  skippedNodes.add(e.target);
-               } else if (!conditionMet && edgeLabel === 'True') {
+               } else if (!conditionMet && (e.sourceHandle === 'true' || e.label === 'True')) {
                  skippedNodes.add(e.target);
                }
              });

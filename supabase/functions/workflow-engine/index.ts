@@ -60,7 +60,7 @@ serve(async (req) => {
                     nextRunAt = interval.next().toISOString();
                 } catch (cronErr) {
                     console.error(`Invalid cron expression for task ${task.id}: ${task.schedule}`, cronErr);
-                    nextRunAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1-hour backoff fallback
+                    nextRunAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
                 }
 
                 await supabaseAdmin
