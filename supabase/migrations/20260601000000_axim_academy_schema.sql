@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS public.academy_lessons (
     module_id UUID REFERENCES public.academy_modules(id) ON DELETE CASCADE,
     title TEXT NOT NULL,
     content_type TEXT NOT NULL CHECK (content_type IN ('video', 'article', 'interactive_quiz')),
-    memory_bank_ref UUID REFERENCES public.ai_memory_banks(id) ON DELETE SET NULL,
+    memory_bank_ref UUID,
     content_payload JSONB,
     order_index INTEGER NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
