@@ -94,7 +94,7 @@ serve(async (req) => {
             }
 
             // Save summary to ai_memory_banks table
-            const memoryData = {
+            const memoryData: any = {
                 content: summaryText,
                 source_type: 'daily_summary',
                 metadata: { date: new Date().toISOString(), log_count: uLogs.length },

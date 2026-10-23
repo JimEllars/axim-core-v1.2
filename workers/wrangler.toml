@@ -1,0 +1,7 @@
+name = "axim-wp-proxy-worker"
+main = "wp-proxy-worker.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+WP_URL = "https://wp.axim.us.com"

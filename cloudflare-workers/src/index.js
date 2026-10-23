@@ -12,6 +12,9 @@ const apiRoutes = new Map([
   ['/api/v1/capabilities', '/functions/v1/api-capabilities'],
   ['/api/providers/status', '/functions/v1/system-status'],
   ['/api/system-status', '/functions/v1/system-status'],
+
+  ['/capabilities', '/functions/v1/api-capabilities'],
+  ['/api/v1/capabilities', '/functions/v1/api-capabilities'],
 ]);
 
 function setHeaderIfPresent(headers, key, value) {

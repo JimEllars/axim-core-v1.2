@@ -73,33 +73,7 @@ CREATE TABLE IF NOT EXISTS public.academy_progress (
 );
 
 CREATE OR REPLACE FUNCTION check_course_completion()
-RETURNS TRIGGER AS $$
-DECLARE
-    total_lessons INT;
-    completed_lessons INT;
-BEGIN
-    IF NEW.is_completed = true THEN
-        SELECT COUNT(*) INTO total_lessons
-        FROM public.academy_lessons al
-        JOIN public.academy_modules am ON al.module_id = am.id
-        JOIN public.academy_enrollments ae ON am.course_id = ae.course_id
-        WHERE ae.id = NEW.enrollment_id;
-
-        SELECT COUNT(*) INTO completed_lessons
-        FROM public.academy_progress
-        WHERE enrollment_id = NEW.enrollment_id AND is_completed = true;
-
-        IF total_lessons > 0 AND total_lessons = completed_lessons THEN
-            UPDATE public.academy_enrollments
-            SET status = 'completed',
-                completed_at = NOW(),
-                sbt_mint_status = CASE WHEN web3_wallet_address IS NOT NULL THEN 'pending'::credential_status ELSE 'not_applicable'::credential_status END
-            WHERE id = NEW.enrollment_id;
-        END IF;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+RETURNS TRIGGER AS $$ DECLARE total_lessons INT; completed_lessons INT; BEGIN IF NEW.is_completed = true THEN SELECT COUNT(*) INTO total_lessons FROM public.academy_lessons al JOIN public.academy_modules am ON al.module_id = am.id JOIN public.academy_enrollments ae ON am.course_id = ae.course_id WHERE ae.id = NEW.enrollment_id;             SELECT COUNT(*) INTO completed_lessons FROM public.academy_progress WHERE enrollment_id = NEW.enrollment_id AND is_completed = true;             IF total_lessons > 0 AND total_lessons = completed_lessons THEN UPDATE public.academy_enrollments SET status = 'completed', completed_at = NOW(), sbt_mint_status = CASE WHEN web3_wallet_address IS NOT NULL THEN 'pending'::credential_status ELSE 'not_applicable'::credential_status END WHERE id = NEW.enrollment_id; END IF; END IF; RETURN NEW; END; $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER evaluate_course_completion
 AFTER INSERT OR UPDATE OF is_completed ON public.academy_progress
