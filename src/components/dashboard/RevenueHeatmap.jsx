@@ -69,7 +69,7 @@ const RevenueHeatmap = () => {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     fetchRevenueData();
 
     const handleRevenueUpdate = (event) => {
@@ -105,7 +105,7 @@ const RevenueHeatmap = () => {
     return () => {
       window.removeEventListener('axim:revenue_update', handleRevenueUpdate);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, []);
 
 

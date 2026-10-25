@@ -109,9 +109,9 @@ const VisualizationPanel = () => {
   };
 
   useEffect(() => {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+
       fetchVisualizationData();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [refreshKey]);
 
   const renderError = (chartName) => (

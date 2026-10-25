@@ -33,7 +33,7 @@ const FleetStatusMap = () => {
   };
 
   useEffect(() => {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+
       fetchEcosystemNodes();
 
     const handleTelemetryUpdate = (event) => {
@@ -118,7 +118,7 @@ const FleetStatusMap = () => {
                const nodeName = node.name || node.app_name;
                const lastPingValue = node.last_heartbeat || node.last_ping;
                const endpointUrl = node.endpoint || node.health_endpoint_url;
-               // eslint-disable-next-line react-hooks/purity
+
                const lastPingSeconds = lastPingValue ? (Date.now() - new Date(lastPingValue).getTime()) / 1000 : Infinity;
                const isOffline = node.status === 'offline' || lastPingSeconds > 300;
                const isDegraded = !isOffline && lastPingSeconds >= 60 && lastPingSeconds <= 300;

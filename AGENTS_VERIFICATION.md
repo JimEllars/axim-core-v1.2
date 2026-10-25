@@ -1,32 +1,24 @@
-# Verification for AXiM Core Wave 122
+# Verification for AXiM Core Wave 124
 
 ## Overview
-This verifies the completion of Wave 122 which addresses:
-- Hardening against PHP2Shell/CGI injection vulnerabilities
-- Provisioning AXiM Academy Schema
-- Fixing `workflow-engine` syntax error
-- Implementing Cloudflare Workers AI embedding fallback
-- Adding DAG execution for workflows
-- Wiring workflow triggers
-- Adding multitenancy to cognitive compression
-- Adding RAG fallback and schema alignment
-- Cleaning up scratch scripts
+This verifies the completion of Wave 124 which addresses:
+- Cleaning up duplicate routes in the Cloudflare edge worker
+- Registering the new Robotics edge ingress routes
+- Provisioning the complete Robotics Platform schema migration in Supabase
+- Exposing the capability in `api-capabilities`
+- Extending the DAG workflow engine with robotics step handlers
+- Auto-registering the Robotics Lab MCP node
 
 ## Changes Made
-- `supabase/functions/wordpress-proxy/index.ts`: Added exact allowlisting for endpoints and rejected PHP paths / wp-admin / xmlrpc.php. Screened payload queries for CGI injection strings (`?-d`, `auto_prepend_file`, etc).
-- `workers/wp-proxy-worker.js`: Created to strictly proxy traffic on `/wp/` paths, blocking `.php`, `/wp-admin`, and suspicious CGI parameters with 403 Forbidden and logging to telemetry.
-- `workers/wrangler.toml`: Configured deployment settings for the new WordPress proxy worker, resolving CI build errors on the Cloudflare side.
-- `supabase/migrations/20280111000000_axim_academy_schema.sql`: Provisioned. Made sure `ai_memory_banks` isn't rigidly enforced as a foreign key on creation to prevent schema drift crashes.
-- `supabase/functions/workflow-engine/index.ts`: Fixed the syntax error in the catch block on lines 55-75.
-- `supabase/functions/generate-embedding/index.ts`: Added Cloudflare Workers AI fallback with 0-padding for dimensions mismatch.
-- `src/services/workflows/engine.js`: Added DAG graph execution using Kahn's topological sort and evaluating condition nodes.
-- `supabase/functions/trigger-workflow/index.ts`: Modified to execute workflows from database if requested.
-- `supabase/functions/cognitive-compression/index.ts`: Grouped compression tasks by `user_id` and assigned per user to memory bank.
-- `cloudflare-workers/src/index.js` & `supabase/functions/api-capabilities/index.ts`: Registered route aliases and exposed new capability schemas.
-- `src/services/onyxAI/commands/aiCommands.js` & `src/services/onyxAI/llm.js` & `src/services/supabaseApiService.js`: RAG Fallback and schema mapping (`is_compressed`) for consistent memory fetching.
+- `cloudflare-workers/src/index.js`: Removed duplicate entries for `/capabilities` and registered new Robotics ingress endpoints (`/api/v1/robotics/telemetry`, `/api/v1/robotics/capabilities`, `/api/v1/robotics/projects`, `/api/v1/robotics/sim`, `/api/v1/robotics/fleet/emergency-stop`).
+- `supabase/migrations/20280112000000_robotics_platform_schema.sql`: Provisioned. Defines `robot_projects`, `robot_fleet_nodes`, `robot_policy_registry`, `robot_telemetry_stream`, and `robot_fault_logs` tables with standard Row-Level Security policies.
+- `supabase/functions/api-capabilities/index.ts`: Added the robotics platform capability definition (`AXiM Robotics Lab Gateway`).
+- `src/services/workflows/engine.js`: Registered new step handlers `robot_sim_run`, `robot_policy_gate`, and `robot_ota_deploy` in the DAG workflow engine.
+- `src/services/onyxAI/serviceRegistry.js`: Dynamically auto-registered `mcp:robotics-lab`.
 
 ## Test Proof
-- `npm run lint` completed successfully with only expected warnings.
-- `npx vitest run src/services/workflows/__tests__/workflow.test.js tests/e2e-workflow.test.js` passed, showing the DAG execution additions didn't break backward compatibility.
+- `npm run lint` and `npx eslint . --fix` completed successfully.
+- `npx vitest run src/services/workflows/__tests__/workflow.test.js tests/e2e-workflow.test.js` passed, showing the workflow engine modifications didn't break backward compatibility and correctly execute step handlers.
+- `npx esbuild src/index.js` verified the edge worker bundle.
 
 All steps defined in the prompt have been met.

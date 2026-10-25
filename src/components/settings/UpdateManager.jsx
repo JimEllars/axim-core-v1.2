@@ -11,7 +11,7 @@ const UpdateManager = () => {
 
   useEffect(() => {
     if (!ipcRenderer) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+
       setUpdateStatus('Updates are only available in the desktop app.');
       return;
     }

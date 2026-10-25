@@ -73,10 +73,10 @@ const IntegrationsManager = () => {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     fetchLogs();
     fetchIntegrations();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [supabase]);
 
   return (

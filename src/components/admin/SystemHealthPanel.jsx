@@ -70,7 +70,7 @@ const SystemHealthPanel = () => {
     if (!anonKey || !onyxSecret) {
       console.warn("Security Perimeter Warning: VITE_SUPABASE_ANON_KEY or AXIM_ONYX_SECRET missing.");
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     fetchHealth();
 
     const interval = setInterval(() => {

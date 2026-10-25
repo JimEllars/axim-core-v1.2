@@ -46,7 +46,7 @@ const SpreadsheetImport = () => {
         acc[key] = '';
         return acc;
       }, {});
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+
       setColumnMap(initialMap);
       const firstRequiredField = Object.keys(schema).find(key => schema[key].required);
       setSortConfig({ key: firstRequiredField || Object.keys(schema)[0], direction: 'ascending' });
@@ -59,7 +59,7 @@ const SpreadsheetImport = () => {
 
   useEffect(() => {
     if (rawData.length === 0 || !dataType) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+
       setProcessedData([]);
       return;
     }

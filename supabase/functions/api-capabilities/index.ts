@@ -70,6 +70,21 @@ serve(async (req: Request) => {
       auth_requirement: 'Bearer Token / Partner API Key',
       status: 'OPERATIONAL',
       schema_description: 'Accepts natural language queries, returns vectorized similarity matches.'
+    },
+    {
+      product_id: 'robotics',
+      name: "AXiM Robotics Lab Gateway",
+      version: "1.0.0",
+      status: "operational",
+      endpoints: [
+        "/api/v1/robotics/telemetry",
+        "/api/v1/robotics/projects",
+        "/api/v1/robotics/sim",
+        "/api/v1/robotics/fleet/emergency-stop"
+      ],
+      auth_requirement: "X-Axim-Signature",
+      mcp_compliant: true,
+      supported_classes: ["hexapod", "quadruped", "rover", "arm"]
     }
   ];
 
