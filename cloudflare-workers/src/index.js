@@ -158,7 +158,7 @@ export default {
       }
 
       // Edge Caching
-      const cacheableEndpoints = ['/api/system/capabilities', '/api/providers/status', '/capabilities', '/api/v1/capabilities']; // Removed /api/system-status to avoid serving stale telemetry data
+      const cacheableEndpoints = ['/api/system/capabilities', '/api/providers/status', '/capabilities', '/api/v1/capabilities', '/api/v1/robotics/capabilities']; // Removed /api/system-status to avoid serving stale telemetry data
       if (request.method === 'GET' && cacheableEndpoints.includes(url.pathname)) {
         const cache = caches.default;
         const cachedResponse = await cache.match(request);
