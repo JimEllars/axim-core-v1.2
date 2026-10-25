@@ -38,7 +38,7 @@ const EmailConsole = () => {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     fetchDlqItems();
   }, []);
 
@@ -92,7 +92,7 @@ const EmailConsole = () => {
   const handleReplayTransaction = async (item) => {
     // Send email again
     try {
-        // eslint-disable-next-line react-hooks/purity
+
         const startTime = Date.now();
 
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
@@ -109,7 +109,7 @@ const EmailConsole = () => {
             })
         });
 
-        // eslint-disable-next-line react-hooks/purity
+
         const replayEndTime = Date.now();
         try {
             await supabase.from('api_usage_logs').insert({

@@ -80,7 +80,7 @@ const fetchNodes = async () => {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     fetchNodes();
     const interval = setInterval(fetchNodes, 30000);
     return () => clearInterval(interval);

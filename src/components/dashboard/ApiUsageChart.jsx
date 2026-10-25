@@ -144,7 +144,7 @@ const ApiUsageChart = () => {
       // Calculate compression efficiency metrics as requested by architecture
       const uncompressedSize = JSON.stringify(offlineTelemetryCache).length;
 
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+
       setIsRestoring(true);
       setSynchronizedPackets(offlineTelemetryCache.length);
 
@@ -216,7 +216,7 @@ const ApiUsageChart = () => {
   }, [isOnline, offlineTelemetryCache, clearOfflineTelemetry]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     fetchApiUsageData();
 
     const channel = supabase.channel('api_usage_realtime')

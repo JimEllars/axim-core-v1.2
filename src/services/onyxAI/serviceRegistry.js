@@ -30,6 +30,15 @@ class ServiceRegistry {
       description: 'ForemanOS Project Management'
     });
 
+    const CORE_API_URL = import.meta.env.VITE_SUPABASE_URL || '';
+    this.register('mcp:robotics-lab', {
+      id: "mcp:robotics-lab",
+      name: "AXiM Robotics Lab MCP Gateway",
+      url: `${CORE_API_URL}/api/v1/robotics`,
+      tier: "hardware_lab"
+    });
+
+
     // 2. Fetch dynamic integrations from DB
     try {
       const integrations = await api.listAPIIntegrations();
