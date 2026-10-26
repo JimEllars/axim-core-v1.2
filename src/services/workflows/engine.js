@@ -50,8 +50,8 @@ const stepHandlerRegistry = {
   robot_ota_deploy: async (step, context, userId) => {
     // Dispatches cryptographically signed OTA policy packages to target fleet nodes
     return {
-      message: `OTA policy dispatched to fleet.`,
-      data: { deploy_status: 'success' }
+      message: `OTA policy dispatched to fleet nodes.`,
+      data: { status: 'deployed' }
     };
   },
   query_database: async (step, context, userId) => {
