@@ -77,3 +77,15 @@ CREATE POLICY "Allow authenticated read on robot_telemetry_stream" ON public.rob
 
 CREATE POLICY "Allow service role full access on robot_fault_logs" ON public.robot_fault_logs FOR ALL USING (auth.role() = 'service_role');
 CREATE POLICY "Allow authenticated read on robot_fault_logs" ON public.robot_fault_logs FOR SELECT USING (auth.role() = 'authenticated');
+
+-- Add missing columns to existing public.ecosystem_nodes table
+ALTER TABLE public.ecosystem_nodes
+ADD COLUMN IF NOT EXISTS name TEXT UNIQUE,
+ADD COLUMN IF NOT EXISTS role TEXT,
+ADD COLUMN IF NOT EXISTS last_heartbeat TIMESTAMPTZ;
+
+
+-- Seed MCP bridge connection in public.ecosystem_connections
+INSERT INTO public.ecosystem_connections (service_name, webhook_url, api_key, status)
+VALUES ('axim-core-mcp', 'https://api.axim.us.com/mcp', 'mcp-gateway-internal', 'active')
+ON CONFLICT (service_name) DO UPDATE SET webhook_url = EXCLUDED.webhook_url, status = 'active';
