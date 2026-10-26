@@ -67,7 +67,7 @@ CREATE POLICY "Enable read access for all users" ON public.robot_fault_logs FOR 
 CREATE POLICY "Enable all access for service_role" ON public.robot_fault_logs USING (auth.role() = 'service_role');
 
 -- public.ecosystem_nodes
-CREATE TABLE public.ecosystem_nodes (
+CREATE TABLE IF NOT EXISTS public.ecosystem_nodes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT UNIQUE,
     role TEXT,
