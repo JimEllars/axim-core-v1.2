@@ -7,9 +7,7 @@ const corsHeaders = {
 const apiRoutes = new Map([
   ['/api-proxy', '/functions/v1/api-proxy'],
   ['/telemetry', '/functions/v1/telemetry-ingress'],
-  ['/api/system/capabilities', '/functions/v1/api-capabilities'],
   ['/capabilities', '/functions/v1/api-capabilities'],
-  ['/api/v1/capabilities', '/functions/v1/api-capabilities'],
   ['/api/providers/status', '/functions/v1/system-status'],
   ['/api/system-status', '/functions/v1/system-status'],
   ['/api/v1/robotics/telemetry', '/functions/v1/telemetry-ingress'],
@@ -17,6 +15,12 @@ const apiRoutes = new Map([
   ['/api/v1/robotics/projects', '/functions/v1/robotics-projects'],
   ['/api/v1/robotics/sim', '/functions/v1/robotics-sim'],
   ['/api/v1/robotics/fleet/emergency-stop', '/functions/v1/robotics-emergency-stop'],
+  ['/mcp', '/functions/v1/mcp-router'],
+  ['/sse', '/functions/v1/mcp-sse'],
+  ['/message', '/functions/v1/mcp-message'],
+  ['/api/v1/mcp', '/functions/v1/mcp-router'],
+  ['/api/v1/mcp/sse', '/functions/v1/mcp-sse'],
+  ['/api/v1/mcp/message', '/functions/v1/mcp-message']
 ]);
 
 function setHeaderIfPresent(headers, key, value) {
@@ -151,7 +155,7 @@ export default {
     }
 
     // 1. API Proxy Routing
-    if (url.pathname.startsWith('/api/') || url.pathname === '/telemetry' || url.pathname === '/api-proxy' || url.pathname === '/capabilities') {
+    if (url.pathname.startsWith('/api/') || url.pathname === '/telemetry' || url.pathname === '/api-proxy' || url.pathname === '/capabilities' || url.pathname === '/mcp' || url.pathname === '/sse' || url.pathname === '/message') {
       const backendUrlStr = env.SUPABASE_URL;
       if (!backendUrlStr) {
         return new Response('API backend is not configured', { status: 503, headers: corsHeaders });

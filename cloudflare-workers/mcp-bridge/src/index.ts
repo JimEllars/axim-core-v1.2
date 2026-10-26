@@ -22,15 +22,41 @@ export default {
     }
 
     const url = new URL(request.url);
-    if (url.pathname !== '/mcp') {
+
+    // Unauthenticated Discovery Endpoint
+    if (request.method === "GET" && (url.pathname === '/' || url.pathname === '/mcp')) {
+      return new Response(JSON.stringify({
+        name: "axim-core-mcp",
+        version: "1.0.0",
+        protocolVersion: "2024-11-05",
+        status: "operational",
+        transports: ["sse", "post"],
+        endpoints: {
+          sse: "/sse",
+          message: "/message",
+          post: "/mcp"
+        }
+      }), { status: 200, headers: { "Content-Type": "application/json" } });
+    }
+
+    // Server-Sent Events (SSE)
+    if (request.method === "GET" && url.pathname === '/sse') {
+      const sessionId = crypto.randomUUID();
+      return new Response(`event: endpoint\ndata: ${url.origin}/message?sessionId=${sessionId}\n\n`, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+          "Access-Control-Allow-Origin": "*"
+        }
+      });
+    }
+
+    if (request.method !== "POST" || (url.pathname !== '/message' && url.pathname !== '/mcp')) {
       return new Response(
         JSON.stringify(jsonRpcError(null, -32601, `Not Found`)),
         { status: 404, headers: { "Content-Type": "application/json" } }
       );
-    }
-
-    if (request.method !== "POST") {
-      return new Response("Method not allowed", { status: 405 });
     }
 
     const killSwitchResponse = await checkKillSwitch(env);

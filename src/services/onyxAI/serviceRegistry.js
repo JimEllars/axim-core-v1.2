@@ -59,6 +59,16 @@ class ServiceRegistry {
 
     // 3. Fetch MCP Tools
     await this.loadMcpTools();
+
+    // 4. Ensure axim-core-mcp is registered if not dynamically loaded
+    if (!this.getService('mcp:axim-core-mcp')) {
+      this.register('mcp:axim-core-mcp', {
+        name: 'axim-core-mcp',
+        type: 'mcp_tool',
+        endpoint: 'https://api.axim.us.com/mcp',
+        description: 'AXiM Core MCP Bridge Ecosystem Gateway'
+      });
+    }
   }
 
   async loadMcpTools() {
