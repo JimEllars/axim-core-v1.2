@@ -624,14 +624,18 @@ class SupabaseApiService {
       // Calls the RPC 'match_ai_interactions' to perform vector search
       // Requires pgvector and the RPC function to be created in Supabase.
       // Check memory banks first
-      const { data: bankData, error: bankError } = await this.supabase.rpc('match_memory_banks', {
+      const { data: bankData, error: bankError } = await this.supabase.rpc('match_ai_memory_banks', {
         query_embedding: queryEmbedding,
         match_threshold: 0.70,
         match_count: Math.max(1, Math.floor(limit / 2)),
         p_user_id: userId
       });
 
-      let results = bankData || [];
+      let results = (bankData || []).map(b => ({
+        ...b,
+        command: 'Memory Bank Summary',
+        response: b.content || b.executive_summary || ''
+      }));
 
       // Calls the RPC 'match_ai_interactions' to perform vector search
       const { data, error } = await this.supabase.rpc('match_ai_interactions', {

@@ -8,7 +8,9 @@ export const handleRequest = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { input, user_id, conversation_id, command_type, llm_model, llm_provider, command, response: llmResponse, execution_time_ms } = await req.json();
+    const body = await req.json();
+    const input = body.input || body.text;
+    const { user_id, conversation_id, command_type, llm_model, llm_provider, command, response: llmResponse, execution_time_ms } = body;
 
     if (!input) {
       throw new Error('Missing input text for embedding.');

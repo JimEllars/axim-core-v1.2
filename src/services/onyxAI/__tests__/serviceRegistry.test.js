@@ -1,4 +1,3 @@
-
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import serviceRegistry from '../serviceRegistry';
 import api from '../api';
@@ -9,15 +8,32 @@ vi.mock('../api', () => ({
   },
 }));
 
-vi.mock('../../supabaseClient', () => ({
-  supabase: {
-    from: vi.fn().mockReturnValue({
-      select: vi.fn().mockReturnValue({
-        eq: vi.fn().mockResolvedValue({ data: [], error: null })
-      })
+vi.mock('../../supabaseClient', () => {
+  const selectMock = vi.fn().mockReturnValue({
+    eq: vi.fn().mockImplementation((field, value) => {
+      if (field === 'status' && value === 'online') {
+        return Promise.resolve({
+          data: [
+            { name: 'test-node-1', mcp_endpoint: 'http://test-node-1.com/mcp' }
+          ],
+          error: null
+        });
+      }
+      if (field === 'protocol' && value === 'mcp') {
+        return Promise.resolve({ data: [], error: null });
+      }
+      return Promise.resolve({ data: [], error: null });
     })
-  }
-}));
+  });
+
+  return {
+    supabase: {
+      from: vi.fn().mockReturnValue({
+        select: selectMock
+      })
+    }
+  };
+});
 
 vi.mock('../../mcp/mcpClient', () => ({
   listTools: vi.fn().mockResolvedValue([])
@@ -41,14 +57,12 @@ describe('ServiceRegistry', () => {
     serviceRegistry.register('s2', { name: 's2' });
     const all = serviceRegistry.getAllServices();
     expect(all).toHaveLength(2);
-    // Since it's a map, order matches insertion, but let's just check containment
     const names = all.map(s => s.name);
     expect(names).toContain('s1');
     expect(names).toContain('s2');
   });
 
   it('should initialize default services', async () => {
-    // Mock api to return empty list
     api.listAPIIntegrations.mockResolvedValue([]);
 
     await serviceRegistry.initialize();
@@ -66,7 +80,6 @@ describe('ServiceRegistry', () => {
 
     await serviceRegistry.initialize();
 
-    // Check if dynamic service is registered (key should be normalized: lowercase and spaces to dashes)
     const serviceKey = 'my-custom-endpoint';
     const service = serviceRegistry.getService(serviceKey);
     expect(service).toBeDefined();
@@ -77,10 +90,17 @@ describe('ServiceRegistry', () => {
   it('should handle API errors gracefully during initialization', async () => {
     api.listAPIIntegrations.mockRejectedValue(new Error('API Error'));
 
-    // Should not throw
     await expect(serviceRegistry.initialize()).resolves.not.toThrow();
 
-    // Default services should still be there
     expect(serviceRegistry.getService('transcribe')).toBeDefined();
+  });
+
+  it('should load and register ecosystem nodes correctly', async () => {
+    await serviceRegistry.loadEcosystemNodes();
+
+    const nodeService = serviceRegistry.getService('mcp:test-node-1');
+    expect(nodeService).toBeDefined();
+    expect(nodeService.name).toBe('test-node-1');
+    expect(nodeService.endpoint).toBe('http://test-node-1.com/mcp');
   });
 });

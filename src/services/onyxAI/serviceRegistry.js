@@ -59,6 +59,7 @@ class ServiceRegistry {
 
     // 3. Fetch MCP Tools
     await this.loadMcpTools();
+    await this.loadEcosystemNodes();
 
     // 4. Ensure axim-core-mcp is registered if not dynamically loaded
     if (!this.getService('mcp:axim-core-mcp')) {
@@ -102,6 +103,22 @@ class ServiceRegistry {
       }
     } catch (e) {
        console.warn("Could not load MCP tools", e);
+    }
+  }
+
+
+  async loadEcosystemNodes() {
+    try {
+      const { data: nodes, error } = await supabase
+        .from('ecosystem_nodes')
+        .select('*')
+        .eq('status', 'online');
+
+      if (!error && nodes) {
+        this.registerEcosystemNodes(nodes);
+      }
+    } catch (e) {
+      console.warn("Could not load ecosystem nodes", e);
     }
   }
 
