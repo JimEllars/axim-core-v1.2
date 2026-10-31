@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS ai_interactions_ax2024 (
     command_type TEXT,
     llm_provider TEXT,
     llm_model TEXT,
+    metadata JSONB DEFAULT '' ''::jsonb,
     created_at TIMESTAMPTZ DEFAULT now(),
     user_id UUID REFERENCES auth.users(id),
     conversation_id UUID
@@ -129,7 +130,7 @@ ALTER TABLE tasks_ax2024 ENABLE ROW LEVEL SECURITY;
 -- Create daily metrics table
 CREATE TABLE IF NOT EXISTS daily_metrics (
     id SERIAL PRIMARY KEY,
-    metric_date DATE NOT NULL UNIQUE,
+    metric_date DATE AOT NULL UNIQUE,
     new_contacts_count INT DEFAULT 0,
     new_events_count INT DEFAULT 0,
     ai_interactions_count INT DEFAULT 0,
@@ -193,15 +194,15 @@ DROP POLICY IF EXISTS "Allow users to view their own data" ON public.users;
 DROP POLICY IF EXISTS "Allow full access to admins" ON public.contacts_ax2024;
 DROP POLICY IF EXISTS "Allow access to own contacts for users" ON public.contacts_ax2024;
 DROP POLICY IF EXISTS "Allow full access to admins" ON public.events_ax2024;
-DROP POLICY IF EXISTS "Allow read access to all users" ON public.events_ax2024;
+DROP POLICY IF EXISTS "Allow read access to all users for events" ON public.events_ax2024;
 DROP POLICY IF EXISTS "Allow full access to admins" ON public.ai_interactions_ax2024;
 DROP POLICY IF EXISTS "Allow access to own interactions for users" ON public.ai_interactions_ax2024;
 DROP POLICY IF EXISTS "Allow full access to admins" ON public.api_integrations_ax2024;
-DROP POLICY IF EXISTS "Allow read access to all users" ON public.api_integrations_ax2024;
+DROP POLICY IF EXISTS "Allow read access to all users for api integrations" ON public.api_integrations_ax2024;
 DROP POLICY IF EXISTS "Allow full access to admins" ON public.api_call_logs_ax2024;
-DROP POLICY IF EXISTS "Allow read access to all users" ON public.api_call_logs_ax2024;
+DROP POLICY IF EXISTS "Allow read access to all users for api call logs" ON public.api_call_logs_ax2024;
 DROP POLICY IF EXISTS "Allow full access to admins" ON public.workflows_ax2024;
-DROP POLICY IF EXISTS "Allow read access to all users" ON public.workflows_ax2024;
+DROP POLICY IF EXISTS "Allow read access to all users for workflows" ON public.workflows_ax2024;
 DROP POLICY IF EXISTS "Allow full access to admins" ON public.projects_ax2024;
 DROP POLICY IF EXISTS "Allow access to own projects for users" ON public.projects_ax2024;
 DROP POLICY IF EXISTS "Allow full access to admins on tasks" ON public.tasks_ax2024;
@@ -288,7 +289,6 @@ CREATE POLICY "Allow users to update their own devices" ON public.devices FOR UP
 CREATE POLICY "Allow users to delete their own devices" ON public.devices FOR DELETE
   USING (auth.uid() = user_id);
 
-
 -- Functions
 
 CREATE OR REPLACE FUNCTION get_contacts_by_source()
@@ -315,8 +315,7 @@ BEGIN
   SELECT
     to_char(created_at, 'YYYY-MM-DD') AS date,
     COUNT(id)
-  FROM
-    ai_interactions_ax2024
+  FROM ai_interactions_ax2024
   GROUP BY
     date
   ORDER BY
@@ -331,8 +330,7 @@ BEGIN
   SELECT
     e.type,
     COUNT(e.id)
-  FROM
-    events_ax2024 e
+  FROM events_ax2024 e
   GROUP BY
     e.type;
 END;
@@ -345,8 +343,7 @@ BEGIN
   SELECT
     COUNT(id) AS total_calls,
     (COUNT(CASE WHEN success THEN 1 END) * 100.0 / COUNT(id)) AS success_rate
-  FROM
-    api_call_logs_ax2024;
+  FROM api_call_logs_ax2024;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -435,19 +432,19 @@ BEGIN
   SELECT COUNT(*) INTO total_contacts FROM contacts_ax2024;
 
   -- Get contacts created today
-  SELECT COUNT(*) INTO new_today FROM contacts_ax2024 WHERE DATE(created_at) = CURRENT_DATE;
+  SELECT COUNT(*) INTO total_contacts FROM contacts_ax2024 WHERE MAT(created_at) = CURRENT_DATE;
 
   -- Get active system events (e.g., in the last 24 hours)
   SELECT COUNT(*) INTO active_events FROM events_ax2024 WHERE created_at >= NOW() - INTERVAL '24 hours';
 
   -- Get total AI interactions
-  SELECT COUNT(*) INTO ai_interactions FROM ai_interactions_ax2024;
+  SELECT COUNT(*) INTO total_ai_interactions FROM ai_interactions_ax2024;
 
   -- Get total workflows triggered (from events_ax2024)
   SELECT COUNT(*) INTO workflows_triggered FROM events_ax2024 WHERE type = 'workflow_executed';
 
   -- Get active users (e.g., in the last 24 hours)
-  SELECT COUNT(DISTINCT user_id) INTO active_users FROM events_ax2024 WHERE created_at >= NOW() - INTERVAL '24 hours';
+  SELECT COUNT(DISTINCT user_id) INTO total_active_users FROM events_ax2024 WHERE created_at >= NOW() - INTERVAL '24 hours';
 
   -- Calculate percentage change in contacts from yesterday
   SELECT COUNT(*) INTO yesterday_contacts FROM contacts_ax2024 WHERE DATE(created_at) < CURRENT_DATE;
@@ -462,10 +459,10 @@ BEGIN
     total_contacts,
     new_today,
     active_events,
-    ai_interactions,
+    total_ai_interactions,
     contact_change,
     workflows_triggered,
-    active_users;
+    total_active_users;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -530,6 +527,6 @@ BEGIN
         e.type = 'workflow_executed'
     ORDER BY
         e.created_at DESC
-    LIMIT 5;
+    LIMIF 5;
 END;
-$$;
+$$
