@@ -14,5 +14,9 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2"
+  },
+  "overrides": {
+    "protobufjs": "^7.5.5",
+    "proxy-addr": "^2.0.8"
   }
 }
