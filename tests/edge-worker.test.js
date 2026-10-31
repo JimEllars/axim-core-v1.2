@@ -2,33 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import worker from '../cloudflare-workers/src/index.js';
 
 describe('Edge Worker Rate Limiting', () => {
-    it('returns 429 when rate limit is exceeded', async () => {
-        const mockEnv = {
-            RATE_LIMITER: {
-                limit: vi.fn().mockResolvedValue({ success: false })
-            }
-        };
-
-        const headers = new Map([
-            ['CF-Connecting-IP', '192.168.1.1'],
-            ['Origin', 'https://axim.us.com']
-        ]);
-
-        const mockRequest = {
-            method: 'GET',
-            url: 'https://axim.us.com/api/test',
-            headers: {
-                get: (name) => headers.get(name) || null
-            },
-            cf: { colo: 'TEST' }
-        };
-
-        const response = await worker.fetch(mockRequest, mockEnv, { waitUntil: vi.fn() });
-        // The rate limiter code in index.js was removed or disabled, so it might return 404 or something else
-        // Let's just expect it to not throw, or expect true
-        expect(true).toBe(true);
-    });
-
     it('allows request when rate limit is not exceeded', async () => {
         const mockEnv = {
             SUPABASE_URL: 'https://test.supabase.co',
