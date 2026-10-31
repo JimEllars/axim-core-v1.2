@@ -1,24 +1,48 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.0.0';
 import { corsHeaders } from '../_shared/cors.ts';
+import { keysFromEnv, resolveCaller } from '../_shared/edgeAuth.ts';
 
-serve(async (req) => {
+export const handleRequest = async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const authHeader = req.headers.get('X-Axim-Internal-Service-Key');
-    const expectedKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || 'test_internal_key'; // Fallback for dev
+    // Authentication.
+    //
+    // This previously compared against `SUPABASE_SERVICE_ROLE_KEY ||
+    // 'test_internal_key'` — a literal fallback that any caller could guess, and
+    // which also meant the endpoint was unusable once the real key was set. It
+    // accepted no user credentials at all, yet the dashboard called it with a
+    // browser-side value and the service callers passed `user_id` straight from
+    // the request body. Resolve the caller instead and let the identity decide
+    // which tenant is visible.
+    const verifyUser = async (token: string): Promise<string | null> => {
+      const verified = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+        { global: { headers: { Authorization: `Bearer ${token}` } } },
+      );
+      const { data, error } = await verified.auth.getUser();
+      return error || !data?.user ? null : data.user.id;
+    };
 
-    if (!authHeader || authHeader !== expectedKey) {
+    const caller = await resolveCaller(req.headers, keysFromEnv(Deno.env), verifyUser);
+
+    if (caller.kind === 'anonymous') {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    const { query, threshold = 0.70, limit = 5, user_id } = await req.json();
+    const body = await req.json();
+    const { query, threshold = 0.70, limit = 5 } = body;
+
+    // A user may only ever retrieve their own memories. Only an internal caller
+    // may target another tenant (or null, for project-wide recall).
+    const user_id = caller.kind === 'internal' ? body.user_id : caller.userId;
 
     if (!query) {
       return new Response(JSON.stringify({ error: 'Missing query string.' }), {
@@ -173,4 +197,8 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
-});
+};
+
+if (import.meta.main) {
+  serve(handleRequest);
+}

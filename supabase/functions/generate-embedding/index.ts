@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.0.0';
 import { corsHeaders } from '../_shared/cors.ts';
+import { keysFromEnv, resolveCaller } from '../_shared/edgeAuth.ts';
 
 export const handleRequest = async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
@@ -8,11 +9,39 @@ export const handleRequest = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // --- Authentication -----------------------------------------------------
+    // This function previously had none. It writes into ai_interactions_ax2024
+    // with the service-role key, so an unauthenticated caller could inject
+    // attacker-authored text into the vector memory that Onyx later recalls and
+    // places inside its system prompt. It is also a free embedding oracle
+    // against the project's OpenAI / Workers AI quota.
+    const verifyUser = async (token: string): Promise<string | null> => {
+      const verified = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+        { global: { headers: { Authorization: `Bearer ${token}` } } },
+      );
+      const { data, error } = await verified.auth.getUser();
+      return error || !data?.user ? null : data.user.id;
+    };
+
+    const caller = await resolveCaller(req.headers, keysFromEnv(Deno.env), verifyUser);
+
+    if (caller.kind === 'anonymous') {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     const body = await req.json();
     const input = body.input || body.text;
-    const { user_id, conversation_id, command_type, llm_model, llm_provider, command, response: llmResponse, execution_time_ms } = body;
+    const { conversation_id, command_type, llm_model, llm_provider, command, response: llmResponse, execution_time_ms } = body;
 
-    if (!input) {
+    // A user may only write rows attributed to themselves. Only a service
+    // caller may choose the owner explicitly.
+    const user_id = caller.kind === 'internal' ? body.user_id : caller.userId;
+
+    if (!input || typeof input !== 'string') {
       throw new Error('Missing input text for embedding.');
     }
 
