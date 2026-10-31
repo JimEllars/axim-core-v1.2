@@ -58,6 +58,7 @@ CREATE TABLE IF NOT EXISTS ai_interactions_ax2024 (
     command_type TEXT,
     llm_provider TEXT,
     llm_model TEXT,
+    metadata JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT now(),
     user_id UUID REFERENCES auth.users(id),
     conversation_id UUID
@@ -193,15 +194,15 @@ DROP POLICY IF EXISTS "Allow users to view their own data" ON public.users;
 DROP POLICY IF EXISTS "Allow full access to admins" ON public.contacts_ax2024;
 DROP POLICY IF EXISTS "Allow access to own contacts for users" ON public.contacts_ax2024;
 DROP POLICY IF EXISTS "Allow full access to admins" ON public.events_ax2024;
-DROP POLICY IF EXISTS "Allow read access to all users" ON public.events_ax2024;
+DROP POLICY IF EXISTS "Allow read access to all users for events" ON public.events_ax2024;
 DROP POLICY IF EXISTS "Allow full access to admins" ON public.ai_interactions_ax2024;
 DROP POLICY IF EXISTS "Allow access to own interactions for users" ON public.ai_interactions_ax2024;
 DROP POLICY IF EXISTS "Allow full access to admins" ON public.api_integrations_ax2024;
-DROP POLICY IF EXISTS "Allow read access to all users" ON public.api_integrations_ax2024;
+DROP POLICY IF EXISTS "Allow read access to all users for api integrations" ON public.api_integrations_ax2024;
 DROP POLICY IF EXISTS "Allow full access to admins" ON public.api_call_logs_ax2024;
-DROP POLICY IF EXISTS "Allow read access to all users" ON public.api_call_logs_ax2024;
+DROP POLICY IF EXISTS "Allow read access to all users for api call logs" ON public.api_call_logs_ax2024;
 DROP POLICY IF EXISTS "Allow full access to admins" ON public.workflows_ax2024;
-DROP POLICY IF EXISTS "Allow read access to all users" ON public.workflows_ax2024;
+DROP POLICY IF EXISTS "Allow read access to all users for workflows" ON public.workflows_ax2024;
 DROP POLICY IF EXISTS "Allow full access to admins" ON public.projects_ax2024;
 DROP POLICY IF EXISTS "Allow access to own projects for users" ON public.projects_ax2024;
 DROP POLICY IF EXISTS "Allow full access to admins on tasks" ON public.tasks_ax2024;
