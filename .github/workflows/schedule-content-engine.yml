@@ -18,6 +18,11 @@ jobs:
           max_attempts: 3
           retry_wait_seconds: 30
           command: |
+            if [ -z "${{ secrets.SUPABASE_PROJECT_ID }}" ] || [ -z "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
+              echo "⚠️ Supabase secrets not configured. Skipping content engine trigger."
+              exit 0
+            fi
+
             response=$(curl -s -w "\n%{http_code}" -X POST \
               https://${{ secrets.SUPABASE_PROJECT_ID }}.supabase.co/functions/v1/axim-content-engine \
               -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
@@ -36,6 +41,9 @@ jobs:
 
             if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
               echo "✅ Content Engine triggered successfully"
+            elif [ "$http_code" -eq 404 ]; then
+              echo "⚠️ axim-content-engine is not deployed (HTTP 404). Deploy with 'supabase functions deploy axim-content-engine' to enable this job. Exiting cleanly."
+              exit 0
             elif [ "$http_code" -eq 429 ] || [ "$http_code" -eq 503 ]; then
               echo "⚠️ Content Engine returned $http_code. Upstream API rate limited or unavailable. Exiting cleanly."
               exit 0
