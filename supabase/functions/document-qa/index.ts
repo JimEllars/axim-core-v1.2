@@ -74,9 +74,27 @@ serve(async (req) => {
         // Handle RAG Query logic
         const { query, user_id, provider = 'claude', bypass_cache = false } = payload;
 
+        // Recall is strictly per-tenant; an explicit tenant wins, otherwise the
+        // operator default is used and logged.
+        const tenant_id: string =
+            payload.tenant_id || Deno.env.get('DEFAULT_TENANT_ID') || 'axim-systems';
+        if (!payload.tenant_id) {
+            console.warn('[document-qa] no tenant_id supplied; using default tenant');
+        }
+
         if (query) {
             const supabaseUrl = Deno.env.get('SUPABASE_URL');
             const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+
+            // Fail loudly rather than building a request against `undefined`.
+            // Removing the old `|| 'test_internal_key'` fallback exposed this.
+            if (!supabaseUrl || !serviceRoleKey) {
+                console.error('document-qa: SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY is missing');
+                return new Response(JSON.stringify({ error: 'Server configuration error' }), {
+                    status: 500,
+                    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                });
+            }
 
             // --- CACHING LOGIC ---
             let cache: Cache | null = null;
@@ -119,9 +137,14 @@ serve(async (req) => {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-Axim-Internal-Service-Key': serviceRoleKey || 'test_internal_key'
+                        'X-Axim-Internal-Service-Key': serviceRoleKey
                     },
-                    body: JSON.stringify({ query, user_id, limit: 3 })
+                    body: JSON.stringify({
+                        query,
+                        user_id,
+                        limit: 3,
+                        tenant_id: tenant_id,
+                    })
                 });
 
                 if (memoryResponse.ok) {

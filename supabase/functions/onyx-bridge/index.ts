@@ -178,7 +178,10 @@ Core Philosophy: "Put people first." The Fourth Industrial Revolution must serve
             query: promptText,
             threshold: 0.78,
             limit: 5,
-            user_id: user?.id
+            user_id: user?.id,
+            // Recall is strictly per-tenant. Prefer what the client sent; fall back
+            // to the operator default and log, so a missing field is visible.
+            tenant_id: bodyData.tenant_id || Deno.env.get('DEFAULT_TENANT_ID') || 'axim-systems'
           })
         });
 

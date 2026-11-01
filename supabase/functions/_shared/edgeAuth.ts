@@ -121,3 +121,28 @@ export function keysFromEnv(env: {
     serviceKeyLegacy: value("AXIM_SERVICE_KEY"),
   };
 }
+
+/**
+ * Read a claim from a JWT payload that has ALREADY been verified by
+ * `supabase.auth.getUser()`. This decodes only; it must never be used as the
+ * verification step, or a forged token would supply its own tenant.
+ *
+ * Returns undefined when the path is absent.
+ */
+export function claimFromToken(token: string, path: string): string | undefined {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return undefined;
+    const normalised = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalised.padEnd(Math.ceil(normalised.length / 4) * 4, "=");
+    const decoded = JSON.parse(atob(padded)) as Record<string, unknown>;
+    let cursor: unknown = decoded;
+    for (const segment of path.split(".")) {
+      if (cursor === null || typeof cursor !== "object") return undefined;
+      cursor = (cursor as Record<string, unknown>)[segment];
+    }
+    return typeof cursor === "string" && cursor.length > 0 ? cursor : undefined;
+  } catch {
+    return undefined;
+  }
+}

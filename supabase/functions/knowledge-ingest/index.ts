@@ -46,6 +46,15 @@ serve(async (req) => {
         );
 
         const payload = await req.json();
+
+        // Tenancy for the knowledge base. An explicit tenant on the request wins;
+        // otherwise fall back to the operator's configured default and log it, so
+        // a caller that forgets the field is visible rather than silent.
+        const DEFAULT_TENANT_ID = Deno.env.get('DEFAULT_TENANT_ID') || 'axim-systems';
+        const tenant_id: string = payload.tenant_id || DEFAULT_TENANT_ID;
+        if (!payload.tenant_id) {
+            console.warn(`[knowledge-ingest] no tenant_id supplied; using default '${DEFAULT_TENANT_ID}'`);
+        }
         let { title, content, text, tags, source_app, source_type = 'text', file_path, category = null, partner = null } = payload;
         text = content || text;
 
@@ -134,7 +143,10 @@ serve(async (req) => {
                         content_chunk: chunk,
                         embedding,
                         source_type,
-                        category
+                        category,
+                        // Tenancy: the column is NOT NULL. Explicit value wins;
+                        // otherwise the configured default, logged below.
+                        tenant_id
                     }).select('id');
 
                 if (insertError) {
