@@ -1,5 +1,95 @@
 # Changelog
 
+## Wave 126 — 2026-11-01: Action-node configuration & real execution history
+
+Execution window: 2026-11-01 11:00–13:30 America/Chicago. Branch
+`feat/core-wave-126-node-inspector-and-execution-history`, based on `9a68ad5`.
+
+Wave 125 made the DAG runner execute action nodes for real. It could not fix the
+other half of that loop: the builder had no way to author an action node's
+config, and the History tab could not show what the runner recorded. A workflow
+authored in the UI was therefore still guaranteed to halt at its first action
+node, and a failed run still looked like a successful one. This wave closes both.
+
+### Added
+- **`src/utils/workflowNodeConfig.js`** — the action-node configuration contract
+  as data: field list, required flags, types, bounds and defaults for all five
+  action types (`api_call`, `email`, `robot_sim_run`, `robot_policy_gate`,
+  `robot_ota_deploy`), plus `validateActionConfig()`, `validateWorkflowActions()`,
+  `getDefaultActionConfig()` and `applyActionType()`. Every rule mirrors a check
+  in `supabase/functions/_shared/workflowActions.ts`, so the builder cannot
+  author a node the runner will reject for an invisible reason. Pure functions;
+  no React, no IO.
+- **`src/components/admin/WorkflowNodeInspector.jsx`** — schema-driven config
+  panel for the selected canvas node. JSON fields buffer their text and commit
+  only once the JSON parses, list fields store a string when single and an array
+  when several (`node_ids` always an array — the OTA handler drops a bare
+  string), and the panel reports the same validity the runner would.
+- **Pre-dispatch validation gate** on "Run Workflow". Dispatching a graph with an
+  incomplete action step now fails before the request is sent, names the
+  offending step and selects it, instead of halting the DAG after the first node.
+  Saving still persists drafts.
+- `src/utils/workflowNodeConfig.test.js` (38), `WorkflowNodeInspector.test.jsx`
+  (22), `src/services/__tests__/workflowExecutions.test.js` (12).
+
+### Fixed
+- **The builder could not author a runnable action node.** Action nodes were
+  `{ label }` only: no `config.url`, no `config.to`, no `config.project_id`, no
+  `duration_sec`. Every action step created in the UI threw in the runner. Nodes
+  now carry `data.actionType` + validated `data.config`, editable from the
+  inspector.
+- **The History tab read a table the runner never writes.**
+  `getWorkflowExecutions()` queried `events_ax2024` on
+  `type IN ('workflow_executed','workflow_triggered')`; the DAG runner writes
+  `workflow_execution_logs`. The tab was empty for every real run. It now reads
+  `workflow_execution_logs` and returns `status`, `error_message`, `node_results`,
+  `duration_ms` and `workflow_run_id`.
+- **A failed run rendered as a success.** The event rows had no status, so the
+  component inferred one from `data.results` and showed an amber "legacy trigger"
+  warning with no reason. Failed runs now show the `error_message` that aborted
+  the DAG, in red, with per-step success counts and duration.
+- **Deleting a node left its edges behind**, which makes React Flow throw when
+  the graph is rehydrated from the saved definition. `deleteNode` drops them.
+- **`formatDuration` truncation**: 1450 ms rendered as `1.4s` because
+  `(ms/1000).toFixed(1)` rounds down in binary floating point. Rounds to the
+  nearest 100 ms.
+
+### Changed
+- `getWorkflowExecutions()` has a legacy fallback to `events_ax2024` for projects
+  where migration `20281101010000` is not applied, but **only** for a genuinely
+  absent relation (`42P01`, `PGRST205`). A `42501` permission denial or transport
+  error now rethrows: showing "no history" because an RLS policy is wrong would
+  hide the actual defect.
+- Legacy rows with no step detail normalise to `status: 'unknown'`, not
+  "probably fine".
+- `WorkflowBuilder` action nodes are seeded with `actionType: 'api_call'` so the
+  inspector opens on a real field set; `WorkflowBuilder.test.jsx` uses a stateful
+  React Flow stub so node edits round-trip through `setNodes()` as they do on the
+  real canvas.
+
+### Verification
+- `npx eslint .` — 0 errors, 0 warnings.
+- `npm test` (`vitest run --coverage`) — `Test Files 113 passed | 2 skipped (115)`, `Tests 667 passed | 9 skipped (676)`, 0 failures
+- `npx wrangler deploy --dry-run -c wrangler.toml` — clean, 32.79 KiB / gzip 8.09 KiB
+- `npx esbuild src/index.js --bundle` — clean, 11.6 KB.
+- `npx wrangler deploy --dry-run` (mcp-bridge) — clean, 40.63 KiB / 9.74 KiB gzip.
+- `deno check` not run: Deno is not installed in this environment.
+
+### Known gaps (carried to the next cycle)
+- Three robotics Edge Functions and three MCP functions are routed by
+  `cloudflare-workers/src/index.js` but do not exist in `supabase/functions/`:
+  `robotics-projects`, `robotics-sim`, `robotics-emergency-stop`, `mcp-router`,
+  `mcp-sse`, `mcp-message`.
+- `robot_simulation_runs` rows are queued by the `robot_sim_run` action and
+  drained by nothing.
+- `resumeWorkflow()` (`src/services/workflows/engine.js:352`) requires a
+  `status === 'paused'` run, which no writer produces and which
+  `workflow_execution_logs` does not allow; it also reads `context`, while rows
+  carry `execution_context`.
+- Documented ingress (`api.axim.us.com`, `core.axim.us.com`) does not resolve to
+  this worker; it is served by a Bluehost shared host / has no DNS record. Account
+  configuration, not code.
+
 ## Wave 125 — 2026-11-01: Workflow persistence, real action dispatch, edge ingress hardening
 
 Execution window: 2026-11-01 03:04–04:00 America/Chicago. Branch

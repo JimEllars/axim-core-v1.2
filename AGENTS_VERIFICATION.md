@@ -1,4 +1,229 @@
-# Verification for AXiM Core Wave 125 — Workflow Persistence, Real Action Dispatch, Edge Ingress Hardening
+# Verification for AXiM Core Wave 126 — Action-Node Configuration & Real Execution History
+
+Execution window: 2026-11-01, 11:00–13:30 America/Chicago (UTC-06:00)
+Branch base: `9a68ad5` (feat(core): workflow persistence, real DAG action dispatch, edge ingress hardening)
+Branch: `feat/core-wave-126-node-inspector-and-execution-history`
+
+This appendix follows the Proof-of-Fix protocol in `AGENTS.md` §0: for every
+item, the target file and line range, the exact change, and the test that fails
+without it and passes with it. Every claim below was produced by inspecting the
+repository and running the command shown, not by reading prior notes.
+
+---
+
+## 0. Baseline findings (Phase 1)
+
+Commands run against the clean tree at `9a68ad5`, before any edit:
+
+| Check | Result |
+| --- | --- |
+| `git status` | clean, on `feat/core-wave-125-workflow-persistence-and-ingress` |
+| `npx eslint .` | exit 0, no output (0 errors, 0 warnings) |
+| `npm test` (`vitest run --coverage`) | **green** — 110 files passed / 2 skipped, 584 tests passed / 9 skipped, 0 failures |
+| `npx esbuild src/index.js --bundle` (cloudflare-workers) | OK, 11.6 KB |
+| `npx wrangler deploy --dry-run -c wrangler.toml` | OK, 32.79 KiB / gzip 8.09 KiB |
+| `npx wrangler deploy --dry-run` (mcp-bridge) | OK, 40.63 KiB / gzip 9.74 KiB |
+| `deno check supabase/functions/*` | not runnable — Deno is not installed in this environment |
+| `GET https://axim-core.jrellars.workers.dev/health` | 200 `{"ok":true}` — **not** the body this worker emits (see 0.1) |
+
+Baseline was green, so cardinal rule 2 raised no freeze: the wall clock went
+straight to scheduled engineering.
+
+### 0.1 Perimeter probes disagree with the worker source (environment, not code)
+
+The runbook's Phase 1 step 1.6 asks for a health check against the three ingress
+hosts. They do not answer as the worker in this repo is written:
+
+| Probe | Observed | What the worker source says |
+| --- | --- | --- |
+| `GET https://api.axim.us.com/health` | 302 → `/404.html`, `host-header: shared.bluehost.com` | Proxy to `/functions/v1/...`; health returns 202 `{"status":"UP"}` |
+| `GET https://api.axim.us.com/api/v1/health` | 302 → `/404.html` (same Bluehost origin) | 200 `{"status":"UP", ...}` |
+| `GET https://core.axim.us.com/health` | connection failure (name does not resolve) | 202 |
+| `GET https://axim-core.jrellars.workers.dev/health` | 200 `{"ok":true}` | 202 `{"status":"UP"}` |
+| `GET https://axim-core-worker.jrellars.workers.dev/health` | 200 `text/html` — the Vite dashboard SPA | 202 JSON |
+| `GET https://axim-core-mcp.jrellars.workers.dev/` | 404 `{"jsonrpc":"2.0","error":{"code":-32601,...}}` | MCP bridge answers, as expected |
+
+So: `api.axim.us.com` is served by a Bluehost shared host, `core.axim.us.com` has
+no DNS record, and the workers.dev hosts in front of `axim-core-worker` are
+serving the dashboard bundle rather than `cloudflare-workers/src/index.js`.
+Nothing in the repository can change this — it is DNS and Cloudflare route
+configuration in the account, not code. Recorded here so the next cycle does not
+re-discover it, and raised in the runbook handoff as an operator action. The
+edge worker itself is verified by `wrangler deploy --dry-run` and by
+`tests/edge-worker.test.js` / `tests/edge-ingress-hardening.test.js`.
+
+---
+
+## 1. The builder could not author a runnable action node
+
+* Target: `src/utils/workflowNodeConfig.js` (new),
+  `src/components/admin/WorkflowNodeInspector.jsx` (new),
+  `src/components/admin/WorkflowBuilder.jsx:118-146, 236-268, 300-360, 470-500`
+* Failure: `_shared/workflowActions.ts` requires a per-type config —
+  `api_call` needs `config.url`, `email` needs `config.to`, `robot_sim_run`
+  needs `config.project_id` + a positive `config.duration_sec`,
+  `robot_ota_deploy` needs `config.project_id` + `config.version`. The builder
+  emitted `data: { label }` and nothing else. There was no way to author those
+  fields in the UI at all, so every action node created in the builder was
+  guaranteed to throw in the runner (which halts the DAG), and the only way to
+  get a working workflow was to hand-edit JSON in the database.
+  `Continued Development Plan.md` §5 records this as the open item.
+* Change:
+  - `src/utils/workflowNodeConfig.js` — the config contract for all five action
+    types as data: field list, required flags, types, bounds, defaults and help
+    text, plus `validateActionConfig()`, `validateWorkflowActions()`,
+    `getDefaultActionConfig()`, `applyActionType()` and JSON/list coercion
+    helpers. Every rule traces to a `requireString` / `Number.isFinite` check in
+    `workflowActions.ts`, so a node that validates here cannot be rejected there
+    for a reason the operator could not see. Pure functions, no React, no IO.
+  - `src/components/admin/WorkflowNodeInspector.jsx` — the panel, driven by that
+    schema rather than a hand-written form per type. Buffers JSON text locally
+    and commits only on a successful parse (half-typed JSON never lands in the
+    definition), commits list fields as a string when single and an array when
+    several (`node_ids` always an array, because the OTA handler reads it with
+    `Array.isArray(...) ? ... : []` and would silently drop a bare string), and
+    shows the validation state the runner would produce.
+  - `WorkflowBuilder.jsx` — `selectedNodeId` state, `onNodeClick`/`onPaneClick`
+    binding, `updateNodeData` / `deleteNode` (which also drops the orphaned
+    edges that make React Flow throw on rehydration), the inspector in a
+    side panel, action-type badges on the canvas node, and the action type
+    seeded on new action nodes so the panel opens on a real field set.
+  - `WorkflowBuilder.jsx:236-268` — **pre-dispatch gate**. "Run Workflow" now
+    validates the whole graph first and refuses to dispatch when any action node
+    is incomplete, naming the offending step and selecting it. Save still
+    persists drafts; dispatch is the operation that must not proceed. This is
+    the same class of failure as the wave-125 fixed run: a run that halts
+    mid-DAG after the first node.
+* Proving tests:
+  - `src/utils/workflowNodeConfig.test.js` (38 tests) — the catalogue matches
+    `SUPPORTED_ACTION_TYPES` exactly, required-field flags match the runner's
+    `requireString` calls, URL/UUID/number/select/JSON validation, per-node issue
+    collection, and `applyActionType` carrying config across types only where the
+    new type declares it.
+  - `src/components/admin/WorkflowNodeInspector.test.jsx` (22 tests) — field set
+    per type, action-type switching, JSON buffering (invalid text produces no
+    `onChange`, valid text commits), recipient string-vs-array, `node_ids` always
+    array, uuid and range errors surfaced, reset on node switch.
+  - `src/components/admin/WorkflowBuilder.test.jsx` (9 tests, 6 new) — clicking a
+    canvas node opens the inspector on it, config edits reach the persisted
+    definition, and **an unconfigured step blocks dispatch**:
+    `expect(supabaseApiService.supabase.functions.invoke).not.toHaveBeenCalled()`
+    with `toast.error('"Format Payload": Endpoint URL is required.')`. Before this
+    change the same click called `invoke('trigger-workflow', ...)` unconditionally.
+
+## 2. The History tab read a table the runner never writes
+
+* Target: `src/services/supabaseApiService.js:854-905` (replaced),
+  `src/services/supabaseApiService.js:32-120` (normalisers),
+  `src/components/admin/WorkflowExecutionLog.jsx` (rewritten render path)
+* Failure: `getWorkflowExecutions()` selected from `events_ax2024` filtered on
+  `type IN ('workflow_executed','workflow_triggered')`. The DAG runner writes
+  `workflow_execution_logs` (migration `20281101010000`), so the tab was empty
+  for every real run. The rows it could show had no `status` column and no
+  `error_message` — the component had to infer an outcome from
+  `data.results`, and a run aborted by a failing node rendered as an amber
+  "legacy trigger" warning with no reason given. A failed robotics deploy and a
+  successful one were visually identical.
+* Change:
+  - `getWorkflowExecutions()` selects
+    `id, workflow_id, workflow_run_id, workflow_name, status, error_message,
+    node_results, duration_ms, execution_context, created_at` from
+    `workflow_execution_logs`, newest first, and maps each row through
+    `normalizeExecutionLogRow()` (adds `steps_total` / `steps_succeeded` and a
+    `source` tag).
+  - `getLegacyWorkflowExecutions()` keeps the old event query as a fallback, but
+    only for a genuinely absent relation: `isMissingRelationError()` accepts
+    `42P01` and `PGRST205` and nothing else. A `42501` permission denial or a
+    transport error rethrows — silently showing "no history" because an RLS
+    policy is wrong would hide the actual defect.
+  - `normalizeLegacyExecutionRow()` reports `status: 'unknown'` when a legacy row
+    carries no step results, instead of the old implicit "looks fine" rendering.
+  - `WorkflowExecutionLog.jsx` renders `status`, `workflow_run_id`, duration,
+    step counts, and the `error_message` that aborted the run (in red detail
+    text), with the filter relabelled All / Success / Failed / Unknown.
+    `formatDuration` rounds to the nearest 100 ms so 1450 ms reads as `1.5s`
+    rather than the `1.4s` that `(ms/1000).toFixed(1)` yields in binary floating
+    point.
+* Proving tests: `src/services/__tests__/workflowExecutions.test.js` (12 tests) —
+  asserts the query hits `workflow_execution_logs` and selects `status` and
+  `error_message`, the normalisers, the `PGRST205` fallback, and that `42501`
+  throws without a second query. `src/components/admin/WorkflowExecutionLog.test.jsx`
+  (6 tests, 5 new) — a failed run shows its `error_message`, a completed run its
+  step counts, filtering by status, and a legacy row is labelled UNKNOWN rather
+  than SUCCESS.
+
+---
+
+## 3. Post-update verification
+
+| Check | Result |
+| --- | --- |
+| `npx eslint .` | exit 0, no output (0 errors, 0 warnings) |
+| `npm test` (`vitest run --coverage`) | `Test Files 113 passed | 2 skipped (115)`, `Tests 667 passed | 9 skipped (676)`, 0 failures |
+| `npx wrangler deploy --dry-run -c wrangler.toml` | clean, 32.79 KiB / gzip 8.09 KiB |
+| `npx esbuild src/index.js --bundle` | clean, 11.6 KB |
+| `npx wrangler deploy --dry-run` (mcp-bridge) | clean, 40.63 KiB / gzip 9.74 KiB |
+| `deno check` | not run — Deno is not installed in this environment |
+
+New tests added this wave: 83 (`workflowNodeConfig` 38, `WorkflowNodeInspector`
+22, `workflowExecutions` 12, `WorkflowBuilder` +6, `WorkflowExecutionLog` +5).
+Net: 584 → 667 passing, three new test files. No existing test was changed.
+
+## 4. Files changed
+
+| File | Change |
+| --- | --- |
+| `src/utils/workflowNodeConfig.js` | **new** — action-node config contract, validation, defaults, type switching (330 lines) |
+| `src/utils/workflowNodeConfig.test.js` | **new** — 38 tests |
+| `src/components/admin/WorkflowNodeInspector.jsx` | **new** — schema-driven config panel (~300 lines) |
+| `src/components/admin/WorkflowNodeInspector.test.jsx` | **new** — 22 tests |
+| `src/components/admin/WorkflowBuilder.jsx` | node selection, inspector panel, node data writes, delete, pre-dispatch validation gate, action-type seeding |
+| `src/components/admin/WorkflowBuilder.test.jsx` | stateful React Flow stub + 6 tests for the new wiring |
+| `src/services/supabaseApiService.js` | `getWorkflowExecutions()` reads `workflow_execution_logs`; legacy fallback; row normalisers |
+| `src/services/__tests__/workflowExecutions.test.js` | **new** — 12 tests |
+| `src/components/admin/WorkflowExecutionLog.jsx` | renders status / run id / duration / step counts / abort reason |
+| `src/components/admin/WorkflowExecutionLog.test.jsx` | 5 new tests |
+| `AGENTS_VERIFICATION.md` | this appendix |
+| `CHANGELOG.md` | Wave 126 entry |
+| `Continued Development Plan.md` | items 2 and 3 marked done, next priorities restated |
+| `DEBUGGING_NOTES.md` | runtime facts found this cycle (perimeter drift, suite duration, `resumeWorkflow` contract) |
+
+No migration was added this wave: the two tables the new code reads and writes
+(`workflow_execution_logs`, `robot_simulation_runs`) were provisioned in
+`20281101010000_workflow_definition_and_execution_logs.sql` under wave 125, with
+RLS forced and writes revoked from `anon`/`authenticated`.
+
+## 5. Residual risks and carried-forward items
+
+1. **`resumeWorkflow()` has no producer for `status === 'paused'`.**
+   `src/services/workflows/engine.js:352-364` looks for a paused run in
+   `getWorkflowExecutions()` and reads `runData.context` / `paused_at_step`.
+   `workflow_execution_logs.status` is constrained to `('completed','failed')`,
+   and the normalised shape exposes `execution_context`, not `context`. This was
+   already unreachable before this wave (legacy event rows never carried a
+   `status` either), so nothing regressed — but the path cannot work as written
+   and needs either a `paused` state on the table or removal of the branch.
+2. **Three robotics Edge Functions and two MCP functions are routed but absent.**
+   `cloudflare-workers/src/index.js:52-65` maps
+   `/api/v1/robotics/{projects,sim,fleet/emergency-stop}` and
+   `/api/v1/mcp{,/sse,/message}` to `robotics-projects`, `robotics-sim`,
+   `robotics-emergency-stop`, `mcp-router`, `mcp-sse`, `mcp-message`; none of the
+   six exists in `supabase/functions/`. Requests return Supabase's 404, not the
+   worker's. Unchanged from wave 125 and listed as the next cycle's first item.
+3. **`robot_simulation_runs` has no consumer.** The `robot_sim_run` action queues
+   rows with `status='queued'`; nothing drains them. Also carried forward.
+4. **Perimeter ingress does not point at this worker** (see 0.1). Requires DNS /
+   Cloudflare route changes in the account, which no repository change can make.
+5. **No Deno type-check.** `deno check` cannot run here, so
+   `_shared/workflowActions.ts` and the functions that import it are covered only
+   by the Vitest suites (`tests/workflow-actions.test.js`), not by the Deno
+   compiler. Unchanged from wave 125.
+
+---
+
+# Archive
+
+## Verification for AXiM Core Wave 125 — Workflow Persistence, Real Action Dispatch, Edge Ingress Hardening
 
 Execution window: 2026-11-01, 03:04–04:00 America/Chicago (UTC-06:00)
 Branch base: `3d03da7` (fix(deps): patch two critical runtime CVEs in cloud/)
@@ -11,7 +236,7 @@ the repository, not by reading prior notes.
 
 ---
 
-## 0. Baseline findings (Phase 1)
+### 0. Baseline findings (Phase 1)
 
 Commands run against the clean tree at `3d03da7`, before any edit:
 
@@ -27,7 +252,7 @@ Commands run against the clean tree at `3d03da7`, before any edit:
 Two of those are workspace defects, not environment noise, and were fixed before
 any forward work (Cardinal Rule 2: zero progress on a broken build).
 
-### D1 — `npm test` result depended on the caller's shell
+#### D1 — `npm test` result depended on the caller's shell
 
 * Target: `vitest.config.js:19`
 * Failure: `Error: act(...) is not supported in production builds of React.` in
@@ -47,7 +272,7 @@ test: {
 * Proving run: `NODE_ENV=production npx vitest run src/components/layout/ApprovalQueue.test.jsx`
   → 4 failed before, 4 passed after.
 
-### D2 — lint never reached 0 warnings
+#### D2 — lint never reached 0 warnings
 
 * Target: `eslint.config.js:68`, `src/contexts/ConnectivityContext.jsx:7,15`
 * Failure: 7 × `react-refresh/only-export-components` in `src/contexts/*.jsx`.
@@ -65,9 +290,9 @@ test: {
 
 ---
 
-## 1. Visual workflow builder could never load or save a graph
+### 1. Visual workflow builder could never load or save a graph
 
-### 1a. `definition` column did not exist
+#### 1a. `definition` column did not exist
 
 * Target: `supabase/migrations/20281101010000_workflow_definition_and_execution_logs.sql:1-40`
 * Ground truth: `workflows_ax2024` is created at
@@ -81,7 +306,7 @@ test: {
   for NULL rows, and an owner-write RLS policy (`auth.uid() = user_id`) so a
   non-admin can persist their own flow without widening anyone else's access.
 
-### 1b. `saveWorkflow()` did not exist
+#### 1b. `saveWorkflow()` did not exist
 
 * Target: `src/services/supabaseApiService.js:552-620`
 * Failure: `WorkflowBuilder.jsx` calls
@@ -96,7 +321,7 @@ test: {
   a loaded workflow could not be addressed for update and each save inserted a
   duplicate row.
 
-### 1c. The builder persisted PII-scrubbed definitions
+#### 1c. The builder persisted PII-scrubbed definitions
 
 * Target: `src/components/admin/WorkflowBuilder.jsx:455`,
   `src/utils/workflowDefinition.js:1-160`
@@ -124,7 +349,7 @@ test: {
 
 ---
 
-## 2. `trigger-workflow` ran with a service-role client and no authentication
+### 2. `trigger-workflow` ran with a service-role client and no authentication
 
 * Target: `supabase/functions/trigger-workflow/index.ts:56-131`,
   `supabase/functions/_shared/workflowAuth.ts:1-245`
@@ -156,7 +381,7 @@ caller's own session JWT is attached and the `user_jwt` path applies.
 
 ---
 
-## 3. Action nodes were fabricated successes; the run was always "completed"
+### 3. Action nodes were fabricated successes; the run was always "completed"
 
 * Target: `supabase/functions/_shared/workflowActions.ts:1-428`,
   `supabase/functions/trigger-workflow/index.ts:240-312`
@@ -182,7 +407,7 @@ caller's own session JWT is attached and the `user_jwt` path applies.
 
 ---
 
-## 4. Edge worker: shared CORS state, no CGI/traversal shielding, missing health route
+### 4. Edge worker: shared CORS state, no CGI/traversal shielding, missing health route
 
 * Target: `cloudflare-workers/src/index.js:1-379`
 * Failure, three separate defects:
@@ -210,7 +435,7 @@ caller's own session JWT is attached and the `user_jwt` path applies.
 
 ---
 
-## 5. Verification commands and output
+### 5. Verification commands and output
 
 ```
 $ npx eslint .
@@ -265,7 +490,7 @@ as a follow-up rather than silently skipped.
 
 ---
 
-## 6. Known gaps left open (documented, not fixed this cycle)
+### 6. Known gaps left open (documented, not fixed this cycle)
 
 1. `cloudflare-workers/src/index.js` routes `/api/v1/robotics/projects|sim|fleet/emergency-stop`
    to `robotics-projects`, `robotics-sim`, `robotics-emergency-stop` — **none of

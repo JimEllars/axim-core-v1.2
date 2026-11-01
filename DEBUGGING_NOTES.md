@@ -328,3 +328,75 @@ During `npm install`, several deprecation warnings are visible:
 - `deno` is not installed in this environment: `deno check` / `deno lint` on
   `supabase/functions/**` cannot be executed. `npx esbuild <file> --format=esm`
   is used as a syntax gate instead.
+
+## [2026-11-01] Wave 126 — action-node config authoring, execution history
+
+### 1. The builder could not produce a node the runner would accept
+- **Symptom**: a workflow saved from the UI always failed on its first action node
+  with e.g. `Node "Format Payload" is missing required config.url`. The only way
+  to get a working workflow was to write the definition JSON into
+  `workflows_ax2024` by hand.
+- **Root cause**: wave 125 taught `_shared/workflowActions.ts` to read
+  `data.actionType` + `data.config.<field>`, but the builder still emitted
+  `data: { label }`. There was no UI for the fields at all, so nothing could set
+  them.
+- **Resolution**: `src/utils/workflowNodeConfig.js` describes the field set for
+  each action type, and `WorkflowNodeInspector.jsx` renders it. Keep the rules in
+  that module, not in the JSX: the runner's `requireString`/`Number.isFinite`
+  checks are mirrored there, and `validateWorkflowActions()` is used both by the
+  inspector and by the pre-dispatch gate, so the two cannot drift.
+- **Gotcha worth remembering**: `node_ids` for `robot_ota_deploy` must always be
+  an *array*. The OTA handler reads it as `Array.isArray(config.node_ids) ? … : []`,
+  so a single id stored as a bare string is silently ignored — the deploy reports
+  0 nodes touched and the UI has nothing to complain about. That is why the field
+  carries `splitMultiple: true` next to the "store a string when single" behaviour
+  used for `email.to`.
+
+### 2. History tab was reading a table nothing writes to
+- **Symptom**: History was always empty after a successful run; when it did show a
+  row (from unrelated code logging `workflow_executed` events), it could not say
+  whether the run succeeded, and offered no reason for a failure.
+- **Root cause**: `getWorkflowExecutions()` selected from `events_ax2024`, while
+  the DAG runner writes `workflow_execution_logs` (migration `20281101010000`).
+  Two names for the same concept, only one of them populated.
+- **Resolution**: read `workflow_execution_logs`; normalise both shapes through
+  `normalizeExecutionLogRow()` / `normalizeLegacyExecutionRow()` so the component
+  renders one table. The legacy read survives **only** for
+  `42P01`/`PGRST205` (relation genuinely absent). Do not widen
+  `isMissingRelationError()` to catch everything — a `42501` permission denial
+  then looks like "no runs yet", which is the kind of quiet wrong answer that
+  costs an afternoon.
+
+### 3. `formatDuration` off by one decimal
+- **Symptom**: a 1450 ms run displayed as `1.4s`.
+- **Root cause**: `(1450 / 1000).toFixed(1)` — 1.45 is not representable in binary
+  floating point and lands just below the midpoint, so it rounds down.
+- **Resolution**: round to the nearest 100 ms first
+  (`(Math.round(ms / 100) / 10).toFixed(1)`). Same family of bug as the wave-125
+  `formatDistanceToNow` fixture: assert deterministic values, not clock-adjacent
+  formatting.
+
+### 4. Runtime facts measured this cycle
+- **`npm test` on this machine takes ~85 minutes**, not the ~18 minutes recorded
+  earlier: `Duration 5005.06s` with `environment 2301.87s` (jsdom construction for
+  112 files dominates) on 2 vCPUs. Use
+  `npx vitest run <file> --coverage.enabled=false` while iterating (a single
+  component suite still costs ~30–60 s of environment setup) and budget the full
+  sweep as the last action of the window.
+- **`npx eslint .` over the whole repo takes >400 s** in this sandbox. It does
+  finish clean; do not conclude it hung.
+- **Deno is not installed**, so `deno check` on `supabase/functions/**` cannot be
+  part of the gate here. The Deno-side logic is covered by Vitest suites that
+  import the `_shared` TypeScript modules directly.
+
+### 5. Perimeter drift (needs operator action, not a code change)
+- `api.axim.us.com` and `core.axim.us.com` do not reach this worker:
+  - `api.axim.us.com/health` → `302 /404.html` with
+    `host-header: c2hhcmVkLmJsdWVob3N0LmNvbQ==` (`shared.bluehost.com`).
+  - `core.axim.us.com` → does not resolve.
+  - `axim-core-worker.jrellars.workers.dev/health` → the Vite dashboard HTML, not
+    the worker's JSON health body.
+  - `axim-core-mcp.jrellars.workers.dev/` → the MCP bridge, answering correctly.
+- So the only way to exercise the edge worker today is `wrangler deploy --dry-run`
+  plus the unit suites. Fixing the hostnames is a DNS/route change in the
+  Cloudflare account.

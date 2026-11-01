@@ -33,16 +33,30 @@
 - [x] Implement a UI for visual workflow building. *(Wave 125: the builder now
       rehydrates `workflows_ax2024.definition` into React Flow and persists it
       back through `supabaseApiService.saveWorkflow()`; action nodes dispatch for
-      real in `trigger-workflow`. Remaining: a typed config inspector per action
-      node, and reconciling the History tab with `workflow_execution_logs`.)*
-- [ ] Add a node configuration inspector for typed action steps (`api_call`,
+      real in `trigger-workflow`. Wave 126 added the typed config inspector and
+      the pre-dispatch validation gate.)*
+- [x] Add a node configuration inspector for typed action steps (`api_call`,
       `email`, `robot_sim_run`, `robot_policy_gate`, `robot_ota_deploy`) so the
       config the runner expects is authored in the UI rather than by hand.
-- [ ] Point `getWorkflowExecutions()` at `workflow_execution_logs` (it still reads
+      *(Wave 126: `src/utils/workflowNodeConfig.js` holds the contract,
+      `WorkflowNodeInspector.jsx` renders it, and "Run Workflow" refuses to
+      dispatch a graph the runner would halt on.)*
+- [x] Point `getWorkflowExecutions()` at `workflow_execution_logs` (it still reads
       `events_ax2024`), and surface `status`/`error_message` in the History tab.
+      *(Wave 126, with a `42P01`/`PGRST205`-only fallback to the legacy event
+      stream.)*
 - [ ] Build the three robotics Edge Functions the worker already routes to
       (`robotics-projects`, `robotics-sim`, `robotics-emergency-stop`) and a
-      consumer that drains `robot_simulation_runs`.
+      consumer that drains `robot_simulation_runs`. *(`robot_sim_run` action nodes
+      now queue rows with `status='queued'` and nothing picks them up — this is
+      the highest-value next increment.)*
+- [ ] Build the MCP Edge Functions the worker also routes to (`mcp-router`,
+      `mcp-sse`, `mcp-message`); `/mcp`, `/sse` and `/message` currently return
+      Supabase's 404.
+- [ ] Reconcile `resumeWorkflow()` with the execution-log schema: it looks for
+      `status === 'paused'` (a value the table's CHECK constraint forbids and no
+      writer produces) and reads `context` where the row has
+      `execution_context`. Either add a `paused` state or delete the branch.
 - [ ] Add more external service integrations (e.g., Email Service, Calendar).
 - [ ] Enhance "Memory Banks" to index and search past conversations more effectively (RAG).
     - Current state: Chats are logged to `ai_interactions_ax2024` (Postgres).

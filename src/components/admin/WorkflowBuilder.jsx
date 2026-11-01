@@ -17,6 +17,8 @@ import {
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import WorkflowExecutionLog from './WorkflowExecutionLog';
+import WorkflowNodeInspector from './WorkflowNodeInspector';
+import { getActionTypeLabel, validateWorkflowActions } from '../../utils/workflowNodeConfig';
 import api from '../../services/onyxAI/api';
 import supabaseApiService from '../../services/supabaseApiService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -52,7 +54,7 @@ const ActionNode = ({ data }) => {
           </div>
           <div>
             <h4 className="text-sm font-medium text-white">{data.label}</h4>
-            <p className="text-xs text-slate-400">Executes a task</p>
+            <p className="text-xs text-slate-400">{getActionTypeLabel(data.actionType)}</p>
           </div>
         </div>
       </div>
@@ -88,7 +90,15 @@ const nodeTypes = {
 
 const initialNodes = [
   { id: '1', type: 'trigger', position: { x: 250, y: 50 }, data: { label: 'Webhook Received' } },
-  { id: '2', type: 'action', position: { x: 250, y: 200 }, data: { label: 'Format Payload' } },
+  {
+    id: '2',
+    type: 'action',
+    position: { x: 250, y: 200 },
+    // Seed an action type so the inspector opens on a real field set instead of
+    // an empty panel. The config itself stays empty - an api_call with no URL
+    // is exactly what the runner refuses, and the inspector says so.
+    data: { label: 'Format Payload', actionType: 'api_call', config: {} },
+  },
 ];
 const initialEdges = [{ id: 'e1-2', source: '1', target: '2' }];
 
@@ -102,6 +112,28 @@ const WorkflowBuilder = () => {
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+  // Which node the configuration inspector is bound to. Kept as an id rather
+  // than the node object so the panel always renders the live node from `nodes`
+  // (React Flow replaces node objects on every change).
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const selectedNode = nodes.find((node) => node.id === selectedNodeId) || null;
+
+  const updateNodeData = useCallback((nodeId, patch) => {
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === nodeId ? { ...node, data: { ...node.data, ...patch } } : node,
+      ),
+    );
+  }, [setNodes]);
+
+  const deleteNode = useCallback((nodeId) => {
+    setNodes((nds) => nds.filter((node) => node.id !== nodeId));
+    // Drop the edges that pointed at it; React Flow throws on orphaned edges
+    // when the graph is rehydrated from the saved definition.
+    setEdges((eds) => eds.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
+    setSelectedNodeId((current) => (current === nodeId ? null : current));
+  }, [setNodes, setEdges]);
 
   const onConnect = useCallback((params) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
 
@@ -193,56 +225,81 @@ const WorkflowBuilder = () => {
       position: { x: Math.random() * 200 + 100, y: Math.random() * 200 + 100 },
       data: { label: `New ${type.charAt(0).toUpperCase() + type.slice(1)}` },
     };
+    if (type === 'action') {
+      newNode.data = { ...newNode.data, actionType: 'api_call', config: {} };
+    }
     setNodes((nds) => nds.concat(newNode));
+    if (type === 'action') setSelectedNodeId(newNode.id);
   };
 
   const renderBuilder = () => (
-    <div className="h-[600px] border border-cyan-500/30 rounded-lg overflow-hidden glass-effect relative">
-      <ReactFlow defaultEdgeOptions={{ style: { stroke: '#06b6d4', strokeWidth: 2 }, animated: true }}
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        nodeTypes={nodeTypes}
-        fitView
-      >
-        <Background color="#06b6d4" gap={16} size={1} />
-        <MiniMap nodeStrokeColor={(n) => {
-            if (n.type === 'trigger') return '#6366f1';
-            if (n.type === 'action') return '#94a3b8';
-            if (n.type === 'condition') return '#eab308';
-            return '#eee';
-          }}
-          nodeColor={(n) => {
-            if (n.type === 'trigger') return 'rgba(99, 102, 241, 0.2)';
-            if (n.type === 'action') return '#0f172a';
-            if (n.type === 'condition') return 'rgba(234, 179, 8, 0.2)';
-            return '#fff';
-          }}
+    <div className="flex flex-col lg:flex-row gap-4">
+      <div className="flex-1 h-[600px] border border-cyan-500/30 rounded-lg overflow-hidden glass-effect relative">
+        <ReactFlow defaultEdgeOptions={{ style: { stroke: '#06b6d4', strokeWidth: 2 }, animated: true }}
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeClick={(_event, node) => setSelectedNodeId(node.id)}
+          onPaneClick={() => setSelectedNodeId(null)}
+          nodeTypes={nodeTypes}
+          fitView
+        >
+          <Background color="#06b6d4" gap={16} size={1} />
+          <MiniMap nodeStrokeColor={(n) => {
+              if (n.type === 'trigger') return '#6366f1';
+              if (n.type === 'action') return '#94a3b8';
+              if (n.type === 'condition') return '#eab308';
+              return '#eee';
+            }}
+            nodeColor={(n) => {
+              if (n.type === 'trigger') return 'rgba(99, 102, 241, 0.2)';
+              if (n.type === 'action') return '#0f172a';
+              if (n.type === 'condition') return 'rgba(234, 179, 8, 0.2)';
+              return '#fff';
+            }}
+          />
+          <Controls />
+          <Panel position="top-left" className="flex gap-2">
+              <button
+                onClick={() => handleAddNode('trigger')}
+                className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-md text-xs transition-colors flex items-center"
+              >
+                <SafeIcon icon={FiPlus} className="mr-1" /> Trigger
+              </button>
+              <button
+                onClick={() => handleAddNode('action')}
+                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-md text-xs transition-colors flex items-center"
+              >
+                <SafeIcon icon={FiPlus} className="mr-1" /> Action
+              </button>
+              <button
+                onClick={() => handleAddNode('condition')}
+                className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 text-white rounded-md text-xs transition-colors flex items-center"
+              >
+                <SafeIcon icon={FiPlus} className="mr-1" /> Condition
+              </button>
+          </Panel>
+        </ReactFlow>
+      </div>
+
+      {selectedNode ? (
+        <WorkflowNodeInspector
+          node={selectedNode}
+          onChange={updateNodeData}
+          onDelete={deleteNode}
+          onClose={() => setSelectedNodeId(null)}
         />
-        <Controls />
-        <Panel position="top-left" className="flex gap-2">
-            <button
-              onClick={() => handleAddNode('trigger')}
-              className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-md text-xs transition-colors flex items-center"
-            >
-              <SafeIcon icon={FiPlus} className="mr-1" /> Trigger
-            </button>
-            <button
-              onClick={() => handleAddNode('action')}
-              className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-md text-xs transition-colors flex items-center"
-            >
-              <SafeIcon icon={FiPlus} className="mr-1" /> Action
-            </button>
-            <button
-              onClick={() => handleAddNode('condition')}
-              className="px-3 py-1.5 bg-yellow-600 hover:bg-yellow-500 text-white rounded-md text-xs transition-colors flex items-center"
-            >
-              <SafeIcon icon={FiPlus} className="mr-1" /> Condition
-            </button>
-        </Panel>
-      </ReactFlow>
+      ) : (
+        <aside className="w-full lg:w-80 shrink-0 glass-effect border border-slate-700/50 rounded-lg p-4">
+          <h3 className="text-sm font-semibold text-white">Node Configuration</h3>
+          <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+            Select a step on the canvas to edit its configuration. Every action step needs an
+            action type and the fields that type declares before the runner will execute it.
+          </p>
+        </aside>
+      )}
     </div>
   );
 
@@ -251,16 +308,17 @@ const WorkflowBuilder = () => {
     if (id === 'auto-reply') {
       setNodes([
         { id: '1', type: 'trigger', position: { x: 250, y: 50 }, data: { label: 'New Lead' } },
-        { id: '2', type: 'action', position: { x: 250, y: 150 }, data: { label: 'Send Email' } }
+        { id: '2', type: 'action', position: { x: 250, y: 150 }, data: { label: 'Send Email', actionType: 'email', config: {} } }
       ]);
       setEdges([{ id: 'e1-2', source: '1', target: '2' }]);
     } else {
       setNodes([
         { id: '1', type: 'trigger', position: { x: 250, y: 50 }, data: { label: 'Cron Trigger' } },
-        { id: '2', type: 'action', position: { x: 250, y: 150 }, data: { label: 'Run Export' } }
+        { id: '2', type: 'action', position: { x: 250, y: 150 }, data: { label: 'Run Export', actionType: 'api_call', config: {} } }
       ]);
       setEdges([{ id: 'e1-2', source: '1', target: '2' }]);
     }
+    setSelectedNodeId(null);
     setActiveTab('builder');
     toast.success("Template loaded");
   };
@@ -276,6 +334,7 @@ const WorkflowBuilder = () => {
 
     setNodes(loadedNodes);
     setEdges(loadedEdges);
+    setSelectedNodeId(null);
     setActiveWorkflowId(workflow?.id || null);
     setWorkflowName(workflow?.name || 'New Workflow');
     setWorkflowDescription(workflow?.description || '');
@@ -423,6 +482,21 @@ const WorkflowBuilder = () => {
           <div className="flex gap-3">
             <button
               onClick={async () => {
+                // Pre-dispatch gate. The builder may save a draft with
+                // incomplete steps, but dispatching one is guaranteed to halt
+                // the DAG mid-run - which is exactly the silent-drop class of
+                // failure this wave is closing. Fail here, where it is cheap.
+                const validation = validateWorkflowActions({ nodes, edges });
+                if (!validation.valid) {
+                  toast.error(
+                    validation.issues.length === 1
+                      ? validation.issues[0].message
+                      : `${validation.issues.length} steps need configuration. ${validation.issues[0].message}`,
+                  );
+                  setSelectedNodeId(validation.issues[0].nodeId);
+                  return;
+                }
+
                 try {
                   await supabaseApiService.supabase.functions.invoke('trigger-workflow', {
                     body: {
