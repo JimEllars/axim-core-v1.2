@@ -122,7 +122,6 @@ export function keysFromEnv(env: {
   };
 }
 
-<<<<<<< HEAD
 /**
  * Read a claim from a JWT payload that has ALREADY been verified by
  * `supabase.auth.getUser()`. This decodes only; it must never be used as the
@@ -146,7 +145,8 @@ export function claimFromToken(token: string, path: string): string | undefined 
   } catch {
     return undefined;
   }
-=======
+}
+
 // ---------------------------------------------------------------------------
 // Versioned request signing with a date-keyed dual-accept window
 // ---------------------------------------------------------------------------
@@ -268,5 +268,4 @@ export async function verifySignedRequest(params: {
   return timingSafeEqual(expected, signature)
     ? { ok: true, mode: "legacy" }
     : { ok: false, mode: "legacy", reason: "signature mismatch" };
->>>>>>> 19b39dd (feat(edge): versioned signatures with a date-keyed dual-accept window)
 }
