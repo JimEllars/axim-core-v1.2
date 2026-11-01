@@ -164,6 +164,15 @@ What that proved:
 SQLSTATE codes are asserted, not just message text, by running psql with
 `\set VERBOSITY verbose`.
 
+## Bug found by the harness: `getUser()` vs `getUser(token)`
+
+`generate-embedding` and `memory-retrieval` called `verified.auth.getUser()` with no
+argument. With no session attached to the client, supabase-js makes **no request at all**
+and returns a null user — so a *valid* user token was being treated as anonymous. The
+negative tests passed for the wrong reason (everything was rejected, including real
+users). Both now call `getUser(token)`, and there is a positive-path test asserting the
+token is actually verified and the caller admitted.
+
 ## Still not verified
 
 - **No live Supabase.** The fixture reproduces the parts of Supabase this migration

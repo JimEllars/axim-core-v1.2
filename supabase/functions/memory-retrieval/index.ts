@@ -24,7 +24,9 @@ export const handleRequest = async (req: Request): Promise<Response> => {
         Deno.env.get('SUPABASE_ANON_KEY') ?? '',
         { global: { headers: { Authorization: `Bearer ${token}` } } },
       );
-      const { data, error } = await verified.auth.getUser();
+      // getUser(token), not getUser(): with no session the client would make no
+      // request at all and every valid token would be treated as anonymous.
+      const { data, error } = await verified.auth.getUser(token);
       return error || !data?.user ? null : data.user.id;
     };
 

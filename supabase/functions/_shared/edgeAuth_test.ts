@@ -199,6 +199,52 @@ Deno.test("generate-embedding admits a service caller", async () => {
   }
 });
 
+Deno.test("generate-embedding admits a verified user token", async () => {
+  // Regression: getUser() without an explicit token makes no network call when
+  // the client has no session, so this used to 401 every real user.
+  const restoreEnv = setEnv({
+    SUPABASE_URL: "https://project.example",
+    SUPABASE_ANON_KEY: "anon",
+    SUPABASE_SERVICE_ROLE_KEY: "service",
+    AXIM_INTERNAL_KEY: undefined,
+    AXIM_SERVICE_KEY: undefined,
+    OPENAI_API_KEY: undefined,
+    CF_ACCOUNT_ID: undefined,
+    CF_API_TOKEN: undefined,
+  });
+  const original = globalThis.fetch;
+  const seen: string[] = [];
+  globalThis.fetch = ((input: any) => {
+    const url = typeof input === "string" ? input : input.url;
+    seen.push(url);
+    if (url.includes("/auth/v1/user")) {
+      return Promise.resolve(new Response(JSON.stringify({
+        id: "u-1", aud: "authenticated", role: "authenticated",
+        email: "op@example.com", app_metadata: {}, user_metadata: {},
+        created_at: new Date().toISOString(),
+      }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    }
+    return Promise.resolve(new Response("[]", { status: 200, headers: { "Content-Type": "application/json" } }));
+  }) as any;
+  try {
+    const b64 = (o: unknown) => btoa(JSON.stringify(o)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const token = `${b64({ alg: "none" })}.${b64({ sub: "u-1" })}.sig`;
+    const { handleRequest } = await import("../generate-embedding/index.ts");
+    const res = await handleRequest(
+      new Request("https://edge.example/generate-embedding", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ input: "hello" }),
+      }),
+    );
+    assert(seen.some((u) => u.includes("/auth/v1/user")), "auth.getUser must actually be called");
+    assert(res.status !== 401, `verified user was rejected with ${res.status}`);
+  } finally {
+    globalThis.fetch = original;
+    restoreEnv();
+  }
+});
+
 Deno.test("onyx-sentinel rejects an anonymous POST", async () => {
   const restoreEnv = setEnv({
     SUPABASE_URL: "https://project.example",
