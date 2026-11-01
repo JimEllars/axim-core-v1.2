@@ -1,6 +1,28 @@
 import toast from 'react-hot-toast';
 import logger from './logging';
 import { DatabaseError, CommandExecutionError } from './onyxAI/errors';
+import { normalizeWorkflowDefinition } from '../utils/workflowDefinition';
+
+/**
+ * Derive a URL-safe slug from a workflow name. `workflows_ax2024.slug` is
+ * UNIQUE NOT NULL, so this must always return a non-empty string.
+ */
+export function buildWorkflowSlug(name) {
+  const base = String(name || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+  return base || 'workflow';
+}
+
+function randomSlugSuffix() {
+  const uuid = globalThis.crypto?.randomUUID
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now()}-${Math.random()}`;
+  return uuid.replace(/-/g, '').slice(0, 6);
+}
 
 class SupabaseApiService {
   constructor() {
@@ -505,13 +527,75 @@ class SupabaseApiService {
     try {
       const { data, error } = await this.supabase
         .from('workflows_ax2024')
-        .select('name, description, slug, definition');
+        // `id` is required: the builder uses it to address updates. Selecting
+        // only the display fields meant every save of a loaded workflow
+        // inserted a duplicate row instead of updating the existing one.
+        .select('id, name, description, slug, definition')
+        .order('created_at', { ascending: false });
       if (error) throw new DatabaseError(error.message);
       return data;
     } catch (error) {
       toast.error('Failed to get workflows');
       logger.error('Failed to get workflows:', error);
       throw new DatabaseError(`Failed to get workflows: ${error.message}`);
+    }
+  }
+
+  /**
+   * Persist a visual workflow graph from WorkflowBuilder.
+   *
+   * The builder used to call `supabaseApiService.saveWorkflow(...)`, a method
+   * that did not exist - every save threw a TypeError and surfaced as
+   * "Failed to save workflow." with nothing written. Insert when no id is
+   * supplied, update in place when there is one.
+   */
+  async saveWorkflow(workflow, userId) {
+    if (this._checkConnectivity('saveWorkflow', [workflow, userId], true)) {
+      return Promise.resolve();
+    }
+
+    const { id = null, name, description = null, definition } = workflow || {};
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      throw new DatabaseError('A workflow name is required to save a workflow.');
+    }
+
+    const safeDefinition = normalizeWorkflowDefinition(definition);
+    const updatedAt = new Date().toISOString();
+
+    try {
+      if (id) {
+        const { data, error } = await this.supabase
+          .from('workflows_ax2024')
+          .update({ name, description, definition: safeDefinition, updated_at: updatedAt })
+          .eq('id', id)
+          .select()
+          .single();
+        if (error) throw new DatabaseError(error.message);
+        return data;
+      }
+
+      const baseSlug = buildWorkflowSlug(name);
+
+      const attemptInsert = (slug) => this.supabase
+        .from('workflows_ax2024')
+        .insert({ name, description, slug, definition: safeDefinition, user_id: userId })
+        .select()
+        .single();
+
+      let { data, error } = await attemptInsert(baseSlug);
+
+      // 23505 = unique_violation on workflows_ax2024.slug. Retry once with a
+      // disambiguating suffix rather than overwriting another operator's flow.
+      if (error && (error.code === '23505' || /duplicate key/i.test(error.message || ''))) {
+        ({ data, error } = await attemptInsert(`${baseSlug}-${randomSlugSuffix()}`));
+      }
+
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      toast.error('Failed to save workflow');
+      logger.error('Failed to save workflow:', error);
+      throw new DatabaseError(`Failed to save workflow: ${error.message}`);
     }
   }
 

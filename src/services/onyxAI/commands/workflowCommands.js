@@ -1,6 +1,7 @@
 import { createCommand } from './commandFactory';
 import { runWorkflow } from '../../workflows/engine';
 import { workflowDefinitions } from '../../workflows/definitions';
+import { supabase } from '../../supabaseClient';
 
 export default [
   createCommand({
@@ -19,32 +20,32 @@ export default [
       }
 
       try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321';
-        const serviceKey = import.meta.env.VITE_AXIM_SERVICE_KEY || import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-
-        const response = await fetch(`${supabaseUrl}/functions/v1/trigger-workflow`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${serviceKey}`
-          },
-          body: JSON.stringify({
+        // Call through the Supabase client so the caller's session JWT is
+        // attached automatically. The previous implementation sent
+        // `Bearer ${VITE_AXIM_SERVICE_KEY}` - a service credential shipped in the
+        // browser bundle, and undefined in any deployment that does not set it,
+        // which left trigger-workflow returning 401.
+        const { data, error } = await supabase.functions.invoke('trigger-workflow', {
+          body: {
             workflow: slug,
-            userId: userId || 'system',
-            context: initialContext
-          })
+            // Omitted when unknown: a user_jwt caller may only act as itself,
+            // so sending the sentinel 'system' would be rejected with 403.
+            ...(userId ? { userId } : {}),
+            context: initialContext,
+          },
         });
 
-        if (!response.ok) {
-           const errorData = await response.json();
-           throw new Error(errorData.error || 'Unknown error');
+        if (error) {
+          throw new Error(error.message || `Trigger failed with status ${error.status}`);
         }
 
-        const data = await response.json();
+        if (data && data.success === false) {
+          throw new Error(data.error || 'Workflow did not complete');
+        }
 
         return {
             type: 'success',
-            message: `Workflow **${slug}** triggered successfully.\n\nMessage: ${data.message || 'Workflow executed'}`,
+            message: `Workflow **${slug}** triggered successfully.\n\nMessage: ${data?.message || 'Workflow executed'}`,
             data: data
         };
 

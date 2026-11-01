@@ -254,3 +254,77 @@ During `npm install`, several deprecation warnings are visible:
 - Cleaned up React component errors in test scenarios specifically the `MetricsGrid` suite by isolating Supabase channel usage and wrapping components with explicit `AuthProvider` stubs.
 - Updated `src/components/dashboard/CloudflareEdgeHealth.jsx` to dynamically fetch endpoint metrics accurately from `/api/mcp-bridge/status` gracefully replacing hard-coded assumptions and falling back dynamically via mocked parameters.
 - Re-architectured `src/contexts/AuthContext.jsx` session caching via standard `sessionStorage` hooks resulting in improved offline session survival preventing white screens in degraded zones, properly nested under `<ErrorBoundary>` shells directly inside the primary navigation component (`MainLayout.jsx`).
+
+## [2026-11-01] Wave 125 — workflow builder persistence, DAG dispatch, edge ingress
+
+### 1. `npm test` failed for every React suite regardless of the code under test
+- **Symptom**: `Error: act(...) is not supported in production builds of React.`
+  in 48 suites (`ApprovalQueue`, `WorkflowBuilder`, `ApiContext`, `useApi`,
+  `MetricsGrid`, `command-hub`, …).
+- **Root cause**: this shell exports `NODE_ENV=production`. Vitest honours an
+  ambient `NODE_ENV` rather than forcing `test`, so `react` resolved to
+  `react/cjs/react.production.min.js`, where `act()` is a no-op that throws.
+- **Resolution**: `test.env = { NODE_ENV: 'test' }` in `vitest.config.js`.
+  Verified with `NODE_ENV=production npx vitest run …` — the ambient value no
+  longer changes the outcome. Do not "fix" a future instance of this message by
+  editing tests; check `NODE_ENV` first.
+
+### 2. Visual builder wrote nothing, silently
+- **Symptom**: "Failed to save workflow." toast on every save; the Templates tab
+  listed workflows that, when clicked, always rendered the same two-node canvas.
+- **Root cause**, three layers:
+  1. `supabaseApiService.saveWorkflow()` did not exist (`TypeError`), masked by
+     `WorkflowBuilder.test.jsx` mocking the whole service.
+  2. `workflows_ax2024` has no `definition` column, so `getWorkflows()`, which
+     selects it, fails with `42703` even though the table exists.
+  3. The builder saved `sanitizePayload({nodes, edges})`; that scrubber redacts
+     any key containing token/secret/email/name, blanking action configs.
+- **Resolution**: migration adds `definition` (+ `updated_at`, owner-write RLS),
+  `saveWorkflow()` implemented, `getWorkflows()` selects `id`, and the graph is
+  serialized by `src/utils/workflowDefinition.js` instead of the PII scrubber.
+  Lesson: `sanitizePayload` is for telemetry/log egress, never for persistence of
+  user-authored configuration.
+
+### 3. DAG runner: fabricated success, and a log table that did not exist
+- **Symptom**: every action node reported success; `workflow_execution_logs`
+  inserts logged "Failed to log workflow execution" to the Edge console.
+- **Root cause**: `node.type === 'action'` was implemented as
+  `{ message: `Action ${label} executed` }`, the run status was hard-coded
+  `'completed'`, and no migration ever created `workflow_execution_logs`.
+- **Resolution**: `_shared/workflowActions.ts` performs real dispatch (SSRF-guarded
+  `api_call`, `email` via `EmailDispatchManager`, and the three robotics actions
+  against `robot_simulation_runs` / `robot_policy_registry` / `robot_fleet_nodes`);
+  `deriveExecutionStatus` reports `failed` whenever the run aborted; the table is
+  provisioned in migration `20281101010000`.
+
+### 4. `trigger-workflow` was an unauthenticated service-role surface
+- **Root cause**: no auth check in the handler at all. Three in-repo callers each
+  authenticate differently, which is why a naive `validateServiceKey()` guard
+  would have broken two of them.
+- **Resolution**: `_shared/workflowAuth.ts` accepts HMAC+timestamp, a machine
+  bearer (`AXIM_INTERNAL_KEY` / `AXIM_SERVICE_KEY` /
+  `SUPABASE_SERVICE_ROLE_KEY`) or a resolvable user JWT; a JWT caller is pinned to
+  its own `userId`. Internal callers that send the sentinel `userId: 'system'`
+  need `coerceUuidOrNull()` before writing to a UUID column — without it the whole
+  execution-log insert aborts with `invalid input syntax for type uuid`.
+
+### 5. Edge worker: CORS leak, no CGI shielding, missing `/api/v1/health`
+- **Symptom**: `GET /api/v1/health` → 404 "API route not found"; shell-style probes
+  (`?-d`, `.php`, `..`) were proxied to the origin untouched.
+- **Root cause**: `corsHeaders` was a module-level object mutated per request (an
+  isolate serves many requests, so the last reflected origin leaked into later
+  requests); no ingress pattern screen existed; `/api/v1/health` had no entry in
+  `apiRoutes` and fell through to the proxy branch.
+- **Resolution**: per-request `buildCorsHeaders()`, `isBlockedIngress()` (raw +
+  percent-decoded path and query), `evaluateReplayHeader()` at the edge, and an
+  explicit `/api/v1/health` branch (`/health` keeps its 202 for existing monitors).
+
+### Operational parameters observed this cycle
+- Full `vitest` run takes ~30+ minutes on this sandbox; `--shard=N/4` parallel
+  shards land around 20-25 minutes wall clock but introduce CPU-contention flakes
+  in wall-clock-sensitive suites (`e2e-workflow` burst latency,
+  `SystemHealthPanel` / `api-gateway` act-timing). Run a full single-shard pass
+  before concluding a suite is broken.
+- `deno` is not installed in this environment: `deno check` / `deno lint` on
+  `supabase/functions/**` cannot be executed. `npx esbuild <file> --format=esm`
+  is used as a syntax gate instead.

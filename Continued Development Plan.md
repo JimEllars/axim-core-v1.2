@@ -30,7 +30,19 @@
     - `package.json` includes targets for NSIS (Win), DMG (Mac), and AppImage (Linux).
 
 ## 5. Future Roadmap
-- [ ] Implement a UI for visual workflow building.
+- [x] Implement a UI for visual workflow building. *(Wave 125: the builder now
+      rehydrates `workflows_ax2024.definition` into React Flow and persists it
+      back through `supabaseApiService.saveWorkflow()`; action nodes dispatch for
+      real in `trigger-workflow`. Remaining: a typed config inspector per action
+      node, and reconciling the History tab with `workflow_execution_logs`.)*
+- [ ] Add a node configuration inspector for typed action steps (`api_call`,
+      `email`, `robot_sim_run`, `robot_policy_gate`, `robot_ota_deploy`) so the
+      config the runner expects is authored in the UI rather than by hand.
+- [ ] Point `getWorkflowExecutions()` at `workflow_execution_logs` (it still reads
+      `events_ax2024`), and surface `status`/`error_message` in the History tab.
+- [ ] Build the three robotics Edge Functions the worker already routes to
+      (`robotics-projects`, `robotics-sim`, `robotics-emergency-stop`) and a
+      consumer that drains `robot_simulation_runs`.
 - [ ] Add more external service integrations (e.g., Email Service, Calendar).
 - [ ] Enhance "Memory Banks" to index and search past conversations more effectively (RAG).
     - Current state: Chats are logged to `ai_interactions_ax2024` (Postgres).

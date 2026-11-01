@@ -1,4 +1,4 @@
-import { sanitizePayload } from '../../utils/sanitization';
+import { serializeWorkflowDefinition, deserializeWorkflowDefinition } from '../../utils/workflowDefinition';
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import SafeIcon from '../../common/SafeIcon';
@@ -266,13 +266,26 @@ const WorkflowBuilder = () => {
   };
 
   const loadCustomWorkflow = (workflow) => {
-    // In real app we parse definition from db, here we just mock
-    setNodes([
-        { id: '1', type: 'trigger', position: { x: 250, y: 50 }, data: { label: 'Webhook Received' } },
-        { id: '2', type: 'action', position: { x: 250, y: 150 }, data: { label: 'Custom Task' } }
-    ]);
-    setEdges([{ id: 'e1-2', source: '1', target: '2' }]);
+    // Rehydrate the persisted graph. Definitions are stored in
+    // workflows_ax2024.definition as { nodes, edges } - the same shape the
+    // edge DAG runner executes, so what the operator sees is what runs.
+    const { nodes: loadedNodes, edges: loadedEdges } = deserializeWorkflowDefinition(workflow, {
+      nodes: initialNodes,
+      edges: initialEdges,
+    });
+
+    setNodes(loadedNodes);
+    setEdges(loadedEdges);
+    setActiveWorkflowId(workflow?.id || null);
+    setWorkflowName(workflow?.name || 'New Workflow');
+    setWorkflowDescription(workflow?.description || '');
     setActiveTab('builder');
+
+    if (loadedNodes.length === 0) {
+      toast.error(`Workflow "${workflow?.name || 'untitled'}" has no saved steps yet.`);
+      return;
+    }
+
     toast.success(`Loaded workflow: ${workflow.name}`);
   };
 
@@ -436,7 +449,10 @@ const WorkflowBuilder = () => {
                   return;
                 }
                 try {
-                  const definition = sanitizePayload({ nodes, edges });
+                  // Persist the authoring graph verbatim. Do NOT run this through
+                  // sanitizePayload(): it redacts keys containing token/secret/email/name,
+                  // which would silently blank out every action node's config.
+                  const definition = serializeWorkflowDefinition(nodes, edges);
 
                   const savedWf = await supabaseApiService.saveWorkflow({
                     id: activeWorkflowId,

@@ -5,7 +5,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 
 export default [
-  { ignores: ["dist", "cloudflare-workers"] },
+  { ignores: ["dist", "coverage", "cloudflare-workers"] },
   {
     files: ["**/*.{js,jsx}"],
     languageOptions: {
@@ -56,6 +56,18 @@ export default [
     files: ["src/**/*.{js,jsx}", "tests/**/*.{js,jsx}"],
     rules: {
       "no-unused-vars": "off"
+    }
+  },
+  {
+    // Context modules intentionally co-locate a Provider component with its
+    // `useX()` hook and, in some cases, the raw React context object. The
+    // react-refresh rule guards HMR boundaries for component-only modules and
+    // reports a warning for every one of those legitimate hook exports. Moving
+    // the hooks into separate files would touch every import site for no
+    // runtime benefit, so the rule is scoped off for this directory only.
+    files: ["src/contexts/**/*.{js,jsx}"],
+    rules: {
+      "react-refresh/only-export-components": "off"
     }
   },
   {
