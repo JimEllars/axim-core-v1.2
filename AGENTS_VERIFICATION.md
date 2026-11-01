@@ -379,3 +379,66 @@ introduced.)
 - No live Supabase project. The fixture reproduces the parts of Supabase this touches.
 - The UI does not yet send `tenant_id`. Recall falls back to `DEFAULT_TENANT_ID`
   (`axim-systems`) and logs; a tenant switcher is follow-on work.
+
+# Verification Log — Dual-Accept Signature Window (2026-11-01)
+
+**Branch:** `feat/core-signature-dual-window` (stacked on the RPC hardening branch)
+**Scope:** `_shared/edgeAuth.ts`, `telemetry-ingress/index.ts`, tests.
+
+## The defect
+
+`X-Axim-Signature` covered the raw body only, and no `X-Axim-Timestamp` was emitted by
+any signer. A captured request stayed valid until the shared key rotated — effectively
+forever.
+
+## The change
+
+`verifySignedRequest()` implements a **date-keyed dual-accept window**:
+
+| Form | Headers | Signed material |
+|---|---|---|
+| v2 (new) | `X-Axim-Signature-Version: 2`, `X-Axim-Timestamp: <unix>`, `X-Axim-Signature: sha256=<hex>` | `<timestamp>.<body>` |
+| legacy | `X-Axim-Signature: sha256=<hex>` | `<body>` |
+
+- v2 requires the timestamp and enforces ±300s.
+- legacy is accepted only while `now <= SIGNATURE_LEGACY_SUNSET`
+  (default `2026-12-31T00:00:00Z`, overridable by env). After that it is refused with a
+  reason naming the sunset — so the window closes **by date**, not by a coordinated
+  deploy across `onyx_mk3` and this repo.
+- A legacy caller that does supply a timestamp still gets the freshness check.
+- Constant-time comparison; malformed input returns a verdict rather than throwing.
+
+`telemetry-ingress` now delegates to it and logs the rejection reason. The unused
+`hmac` import (and its blocked `denopkg` dependency) and the local `timingSafeEqual` were
+removed.
+
+## Verification
+
+```
+deno test --allow-env _shared/signature_test.ts _shared/edgeAuth_test.ts
+24 passed | 0 failed
+```
+
+The 11 new tests assert the properties that make the rollout safe:
+
+| Test | Why it matters |
+|---|---|
+| fresh v2 accepted | the new form works |
+| replay older than 300s refused | the actual protection |
+| **timestamp is signed — cannot be re-dated** | signature over the original ts, header moved forward → refused |
+| body-only signature presented as v2 refused | prevents downgrade confusion |
+| v2 without a timestamp refused | the header is not optional |
+| legacy accepted before sunset | asynchronous deploy works |
+| legacy refused after sunset | the window actually closes |
+| legacy with a stale timestamp refused | freshness applies to both |
+| sunset override respected | a date can be brought forward per environment |
+| wrong secret rejected (both forms) | no regression in authenticity |
+| no secret / malformed input → fail closed | no throw, no accept |
+
+## Still open
+
+- The Rust signers in `onyx_mk3` still emit the body-only form; the window exists
+  precisely so they can be updated and deployed separately. Until they emit v2, only the
+  freshness check on caller-supplied timestamps applies.
+- After the sunset, legacy callers receive 401. That is intended, and the reason string
+  says so.

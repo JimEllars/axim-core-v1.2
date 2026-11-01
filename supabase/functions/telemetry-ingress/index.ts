@@ -1,6 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
-import { hmac } from "https://deno.land/x/hmac@v2.0.1/mod.ts";
+import { verifySignedRequest } from "../_shared/edgeAuth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -37,16 +37,6 @@ function limitPayloadSize(payload: any, maxStringLength: number = 2000): any {
     return payload;
 }
 
-function timingSafeEqual(a: string, b: string): boolean {
-    const aLen = a.length;
-    const bLen = b.length;
-    let diff = aLen ^ bLen;
-    const maxLen = Math.max(aLen, bLen);
-    for (let i = 0; i < maxLen; i++) {
-        diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
-    }
-    return diff === 0;
-}
 
 const ALLOWED_APPS = [
     'axim-passport-sso',
@@ -83,7 +73,6 @@ serve(async (req) => {
     const traceId = req.headers.get('X-AXiM-Trace-ID') || 'no_trace_id';
     const idempotencyKey = req.headers.get('Idempotency-Key') || req.headers.get('idempotency-key') || null;
     const signature = req.headers.get('X-Axim-Signature') || req.headers.get('x-axim-signature');
-    const timestampHeader = req.headers.get('X-Axim-Timestamp') || req.headers.get('x-axim-timestamp');
 
     const internalKey = Deno.env.get('AXIM_INTERNAL_KEY') || '';
 
@@ -96,19 +85,25 @@ serve(async (req) => {
             isAuthenticated = true;
         }
     } else if (signature && internalKey) {
-        // HMAC SHA-256 validation (constant-time comparison)
-        const computedSignature = hmac("sha256", internalKey, rawBodyText, "utf8", "hex");
-        isAuthenticated = timingSafeEqual(computedSignature, signature);
-
-        // Replay protection: enforce a 5-minute freshness window when a
-        // timestamp is supplied. Full enforcement (requiring the header) follows
-        // once satellite signers are updated to emit X-Axim-Timestamp.
-        if (isAuthenticated && timestampHeader) {
-            const requestTime = parseInt(timestampHeader, 10);
-            const nowSec = Math.floor(Date.now() / 1000);
-            if (Number.isNaN(requestTime) || Math.abs(nowSec - requestTime) > 300) {
-                isAuthenticated = false;
-            }
+        // Versioned verification with a date-keyed dual-accept window.
+        //
+        //   v2     : X-Axim-Signature-Version: 2, X-Axim-Timestamp required,
+        //            HMAC over "<timestamp>.<body>" — not replayable.
+        //   legacy : HMAC over the body only. Accepted until
+        //            SIGNATURE_LEGACY_SUNSET (default 2026-12-31), after which it
+        //            is refused, so the window closes by date rather than by a
+        //            coordinated deploy across every signer.
+        const result = await verifySignedRequest({
+            headers: req.headers,
+            rawBody: rawBodyText,
+            secret: internalKey,
+            legacySunset: Deno.env.get('SIGNATURE_LEGACY_SUNSET') ?? undefined,
+        });
+        isAuthenticated = result.ok;
+        if (!result.ok) {
+            console.warn(
+                `[telemetry-ingress] signature rejected (${result.mode}): ${result.reason}`,
+            );
         }
     }
 
