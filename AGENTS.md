@@ -10,7 +10,7 @@ To prevent claims of completed work diverging from the actual codebase state (as
 For every bug fix or feature activation claimed, you must list:
 1. **The Target File & Line Range:** e.g., `supabase/functions/job-processor/index.ts:269-286`
 2. **The Exact Change:** A short snippet showing what was altered.
-3. **The Proving Test:** The name of the automated test (e.g., `job-processor edge function logic` in `tests/job-processor.test.js`) that failed before the change and passes after.
+3. **The Proving Test:** the name of the automated test that failed before the change and passes after, in a file that **imports the module under test**. Example: `findCommand resolves a keyword to the right command` in `src/services/onyxAI/__tests__/commandRouter.test.js`. A test that re-declares the logic inside the test body is not a proving test.
 
 Any change submitted without a proving test and a Verification Appendix will be rejected.
 

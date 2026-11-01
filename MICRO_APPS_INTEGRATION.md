@@ -76,4 +76,4 @@ The `job-processor` pulls `pending` jobs from the `satellite_job_queue`, calls t
 Finally, a metadata record mapping the job to the file is written to `vault_records`, and an expiring Signed URL is optionally distributed back to the client or via the `send-email` edge function.
 
 ### Verification
-This pipeline is verified continuously within the end-to-end Vitest suite (`tests/e2e-workflow.test.js`).
+This pipeline is **not** currently covered end-to-end. `tests/e2e-workflow.test.js` holds a single real test (PII sanitisation of `universal-dispatcher/sanitization.ts`); the round-trip assertions that previously sat alongside it were local simulations and were removed in Phase 0. Treat the steps above as the intended contract, not as a tested one, until real coverage lands.
