@@ -1,5 +1,48 @@
 # Changelog
 
+## [2026-11-01] Wave 127 — un-unparsable Edge Functions, and a gate that keeps them parseable
+
+Four of the 95 Deno Edge Function sources on `main` were invalid TypeScript, so
+`supabase functions deploy` could not succeed for any of them. One of the four was a merge
+conflict marker committed straight to `main` inside `_shared/edgeAuth.ts` — the module five
+deployed functions import.
+
+### Fixed
+- **`supabase/functions/_shared/edgeAuth.ts`** — removed the conflict marker that merge
+  `4dc7151` (PR #492) committed at lines 125–272. Both halves were kept: the tenancy helper
+  `claimFromToken()` from #491 and the versioned-signature block from #492. This unblocks
+  `telemetry-ingress`, `generate-embedding`, `memory-retrieval`, `onyx-sentinel` and
+  `onyx-ui-stream`.
+- **`supabase/functions/audit-export/index.ts`** — escaped backticks in two template
+  literals made the file unparsable.
+- **`supabase/functions/gateway-heartbeat/index.ts`** — `createClient` was imported inside
+  the `serve()` handler instead of at the module head.
+- **`supabase/functions/stream-webhook/index.ts`** — Postgres casts (`'true'::jsonb`) were
+  written in TypeScript; the `system_status.value` column is jsonb, so plain JSON booleans
+  are the correct payload.
+- **`src/services/onyxAI/commands/__tests__/network.test.js`** — was red on `main`
+  independently of this branch. The fixture used exactly 24 hours for "1 day ago", but
+  date-fns 4.4.0 floors its hour count in the `xHours` branch, so 86400000 ms renders
+  `about 23 hours ago` and `1 day` only appears from 24h+36h. Fixture moved to 26 hours.
+
+### Added
+- **`scripts/check-edge-syntax.mjs`** (`npm run check:edge`) — parses every file under
+  `supabase/functions/` with esbuild, and reports committed conflict markers with line
+  numbers. No Deno toolchain required, so it runs in the existing Node-only CI.
+- **`tests/edge-syntax.test.js`** — 7 tests: the real tree parses, and the checker is proven
+  to fail on conflict markers and on unparsable files, so the gate cannot rot.
+- **`tests/edge-auth.test.js`** — 14 tests that import the real `edgeAuth.ts` and exercise
+  both halves (v2 signature + replay window, legacy sunset, `claimFromToken` tenancy). The
+  Deno test files for this module are not wired into any workflow and `deno` is not
+  installed, so this is the only executed proof.
+
+### Changed
+- **`.github/workflows/verify-smoke-tests.yml`** — runs `npm run check:edge` on every pull
+  request and push to `main`. A committed conflict marker can no longer merge into a Deno
+  source unnoticed.
+- **`vitest.setup.jsx`** — the global `window.matchMedia` mock is now guarded, so
+  node-environment suites (which esbuild requires) can exist alongside jsdom ones.
+
 ## Wave 114: Reissuing Unlanded Correctness Fixes (#344)
 
 Reissued unlanded fixes, added KV activation, updated CHANGELOG automation, and added BD/CRM tests.

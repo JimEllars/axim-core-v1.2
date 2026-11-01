@@ -16,7 +16,11 @@ describe('OnyxAI Network Commands', () => {
     it('should return a formatted list of registered devices', async () => {
       const mockDevices = [
         { device_name: 'Desktop-Main', status: 'online', last_seen: new Date().toISOString() },
-        { device_name: 'Laptop-Travel', status: 'offline', last_seen: new Date(Date.now() - 86400000).toISOString() }, // 1 day ago
+        // 26 hours, not 24: date-fns v4 floors the hour count in its `xHours`
+        // branch, so exactly 86400000ms renders as "about 23 hours ago" and only
+        // 24h+36h renders as "1 day". The old value asserted a string that
+        // production never produces, so this test was red on main.
+        { device_name: 'Laptop-Travel', status: 'offline', last_seen: new Date(Date.now() - 26 * 3600 * 1000).toISOString() }, // 1 day ago
       ];
       ApiService.listDevices.mockResolvedValue(mockDevices);
 

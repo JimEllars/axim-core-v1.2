@@ -254,3 +254,42 @@ During `npm install`, several deprecation warnings are visible:
 - Cleaned up React component errors in test scenarios specifically the `MetricsGrid` suite by isolating Supabase channel usage and wrapping components with explicit `AuthProvider` stubs.
 - Updated `src/components/dashboard/CloudflareEdgeHealth.jsx` to dynamically fetch endpoint metrics accurately from `/api/mcp-bridge/status` gracefully replacing hard-coded assumptions and falling back dynamically via mocked parameters.
 - Re-architectured `src/contexts/AuthContext.jsx` session caching via standard `sessionStorage` hooks resulting in improved offline session survival preventing white screens in degraded zones, properly nested under `<ErrorBoundary>` shells directly inside the primary navigation component (`MainLayout.jsx`).
+
+## [2026-11-01] Wave 127 — four Edge Functions that could not parse
+
+**Symptom.** Nothing in CI went red. The discovery came from a manual pre-flight audit:
+`npx esbuild supabase/functions/**/*.ts` failed on files that had been on `main` for days.
+
+**Root causes, four distinct ones.**
+
+1. `supabase/functions/_shared/edgeAuth.ts` — merge commit `4dc7151` (PR #492) committed a
+   conflict marker. The *branch* was already poisoned (parent `4dc7151^2` contains the
+   markers), so resolving nothing at merge time produced a file that no parser accepts.
+   Five deployed functions import this module.
+2. `audit-export/index.ts` — backticks escaped into source (`\`…\``), a bad write that
+   survives text review because it looks like a template literal in a diff.
+3. `gateway-heartbeat/index.ts` — `createClient` imported *inside* the `serve()` handler.
+   Note that `esbuild transform` tolerates a mid-body import; the file failed on the
+   unbalanced brace it caused downstream. Do not rely on `TS1185`-style diagnostics alone.
+4. `stream-webhook/index.ts` — `'true'::jsonb` written in TypeScript.
+
+**Why CI missed it.** `verify-smoke-tests.yml` is the only PR-triggered workflow and it
+never opens a Deno file; `deno` is not installed in any workflow; the vitest include pattern
+(`**/*.{test,spec}.?(c|m)[jt]s?(x)`) does not match `*_test.ts`, so the three Deno test
+files have never run anywhere.
+
+**Fix and prevention.** Union resolution of the conflict (both halves load-bearing), three
+surgical syntax fixes, and `npm run check:edge` wired into the PR workflow with
+`tests/edge-syntax.test.js` proving the gate can go red.
+
+**Environment traps worth remembering:**
+
+* This workspace exports `NODE_ENV=production`. React's `act()` then throws "not supported in
+  production builds" across every component test — 60+ phantom failures. Always
+  `NODE_ENV=test` before believing a vitest red.
+* A global `vitest.setup.jsx` that touches `window` makes `// @vitest-environment node`
+  impossible, and esbuild refuses to load under jsdom (`TextEncoder().encode("") instanceof
+  Uint8Array` is false across realms). Guard the setup file.
+* An aggregate `vitest run` on this 2-core host (load average > 6) stops making progress
+  around file 27–50 and leaves one worker at ~8% CPU. Per-file runs of the same files pass.
+  Treat "the suite hangs" as unproven until you reproduce it on a quiet 4-core box.

@@ -20,6 +20,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Parse every Deno Edge Function
+        # Blocks merge of unparsable Deno sources — a committed conflict marker in
+        # supabase/functions/_shared/edgeAuth.ts reached main in PR #492 and broke
+        # five deployed functions. Cheap, deterministic, needs no Deno toolchain.
+        run: npm run check:edge
+
       - name: Run Smoke Tests (Unit/Integration)
         run: node scripts/smoke-test-functions.js
 
