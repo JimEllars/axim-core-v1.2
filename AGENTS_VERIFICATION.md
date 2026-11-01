@@ -278,3 +278,104 @@ It adds no coverage. It removes the appearance of coverage. Specifically:
   description. Historical.
 - `reusable-run-tests.yml` still has no caller. Deleting stub tests does not make CI run
   the real ones — that is the next Phase 0 step and it is not solved here.
+
+---
+
+# Verification Log — RAG Tenancy (2026-11-01)
+
+**Branch:** `fix/core-rag-tenancy` (stacked on `fix/core-phase-a-unauth-surface-v2`)
+**Scope:** one migration, four call sites, one shared helper.
+
+## The defect
+
+`memory_banks` and `executive_knowledge_base` had no tenant dimension at all, and
+`match_memory_banks` / `match_knowledge_base` took no tenant argument. Every caller saw
+every tenant's memory. Per the Sprint 8.4 decision, Onyx memory is **strictly
+per-tenant**.
+
+## The migration — `20281102000000_rag_tenancy.sql`
+
+- `public.tenants` registry seeded with `axim-systems`, `jk-renewables`, `unifirst`,
+  `apf-dao`.
+- `tenant_id` added to both tables, existing rows backfilled to `axim-systems` (the
+  operator's own), then `SET NOT NULL` and foreign-keyed to `tenants`.
+- Both similarity functions **dropped and recreated** with a required `p_tenant_id` and
+  no default — a caller cannot omit it and fall back to "everything". An empty or NULL
+  tenant raises `22023`.
+- `current_tenant_id()` helper reads `app_metadata.tenant_id` (else `tenant_id`) from the
+  JWT. `SECURITY DEFINER` with a pinned `search_path`, for the same reason `is_admin()`
+  is: a policy must not depend on the caller holding USAGE on the `auth` schema.
+- RLS rewritten: tenant-scoped `SELECT` with an `is_admin()` override, plus a
+  `service_role` full-access policy. The recall path runs as `service_role` (bypassing
+  RLS), so the function predicate is the primary control and RLS the second layer.
+- Vector indexes rebuilt with `vector_cosine_ops` — the old `memory_banks` index was
+  `vector_l2_ops` and could not serve the `<=>` queries at all. `executive_knowledge_base`
+  had no vector index.
+- `REVOKE ... FROM PUBLIC, anon` on both functions; `GRANT` to `authenticated`,
+  `service_role`.
+
+## Callers
+
+- `memory-retrieval` — resolves the tenant from the **verified token** for user callers
+  (a body-supplied tenant cannot override it) and requires it explicitly from internal
+  callers; 400 when absent; passes `p_tenant_id` to both RPCs and echoes `tenant_id` in
+  the response.
+- `knowledge-ingest` — sets `tenant_id` on insert (NOT NULL), preferring the request
+  value and logging when it falls back to `DEFAULT_TENANT_ID`.
+- `onyx-bridge`, `document-qa` — pass `tenant_id` through to recall.
+- `document-qa` also lost its `|| 'test_internal_key'` fallback and gained the
+  configuration guard that removal exposed.
+
+## Migration executed against a real Postgres
+
+```
+python3 scripts/verify_tenancy_migration.py supabase/migrations/20281102000000_rag_tenancy.sql
+19/19 checks passed
+tenancy migration verified against Postgres 16.2
+```
+
+The harness builds the **pre-migration** shape (two tables, 3-arg functions, HNSW
+`l2_ops` index, one legacy row each), applies the migration verbatim with
+`ON_ERROR_STOP=1`, then asserts:
+
+| Check | Result |
+|---|---|
+| Migration applies cleanly | pass |
+| Four tenants seeded | pass |
+| Legacy rows backfilled to `axim-systems` | pass |
+| `NOT NULL` enforced (`23502`) | pass |
+| Unknown tenant rejected by FK (`23503`) | pass |
+| Vector index rebuilt with `vector_cosine_ops` | pass |
+| Tenant A call returns only tenant A rows | pass |
+| Tenant B call returns only tenant B rows | pass |
+| Knowledge recall filtered by tenant | pass |
+| NULL / empty tenant rejected (`22023`) | pass |
+| 3-arg call no longer resolves | pass |
+| `anon` cannot execute | pass |
+| RLS: unrelated-tenant user sees 0 rows | pass |
+| RLS: matching-tenant user sees 1 row | pass |
+| RLS: admin sees all rows | pass |
+
+## Function tests (Deno, real handlers)
+
+```
+deno test --allow-env _shared/tenancy_test.ts _shared/edgeAuth_test.ts
+15 passed | 0 failed
+```
+
+Covers: internal caller without a tenant → 400; internal caller's tenant reaches both
+RPCs; **a user cannot spoof the tenant through the body** (token wins).
+
+## Also fixed here
+
+`generate-embedding` and `memory-retrieval` called `auth.getUser()` with no argument.
+With no session the client makes no request and returns a null user, so every valid
+token was rejected as anonymous — the negative tests had been passing for the wrong
+reason. Both now call `getUser(token)`. (Also pushed to PR #489, where the helpers were
+introduced.)
+
+## Not verified
+
+- No live Supabase project. The fixture reproduces the parts of Supabase this touches.
+- The UI does not yet send `tenant_id`. Recall falls back to `DEFAULT_TENANT_ID`
+  (`axim-systems`) and logs; a tenant switcher is follow-on work.

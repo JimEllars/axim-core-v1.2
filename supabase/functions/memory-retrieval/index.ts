@@ -1,7 +1,7 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.0.0';
 import { corsHeaders } from '../_shared/cors.ts';
-import { keysFromEnv, resolveCaller } from '../_shared/edgeAuth.ts';
+import { claimFromToken, keysFromEnv, resolveCaller } from '../_shared/edgeAuth.ts';
 
 export const handleRequest = async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
@@ -43,8 +43,25 @@ export const handleRequest = async (req: Request): Promise<Response> => {
     const { query, threshold = 0.70, limit = 5 } = body;
 
     // A user may only ever retrieve their own memories. Only an internal caller
-    // may target another tenant (or null, for project-wide recall).
+    // may target another user.
     const user_id = caller.kind === 'internal' ? body.user_id : caller.userId;
+
+    // Tenancy. Recall is strictly per-tenant: there is no all-tenant path. A user
+    // caller's tenant comes from their verified token, never from the body, so it
+    // cannot be spoofed; an internal caller must state it.
+    const bearer = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') ?? '';
+    const tenant_id = caller.kind === 'internal'
+      ? body.tenant_id
+      : claimFromToken(bearer, 'app_metadata.tenant_id') ?? claimFromToken(bearer, 'tenant_id');
+
+    if (!tenant_id || typeof tenant_id !== 'string') {
+      return new Response(JSON.stringify({
+        error: 'tenant_id is required: recall is strictly per-tenant',
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     if (!query) {
       return new Response(JSON.stringify({ error: 'Missing query string.' }), {
@@ -157,7 +174,8 @@ export const handleRequest = async (req: Request): Promise<Response> => {
     const { data: strategicContext, error: stratError } = await supabaseAdmin.rpc('match_memory_banks', {
       query_embedding: embedding,
       match_threshold: threshold,
-      match_count: limit
+      match_count: limit,
+      p_tenant_id: tenant_id
     });
 
     if (stratError) {
@@ -169,7 +187,8 @@ export const handleRequest = async (req: Request): Promise<Response> => {
     const { data: kbData, error: kbError } = await supabaseAdmin.rpc("match_knowledge_base", {
       query_embedding: embedding,
       match_threshold: threshold,
-      match_count: limit
+      match_count: limit,
+      p_tenant_id: tenant_id
     });
     if (kbError) {
       console.warn("match_knowledge_base failed:", kbError);
@@ -188,6 +207,7 @@ export const handleRequest = async (req: Request): Promise<Response> => {
       chat_context: chatContext || [],
       strategic_context: strategicContext || [],
       executive_knowledge_base: knowledgeBaseContext || [],
+      tenant_id,
       edge_accelerated: usedVectorize
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
