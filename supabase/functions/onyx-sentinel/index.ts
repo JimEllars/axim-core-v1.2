@@ -1,47 +1,20 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { Client } from "https://deno.land/x/postgres@v0.17.0/mod.ts";
+import { keysFromEnv, resolveCaller } from "../_shared/edgeAuth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Start a background listener to explicitly subscribe to the telemetry_alert_bus Postgres channel
-async function subscribeToTelemetryAlertBus() {
-  const dbUrl = Deno.env.get('DATABASE_URL') ?? Deno.env.get('SUPABASE_DB_URL');
-  if (!dbUrl) {
-    console.warn("No database URL provided for postgres client. Skipping telemetry_alert_bus subscription.");
-    return;
-  }
+// NOTE: this file previously started a Postgres `LISTEN telemetry_alert_bus`
+// loop at module scope. It could not work: `Client` has no
+// `waitForNotification()` in @deno/postgres v0.17, and an Edge Function is torn
+// down when the request ends, so a module-scope listener never survives. It was
+// removed rather than left as a connection that opens and immediately dies.
+// Real-time alerting belongs in a queue consumer or a cron-driven poller.
 
-  try {
-    const client = new Client(dbUrl);
-    await client.connect();
-
-    // Explicitly subscribe to the Postgres channel
-    const channelName = "telemetry_alert_bus";
-    const listenQuery = `LISTEN ${channelName};`;
-    await client.queryArray(listenQuery);
-
-    console.log(`[onyx-sentinel] Subscribed to Postgres channel: ${channelName}`);
-
-    // Listen for notifications
-    for await (const notification of client.waitForNotification()) {
-      if (notification.channel === channelName) {
-        console.log(`[onyx-sentinel] Received event on telemetry_alert_bus:`, notification.payload);
-      }
-    }
-  } catch (error) {
-    console.error(`[onyx-sentinel] Error in Postgres channel listener:`, error);
-  }
-}
-
-// Start listener asynchronously (in a real Edge Function environment this may terminate when the request ends,
-// but we include it per architectural directives for the sentinel service).
-subscribeToTelemetryAlertBus().catch(console.error);
-
-serve(async (req) => {
+export const handleRequest = async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -52,6 +25,25 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     if (req.method === 'POST') {
+      // Authentication.
+      //
+      // This handler had none. It writes into hitl_audit_logs with the
+      // service-role key, and onyx-bridge feeds the last entries of that table
+      // into the model as "historical precedents". An anonymous caller could
+      // therefore inject text that later appears inside Onyx's system prompt.
+      // Heartbeats come from internal services; operators use a JWT.
+      const verifyUser = async (token: string): Promise<string | null> => {
+        const { data, error } = await supabase.auth.getUser(token);
+        return error || !data?.user ? null : data.user.id;
+      };
+      const caller = await resolveCaller(req.headers, keysFromEnv(Deno.env), verifyUser);
+      if (caller.kind === 'anonymous') {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       const payload = await req.json();
 
       if (payload && payload.record && payload.record.status === 'offline') {
@@ -87,9 +79,13 @@ serve(async (req) => {
       status: 405,
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
     });
   }
-});
+};
+
+if (import.meta.main) {
+  serve(handleRequest);
+}
