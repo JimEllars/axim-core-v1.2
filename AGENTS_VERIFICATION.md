@@ -130,11 +130,44 @@ and forged callers (2), and the other four cannot import `handleRequest` because
 not exported (4). The six helper tests pass on both — `edgeAuth.ts` is new code, not a
 change to existing behaviour.
 
-## Not verified
+## Migration executed against a real Postgres
 
-- **No database.** The migration is reviewed, not executed. `is_admin()`, the
-  `request.jwt.claim.role` guard and the grants need one apply against a scratch project
-  or `supabase db dry-run` before production.
+The migration was applied and exercised, not just read. `scripts/verify_migration.py`
+boots a throwaway cluster (pgserver bundles Postgres 16.2 + pgvector), builds the minimal
+Supabase surface the SQL touches (`anon`/`authenticated`/`service_role`, `auth.uid()`,
+`auth.jwt()`, `is_admin()`, the three domain tables), applies the migration **verbatim**
+with `ON_ERROR_STOP=1`, and asserts permissions and behaviour.
+
+```
+python3 scripts/verify_migration.py supabase/migrations/20281101000001_harden_ai_rpc_surface.sql
+15/15 checks passed
+migration verified against Postgres 16.2
+```
+
+What that proved:
+
+| Check | Result |
+|---|---|
+| Migration applies cleanly under `ON_ERROR_STOP=1` | pass |
+| `safe_sql_executor` dropped (a decoy is created first to prove it) | pass |
+| `resolve_hitl_action(uuid,text,jsonb)` still exists with the same signature | pass |
+| `anon` has no EXECUTE | pass |
+| `service_role` has EXECUTE | pass |
+| `anon` call → permission denied | pass |
+| non-admin `authenticated` → `42501` | pass |
+| admin `authenticated` → succeeds, status persisted | pass |
+| `service_role` → succeeds | pass |
+| `quarantine_app` payload actually deactivates `ecosystem_apps` | pass |
+| invalid status → `22023` | pass |
+| unknown record → `P0002` (no false success) | pass |
+
+SQLSTATE codes are asserted, not just message text, by running psql with
+`\set VERBOSITY verbose`.
+
+## Still not verified
+
+- **No live Supabase.** The fixture reproduces the parts of Supabase this migration
+  touches, but it is not the project. Apply to a scratch branch before production.
 - **No frontend run.** `supabaseApiService.js:1406` still calls `resolve_hitl_action`
   directly; it now requires the caller to be an admin, which preserves the intended
   behaviour but has not been exercised end to end.
