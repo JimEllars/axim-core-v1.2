@@ -1,3 +1,10 @@
+> **Appendices from 2026-11-01 onward live in `AGENTS_VERIFICATION.d/`, one file per
+> change**, so parallel branches stop conflicting on this file.
+>
+> * [`AGENTS_VERIFICATION.d/2026-11-01-wave127-edge-parse-gate.md`](AGENTS_VERIFICATION.d/2026-11-01-wave127-edge-parse-gate.md)
+>   — Wave 127: a committed conflict marker in `_shared/edgeAuth.ts`, three more
+>   unparsable Edge Functions, and the `npm run check:edge` gate that blocks the class.
+
 # Verification Appendix — Phase 0: Removal of Self-Fulfilling Tests
 
 **Branch:** `chore/core-phase0-delete-stub-tests`
