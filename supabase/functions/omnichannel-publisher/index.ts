@@ -9,9 +9,9 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('X-Axim-Internal-Service-Key');
-    const expectedKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || 'test_internal_key';
+    const expectedKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
-    if (!authHeader || authHeader !== expectedKey) {
+    if (!expectedKey || !authHeader || authHeader !== expectedKey) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

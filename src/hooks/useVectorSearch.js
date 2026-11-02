@@ -39,11 +39,10 @@ export const useVectorSearch = () => {
              data = await response.json();
          }
       } else {
+         // functions.invoke attaches the caller's session token; memory-retrieval
+         // derives the tenant from it. No internal key belongs in the browser.
          const response = await supabase.functions.invoke('memory-retrieval', {
-           body: { query, user_id: userId, limit },
-           headers: {
-               'X-Axim-Internal-Service-Key': import.meta.env.VITE_ONYX_SECURE_KEY || 'test_internal_key'
-           }
+           body: { query, user_id: userId, limit }
          });
          data = response.data;
          functionError = response.error;

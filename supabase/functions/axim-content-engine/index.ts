@@ -373,9 +373,13 @@ async function processAndSaveArticle(supabase: any, content: string, source: str
 
         // Omnichannel Distribution
         try {
+            const internalKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+            if (!internalKey) {
+                throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured; omnichannel-publisher requires it as its internal key");
+            }
             const { error: omniError } = await supabase.functions.invoke("omnichannel-publisher", {
                 body: { content: articleContent, title: title, target_channels: ["beehiiv", "social"], metadata: metadata },
-                headers: { "X-Axim-Internal-Service-Key": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "test_internal_key" }
+                headers: { "X-Axim-Internal-Service-Key": internalKey }
             });
             if (omniError) throw omniError;
             console.log(`[Content Engine] Triggered omnichannel distribution for: ${title}`);

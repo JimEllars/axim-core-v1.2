@@ -6,6 +6,7 @@ import {
 } from "../_shared/cors.ts";
 import { notifyOnyx } from "../_shared/telemetry.ts";
 import { validateMicroAppSession } from "../_shared/auth.ts";
+import { keysFromEnv, resolveCaller } from "../_shared/edgeAuth.ts";
 import { generatePdf } from "../_shared/pdf-generators/index.ts";
 import { EmailDispatchManager } from "../_shared/EmailDispatchManager.ts";
 
@@ -54,7 +55,21 @@ serve(async (req) => {
     try {
       payload = await validateMicroAppSession(req);
     } catch (err: any) {
-      throw new Error("Unauthorized");
+      // Not a micro-app session. Fall through to a verified operator token so
+      // the dashboard never needs a service credential to send mail itself.
+      const caller = await resolveCaller(
+        req.headers,
+        keysFromEnv(Deno.env),
+        async (token) => {
+          const { data, error } = await supabaseAdmin.auth.getUser(token);
+          if (error || !data?.user) return null;
+          return data.user.id;
+        },
+      );
+      if (caller.kind !== "user") {
+        throw new Error("Unauthorized");
+      }
+      payload = { user: { id: caller.userId }, role: "authenticated" };
     }
 
     if (!payload || !payload.user) {

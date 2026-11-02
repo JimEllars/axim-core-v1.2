@@ -48,13 +48,43 @@
       existing Deno suites (`_shared/edgeAuth_test.ts`, `_shared/signature_test.ts`,
       `_shared/tenancy_test.ts`). They have never executed in any pipeline. *(`deno` is
       not installed here either, so this could not be verified locally — see the appendix §6.)*
-- [ ] Diagnose why an aggregate `vitest run` stalls on a 2-core host and then add
-      `npm run test` to CI. It is currently wired to `reusable-run-tests.yml`, which no
-      workflow calls, so the suite has never gated a pull request.
+- [ ] Add `npm run test` to CI. *Measured on 2026-11-02 (2 vCPU, 3.9 GB): an aggregate
+      `vitest run` does not hang — it completes, but the jsdom environment costs 8–10 s per
+      file and 96 files take roughly an hour at `--maxWorkers=2`. The suite has never gated
+      a pull request because it is wired to `reusable-run-tests.yml`, which no workflow
+      calls. A runner with more vCPUs is the prerequisite, not a code fix.*
 - [ ] Rebase and open PRs for `feat/core-wave-125-workflow-persistence-and-ingress` and
       `feat/core-wave-126-node-inspector-and-execution-history`. Both are pushed with no
       PR and both predate #491/#492, so merging them as-is would drop the tenancy and
       versioned-signature work.
+
+## 4c. Caller authentication (added 2026-11-02, Wave 128)
+
+- [x] Authenticate `trigger-workflow`. *(`verify_jwt = false` meant the platform checked
+      nothing and the function checked nothing either: an anonymous POST ran any workflow
+      and was recorded against whatever `userId` the body claimed. It now resolves the
+      caller and binds the identity — `_shared/workflowAuth.ts` holds the rule, 11 tests
+      cover it.)*
+- [x] Remove every literal credential fallback from Edge Functions and from client code.
+      *(`|| "fallback_internal_key"` and `|| 'test_internal_key'` made a missing env var
+      into a working, publicly guessable credential — and the same literal was in the
+      browser bundle, so client and server authenticated each other with it.
+      `npm run check:creds` now blocks the pattern; `tests/check-credentials.test.js`
+      proves the gate fails on fixtures.)*
+- [x] Stop the dashboard authenticating with service credentials.
+      *(`VITE_SUPABASE_SERVICE_ROLE_KEY` / `VITE_AXIM_SERVICE_KEY` are inlined into the
+      public bundle. Six modules now present the operator's own session token via
+      `src/services/sessionAuth.js`, and the receiving functions accept a verified user.)*
+- [ ] Remove the last browser-held shared secret: `VITE_ONYX_SECURE_KEY` is used to
+      HMAC-sign requests straight to the Onyx edge bridge from `ChatMessage.jsx`,
+      `MetricsGrid.jsx`, `SystemHealthPanel.jsx`, `api.js` and `useVectorSearch.js`.
+      Whoever reads the bundle can forge a valid signature for the bridge, so the right
+      fix is a Core relay that signs server-side (`AXIM_INTERNAL_KEY`) and lets the
+      browser call Core with its session token only. This is the highest-severity item
+      left and it needs an Onyx-side change too.
+- [ ] `systemCommands.js` still passes an operator-supplied `userId` into
+      `aximCore.api.createAutomation()`; verify the receiving RPC derives the owner from
+      the token rather than trusting it.
 
 ## 5. Future Roadmap
 - [ ] Implement a UI for visual workflow building.

@@ -156,7 +156,12 @@ const ChatMessage = ({ message, onCopyContent }) => {
             const taskId = actionPayload.taskId || actionPayload.task_id || message.id;
             const payload = { task_id: taskId };
             const payloadStr = JSON.stringify(payload);
-            const tokenAuth = import.meta.env.VITE_ONYX_SECURE_KEY || 'default-auth-token';
+            // Sign with the configured bridge key or refuse. A literal fallback
+            // here arrived at a working signature that anyone could reproduce.
+            const tokenAuth = import.meta.env.VITE_ONYX_SECURE_KEY;
+            if (!tokenAuth) {
+                throw new Error('Onyx bridge signing key is not configured (VITE_ONYX_SECURE_KEY).');
+            }
             const signature = CryptoJS.HmacSHA256(payloadStr, tokenAuth).toString(CryptoJS.enc.Hex);
 
             const onyxEdgeUrl = import.meta.env.VITE_ONYX_EDGE_URL || 'https://onyx-edge-bridge.axim.us.com';

@@ -1,4 +1,5 @@
 import { createCommand } from './commandFactory';
+import { sessionAuthHeaders } from '../../sessionAuth';
 
 const integrationCommands = [
   createCommand({
@@ -64,10 +65,9 @@ const integrationCommands = [
       try {
         const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/roundups-connector`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY}`
-          },
+          // roundups-connector accepts a verified operator for read-only actions;
+          // launch_campaign still requires the internal service key.
+          headers: await sessionAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ action: 'test_connection' })
         });
 

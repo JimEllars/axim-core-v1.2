@@ -5,7 +5,6 @@ import { corsHeaders } from "../_shared/cors.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") as string;
-const INTERNAL_SERVICE_KEY = (Deno.env.get("AXIM_INTERNAL_SERVICE_KEY") as string) || "fallback_internal_key";
 const ELLARS_MOBILE_NUMBER = Deno.env.get("ELLARS_MOBILE_NUMBER") as string || "+19039332672";
 
 serve(async (req) => {

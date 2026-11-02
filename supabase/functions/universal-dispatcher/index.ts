@@ -1,17 +1,33 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
+import { keysFromEnv, resolveCaller } from "../_shared/edgeAuth.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get(
   "SUPABASE_SERVICE_ROLE_KEY",
 ) as string;
+/** Outbound internal header for the relay to trigger-workflow. Never a literal default. */
 const AXIM_SERVICE_KEY =
   (Deno.env.get("AXIM_SERVICE_KEY") as string) ||
   (Deno.env.get("AXIM_INTERNAL_SERVICE_KEY") as string) ||
-  "fallback_internal_key";
+  undefined;
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+/**
+ * Bearer header for sibling-service calls. Throws when no internal key is
+ * configured rather than sending "Bearer undefined" and letting the callee
+ * decide — a missing key is a deployment fault, not a request to downgrade.
+ */
+function internalAuth(): Record<string, string> {
+  if (!AXIM_SERVICE_KEY) {
+    throw new Error(
+      "AXIM_SERVICE_KEY / AXIM_INTERNAL_SERVICE_KEY is not configured; refusing to call a sibling service unauthenticated",
+    );
+  }
+  return { "Authorization": `Bearer ${AXIM_SERVICE_KEY}` };
+}
 
 const HIGH_STAKES_ACTIONS = [
   "trigger_marketing_workflow",
@@ -26,8 +42,18 @@ serve(async (req: Request) => {
   }
 
   try {
-    const internalKeyHeader = req.headers.get("X-Axim-Internal-Service-Key") || req.headers.get("Authorization")?.replace("Bearer ", "");
-    if (!internalKeyHeader || (internalKeyHeader !== AXIM_SERVICE_KEY && internalKeyHeader !== SUPABASE_SERVICE_ROLE_KEY)) {
+    // Accept the internal service key (satellites, cron) or a verified user 
+    // token — the browser must never need a service credential to dispatch.
+    const caller = await resolveCaller(
+      req.headers,
+      keysFromEnv(Deno.env),
+      async (token) => {
+        const { data, error } = await supabaseAdmin.auth.getUser(token);
+        if (error || !data?.user) return null;
+        return data.user.id;
+      },
+    );
+    if (caller.kind === "anonymous") {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -43,13 +69,16 @@ serve(async (req: Request) => {
        const triggerWorkflowUrl = Deno.env.get('TRIGGER_WORKFLOW_URL') || `${url.protocol}//${url.host}/trigger-workflow`;
 
        try {
+           const relayHeaders: Record<string, string> = {
+               'Content-Type': 'application/json',
+               // The service role key authenticates this relay as an internal caller in trigger-workflow.
+               'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+           };
+           if (AXIM_SERVICE_KEY) relayHeaders['X-Axim-Internal-Service-Key'] = AXIM_SERVICE_KEY;
+
            const res = await fetch(triggerWorkflowUrl, {
                method: 'POST',
-               headers: {
-                   'Content-Type': 'application/json',
-                   'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-                   'X-Axim-Internal-Service-Key': AXIM_SERVICE_KEY
-               },
+               headers: relayHeaders,
                body: JSON.stringify(body)
            });
 
@@ -265,7 +294,7 @@ serve(async (req: Request) => {
                      method: 'POST',
                      headers: {
                          'Content-Type': 'application/json',
-                         'Authorization': `Bearer ${AXIM_SERVICE_KEY}`
+                         ...internalAuth()
                      },
                      body: JSON.stringify({
                          prompt: `[Blackboard Task for ${agent_id}]: ${prompt}`,
@@ -325,7 +354,7 @@ serve(async (req: Request) => {
              method: 'POST',
              headers: {
                  'Content-Type': 'application/json',
-                 'Authorization': `Bearer ${AXIM_SERVICE_KEY}`
+                 ...internalAuth()
              },
              body: JSON.stringify({
                  prompt: synthesisPrompt,
@@ -364,7 +393,7 @@ serve(async (req: Request) => {
                  method: 'POST',
                  headers: {
                      'Content-Type': 'application/json',
-                     'Authorization': `Bearer ${AXIM_SERVICE_KEY}`
+                     ...internalAuth()
                  },
                  body: JSON.stringify({
                      prompt: `[URGENT ECOSYSTEM INCIDENT]: Analyze the following telemetry payload and suggest a remediation strategy:\n\n${JSON.stringify(payload, null, 2)}`,

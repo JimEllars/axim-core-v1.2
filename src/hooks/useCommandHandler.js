@@ -3,6 +3,7 @@ import onyxAI from '../services/onyxAI';
 import api from '../services/onyxAI/api';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
+import { sessionAuthHeaders } from '../services/sessionAuth';
 
 const createMessage = (content, type = 'user', props = {}) => ({
   id: crypto.randomUUID(),
@@ -66,14 +67,13 @@ export const useCommandHandler = (dispatch) => {
           try {
               // Now we manually call the dispatcher endpoint with the spawn payload
               const dispatcherUrl = import.meta.env.VITE_SUPABASE_URL + '/functions/v1/universal-dispatcher';
-              const internalKey = import.meta.env.VITE_AXIM_SERVICE_KEY || import.meta.env.VITE_AXIM_INTERNAL_SERVICE_KEY || 'fallback_internal_key';
 
+              // The dispatcher accepts a verified operator. Falling back to the
+              // literal 'fallback_internal_key' shipped a working credential in
+              // the client bundle.
               const res = await fetch(dispatcherUrl, {
                   method: 'POST',
-                  headers: {
-                      'Content-Type': 'application/json',
-                      'X-Axim-Internal-Service-Key': internalKey
-                  },
+                  headers: await sessionAuthHeaders({ 'Content-Type': 'application/json' }),
                   body: JSON.stringify(response.action_payload)
               });
 

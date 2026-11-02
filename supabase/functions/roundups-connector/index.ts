@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.0.0";
+import { keysFromEnv, resolveCaller } from "../_shared/edgeAuth.ts";
 
 const ROUNDUPS_API_KEY = Deno.env.get("ROUNDUPS_API_KEY");
 const AXIM_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -18,8 +19,19 @@ serve(async (req) => {
     });
   }
 
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader || authHeader !== `Bearer ${AXIM_SERVICE_KEY}`) {
+  // Callers are either a sibling service (internal key) or a signed-in operator.
+  // Requiring the raw service role key forced the dashboard to ship that key to
+  // the browser, which is worse than useless: it is a full-database credential.
+  const caller = await resolveCaller(
+    req.headers,
+    keysFromEnv(Deno.env),
+    async (token) => {
+      const { data, error } = await supabaseAdmin.auth.getUser(token);
+      if (error || !data?.user) return null;
+      return data.user.id;
+    },
+  );
+  if (caller.kind === "anonymous") {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { "Content-Type": "application/json" },
@@ -204,9 +216,11 @@ serve(async (req) => {
 
     if (action === "launch_campaign") {
       const internalKeyHeader = req.headers.get("X-Axim-Internal-Service-Key");
-      const internalKey = Deno.env.get("AXIM_INTERNAL_SERVICE_KEY") || "fallback_internal_key";
+      const internalKey = Deno.env.get("AXIM_INTERNAL_SERVICE_KEY");
 
-      if (!internalKeyHeader || internalKeyHeader !== internalKey) {
+      // launch_campaign moves real money, so it stays internal-only even though
+      // ordinary reads now accept a verified user.
+      if (!internalKey || !internalKeyHeader || internalKeyHeader !== internalKey) {
         return new Response(JSON.stringify({ error: "Forbidden: Internal Service Key required" }), {
           status: 403,
           headers: { "Content-Type": "application/json" },
