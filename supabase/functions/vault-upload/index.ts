@@ -5,7 +5,7 @@ import { notifyOnyx } from '../_shared/telemetry.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
-const INTERNAL_SERVICE_KEY = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY') as string || 'fallback_internal_key'; // Default if not set
+const INTERNAL_SERVICE_KEY = Deno.env.get('AXIM_INTERNAL_SERVICE_KEY') ?? null;
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -19,7 +19,7 @@ serve(async (req) => {
   try {
     const internalKeyHeader = req.headers.get('X-Axim-Internal-Service-Key');
 
-    if (!internalKeyHeader || internalKeyHeader !== INTERNAL_SERVICE_KEY) {
+    if (!INTERNAL_SERVICE_KEY || !internalKeyHeader || internalKeyHeader !== INTERNAL_SERVICE_KEY) {
       await notifyOnyx(endpoint, 403, { reason: 'Invalid internal service key attempt' });
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403,

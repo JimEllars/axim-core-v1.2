@@ -1,6 +1,16 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import integrationCommands from '../integrationCommands';
 
+// The command no longer authenticates with a service credential baked into the
+// bundle: it presents the operator's own session token. Mock the helper so the
+// test pins the header the command actually sends.
+vi.mock('../../../../services/sessionAuth', () => ({
+  sessionAuthHeaders: vi.fn(async (extra = {}) => ({
+    ...extra,
+    Authorization: 'Bearer test-session-token',
+  })),
+}));
+
 describe('Integration Commands', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -33,11 +43,24 @@ describe('Integration Commands', () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer test-service-key'
+            Authorization: 'Bearer test-session-token'
           },
           body: JSON.stringify({ action: 'test_connection' })
         })
       );
+    });
+
+    it('should never send a service-role credential from the browser', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ status: 'connected', service: 'roundups' })
+      });
+
+      await command.execute({}, {});
+
+      const [, request] = global.fetch.mock.calls[0];
+      expect(request.headers.Authorization).not.toContain('test-service-key');
+      expect(request.headers).not.toHaveProperty('X-Axim-Internal-Service-Key');
     });
 
     it('should return failure message when connection fails', async () => {

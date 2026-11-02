@@ -1,7 +1,7 @@
 // src/services/onyxAI/commands/systemCommands.js
 import { supabase } from "../../supabaseClient";
-import { createClient } from "@supabase/supabase-js";
 import { createCommand } from './commandFactory';
+import { sessionAuthHeaders } from '../../sessionAuth';
 import { DatabaseError, CommandValidationError } from '../errors';
 import api from '../api';
 import * as llm from '../llm';
@@ -686,21 +686,15 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
       }
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321';
-      const serviceKey = import.meta.env.VITE_AXIM_SERVICE_KEY || import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-
-      if (!serviceKey) {
-          return "AXIM_SERVICE_KEY is not configured.";
-      }
 
       try {
         const adminEmail = import.meta.env.VITE_ADMIN_EMAIL || 'admin@axim.us.com';
 
+        // send-email accepts a verified operator token; the dashboard no longer
+        // needs (or ships) a service-role key just to raise an alert.
         const response = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${serviceKey}`
-          },
+          headers: await sessionAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             email: adminEmail,
             formData: {
@@ -830,15 +824,13 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
       }
 
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321';
-      const internalKey = import.meta.env.VITE_AXIM_INTERNAL_SERVICE_KEY || import.meta.env.VITE_AXIM_SERVICE_KEY || 'fallback_internal_key';
 
       try {
+        // Verified operator, not a shipped internal key — the dispatcher now
+        // accepts either, and only the server ever holds the internal one.
         const response = await fetch(`${supabaseUrl}/functions/v1/universal-dispatcher`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Axim-Internal-Service-Key': internalKey
-          },
+          headers: await sessionAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             target_service: service_name,
             action_type: 'automated_workflow',
@@ -873,17 +865,11 @@ AXIM CORE v1.2 :: STATUS: ✅ ONLINE
       }
 
       const appId = args.trim();
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321';
-      const serviceKey = import.meta.env.VITE_AXIM_SERVICE_KEY || import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-
-      if (!serviceKey) {
-        return "AXIM_SERVICE_KEY is not configured.";
-      }
 
       try {
-
-        const supabase = createClient(supabaseUrl, serviceKey);
-
+        // Read telemetry as the signed-in operator through the shared client and
+        // let row-level security decide what is visible. This used to build a
+        // second client holding the service-role key inside the browser.
         const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
         const { data: logs, error } = await supabase

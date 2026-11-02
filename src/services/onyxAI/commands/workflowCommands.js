@@ -1,4 +1,5 @@
 import { createCommand } from './commandFactory';
+import { sessionAuthHeaders } from '../../sessionAuth';
 import { runWorkflow } from '../../workflows/engine';
 import { workflowDefinitions } from '../../workflows/definitions';
 
@@ -11,8 +12,6 @@ export default [
     usage: 'list workflows',
     execute: async (args, context) => {
       const { slug, argsString } = args;
-      const { userId, aximCore } = context;
-
       let initialContext = {};
       if (argsString) {
         initialContext = JSON.parse(argsString);
@@ -20,17 +19,15 @@ export default [
 
       try {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'http://localhost:54321';
-        const serviceKey = import.meta.env.VITE_AXIM_SERVICE_KEY || import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 
+        // trigger-workflow authenticates the caller and binds the run to that
+        // identity, so the browser sends the operator's session token and lets
+        // the function decide who is acting. It used to send a service-role key.
         const response = await fetch(`${supabaseUrl}/functions/v1/trigger-workflow`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${serviceKey}`
-          },
+          headers: await sessionAuthHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({
             workflow: slug,
-            userId: userId || 'system',
             context: initialContext
           })
         });

@@ -36,7 +36,7 @@ serve(async (req) => {
             // Update system_status to is_live = true
             await supabase
                 .from('system_status')
-                .update({ value: 'true'::jsonb, updated_at: new Date().toISOString() })
+                .update({ value: true, updated_at: new Date().toISOString() })
                 .eq('key', 'is_live');
 
             // Emit event
@@ -51,7 +51,7 @@ serve(async (req) => {
              // Update system_status to is_live = false
              await supabase
                 .from('system_status')
-                .update({ value: 'false'::jsonb, updated_at: new Date().toISOString() })
+                .update({ value: false, updated_at: new Date().toISOString() })
                 .eq('key', 'is_live');
 
             // Emit event

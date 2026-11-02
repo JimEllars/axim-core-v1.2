@@ -73,7 +73,7 @@ serve(async (req) => {
       ...logs.map(log => headers.map(h => log[h] || '').join(','))
     ].join('\n');
 
-    const fileName = \`audit_export_\${user.id}_\${Date.now()}.csv\`;
+    const fileName = `audit_export_${user.id}_${Date.now()}.csv`;
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from('secure_artifacts')
@@ -83,7 +83,7 @@ serve(async (req) => {
       });
 
     if (uploadError) {
-      throw new Error(\`Failed to store artifact: \${uploadError.message}\`);
+      throw new Error(`Failed to store artifact: ${uploadError.message}`);
     }
 
     const { data: signedUrlData, error: urlError } = await supabaseAdmin.storage

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 serve(async (req) => {
   try {
@@ -32,8 +33,7 @@ serve(async (req) => {
     }
     const nodes = await nodesRes.json();
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-const failures: string[] = [];
+    const failures: string[] = [];
 
     // Add PostgreSQL connection pool check
     let poolUtilization = 0;

@@ -132,15 +132,13 @@ const MemoryBank = () => {
 
       // Re-vectorize if it's not just a simple log
       if (table !== 'ai_interactions_ax2024') {
+        // generate-embedding authorises on the caller's own session token.
         const { error: invokeError } = await supabase.functions.invoke('generate-embedding', {
            body: {
              input: editContent,
              record_id: id,
              table: table,
              field: field
-           },
-           headers: {
-             'X-Axim-Internal-Service-Key': import.meta.env.VITE_ONYX_SECURE_KEY || 'test_internal_key'
            }
         });
         if (invokeError) {

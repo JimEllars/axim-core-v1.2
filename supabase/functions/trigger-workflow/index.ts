@@ -1,20 +1,54 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
+import { keysFromEnv, resolveCaller } from '../_shared/edgeAuth.ts';
+import { authorizeTrigger } from '../_shared/workflowAuth.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
 
 const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+const json = (payload: unknown, status = 200) =>
+  new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  // `verify_jwt = false` in supabase/config.toml, so the platform checks nothing.
+  // Classify the caller here: internal service key, verified user, or anonymous.
+  const caller = await resolveCaller(
+    req.headers,
+    keysFromEnv(Deno.env),
+    async (token) => {
+      const { data, error } = await supabaseAdmin.auth.getUser(token);
+      if (error || !data?.user) return null;
+      return data.user.id;
+    },
+  );
+
+  if (caller.kind === 'anonymous') {
+    return json(
+      { error: 'Unauthorized', reason: 'authentication required: verified user token or internal service key' },
+      401,
+    );
+  }
+
   try {
     const body = await req.json();
-    const { workflowId, workflowSlug, context = {}, userId } = body;
+    const { workflowId, workflowSlug, context = {} } = body;
+
+    // Identity is decided by the caller's credentials, never by the body alone.
+    const decision = authorizeTrigger(caller, body.userId);
+    if (!decision.ok) {
+      return json({ error: 'Forbidden', reason: decision.reason }, decision.status);
+    }
+    const userId = decision.actorId;
 
     let query = supabaseAdmin.from('workflows_ax2024').select('*');
     if (workflowId) {
@@ -51,7 +85,7 @@ serve(async (req) => {
              await supabaseAdmin.from('events_ax2024').insert({
                  type: 'workflow_executed',
                  data: { workflow: 'infrastructure-monitor', trigger: 'telemetry_anomaly' },
-                 user_id: body.userId || null
+                 user_id: userId || null
              });
              await supabaseAdmin.from('tasks').insert({
                  title: 'Review Infrastructure Incident Report',

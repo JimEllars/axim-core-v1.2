@@ -20,6 +20,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check for literal credential fallbacks
+        # A missing key must fail closed. Omnichannel-publisher, ground-game-assign
+        # and memory-retrieval all shipped `|| 'test_internal_key'`, and
+        # universal-dispatcher accepted the same literal the browser bundle
+        # contained — the fallback authenticated the client to the server.
+        run: npm run check:creds
+
+      - name: Parse every Deno Edge Function
+        # Blocks merge of unparsable Deno sources — a committed conflict marker in
+        # supabase/functions/_shared/edgeAuth.ts reached main in PR #492 and broke
+        # five deployed functions. Cheap, deterministic, needs no Deno toolchain.
+        run: npm run check:edge
+
       - name: Run Smoke Tests (Unit/Integration)
         run: node scripts/smoke-test-functions.js
 

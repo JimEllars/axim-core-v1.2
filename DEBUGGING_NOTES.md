@@ -1,3 +1,61 @@
+# 2026-11-02 — Tracing credential fallbacks from the browser bundle to the server
+
+## Symptom
+
+`trigger-workflow` answered an unauthenticated `POST`. Nothing in its body was validated
+against a caller, and `supabase/config.toml` deliberately turns off platform JWT
+verification for it (`verify_jwt = false`), so the only thing standing between an anonymous
+request and a workflow run was the function's own code — which performed no check.
+
+## How the chain was found
+
+1. `grep -n "verify_jwt" supabase/config.toml` listed five functions without platform
+   auth. Reading each one showed four authenticate themselves; `trigger-workflow` did not.
+2. Reading its callers (`job-processor`, `universal-dispatcher`, `WorkflowBuilder.jsx`,
+   `workflowCommands.js`) showed two patterns: server-side callers already sent the
+   service-role bearer; the browser callers sent `VITE_SUPABASE_SERVICE_ROLE_KEY` or a
+   literal.
+3. `grep -rn "fallback_internal_key\|test_internal_key" supabase/functions` found seven
+   server-side literals. `grep` on `src/` found the same literals in the dashboard.
+4. The interesting part: `universal-dispatcher` compared the inbound header against
+   `AXIM_SERVICE_KEY || "fallback_internal_key"`, and `useCommandHandler.js` sent exactly
+   `'fallback_internal_key'` when its env var was missing. Client and server therefore
+   authenticated each other with a constant that is printed in the deployed bundle. Every
+   control on that endpoint was decorative whenever the env var was unset.
+
+## Things that misled, and what resolved them
+
+### `NODE_ENV=production` in the agent shell
+
+Two React suites failed with `act(...) is not supported in production builds of React`.
+The tests were fine; the shell exported `NODE_ENV=production`, so Vite resolved React's
+production build. Fix for every run here: `NODE_ENV=test npx vitest run …`. Worth knowing
+before touching either suite.
+
+### "The test suite hangs"
+
+`npx vitest run` exceeded a 900 s timeout twice and looked stuck around file 30–50.
+Watching the process table showed the main vitest process idle with no worker alive —
+which reads like a deadlock. It was throughput: 96 files, jsdom environment at 8–10 s per
+file, `collect` alone taking 1414 s on two vCPUs. A complete run takes ~56 minutes and
+ends `94 passed | 2 skipped; 478 passed | 9 skipped; EXIT=0`. Do not conclude a hang from a
+partial log; time it once with a generous budget.
+
+### A test that pinned the vulnerable behaviour
+
+`integrationCommands.test.js` asserted
+`headers: { Authorization: 'Bearer test-service-key' }` — i.e. it would have failed any fix
+to the credential handling, and passed while the dashboard shipped a service key. Rewritten
+to mock `sessionAuth` and assert the session token, plus a new assertion that the request
+carries no service credential at all.
+
+## Rule adopted
+
+A missing credential must fail closed and loudly. `|| "<literal>"` is not a default; it is a
+published password. `npm run check:creds` now fails the build on the pattern, and
+`tests/check-credentials.test.js` proves the checker trips on fixtures so the gate cannot
+quietly rot.
+
 # AXiM Core Debugging Notes - 2025-09-23
 
 This document outlines the debugging process undertaken to resolve an application rendering failure. While the issue was not ultimately resolved, these notes are intended to provide a comprehensive overview of the steps taken, the errors encountered, and the solutions attempted.
@@ -254,3 +312,42 @@ During `npm install`, several deprecation warnings are visible:
 - Cleaned up React component errors in test scenarios specifically the `MetricsGrid` suite by isolating Supabase channel usage and wrapping components with explicit `AuthProvider` stubs.
 - Updated `src/components/dashboard/CloudflareEdgeHealth.jsx` to dynamically fetch endpoint metrics accurately from `/api/mcp-bridge/status` gracefully replacing hard-coded assumptions and falling back dynamically via mocked parameters.
 - Re-architectured `src/contexts/AuthContext.jsx` session caching via standard `sessionStorage` hooks resulting in improved offline session survival preventing white screens in degraded zones, properly nested under `<ErrorBoundary>` shells directly inside the primary navigation component (`MainLayout.jsx`).
+
+## [2026-11-01] Wave 127 — four Edge Functions that could not parse
+
+**Symptom.** Nothing in CI went red. The discovery came from a manual pre-flight audit:
+`npx esbuild supabase/functions/**/*.ts` failed on files that had been on `main` for days.
+
+**Root causes, four distinct ones.**
+
+1. `supabase/functions/_shared/edgeAuth.ts` — merge commit `4dc7151` (PR #492) committed a
+   conflict marker. The *branch* was already poisoned (parent `4dc7151^2` contains the
+   markers), so resolving nothing at merge time produced a file that no parser accepts.
+   Five deployed functions import this module.
+2. `audit-export/index.ts` — backticks escaped into source (`\`…\``), a bad write that
+   survives text review because it looks like a template literal in a diff.
+3. `gateway-heartbeat/index.ts` — `createClient` imported *inside* the `serve()` handler.
+   Note that `esbuild transform` tolerates a mid-body import; the file failed on the
+   unbalanced brace it caused downstream. Do not rely on `TS1185`-style diagnostics alone.
+4. `stream-webhook/index.ts` — `'true'::jsonb` written in TypeScript.
+
+**Why CI missed it.** `verify-smoke-tests.yml` is the only PR-triggered workflow and it
+never opens a Deno file; `deno` is not installed in any workflow; the vitest include pattern
+(`**/*.{test,spec}.?(c|m)[jt]s?(x)`) does not match `*_test.ts`, so the three Deno test
+files have never run anywhere.
+
+**Fix and prevention.** Union resolution of the conflict (both halves load-bearing), three
+surgical syntax fixes, and `npm run check:edge` wired into the PR workflow with
+`tests/edge-syntax.test.js` proving the gate can go red.
+
+**Environment traps worth remembering:**
+
+* This workspace exports `NODE_ENV=production`. React's `act()` then throws "not supported in
+  production builds" across every component test — 60+ phantom failures. Always
+  `NODE_ENV=test` before believing a vitest red.
+* A global `vitest.setup.jsx` that touches `window` makes `// @vitest-environment node`
+  impossible, and esbuild refuses to load under jsdom (`TextEncoder().encode("") instanceof
+  Uint8Array` is false across realms). Guard the setup file.
+* An aggregate `vitest run` on this 2-core host (load average > 6) stops making progress
+  around file 27–50 and leaves one worker at ~8% CPU. Per-file runs of the same files pass.
+  Treat "the suite hangs" as unproven until you reproduce it on a quiet 4-core box.
