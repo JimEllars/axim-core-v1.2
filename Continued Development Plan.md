@@ -53,10 +53,20 @@
       file and 96 files take roughly an hour at `--maxWorkers=2`. The suite has never gated
       a pull request because it is wired to `reusable-run-tests.yml`, which no workflow
       calls. A runner with more vCPUs is the prerequisite, not a code fix.*
+- [x] Land Wave 127. *(It merged as part of #494 — the branch had been cut from that tip,
+      so the squash carried all four commits. #493 closed as superseded.)*
 - [ ] Rebase and open PRs for `feat/core-wave-125-workflow-persistence-and-ingress` and
       `feat/core-wave-126-node-inspector-and-execution-history`. Both are pushed with no
       PR and both predate #491/#492, so merging them as-is would drop the tenancy and
       versioned-signature work.
+- [ ] Ask Cloudflare to explain why `Cloudflare Pages` failed the production build of
+      `b80f450` while succeeding on the identical tree `dfccdc8` 40 minutes earlier
+      (evidence table in the Wave 128 appendix §8). Workers Builds is also production-only:
+      it fails on every non-`main` push and passes on every `main` push, so a PR can never
+      show a green worker deploy.
+- [ ] `eslint.config.js` ignores `cloudflare-workers` at the top level, which makes its later
+      `cloudflare-workers/src/**` block unreachable. Un-ignoring it will surface findings, so
+      it belongs in its own change.
 
 ## 4c. Caller authentication (added 2026-11-02, Wave 128)
 

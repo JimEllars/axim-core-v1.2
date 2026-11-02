@@ -231,3 +231,56 @@ costing 8–10 s per file, ~56 minutes at `--maxWorkers=2` on two vCPUs. `collec
 1414 s. An earlier 900 s timeout made it look like a stall. This closes the open question
 in the plan; the suite is slow, not broken, and it needs a bigger runner before it can gate
 PRs.
+
+## 8. Post-merge verification of `main` (`b80f450`)
+
+Merged as `b80f450` (squash of #494, which also carried the four Wave 127 commits — the
+branch had been cut from that tip, and #493 was closed as superseded).
+
+| Check on `b80f450` | Result |
+|---|---|
+| `smoke-test` (runs `check:creds`, `check:edge`, the smoke script, both live endpoint probes, `npm run build`, worker dry-run) | **success** |
+| `Workers Builds: axim-core-worker` | **success** |
+| `Supabase Preview` | **success** |
+| `Cloudflare Pages` | **failure** |
+| `Dependabot` (x3 check-runs) | mixed, no output — its own PR-branch rebases |
+| `security-scan` / `GitGuardian` | success on the PR head; not re-run on the merge commit |
+
+### `Workers Builds` — the Wave 127 note was right
+
+The check that failed on every feature branch **passed on `main`**, which confirms the
+diagnosis recorded in #493: the Cloudflare build is configured for production only, so
+every non-`main` push fails it regardless of content. The worker deployed from `main` and
+the environment it now serves contains the Wave 128 code.
+
+### `Cloudflare Pages` — failed on a tree it had already built
+
+This one needs an operator, and the evidence is that it is not a code defect:
+
+```
+$ git rev-parse b80f450^{tree}   # merge commit
+a96b241e5fdb7c7eefd7a28e4a655c63c9aeb5a3
+$ git rev-parse dfccdc8^{tree}   # the PR head Cloudflare built 40 minutes earlier
+a96b241e5fdb7c7eefd7a28e4a655c63c9aeb5a3
+$ git diff --stat b80f450 dfccdc8
+(empty)
+```
+
+* The same tree that Pages **failed** to build on `main` is the tree Pages **built
+  successfully** as a preview deployment (`Cloudflare Pages | success` on `dfccdc8`).
+* Every other recent commit on `main` passes Pages; this is the only failure in the last 12.
+* Production was never down: `https://axim-core-dashboard.pages.dev` and
+  `https://axim.us.com` both returned `200` throughout, so the last good deployment kept
+  serving.
+* Local reproduction of the app build: `npx esbuild src/main.jsx --bundle …` completed with
+  **exit 0** and a 14 MB bundle, so every import resolves and every touched JSX module
+  parses. (`npm run build` via rollup was started twice and did not finish inside 25 minutes
+  on this host — load average was 11–16 from other tenants on 2 vCPU — so esbuild was used as
+  the local build signal; the authoritative full build is the Pages build itself.)
+
+**Operator action:** open the Pages project → the failed deployment for `b80f450` → "Retry
+deployment". The build log is behind the Cloudflare dashboard and this workspace holds no
+Cloudflare credentials, so the failure reason could not be read directly. A retry on an
+unchanged tree is the cheapest way to distinguish a transient build failure from a
+configuration difference between the preview and production environments (that difference,
+not the code, is the only remaining explanation for one succeeding and the other failing).
