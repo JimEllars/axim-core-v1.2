@@ -3,7 +3,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import connectivityManager from '../services/connectivityManager';
 import offlineManager from '../services/offline';
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const ConnectivityContext = createContext({
   edgeCapacity: null,
   edgeDegraded: false,
@@ -13,7 +12,6 @@ export const ConnectivityContext = createContext({
   clearOfflineTelemetry: () => {}
 });
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const useConnectivity = () => {
   return useContext(ConnectivityContext);
 };

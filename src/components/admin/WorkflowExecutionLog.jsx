@@ -1,17 +1,46 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { format } from 'date-fns';
-import api from '../../services/onyxAI/api';
 import SafeIcon from '../../common/SafeIcon';
 import supabaseApiService from '../../services/supabaseApiService';
 import * as FiIcons from 'react-icons/fi';
 
 const { FiZap, FiCheckCircle, FiXCircle, FiAlertTriangle, FiFilter, FiRefreshCw } = FiIcons;
 
+const STATUS_STYLES = {
+  completed: { label: 'SUCCESS', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', icon: FiCheckCircle, iconClass: 'text-emerald-400' },
+  failed: { label: 'FAILED', className: 'bg-red-500/10 text-red-400 border-red-500/20', icon: FiXCircle, iconClass: 'text-red-400' },
+  unknown: { label: 'UNKNOWN', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20', icon: FiAlertTriangle, iconClass: 'text-amber-400' },
+};
+
+const statusStyle = (status) => STATUS_STYLES[status] || STATUS_STYLES.unknown;
+
+/** Human detail line for a run: the abort reason when it failed, else step counts. */
+const describeRun = (execution) => {
+  if (execution.status === 'failed' && execution.error_message) {
+    return execution.error_message;
+  }
+  if (execution.steps_total > 0) {
+    return `${execution.steps_succeeded}/${execution.steps_total} steps succeeded`;
+  }
+  if (execution.error_message) return execution.error_message;
+  return execution.source === 'events_ax2024'
+    ? 'Legacy event with no step detail'
+    : 'No step detail recorded';
+};
+
+const formatDuration = (durationMs) => {
+  if (!Number.isFinite(durationMs)) return '—';
+  if (durationMs < 1000) return `${durationMs}ms`;
+  // Round to the nearest 100ms; 1450 must read as 1.5s, not the 1.4s that
+  // (1450 / 1000).toFixed(1) produces through binary rounding.
+  return `${(Math.round(durationMs / 100) / 10).toFixed(1)}s`;
+};
+
 const WorkflowExecutionLog = () => {
   const [executions, setExecutions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('ALL'); // ALL, SUCCESS, ERROR, WARN
+  const [filter, setFilter] = useState('ALL'); // ALL, SUCCESS, ERROR, UNKNOWN
   const [livePolling, setLivePolling] = useState(true);
 
   useEffect(() => {
@@ -43,49 +72,14 @@ const WorkflowExecutionLog = () => {
     }
     return () => {
       if (interval) clearInterval(interval);
-    }
+    };
   }, [livePolling]);
-
-  const getStatusIcon = (execution) => {
-    if (execution.severity === 'ERROR' || execution.severity === 'FATAL') return <SafeIcon icon={FiXCircle} className="text-red-400" />;
-    if (execution.severity === 'WARN') return <SafeIcon icon={FiAlertTriangle} className="text-amber-400" />;
-    if (execution.severity === 'INFO' || execution.severity === 'DEBUG') return <SafeIcon icon={FiCheckCircle} className="text-emerald-400" />;
-
-    if (!execution.data?.results) {
-      return <SafeIcon icon={FiAlertTriangle} className="text-amber-400" title="Legacy Trigger or missing data" />;
-    }
-    const allSuccess = execution.data.results.every(r => r.success);
-    return allSuccess
-      ? <SafeIcon icon={FiCheckCircle} className="text-emerald-400" />
-      : <SafeIcon icon={FiXCircle} className="text-red-400" />;
-  };
-
-  const getStatusPill = (execution) => {
-    let statusStr = 'UNKNOWN';
-    let colorClass = 'bg-slate-800 text-slate-400 border-slate-700';
-    if (execution.severity === 'ERROR' || execution.severity === 'FATAL') {
-      statusStr = 'ERROR'; colorClass = 'bg-red-500/10 text-red-400 border-red-500/20';
-    } else if (execution.severity === 'WARN') {
-      statusStr = 'WARN'; colorClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20';
-    } else if (execution.severity === 'INFO' || execution.severity === 'DEBUG') {
-      statusStr = 'SUCCESS'; colorClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
-    } else if (execution.data?.results) {
-      const allSuccess = execution.data.results.every(r => r.success);
-      statusStr = allSuccess ? 'SUCCESS' : 'ERROR';
-      colorClass = allSuccess ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20';
-    }
-
-    return <span className={`px-2 py-1 text-xs font-bold rounded-full border ${colorClass}`}>{statusStr}</span>;
-  };
 
   const filteredExecutions = executions.filter(exec => {
     if (filter === 'ALL') return true;
-    let isSuccess = exec.severity === 'INFO' || exec.severity === 'DEBUG' || (exec.data?.results && exec.data.results.every(r => r.success));
-    let isError = exec.severity === 'ERROR' || exec.severity === 'FATAL' || (exec.data?.results && !exec.data.results.every(r => r.success));
-    let isWarn = exec.severity === 'WARN';
-    if (filter === 'SUCCESS') return isSuccess;
-    if (filter === 'ERROR') return isError;
-    if (filter === 'WARN') return isWarn;
+    if (filter === 'SUCCESS') return exec.status === 'completed';
+    if (filter === 'ERROR') return exec.status === 'failed';
+    if (filter === 'UNKNOWN') return exec.status === 'unknown';
     return true;
   });
 
@@ -102,12 +96,13 @@ const WorkflowExecutionLog = () => {
              <select
                value={filter}
                onChange={(e) => setFilter(e.target.value)}
+               aria-label="Filter by status"
                className="bg-transparent text-sm text-slate-300 font-medium focus:outline-none pr-2"
              >
                <option value="ALL">All Status</option>
                <option value="SUCCESS">Success</option>
-               <option value="ERROR">Error</option>
-               <option value="WARN">Warning</option>
+               <option value="ERROR">Failed</option>
+               <option value="UNKNOWN">Unknown</option>
              </select>
           </div>
           <button
@@ -126,46 +121,68 @@ const WorkflowExecutionLog = () => {
             <tr>
               <th scope="col" className="px-6 py-3">Status</th>
               <th scope="col" className="px-6 py-3">Workflow</th>
-              <th scope="col" className="px-6 py-3">Source</th>
+              <th scope="col" className="px-6 py-3">Run</th>
+              <th scope="col" className="px-6 py-3">Duration</th>
               <th scope="col" className="px-6 py-3">Executed At</th>
-              <th scope="col" className="px-6 py-3">Log Trace</th>
+              <th scope="col" className="px-6 py-3">Detail</th>
             </tr>
           </thead>
           <tbody>
             <AnimatePresence>
             {loading && executions.length === 0 ? (
               <tr>
-                <td colSpan="5" className="text-center p-8">
+                <td colSpan="6" className="text-center p-8">
                   <div className="flex justify-center"><div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div></div>
                 </td>
               </tr>
             ) : filteredExecutions.length === 0 ? (
               <tr>
-                <td colSpan="5" className="text-center p-8 text-slate-500">
+                <td colSpan="6" className="text-center p-8 text-slate-500">
                   No workflow executions match the current filter.
                 </td>
               </tr>
             ) : (
-              filteredExecutions.map((exec) => (
-                <motion.tr
-                  initial={{ opacity: 0, backgroundColor: 'rgba(6, 182, 212, 0.1)' }}
-                  animate={{ opacity: 1, backgroundColor: 'transparent' }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.5 }}
-                  key={exec.id}
-                  className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors"
-                >
-                  <td className="px-6 py-4">{getStatusPill(exec)}</td>
-                  <td className="px-6 py-4 font-bold text-slate-200">{exec.component_id || exec.data?.workflow_name || 'N/A'}</td>
-                  <td className="px-6 py-4 text-slate-400 font-mono text-xs">{exec.severity || exec.source || 'N/A'}</td>
-                  <td className="px-6 py-4 text-slate-400 whitespace-nowrap">{format(new Date(exec.created_at), 'MMM d, HH:mm:ss')}</td>
-                  <td className="px-6 py-4">
-                    <div className="text-xs font-mono bg-slate-950 text-slate-300 p-2 rounded border border-slate-800/50 max-h-20 overflow-y-auto">
-                       {exec.message || exec.data?.details || (exec.data?.results && `${exec.data.results.filter(r => r.success).length}/${exec.data.results.length} steps succeeded`) || 'N/A'}
-                    </div>
-                  </td>
-                </motion.tr>
-              ))
+              filteredExecutions.map((exec) => {
+                const style = statusStyle(exec.status);
+                return (
+                  <motion.tr
+                    initial={{ opacity: 0, backgroundColor: 'rgba(6, 182, 212, 0.1)' }}
+                    animate={{ opacity: 1, backgroundColor: 'transparent' }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.5 }}
+                    key={exec.id}
+                    className="border-b border-slate-800/50 hover:bg-slate-800/30 transition-colors"
+                  >
+                    <td className="px-6 py-4">
+                      <span className="flex items-center gap-2">
+                        <SafeIcon icon={style.icon} className={style.iconClass} />
+                        <span className={`px-2 py-1 text-xs font-bold rounded-full border ${style.className}`}>
+                          {style.label}
+                        </span>
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 font-bold text-slate-200">{exec.workflow_name}</td>
+                    <td className="px-6 py-4 text-slate-400 font-mono text-xs">
+                      {exec.workflow_run_id ? String(exec.workflow_run_id).slice(0, 8) : '—'}
+                    </td>
+                    <td className="px-6 py-4 text-slate-400 whitespace-nowrap">{formatDuration(exec.duration_ms)}</td>
+                    <td className="px-6 py-4 text-slate-400 whitespace-nowrap">
+                      {exec.created_at ? format(new Date(exec.created_at), 'MMM d, HH:mm:ss') : '—'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div
+                        className={`text-xs font-mono p-2 rounded border max-h-20 overflow-y-auto ${
+                          exec.status === 'failed'
+                            ? 'bg-red-950/40 text-red-200 border-red-900/50'
+                            : 'bg-slate-950 text-slate-300 border-slate-800/50'
+                        }`}
+                      >
+                         {describeRun(exec)}
+                      </div>
+                    </td>
+                  </motion.tr>
+                );
+              })
             )}
             </AnimatePresence>
           </tbody>

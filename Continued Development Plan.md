@@ -55,10 +55,11 @@
       calls. A runner with more vCPUs is the prerequisite, not a code fix.*
 - [x] Land Wave 127. *(It merged as part of #494 — the branch had been cut from that tip,
       so the squash carried all four commits. #493 closed as superseded.)*
-- [ ] Rebase and open PRs for `feat/core-wave-125-workflow-persistence-and-ingress` and
-      `feat/core-wave-126-node-inspector-and-execution-history`. Both are pushed with no
-      PR and both predate #491/#492, so merging them as-is would drop the tenancy and
-      versioned-signature work.
+- [x] Rebase and open PRs for `feat/core-wave-125-workflow-persistence-and-ingress` and
+      `feat/core-wave-126-node-inspector-and-execution-history`. *(Wave 129: rebased onto
+      `a83d901` and reconciled with #491/#492/#494/#495 rather than merged as-is, so the
+      tenancy and versioned-signature work is preserved. See
+      `AGENTS_VERIFICATION.d/2026-11-03-wave129-merge.md`.)*
 - [ ] Ask Cloudflare to explain why `Cloudflare Pages` failed the production build of
       `b80f450` while succeeding on the identical tree `dfccdc8` 40 minutes earlier
       (evidence table in the Wave 128 appendix §8). Workers Builds is also production-only:
@@ -97,7 +98,33 @@
       the token rather than trusting it.
 
 ## 5. Future Roadmap
-- [ ] Implement a UI for visual workflow building.
+- [x] Implement a UI for visual workflow building. *(Wave 125: the builder now
+      rehydrates `workflows_ax2024.definition` into React Flow and persists it
+      back through `supabaseApiService.saveWorkflow()`; action nodes dispatch for
+      real in `trigger-workflow`. Wave 126 added the typed config inspector and
+      the pre-dispatch validation gate.)*
+- [x] Add a node configuration inspector for typed action steps (`api_call`,
+      `email`, `robot_sim_run`, `robot_policy_gate`, `robot_ota_deploy`) so the
+      config the runner expects is authored in the UI rather than by hand.
+      *(Wave 126: `src/utils/workflowNodeConfig.js` holds the contract,
+      `WorkflowNodeInspector.jsx` renders it, and "Run Workflow" refuses to
+      dispatch a graph the runner would halt on.)*
+- [x] Point `getWorkflowExecutions()` at `workflow_execution_logs` (it still reads
+      `events_ax2024`), and surface `status`/`error_message` in the History tab.
+      *(Wave 126, with a `42P01`/`PGRST205`-only fallback to the legacy event
+      stream.)*
+- [ ] Build the three robotics Edge Functions the worker already routes to
+      (`robotics-projects`, `robotics-sim`, `robotics-emergency-stop`) and a
+      consumer that drains `robot_simulation_runs`. *(`robot_sim_run` action nodes
+      now queue rows with `status='queued'` and nothing picks them up — this is
+      the highest-value next increment.)*
+- [ ] Build the MCP Edge Functions the worker also routes to (`mcp-router`,
+      `mcp-sse`, `mcp-message`); `/mcp`, `/sse` and `/message` currently return
+      Supabase's 404.
+- [ ] Reconcile `resumeWorkflow()` with the execution-log schema: it looks for
+      `status === 'paused'` (a value the table's CHECK constraint forbids and no
+      writer produces) and reads `context` where the row has
+      `execution_context`. Either add a `paused` state or delete the branch.
 - [ ] Add more external service integrations (e.g., Email Service, Calendar).
 - [ ] Enhance "Memory Banks" to index and search past conversations more effectively (RAG).
     - Current state: Chats are logged to `ai_interactions_ax2024` (Postgres).

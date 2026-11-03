@@ -1,6 +1,9 @@
 > **Appendices from 2026-11-01 onward live in `AGENTS_VERIFICATION.d/`, one file per
 > change**, so parallel branches stop conflicting on this file.
 >
+> * [`AGENTS_VERIFICATION.d/2026-11-03-wave129-merge.md`](AGENTS_VERIFICATION.d/2026-11-03-wave129-merge.md)
+>   — Wave 129: rebase of Waves 125 + 126 onto current main and reconciliation with the
+>   Wave 127/128 authentication work that merged while they were open.
 > * [`AGENTS_VERIFICATION.d/2026-11-02-wave128-trigger-auth.md`](AGENTS_VERIFICATION.d/2026-11-02-wave128-trigger-auth.md)
 >   — Wave 128: `trigger-workflow` accepted anonymous callers and trusted `body.userId`;
 >   nine files authenticated with a literal credential fallback that the dashboard

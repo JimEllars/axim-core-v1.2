@@ -1,6 +1,108 @@
 import toast from 'react-hot-toast';
 import logger from './logging';
 import { DatabaseError, CommandExecutionError } from './onyxAI/errors';
+import { normalizeWorkflowDefinition } from '../utils/workflowDefinition';
+
+/**
+ * Derive a URL-safe slug from a workflow name. `workflows_ax2024.slug` is
+ * UNIQUE NOT NULL, so this must always return a non-empty string.
+ */
+export function buildWorkflowSlug(name) {
+  const base = String(name || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 60);
+  return base || 'workflow';
+}
+
+function randomSlugSuffix() {
+  const uuid = globalThis.crypto?.randomUUID
+    ? globalThis.crypto.randomUUID()
+    : `${Date.now()}-${Math.random()}`;
+  return uuid.replace(/-/g, '').slice(0, 6);
+}
+
+/**
+ * True when a PostgREST error means the relation is simply not there yet.
+ *
+ * `42P01` is Postgres' undefined_table; `PGRST205` is PostgREST's own "could not
+ * find the table ... in the schema cache". Only these two justify the legacy
+ * read path - an RLS denial or a network fault must surface as an error, not as
+ * a silently emptier History tab.
+ */
+export function isMissingRelationError(error) {
+  if (!error) return false;
+  const code = String(error.code || '');
+  const message = String(error.message || '');
+  return (
+    code === '42P01' ||
+    code === 'PGRST205' ||
+    /does not exist|could not find the table|not find the table/i.test(message)
+  );
+}
+
+/**
+ * Normalise a `workflow_execution_logs` row for the History tab.
+ *
+ * The table is written by the edge DAG runner; `status` is constrained to
+ * 'completed' | 'failed', so it is already the value the UI should trust -
+ * unlike the legacy event rows, where "success" had to be inferred from
+ * whatever the writer put in `data.results`.
+ */
+export function normalizeExecutionLogRow(row) {
+  const nodeResults = Array.isArray(row?.node_results) ? row.node_results : [];
+  return {
+    id: row?.id ?? row?.workflow_run_id ?? null,
+    workflow_id: row?.workflow_id ?? null,
+    workflow_run_id: row?.workflow_run_id ?? null,
+    workflow_name: row?.workflow_name || 'Untitled workflow',
+    status: row?.status === 'failed' ? 'failed' : 'completed',
+    error_message: row?.error_message ?? null,
+    node_results: nodeResults,
+    steps_total: nodeResults.length,
+    steps_succeeded: nodeResults.filter((result) => result?.success).length,
+    duration_ms: Number.isFinite(Number(row?.duration_ms)) ? Number(row.duration_ms) : null,
+    execution_context: row?.execution_context ?? {},
+    created_at: row?.created_at ?? null,
+    source: 'workflow_execution_logs',
+  };
+}
+
+/**
+ * Normalise a legacy `events_ax2024` row into the same shape, so the History
+ * tab renders one table regardless of which store the run predates.
+ *
+ * Legacy rows carry no `status` column: the outcome is whatever the writer put
+ * in `data.results`. A row with no results at all is 'unknown', not 'completed'
+ * - the old UI showed those as a warning for the same reason.
+ */
+export function normalizeLegacyExecutionRow(row) {
+  const data = row?.data && typeof row.data === 'object' ? row.data : {};
+  const results = Array.isArray(data.results) ? data.results : null;
+
+  let status = 'unknown';
+  if (results && results.length > 0) {
+    status = results.every((result) => result?.success) ? 'completed' : 'failed';
+  }
+
+  return {
+    id: row?.id ?? null,
+    workflow_id: null,
+    workflow_run_id: data.workflow_run_id ?? null,
+    workflow_name: data.workflow_name || data.name || 'Untitled workflow',
+    status,
+    error_message: data.error ?? data.error_message ?? null,
+    node_results: results || [],
+    steps_total: results ? results.length : 0,
+    steps_succeeded: results ? results.filter((result) => result?.success).length : 0,
+    duration_ms: Number.isFinite(Number(data.duration_ms)) ? Number(data.duration_ms) : null,
+    execution_context: data.context ?? {},
+    created_at: row?.created_at ?? null,
+    source: 'events_ax2024',
+  };
+}
 
 class SupabaseApiService {
   constructor() {
@@ -505,13 +607,75 @@ class SupabaseApiService {
     try {
       const { data, error } = await this.supabase
         .from('workflows_ax2024')
-        .select('name, description, slug, definition');
+        // `id` is required: the builder uses it to address updates. Selecting
+        // only the display fields meant every save of a loaded workflow
+        // inserted a duplicate row instead of updating the existing one.
+        .select('id, name, description, slug, definition')
+        .order('created_at', { ascending: false });
       if (error) throw new DatabaseError(error.message);
       return data;
     } catch (error) {
       toast.error('Failed to get workflows');
       logger.error('Failed to get workflows:', error);
       throw new DatabaseError(`Failed to get workflows: ${error.message}`);
+    }
+  }
+
+  /**
+   * Persist a visual workflow graph from WorkflowBuilder.
+   *
+   * The builder used to call `supabaseApiService.saveWorkflow(...)`, a method
+   * that did not exist - every save threw a TypeError and surfaced as
+   * "Failed to save workflow." with nothing written. Insert when no id is
+   * supplied, update in place when there is one.
+   */
+  async saveWorkflow(workflow, userId) {
+    if (this._checkConnectivity('saveWorkflow', [workflow, userId], true)) {
+      return Promise.resolve();
+    }
+
+    const { id = null, name, description = null, definition } = workflow || {};
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      throw new DatabaseError('A workflow name is required to save a workflow.');
+    }
+
+    const safeDefinition = normalizeWorkflowDefinition(definition);
+    const updatedAt = new Date().toISOString();
+
+    try {
+      if (id) {
+        const { data, error } = await this.supabase
+          .from('workflows_ax2024')
+          .update({ name, description, definition: safeDefinition, updated_at: updatedAt })
+          .eq('id', id)
+          .select()
+          .single();
+        if (error) throw new DatabaseError(error.message);
+        return data;
+      }
+
+      const baseSlug = buildWorkflowSlug(name);
+
+      const attemptInsert = (slug) => this.supabase
+        .from('workflows_ax2024')
+        .insert({ name, description, slug, definition: safeDefinition, user_id: userId })
+        .select()
+        .single();
+
+      let { data, error } = await attemptInsert(baseSlug);
+
+      // 23505 = unique_violation on workflows_ax2024.slug. Retry once with a
+      // disambiguating suffix rather than overwriting another operator's flow.
+      if (error && (error.code === '23505' || /duplicate key/i.test(error.message || ''))) {
+        ({ data, error } = await attemptInsert(`${baseSlug}-${randomSlugSuffix()}`));
+      }
+
+      if (error) throw new DatabaseError(error.message);
+      return data;
+    } catch (error) {
+      toast.error('Failed to save workflow');
+      logger.error('Failed to save workflow:', error);
+      throw new DatabaseError(`Failed to save workflow: ${error.message}`);
     }
   }
 
@@ -767,22 +931,60 @@ class SupabaseApiService {
     }
   }
 
+  /**
+   * Execution history for the builder's History tab.
+   *
+   * This used to read `events_ax2024`, which the DAG runner never wrote to - the
+   * tab showed an empty list no matter how many workflows ran, and the only
+   * "executions" it ever surfaced were whatever unrelated code happened to log
+   * with a `workflow_executed` type. The runner persists one row per run in
+   * `workflow_execution_logs` (migration 20281101010000), including the status
+   * and the error that aborted the DAG.
+   *
+   * Legacy rows are still visible: if the table has not been migrated into a
+   * project yet, the query falls back to the old event stream rather than
+   * pretending nothing ever ran.
+   */
   async getWorkflowExecutions() {
     if (this._checkConnectivity('getWorkflowExecutions', [])) return;
     try {
       const { data, error } = await this.supabase
-        .from('events_ax2024')
-        .select('id, created_at, data, source')
-        .or('type.eq.workflow_executed,type.eq.workflow_triggered')
+        .from('workflow_execution_logs')
+        .select(
+          'id, workflow_id, workflow_run_id, workflow_name, status, error_message, node_results, duration_ms, execution_context, created_at',
+        )
         .order('created_at', { ascending: false })
         .limit(100);
-      if (error) throw new DatabaseError(error.message);
-      return data;
+
+      if (error) {
+        if (isMissingRelationError(error)) {
+          return await this.getLegacyWorkflowExecutions();
+        }
+        throw new DatabaseError(error.message);
+      }
+
+      return (data || []).map(normalizeExecutionLogRow);
     } catch (error) {
       toast.error('Failed to get workflow executions');
       logger.error('Failed to get workflow executions:', error);
       throw new DatabaseError(`Failed to get workflow executions: ${error.message}`);
     }
+  }
+
+  /**
+   * Pre-`workflow_execution_logs` history, read from the event stream.
+   * Only reached from `getWorkflowExecutions()` when the table is absent.
+   */
+  async getLegacyWorkflowExecutions() {
+    const { data, error } = await this.supabase
+      .from('events_ax2024')
+      .select('id, created_at, data, source')
+      .or('type.eq.workflow_executed,type.eq.workflow_triggered')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) throw new DatabaseError(error.message);
+    return (data || []).map(normalizeLegacyExecutionRow);
   }
 
   async recalculateMetrics() {

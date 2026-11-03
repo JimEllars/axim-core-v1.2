@@ -39,9 +39,24 @@ export default [
 
         const data = await response.json();
 
+        // `trigger-workflow` now returns the real execution outcome: a run that
+        // aborted part-way carries `success: false`. Checking only `response.ok`
+        // would have reported a failed run as success in the command hub.
+        if (data && data.success === false) {
+          throw new Error(data.error || 'Workflow did not complete');
+        }
+
+        // Report what actually happened. The function returns the executed node
+        // results and duration; before the real dispatcher existed there was
+        // nothing to report and the message was a constant string.
+        const steps = Array.isArray(data?.results) ? data.results.length : 0;
+        const duration = typeof data?.duration_ms === 'number' ? ` in ${data.duration_ms}ms` : '';
+        const summary = data?.message
+          || (steps > 0 ? `${steps} step(s) completed${duration}` : 'Workflow executed');
+
         return {
             type: 'success',
-            message: `Workflow **${slug}** triggered successfully.\n\nMessage: ${data.message || 'Workflow executed'}`,
+            message: `Workflow **${slug}** triggered successfully.\n\nMessage: ${summary}`,
             data: data
         };
 
