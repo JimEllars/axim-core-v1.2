@@ -1,5 +1,41 @@
 # Changelog
 
+## [2026-11-03] Wave 129 — Waves 125 + 126 rebased and landed: visual workflow parity, typed action dispatch, real execution history
+
+Waves 125 and 126 had been pushed to origin for days with no PR — invisible work cut
+before the tenancy (#491), versioned-signature (#492) and trigger-auth (#494/#495) work
+merged. A straight merge would have dropped all of that. This change rebases both onto
+current main, reconciles every overlap by contract, and opens the PR.
+
+### Added
+- **Workflow persistence** — `workflows_ax2024.definition` column, a `workflow_execution_logs`
+  table, and a `robot_simulation_runs` table (migration `20281101010000`), all idempotent and RLS-locked.
+- **Real action-node dispatch** — `_shared/workflowActions.ts` executes `api_call`
+  (SSRF-guarded), `email`, `robot_sim_run`, `robot_policy_gate` and `robot_ota_deploy`; an
+  unsupported or failed node halts the run and marks the execution `failed` instead of
+  fabricating success.
+- **Typed node inspector** — `WorkflowNodeInspector.jsx` + `src/utils/workflowNodeConfig.js`
+  author the config the runner expects; "Run Workflow" refuses to dispatch a graph the
+  runner would halt on.
+- **Real execution history** — `getWorkflowExecutions()` reads `workflow_execution_logs`
+  with a `42P01`/`PGRST205`-only fallback to the legacy event stream; `status` and
+  `error_message` surface in the History tab.
+
+### Reconciled with the trunk (not stacked on it)
+- `_shared/workflowAuth.ts` keeps main's `authorizeTrigger` contract verbatim and drops the
+  branch's duplicate HMAC/replay crypto — `edgeAuth.verifySignedRequest` already owns it.
+- `trigger-workflow` uses one classifier: a presented `X-Axim-Signature` must verify
+  (terminal), otherwise `resolveCaller` handles service keys and dashboard JWTs.
+- `workflowCommands.js` uses main's `sessionAuthHeaders` browser path plus the branch's
+  `success === false` guard and a step/duration summary.
+- `tests/e2e-workflow.test.js` keeps main's stub deletion rather than resurrecting it.
+
+### Fixed
+- `WorkflowBuilder.test.jsx` heavy action-node tests exceeded vitest's 5s default on a
+  constrained sandbox; the 30s timeout is scoped to that describe block.
+- `vitest.config.js` pins `NODE_ENV: 'test'` so an ambient `production` env can no longer
+  resolve React's production build and break every `act()` call.
+
 ## [2026-11-02] Wave 128 — the last unauthenticated Core entry point, and the credential fallbacks that guarded it
 
 `trigger-workflow` runs with the service role key and `supabase/config.toml` sets
