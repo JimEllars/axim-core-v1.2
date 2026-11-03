@@ -14,13 +14,13 @@ describe('OnyxAI Network Commands', () => {
     });
 
     it('should return a formatted list of registered devices', async () => {
+      // 36h, not 24h: `formatDistanceToNow` compares against a `now` taken a few
+      // milliseconds *after* this fixture is built, so an exact 24h delta lands
+      // in the "about 23 hours ago" bucket and the assertion was permanently red.
+      const THIRTY_SIX_HOURS_MS = 36 * 60 * 60 * 1000;
       const mockDevices = [
         { device_name: 'Desktop-Main', status: 'online', last_seen: new Date().toISOString() },
-        // 26 hours, not 24: date-fns v4 floors the hour count in its `xHours`
-        // branch, so exactly 86400000ms renders as "about 23 hours ago" and only
-        // 24h+36h renders as "1 day". The old value asserted a string that
-        // production never produces, so this test was red on main.
-        { device_name: 'Laptop-Travel', status: 'offline', last_seen: new Date(Date.now() - 26 * 3600 * 1000).toISOString() }, // 1 day ago
+        { device_name: 'Laptop-Travel', status: 'offline', last_seen: new Date(Date.now() - THIRTY_SIX_HOURS_MS).toISOString() },
       ];
       ApiService.listDevices.mockResolvedValue(mockDevices);
 
@@ -30,6 +30,8 @@ describe('OnyxAI Network Commands', () => {
       expect(response).toContain('**Registered Devices:**');
       expect(response).toContain('- **Desktop-Main** (Status: online, Last Seen: less than a minute ago)');
       expect(response).toContain('- **Laptop-Travel** (Status: offline, Last Seen: 1 day ago)');
+      // Entries must be separated by real newlines so the markdown list renders.
+      expect(response).toContain('less than a minute ago)\n- **Laptop-Travel**');
     });
 
     it('should return a message if no devices are registered', async () => {

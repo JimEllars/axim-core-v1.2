@@ -62,15 +62,18 @@ const listDevicesCommand = createCommand({
         return 'No devices are registered to your account.';
       }
 
+      // Join with a real newline. The escaped form (two characters, backslash
+      // then n) rendered the entire device list on one line with visible \n
+      // markers in the command hub.
       const deviceList = devices.map(device => {
         const lastSeen = device.last_seen
           ? `${formatDistanceToNow(new Date(device.last_seen))} ago`
           : 'never';
 
         return `- **${device.device_name}** (Status: ${device.status}, Last Seen: ${lastSeen})`;
-      }).join('\\n');
+      }).join('\n');
 
-      return `**Registered Devices:**\\n${deviceList}`;
+      return `**Registered Devices:**\n${deviceList}`;
     } catch (error) {
       toast.error(`Failed to list devices: ${error.message}`);
       return `Error: Could not retrieve the device list.`;

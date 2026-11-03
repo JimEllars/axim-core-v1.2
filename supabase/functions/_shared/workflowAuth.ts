@@ -13,8 +13,13 @@
  *   1. Anonymous callers are refused outright.
  *   2. A verified user may only act as themselves. Internal callers (satellites,
  *      cron, job-processor) may name the user they are acting for, because that
- *      is the whole point of a background job — but they must present the
- *      service key to do it.
+ *      is the whole point of a background job — but they must present a service
+ *      key or a valid signature to do it.
+ *
+ * Caller *classification* lives in `edgeAuth.ts` (`resolveCaller` for bearer
+ * credentials, `verifySignedRequest` for the v2/legacy HMAC forms). This module
+ * only decides what a classified caller is allowed to do, so there is exactly
+ * one place that reads headers and exactly one place that reads intent.
  *
  * Dependency-free so it can be unit tested under Node, like `edgeAuth.ts`.
  */
@@ -70,4 +75,23 @@ export function authorizeTrigger(
   }
 
   return { ok: true, status: 200, actorId: caller.userId };
+}
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Postgres `user_id` columns are UUIDs. Internal callers legitimately pass
+ * sentinel values such as `"system"`, and `authorizeTrigger` returns them
+ * verbatim because that is the right answer for *authorisation*. It is the
+ * wrong value for the `workflow_execution_logs.user_id` column: inserting
+ * `"system"` aborts the whole insert with `invalid input syntax for type uuid`,
+ * which loses the audit row for a run that already executed.
+ *
+ * Coerce to null at the point of insert so the row is still persisted.
+ */
+export function coerceUuidOrNull(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return UUID_PATTERN.test(trimmed) ? trimmed : null;
 }

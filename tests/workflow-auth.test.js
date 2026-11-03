@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { authorizeTrigger } from '../supabase/functions/_shared/workflowAuth.ts';
+import { authorizeTrigger, coerceUuidOrNull } from '../supabase/functions/_shared/workflowAuth.ts';
 
 /**
  * `trigger-workflow` runs with the service role key and `verify_jwt = false`,
@@ -78,5 +78,46 @@ describe('authorizeTrigger', () => {
   it('ignores a non-string userId instead of trusting it', () => {
     expect(authorizeTrigger(user, 12345)).toEqual({ ok: true, status: 200, actorId: 'user-abc' });
     expect(authorizeTrigger(internal, { id: 'user-abc' }).actorId).toBeNull();
+  });
+});
+
+/**
+ * `authorizeTrigger` answers "who may act". It deliberately returns the claimed
+ * identity verbatim for internal callers, sentinels included. The execution log
+ * column, however, is a uuid: inserting "system" aborts the whole insert and
+ * loses the audit row for a run that already executed. `coerceUuidOrNull` is the
+ * boundary between those two facts.
+ */
+describe('coerceUuidOrNull', () => {
+  const realId = '3f0d1c2a-4b5e-4f6a-8b9c-0d1e2f3a4b5c';
+
+  it('passes a real uuid through unchanged', () => {
+    expect(coerceUuidOrNull(realId)).toBe(realId);
+  });
+
+  it('upper-cases are still uuids', () => {
+    expect(coerceUuidOrNull(realId.toUpperCase())).toBe(realId.toUpperCase());
+  });
+
+  it('drops the "system" sentinel internal callers legitimately send', () => {
+    expect(coerceUuidOrNull('system')).toBeNull();
+  });
+
+  it('drops null, undefined, empty and non-string values', () => {
+    expect(coerceUuidOrNull(null)).toBeNull();
+    expect(coerceUuidOrNull(undefined)).toBeNull();
+    expect(coerceUuidOrNull('')).toBeNull();
+    expect(coerceUuidOrNull(12345)).toBeNull();
+    expect(coerceUuidOrNull({ id: realId })).toBeNull();
+  });
+
+  it('rejects near-miss shapes rather than letting Postgres do it', () => {
+    expect(coerceUuidOrNull(realId.replace(/-/g, ''))).toBeNull();
+    expect(coerceUuidOrNull(`${realId}'; DROP TABLE leads; --`)).toBeNull();
+    expect(coerceUuidOrNull('3f0d1c2a-4b5e-4f6a-8b9c-0d1e2f3a4b5')).toBeNull();
+  });
+
+  it('trims surrounding whitespace before matching', () => {
+    expect(coerceUuidOrNull(`  ${realId}  `)).toBe(realId);
   });
 });
