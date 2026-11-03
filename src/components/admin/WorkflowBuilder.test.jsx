@@ -134,7 +134,13 @@ describe('WorkflowBuilder', () => {
     });
   });
 
-  describe('action node configuration', () => {
+  // The tests in this block drive a full click → inspector → run/save round-trip
+  // through the (mocked) React Flow canvas, which is heavy to render. On a
+  // constrained 2-vCPU sandbox (with a workspace-sync daemon running) individual
+  // tests can exceed the 5s vitest default although the component behaves
+  // correctly; the same tests complete in ~1-2s on CI hardware. The timeout is
+  // scoped here so a genuinely-hung render still fails.
+  describe('action node configuration', { timeout: 30000 }, () => {
     it('opens the inspector for the clicked step', async () => {
       render(<WorkflowBuilder />);
 
