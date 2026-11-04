@@ -369,3 +369,60 @@ supabase/functions/system-status/index.ts(33,28): error TS7006: Parameter 'item'
 Every error raised for the new entrypoints is of those three classes. `npm run check:edge`
 (esbuild parse of all 103 Deno sources) remains the executed gate, and installing Deno in CI
 is still the open item from the Wave 127 appendix §6.
+
+## 11. Full suite
+
+```
+$ NODE_ENV=test npx vitest run --reporter=dot --maxWorkers=2
+ ✓ tests/robotics-caller.test.js  (22 tests) 720ms
+ ✓ tests/robotics-contracts.test.js  (39 tests) 2557ms
+ ✓ tests/workflow-execution-pause.test.js  (14 tests) 322ms
+ ...
+ Test Files  105 passed | 2 skipped (107)
+      Tests  723 passed | 9 skipped (732)
+   Duration  2346.56s
+EXIT:0
+```
+
+Baseline on `origin/main` (`6669ad3`, the Wave 129 appendix) was 102 files / 648 tests.
+This change adds 80 tests across four files.
+
+`tests/edge-routes.test.js` was written after this run started, so vitest never collected it;
+it was run on its own (§9) and again on the branch tip. The two skipped files
+(`EcosystemRegistry.test.jsx`, `onyxAI/commands/__tests__/workflow.test.js`) are
+pre-existing skips.
+
+## 12. CI on PR #497
+
+| Check | Result |
+|---|---|
+| `smoke-test` (`check:creds`, `check:edge`, smoke tests, `npm run build`, worker dry-run) | ✅ pass, 1m44s |
+| Reusable Security Audit (`security-scan`) | ✅ pass, 1m33s |
+| **Supabase Preview** | ✅ pass, 47s — **this executed both migrations** against preview project `xkaececdqavmclswanqo`, which is the first real execution and clears the WORKING_AGREEMENT §3 requirement |
+| Cloudflare Pages | ✅ pass |
+| GitGuardian Security Checks | ✅ pass |
+| **Workers Builds: axim-core-worker** | ❌ failure — **production-only, environmental** |
+
+The worker-build failure is not a signal about this change. It fails on every non-`main`
+push in this repository and passes on every `main` push; see the Wave 128 appendix §8 and
+WORKING_AGREEMENT §4. Same check, same failure, on all five unrelated Dependabot PRs open
+at the same time (#482, #485–#488), which is the comparison §4 asks for.
+
+## 13. Dependabot queue — assessed, deliberately not merged
+
+Five Dependabot PRs are open and green except the environmental worker check, and the
+repository carries 169 advisories on the default branch (11 critical, 60 high) according to
+GitHub. They were **not** merged in this wave, on purpose:
+
+- `glob` 13.0.6 → 14.0.3 and `electron` 41.10.7 → 42.11.16 are **major** bumps. Merging
+  them on a red-except-known-false signal would be the "merge on everything except one
+  check" pattern WORKING_AGREEMENT §4 warns about, and neither has been through
+  `npm run build` or the suite here.
+- The three patch/minor bumps (`follow-redirects` 1.16.0 → 1.16.2, `fast-uri` 3.1.7 →
+  3.1.9, `undici` 6.28.1 → 6.29.1) are low risk but each arrives as its own branch, so
+  landing them means three more full build+suite cycles.
+
+Recommendation: one dedicated dependency PR that bumps the whole lockfile at once, run
+through `npm run build`, the full suite and the worker dry-run, with a recorded before/after
+`npm audit` count. Five independent merges would each need that proof and would produce
+neither a coherent lockfile nor a reviewable diff.
