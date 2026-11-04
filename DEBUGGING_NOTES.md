@@ -1,3 +1,80 @@
+# 2026-11-04 — A route table that looks complete, and a queue nobody drained
+
+## Symptom A: every robotics API call returned 404
+
+`cloudflare-workers/src/index.js` carried a nine-entry route table pointing at
+`functions/v1/robotics-projects`, `robotics-sim` and `robotics-emergency-stop`, and
+`supabase/functions/` contained none of them. The worker proxied faithfully; Supabase
+answered its own 404.
+
+## How it was found
+
+1. The plan file listed "build the three robotics Edge Functions the worker already routes
+   to" as an open item, so the first move was to check the claim rather than trust it:
+   `grep -rn "robotics-sim" src supabase cloudflare-workers workers tests scripts`.
+   Seven hits, all in the worker's `apiRoutes` map, zero in `supabase/functions/`.
+2. `ls supabase/functions/` confirmed it: no `robotics-*` directory.
+
+**Why nothing caught it.** There is no test that asserts a route in the worker's
+`apiRoutes` map resolves to a function directory that exists. `tests/edge-worker.test.js`
+covers ingress blocking and CORS, not the mapping. A one-line test would have caught this
+the day the routes were added — see the follow-up note at the end.
+
+## Symptom B: `robot_simulation_runs` was write-only
+
+`_shared/workflowActions.ts:234` (`runRobotSim`) inserts a queued row and returns
+`Simulation queued (...)`. `grep -rn "robot_simulation_runs" supabase src` showed exactly two
+kinds of hit: the insert, and the migration that creates the table. No reader anywhere.
+
+## Symptom C: `resumeWorkflow()` could not succeed, and a test said it did
+
+The plan file flagged two breaks (`status === 'paused'` forbidden by the CHECK, `context` vs
+`execution_context`). Reading the whole path found five:
+
+1. `workflow_execution_logs.status` CHECK: `('completed','failed')`. The engine emits
+   `paused` from `wait_for_event`.
+2. `supabaseApiService.logWorkflowExecution()` wrote pauses to `events_ax2024`.
+   `getWorkflowExecutions()` reads `workflow_execution_logs`. Different tables.
+3. `normalizeExecutionLogRow()`: `status: row?.status === 'failed' ? 'failed' : 'completed'`.
+   A stored pause read back as completed.
+4. `resumeWorkflow()` read `runData.context`; the normalised field is `execution_context`.
+5. `runWorkflow()` always minted a new `workflowRunId`, so a resume's completion row got a
+   new id and the original `paused` row stayed paused for ever.
+   `listenForWorkflowEvents()` then re-resumed it on every inbound event.
+
+**Why the tests were green.** `src/services/workflows/__tests__/workflow.test.js:56` mocked
+`getWorkflowExecutions()` to resolve `{ status: 'paused', paused_at_step: 'step2',
+context: {} }`. `context` is not a column on that table, `paused` was not a legal status,
+and the mock was the only data the code ever saw. This is the same defect class as the
+self-fulfilling tests deleted in PR #490: a test that fabricates the shape production
+cannot produce.
+
+**Lesson.** When a fixture contains a field name, grep the schema for it. `grep -n
+"paused_at_step\|execution_context" supabase/migrations/*.sql` takes one second and would
+have shown both mismatches immediately.
+
+## Environment traps reconfirmed
+
+* `npx eslint .` on this host is I/O-bound, not CPU-bound: 8s of user time over 20 minutes
+  of wall clock, with the overlay filesystem at 98% full. A scoped `npx eslint src` finishes
+  in 3m39s; the full tree finishes with `EXIT:0` when nothing else competes for the disk.
+  Do not conclude "lint is slow" from a run started while another 70-minute vitest run is
+  holding the filesystem.
+* `npm run build` took 9m18s here. Budget for it.
+
+## Follow-ups this wave did not take
+
+* A test asserting every path in `cloudflare-workers/src/index.js`'s `apiRoutes` map has a
+  corresponding directory under `supabase/functions/`. It is a ten-line test that turns a
+  silent 404 into a red check, and it is the cheapest guard available against this exact
+  class of drift.
+* `src/services/workflows/engine.js` still contains the legacy client-side
+  `stepHandlerRegistry`, whose `robot_sim_run` / `robot_policy_gate` / `robot_ota_deploy`
+  handlers fabricate success (`sim_id: \`sim_${crypto.randomUUID()}\``, `passed: true`,
+  `status: 'deployed'`). The real implementations live in `_shared/workflowActions.ts` and
+  run in `trigger-workflow`. The client registry is a second, lying implementation of the
+  same node types and should be deleted or redirected at the Edge function.
+
 # 2026-11-02 — Tracing credential fallbacks from the browser bundle to the server
 
 ## Symptom

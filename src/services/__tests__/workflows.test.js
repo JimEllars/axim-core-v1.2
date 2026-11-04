@@ -59,7 +59,9 @@ describe('Workflow Engine', () => {
                workflow_name: workflowName,
                status: 'paused',
                paused_at_step: pausedStepName,
-               context: context
+               // `execution_context`, not `context`: this is the field
+               // `normalizeExecutionLogRow()` actually returns.
+               execution_context: context
             }
         ]);
 

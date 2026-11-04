@@ -19,3 +19,16 @@ verify_jwt = false
 
 [functions.trigger-workflow]
 verify_jwt = false
+
+# The two machine-facing robotics endpoints need the signed-relay form
+# (X-Axim-Signature over the raw body, no bearer token), which the platform JWT
+# check rejects before the function runs. Both decide for themselves via
+# `classifyEdgeCaller` + `authorizeQueueDrain` / `authorizeRoboticsOperation`,
+# and refuse every anonymous caller. The operator-facing robotics functions
+# (`robotics-projects`, `robotics-sim`) keep the platform default so a caller
+# without a valid JWT never reaches function code at all.
+[functions.robotics-emergency-stop]
+verify_jwt = false
+
+[functions.robotics-sim-drainer]
+verify_jwt = false

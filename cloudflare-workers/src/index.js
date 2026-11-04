@@ -45,7 +45,16 @@ export function buildCorsHeaders(origin, allowedOrigins) {
   return headers;
 }
 
-const apiRoutes = new Map([
+/**
+ * Public routes the worker proxies into Supabase Edge Functions.
+ *
+ * Exported so `tests/edge-routes.test.js` can assert every target has a
+ * corresponding directory under `supabase/functions/`. The robotics entries sat
+ * here pointing at three functions that did not exist, and every one of those
+ * endpoints answered Supabase's 404 — a route table is only as good as the
+ * check that its targets exist.
+ */
+export const apiRoutes = new Map([
   ['/api-proxy', '/functions/v1/api-proxy'],
   ['/telemetry', '/functions/v1/telemetry-ingress'],
   ['/capabilities', '/functions/v1/api-capabilities'],

@@ -1,5 +1,58 @@
 # Changelog
 
+## [2026-11-04] Wave 130 — the robotics API the worker already routed to, a consumer for the simulation queue, and a pause/resume path that finally round-trips
+
+Two gaps left behind by Waves 125–129.
+
+`cloudflare-workers/src/index.js` has mapped `/api/v1/robotics/projects`,
+`/api/v1/robotics/sim` and `/api/v1/robotics/fleet/emergency-stop` at
+`functions/v1/robotics-projects`, `robotics-sim` and `robotics-emergency-stop` since the
+robotics schema landed. None of those functions existed, so every robotics API call
+reached Supabase's 404. Separately, `robot_sim_run` action nodes inserted
+`robot_simulation_runs` rows with `status = 'queued'` and nothing in the repository read
+that table.
+
+### Added
+- **`robotics-projects`** — `GET` list (optionally by id), `POST` create against `robot_projects`.
+- **`robotics-sim`** — `GET` runs, `POST` queue. Mirrors what `runRobotSim()` in
+  `_shared/workflowActions.ts` writes, so a run queued from the API and one queued from a
+  workflow are indistinguishable to the consumer.
+- **`robotics-emergency-stop`** — halts `robot_fleet_nodes` for a project or an id list, then
+  writes one `robot_fault_logs` row per node. Fleet rows are stopped *before* the audit
+  insert, so a partial failure leaves robots stopped rather than moving.
+- **`robotics-sim-drainer`** — the queue consumer. Claims atomically via
+  `claim_robot_simulation_runs` and dispatches each run to `ROBOTICS_SIM_ENDPOINT`.
+- **`_shared/robotics.ts`** — contracts, validation and operations. No `Deno.*` access,
+  collaborators injected, so the whole surface is unit tested under Node.
+- **`_shared/edgeCaller.ts`** — the caller-classification rule `trigger-workflow` grew
+  privately in Wave 128, in one place. A presented `X-Axim-Signature` must verify and a bad
+  one is terminal: it never downgrades to the bearer check.
+- **Migration `20281104000000`** — `claimed_at`, `claim_robot_simulation_runs`
+  (`FOR UPDATE SKIP LOCKED`, `service_role` only) and `reap_stale_robot_simulation_runs`.
+
+### Fixed
+- **`resumeWorkflow()` could never succeed.** Five breaks on one path: the `status` CHECK
+  forbade `paused`; the writer put pauses in `events_ax2024` while the reader read
+  `workflow_execution_logs`; `normalizeExecutionLogRow()` coerced `paused` to `completed`;
+  the resume read `context` where the row has `execution_context`; and `runWorkflow()`
+  generated a fresh run id on resume, leaving the original row `paused` for ever so
+  `listenForWorkflowEvents()` re-resumed it on every event.
+- `logWorkflowExecution()` now dual-writes, keeping the `events_ax2024` row that four
+  dashboard RPCs count `workflows_triggered` from.
+- `api.logWorkflowExecution()` forwards `userId`, which the engine had been passing and the
+  facade had been dropping.
+- Migration `20281104000001` widens `workflow_execution_logs.status` to
+  `('completed','failed','paused')` and adds `paused_at_step` / `paused_at`.
+- The two existing pause/resume tests mocked `context`, a field the table does not have,
+  which is why they passed while the feature was entirely broken.
+
+### Deliberate non-successes
+- With no `ROBOTICS_SIM_ENDPOINT` configured the drainer answers **503 with the queue depth**
+  and claims nothing. Marking rows `failed` because an env var is unset would destroy
+  queued work to report a configuration gap.
+- A simulator 2xx with an unreadable body is `failed`, not `completed`.
+- A stop request that matched no node reports `stopped: 0` rather than a cheerful 200.
+
 ## [2026-11-03] Wave 129 — Waves 125 + 126 rebased and landed: visual workflow parity, typed action dispatch, real execution history
 
 Waves 125 and 126 had been pushed to origin for days with no PR — invisible work cut

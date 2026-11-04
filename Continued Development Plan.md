@@ -113,18 +113,36 @@
       `events_ax2024`), and surface `status`/`error_message` in the History tab.
       *(Wave 126, with a `42P01`/`PGRST205`-only fallback to the legacy event
       stream.)*
-- [ ] Build the three robotics Edge Functions the worker already routes to
+- [x] Build the three robotics Edge Functions the worker already routes to
       (`robotics-projects`, `robotics-sim`, `robotics-emergency-stop`) and a
-      consumer that drains `robot_simulation_runs`. *(`robot_sim_run` action nodes
-      now queue rows with `status='queued'` and nothing picks them up — this is
-      the highest-value next increment.)*
+      consumer that drains `robot_simulation_runs`. *(Wave 130: the three
+      functions exist and are gated on a resolved caller;
+      `robotics-sim-drainer` claims queued runs atomically through
+      `claim_robot_simulation_runs` (`FOR UPDATE SKIP LOCKED`, `service_role`
+      only) and dispatches them to `ROBOTICS_SIM_ENDPOINT`.
+      It answers 503 and claims nothing when that endpoint is unset — see
+      `AGENTS_VERIFICATION.d/2026-11-04-wave130-robotics-and-pause-resume.md` §3.)*
+- [ ] Provide the headless simulator itself. `robotics-sim-drainer` dispatches
+      correctly and records `completed`/`failed` honestly, but
+      `ROBOTICS_SIM_ENDPOINT` is unset, so the designed answer today is 503 with
+      the queue depth. This is the next increment and it is an infrastructure
+      step, not a code step: a headless physics/sim process that accepts
+      `{run_id, project_id, scene_type, duration_sec, params}` and returns
+      `{exit_state}`.
+- [ ] Schedule the drainer and the reaper from `pg_cron` (service-role bearer on
+      `POST /functions/v1/robotics-sim-drainer`, plus
+      `reap_stale_robot_simulation_runs(1800)` so a drainer invocation that dies
+      mid-dispatch does not strand a run in `running`).
 - [ ] Build the MCP Edge Functions the worker also routes to (`mcp-router`,
       `mcp-sse`, `mcp-message`); `/mcp`, `/sse` and `/message` currently return
       Supabase's 404.
-- [ ] Reconcile `resumeWorkflow()` with the execution-log schema: it looks for
-      `status === 'paused'` (a value the table's CHECK constraint forbids and no
-      writer produces) and reads `context` where the row has
-      `execution_context`. Either add a `paused` state or delete the branch.
+- [x] Reconcile `resumeWorkflow()` with the execution-log schema. *(Wave 130:
+      five breaks, not two — the `status` CHECK forbade `paused`, the writer put
+      pauses in `events_ax2024` while the reader read
+      `workflow_execution_logs`, the reader coerced `paused` to `completed`, the
+      resume read `context` instead of `execution_context`, and `runWorkflow()`
+      minted a new run id on resume so the original row stayed paused for ever.
+      All five fixed; migration `20281104000001` adds the state and its columns.)*
 - [ ] Add more external service integrations (e.g., Email Service, Calendar).
 - [ ] Enhance "Memory Banks" to index and search past conversations more effectively (RAG).
     - Current state: Chats are logged to `ai_interactions_ax2024` (Postgres).

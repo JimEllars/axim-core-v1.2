@@ -76,7 +76,8 @@ export const runWorkflow = async (
   workflowSlug,
   userId,
   initialContext = {},
-  startFromStep = null
+  startFromStep = null,
+  runId = null
 ) => {
   let workflow = null;
 
@@ -108,7 +109,11 @@ export const runWorkflow = async (
     throw new Error(`Workflow "${workflowSlug}" not found.`);
   }
 
-  const workflowRunId = `wf_run_${crypto.randomUUID()}`;
+  // A resumed run keeps its original id. Generating a fresh one here is what
+  // made resume loopless-forever: the pause row stayed 'paused', the completion
+  // was written under a new run id, and `listenForWorkflowEvents` picked the
+  // still-paused row up again on the next event.
+  const workflowRunId = runId || `wf_run_${crypto.randomUUID()}`;
   console.log(`Starting workflow: ${workflow.name} (Run ID: ${workflowRunId})`);
 
   let context = { workflowRunId, userId, ...initialContext };
@@ -347,17 +352,47 @@ export const runWorkflow = async (
   };
 };
 
+/**
+ * Resume a paused run from the node it stopped on.
+ *
+ * What was broken: this read `runData.context` and `runData.paused_at_step`, but
+ * `getWorkflowExecutions()` returns the normalised `workflow_execution_logs`
+ * shape, whose column is `execution_context`. So the restart context was always
+ * `undefined` and the run re-entered with no state — the pending
+ * `wait_for_event` step then paused the workflow a second time.
+ *
+ * `execution_context` is the real field. The `context` fallback only covers
+ * callers that hand-assemble a run object.
+ */
 export const resumeWorkflow = async (workflowName, runId, userId, eventData) => {
   console.log(`Resuming workflow: ${workflowName} (Run ID: ${runId})`);
   const executions = await api.getWorkflowExecutions();
-  const runData = executions.find(e => e.workflow_run_id === runId);
+  const runData = (executions || []).find(e => e.workflow_run_id === runId);
 
-  if (!runData || runData.status !== 'paused') {
-    throw new Error(`Workflow run ${runId} not found or not paused.`);
+  if (!runData) {
+    throw new Error(`Workflow run ${runId} not found.`);
   }
 
-  const initialContext = { ...runData.context, eventData };
-  return runWorkflow(workflowName, userId, initialContext, runData.paused_at_step);
+  if (runData.status !== 'paused') {
+    // Refuse rather than restart a finished run: re-running a completed DAG is
+    // how duplicate emails and duplicate robot deployments happen.
+    throw new Error(`Workflow run ${runId} is not paused (status: ${runData.status}).`);
+  }
+
+  const initialContext = {
+    ...(runData.execution_context ?? runData.context ?? {}),
+    eventData,
+  };
+
+  return runWorkflow(
+    workflowName,
+    userId,
+    initialContext,
+    runData.paused_at_step ?? null,
+    // Keep the run id: the completion must overwrite the paused row, not create
+    // a second one that leaves the original paused for ever.
+    runId,
+  );
 };
 
 export const listenForWorkflowEvents = (supabaseClient) => {
