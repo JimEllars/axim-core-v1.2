@@ -44,30 +44,89 @@ export function isMissingRelationError(error) {
 }
 
 /**
+ * The statuses `workflow_execution_logs.status` accepts.
+ * `paused` was added in 20281104000001 — the client engine's `wait_for_event`
+ * step has always emitted it, but the column could not store it.
+ */
+export const WORKFLOW_EXECUTION_STATUSES = ['completed', 'failed', 'paused'];
+
+/**
  * Normalise a `workflow_execution_logs` row for the History tab.
  *
- * The table is written by the edge DAG runner; `status` is constrained to
- * 'completed' | 'failed', so it is already the value the UI should trust -
- * unlike the legacy event rows, where "success" had to be inferred from
- * whatever the writer put in `data.results`.
+ * `status` used to be coerced to `'failed' ? 'failed' : 'completed'`, which
+ * silently reported a paused run as completed — the History tab said a workflow
+ * had finished while `resumeWorkflow()` was still waiting for its event. The
+ * real value is preserved now, and only an unrecognised one falls back.
  */
 export function normalizeExecutionLogRow(row) {
   const nodeResults = Array.isArray(row?.node_results) ? row.node_results : [];
+  const status = WORKFLOW_EXECUTION_STATUSES.includes(row?.status)
+    ? row.status
+    : row?.status === 'failed'
+      ? 'failed'
+      : 'completed';
+
   return {
     id: row?.id ?? row?.workflow_run_id ?? null,
     workflow_id: row?.workflow_id ?? null,
     workflow_run_id: row?.workflow_run_id ?? null,
     workflow_name: row?.workflow_name || 'Untitled workflow',
-    status: row?.status === 'failed' ? 'failed' : 'completed',
+    status,
     error_message: row?.error_message ?? null,
     node_results: nodeResults,
     steps_total: nodeResults.length,
     steps_succeeded: nodeResults.filter((result) => result?.success).length,
     duration_ms: Number.isFinite(Number(row?.duration_ms)) ? Number(row.duration_ms) : null,
     execution_context: row?.execution_context ?? {},
+    // Read by `resumeWorkflow()` to restart the DAG at the node that paused.
+    paused_at_step: row?.paused_at_step ?? null,
+    paused_at: row?.paused_at ?? null,
     created_at: row?.created_at ?? null,
     source: 'workflow_execution_logs',
   };
+}
+
+/**
+ * Map the workflow engine's `logWorkflowExecution(name, data, userId)` payload
+ * onto a `workflow_execution_logs` row.
+ *
+ * The engine speaks `{ workflowRunId, results, context, paused_at_step, status }`
+ * because that is the shape the legacy event stream took. The table speaks
+ * `workflow_run_id`, `node_results`, `execution_context`. This is the one place
+ * that translation happens, so the writer cannot drift from the reader again.
+ *
+ * Exported so the mapping is unit tested directly rather than through a mocked
+ * PostgREST client.
+ */
+export function workflowExecutionLogRow(workflowName, data = {}, userId = null) {
+  const payload = data && typeof data === 'object' ? data : {};
+  const status = WORKFLOW_EXECUTION_STATUSES.includes(payload.status)
+    ? payload.status
+    : 'completed';
+
+  const runId = payload.workflowRunId ?? payload.workflow_run_id ?? null;
+  const results = Array.isArray(payload.results) ? payload.results : [];
+
+  return {
+    workflow_run_id: runId,
+    workflow_name: workflowName || 'Untitled workflow',
+    status,
+    // Only a UUID is acceptable for the FK; the engine passes the literal
+    // 'system' for background runs, which would abort the whole insert.
+    user_id: isUuid(userId) ? userId : null,
+    execution_context: payload.context ?? payload.execution_context ?? {},
+    node_results: results,
+    error_message: payload.error ?? payload.error_message ?? null,
+    duration_ms: Number.isFinite(Number(payload.duration_ms)) ? Number(payload.duration_ms) : null,
+    paused_at_step: status === 'paused' ? (payload.paused_at_step ?? null) : null,
+    paused_at: status === 'paused' ? new Date().toISOString() : null,
+  };
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isUuid(value) {
+  return typeof value === 'string' && UUID_RE.test(value.trim());
 }
 
 /**
@@ -334,8 +393,29 @@ class SupabaseApiService {
     }
   }
 
-  async logWorkflowExecution(workflowName, data) {
-    if (this._checkConnectivity('logWorkflowExecution', [workflowName, data])) return;
+  /**
+   * Persist a workflow execution.
+   *
+   * Two destinations, deliberately:
+   *
+   *   - `events_ax2024` (type `workflow_executed`) — four dashboard RPCs count
+   *     `workflows_triggered` from this table, so dropping the write would zero
+   *     a live metric. This is the same dual-write pattern `logAIInteraction`
+   *     already uses.
+   *   - `workflow_execution_logs` — the table `getWorkflowExecutions()` and the
+   *     History tab read, and the table `resumeWorkflow()` needs. Until this
+   *     existed, a paused run was written where nothing read it and the resume
+   *     path could never find its run.
+   *
+   * A run transitions paused -> completed in place, so the log row is updated by
+   * `workflow_run_id` first and only inserted when no row matched. An upsert is
+   * not an option: the unique index on `workflow_run_id` is partial
+   * (`WHERE workflow_run_id IS NOT NULL`) and PostgREST cannot express that as
+   * an `on_conflict` target.
+   */
+  async logWorkflowExecution(workflowName, data, userId = null) {
+    if (this._checkConnectivity('logWorkflowExecution', [workflowName, data, userId], true)) return;
+
     try {
       const { error } = await this.supabase
         .from('events_ax2024')
@@ -351,6 +431,48 @@ class SupabaseApiService {
     } catch (error) {
       toast.error('Failed to log workflow event');
       logger.warn('Failed to log workflow event:', error);
+    }
+
+    await this._writeWorkflowExecutionLog(workflowName, data, userId);
+  }
+
+  /**
+   * The `workflow_execution_logs` half of `logWorkflowExecution`.
+   *
+   * Kept separate and non-throwing so a project that has not applied
+   * migration 20281101010000 yet keeps logging events (the History tab then falls
+   * back to the legacy event stream, which is the documented behaviour).
+   */
+  async _writeWorkflowExecutionLog(workflowName, data, userId) {
+    const row = workflowExecutionLogRow(workflowName, data, userId);
+
+    try {
+      if (row.workflow_run_id) {
+        const { data: updated, error: updateError } = await this.supabase
+          .from('workflow_execution_logs')
+          .update(row)
+          .eq('workflow_run_id', row.workflow_run_id)
+          .select('id');
+
+        if (updateError) throw updateError;
+        if (Array.isArray(updated) && updated.length > 0) return;
+      }
+
+      const { error: insertError } = await this.supabase
+        .from('workflow_execution_logs')
+        .insert(row);
+      if (insertError) throw insertError;
+    } catch (error) {
+      if (isMissingRelationError(error)) {
+        logger.warn(
+          'workflow_execution_logs is absent; the execution was logged to the event stream only.',
+        );
+        return;
+      }
+      // A CHECK violation here means the migration that allows 'paused' has not
+      // been applied. Say so instead of failing silently.
+      logger.error('Failed to write workflow execution log:', error);
+      toast.error('Failed to record workflow execution');
     }
   }
 
@@ -951,7 +1073,7 @@ class SupabaseApiService {
       const { data, error } = await this.supabase
         .from('workflow_execution_logs')
         .select(
-          'id, workflow_id, workflow_run_id, workflow_name, status, error_message, node_results, duration_ms, execution_context, created_at',
+          'id, workflow_id, workflow_run_id, workflow_name, status, error_message, node_results, duration_ms, execution_context, paused_at_step, paused_at, created_at',
         )
         .order('created_at', { ascending: false })
         .limit(100);
