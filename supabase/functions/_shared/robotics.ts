@@ -71,6 +71,8 @@ export interface PostgrestChain {
   in(column: string, values: unknown[]): PostgrestChain;
   order(column: string, options?: { ascending?: boolean }): PostgrestChain;
   limit(count: number): PostgrestChain;
+  /** `update(...).eq(...).select('id')` — needed to read back the rows a write touched. */
+  select(columns?: string): PostgrestChain;
   single(): PromiseLike<QueryResult<Record<string, unknown>>>;
   maybeSingle(): PromiseLike<QueryResult<Record<string, unknown>>>;
   then<TResult1 = QueryResult<Record<string, unknown>[]>, TResult2 = never>(

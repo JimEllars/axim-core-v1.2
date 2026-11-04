@@ -1,6 +1,10 @@
 > **Appendices from 2026-11-01 onward live in `AGENTS_VERIFICATION.d/`, one file per
 > change**, so parallel branches stop conflicting on this file.
 >
+> * [`AGENTS_VERIFICATION.d/2026-11-04-wave130-robotics-and-pause-resume.md`](AGENTS_VERIFICATION.d/2026-11-04-wave130-robotics-and-pause-resume.md)
+>   — Wave 130: the three robotics Edge Functions the worker already proxied to (all 404), the
+>   consumer for the `robot_simulation_runs` queue nothing read, and the five breaks that made
+>   `resumeWorkflow()` impossible.
 > * [`AGENTS_VERIFICATION.d/2026-11-03-wave129-merge.md`](AGENTS_VERIFICATION.d/2026-11-03-wave129-merge.md)
 >   — Wave 129: rebase of Waves 125 + 126 onto current main and reconciliation with the
 >   Wave 127/128 authentication work that merged while they were open.
