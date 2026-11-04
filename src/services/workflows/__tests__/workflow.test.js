@@ -53,7 +53,10 @@ describe('Workflow Engine', () => {
 
     // Setup for resume
     api.getWorkflowExecutions.mockResolvedValue([
-      { workflow_run_id: runResult.workflowRunId, status: 'paused', paused_at_step: 'step2', context: {} }
+      // The real `workflow_execution_logs` shape, as `normalizeExecutionLogRow()`
+      // returns it. This used to be `context: {}`, a field the table does not
+      // have, so the test passed while `resumeWorkflow()` read `undefined`.
+      { workflow_run_id: runResult.workflowRunId, status: 'paused', paused_at_step: 'step2', execution_context: {} }
     ]);
 
     // Resume - supply the event it was waiting for
