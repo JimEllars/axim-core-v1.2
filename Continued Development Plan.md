@@ -60,6 +60,22 @@
       `a83d901` and reconciled with #491/#492/#494/#495 rather than merged as-is, so the
       tenancy and versioned-signature work is preserved. See
       `AGENTS_VERIFICATION.d/2026-11-03-wave129-merge.md`.)*
+- [ ] **Provision `SUPABASE_ACCESS_TOKEN` on the repository.** This is the only
+      blocker between the code being in `main` and the functions being live.
+      PR #498's workflow ran on `main` and reported success with `deploy`,
+      `smoke` and `critical-contracts` all *skipped* — no `sbp_...` management
+      token exists, only `SUPABASE_API_KEY` / `SUPABASE_SECRET_KEY` /
+      `SUPABASE_ANON_KEY`, which `supabase functions deploy` does not accept.
+      Measured afterwards: all 80 functions still answer
+      `{"code":"NOT_FOUND"}`. A `report` job now writes `NOT DEPLOYED — no
+      credentials` into the run summary so this cannot read as a green deploy
+      again (`tests/edge-deploy-workflow.test.js`). Action: add the secret, then
+      re-run the workflow via `workflow_dispatch` with an empty function list.
+- [x] Wire the deploy. *(PR #498 merged 2026-11-05: `deploy-edge-functions.yml`
+      deploys on every push to `main` that touches `supabase/functions/**` or
+      `config.toml`, pushes function by function so a bad source fails with a
+      named culprit, and fails the smoke job when a function it just deployed
+      still 404s. `reusable-deploy-supabase.yml` is no longer orphaned.)*
 - [ ] Ask Cloudflare to explain why `Cloudflare Pages` failed the production build of
       `b80f450` while succeeding on the identical tree `dfccdc8` 40 minutes earlier
       (evidence table in the Wave 128 appendix §8). Workers Builds is also production-only:
@@ -133,9 +149,34 @@
       `POST /functions/v1/robotics-sim-drainer`, plus
       `reap_stale_robot_simulation_runs(1800)` so a drainer invocation that dies
       mid-dispatch does not strand a run in `running`).
-- [ ] Build the MCP Edge Functions the worker also routes to (`mcp-router`,
-      `mcp-sse`, `mcp-message`); `/mcp`, `/sse` and `/message` currently return
-      Supabase's 404.
+- [x] Build the MCP Edge Functions the worker also routes to (`mcp-router`,
+      `mcp-sse`, `mcp-message`); `/mcp`, `/sse` and `/message` returned
+      Supabase's 404. *(Wave 131: both transports answer on Core's own domain.
+      Five tools, all with JSON Schema contracts; every method refuses anonymous
+      callers through `classifyEdgeCaller`; sessions are HMAC-signed tokens so
+      no table was added. The tool column contracts come from the migrations, not
+      from the Cloudflare bridge — see the item below about what the bridge gets
+      wrong. `tests/edge-routes.test.js`'s `NOT_YET_BUILT` allowlist is now empty:
+      `AGENTS_VERIFICATION.d/2026-11-05-wave131-mcp-edge-surface.md`.)*
+- [ ] Fix `cloudflare-workers/mcp-bridge`, which queries columns that do not
+      exist. `axim_dispatch_task` inserts `action_name`, `payload`,
+      `requested_by`, `created_at` into `public.hitl_audit_logs` (`admin_id`,
+      `action`, `tool_called`, `status`, `target_department`, `timestamp`);
+      `hitl_queue_status` selects `action_name` and filters `status='pending'`
+      when the default is `'Pending'`; `telemetry_lookup` selects
+      `severity`/`component_id`/`message` from a `telemetry_events` that is
+      `id, app_id, event_type, metadata, created_at`. Each is a PostgREST 400
+      reported as a bare `Error: 400`. Wave 131 did not touch the bridge because
+      it is a separate deployable with its own test runner; the Edge
+      implementation is correct and the bridge is now redundant for these five
+      tools.
+- [ ] Add rate limiting and a per-tool authorisation table to the MCP surface.
+      Wave 131 gates on *whether* a caller is authenticated, not on which tools
+      they may use: any verified user may call `axim_dispatch_task`. The bridge
+      has `rateLimit.ts`; Core does not.
+- [ ] Give the MCP server `resources/list` (workflow definitions, satellite
+      registry) and `prompts`. Only `tools/*` is implemented, which is a
+      legitimate MCP server but a narrow one.
 - [x] Reconcile `resumeWorkflow()` with the execution-log schema. *(Wave 130:
       five breaks, not two — the `status` CHECK forbade `paused`, the writer put
       pauses in `events_ax2024` while the reader read

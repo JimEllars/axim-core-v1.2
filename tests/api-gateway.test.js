@@ -38,7 +38,12 @@ describe('apiProxy telemetry wallet appending', () => {
 
         expect(insertedPayload).toBeDefined();
         expect(insertedPayload[0].wallet_address).toBe('0x123abc');
-    });
+        // The body itself is a few milliseconds of mocked calls. The cost is the
+        // two dynamic `import()`s above, which pull the apiProxy module graph
+        // through esbuild inside jsdom; measured at ~8 s on a 2 vCPU runner
+        // against Vitest's 5 s default. The default made this test fail for a
+        // reason that has nothing to do with the behaviour it asserts.
+    }, 20_000);
 });
 
 

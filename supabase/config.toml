@@ -32,3 +32,18 @@ verify_jwt = false
 
 [functions.robotics-sim-drainer]
 verify_jwt = false
+
+# The three MCP transports need callers that are not JWT bearers: a satellite
+# presents a signed relay (X-Axim-Signature over the raw body), and Onyx presents
+# the internal service key. The platform JWT check rejects both before function
+# code runs, so it is disabled here and the function decides instead — every one
+# of them refuses anonymous callers through `classifyEdgeCaller`, including the
+# discovery document, and `mcp-message` additionally requires a signed session.
+[functions.mcp-router]
+verify_jwt = false
+
+[functions.mcp-sse]
+verify_jwt = false
+
+[functions.mcp-message]
+verify_jwt = false

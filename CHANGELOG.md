@@ -1,5 +1,86 @@
 # Changelog
 
+## [2026-11-05] Give the MCP surface an implementation, and stop copying a broken schema
+
+`cloudflare-workers/src/index.js` has proxied six routes at three Edge Functions that did
+not exist. Every one answered Supabase's 404, listed in `tests/edge-routes.test.js` under
+`NOT_YET_BUILT` so the gap stayed visible:
+
+| route | target |
+|---|---|
+| `/mcp`, `/api/v1/mcp` | `functions/v1/mcp-router` |
+| `/sse`, `/api/v1/mcp/sse` | `functions/v1/mcp-sse` |
+| `/message`, `/api/v1/mcp/message` | `functions/v1/mcp-message` |
+
+So every MCP client aimed at the Core domain — Onyx, Claude Desktop, Cursor, a satellite
+relay — got a 404 with nothing behind it.
+
+### Added
+
+- **`supabase/functions/mcp-router`**, **`mcp-sse`**, **`mcp-message`.** JSON-RPC 2.0 over
+  Streamable HTTP (single message or batch), an SSE handshake with a bounded keepalive
+  stream, and a session-bound message endpoint. `initialize` / `ping` / `tools/list` /
+  `tools/call`, protocol versions `2025-06-18`, `2025-03-26` and `2024-11-05`.
+- **Five tools** with JSON Schema contracts: `core_health_check`, `telemetry_lookup`,
+  `hitl_queue_status`, `axim_list_nodes`, `axim_dispatch_task`.
+- **`_shared/mcpProtocol.ts`** (348 lines), **`_shared/mcpTools.ts`** (392),
+  **`_shared/mcpSession.ts`** (203), **`_shared/mcpSupabase.ts`** (114),
+  **`_shared/mcpServer.ts`** (139). Pure, dependency-injected, tested under Node.
+- **63 tests** across `tests/mcp-tools.test.js` (17), `tests/mcp-protocol.test.js` (24),
+  `tests/mcp-session.test.js` (13), `tests/mcp-supabase.test.js` (9).
+
+### Fixed
+
+- **The tool column contracts are taken from the migrations, not from the MCP bridge.**
+  The bridge ships `axim_dispatch_task` inserting `action_name`, `payload`, `requested_by`
+  and `created_at` into `public.hitl_audit_logs`, whose columns are `admin_id`, `action`,
+  `tool_called`, `status`, `target_department`, `timestamp` — none of those four exist.
+  Its `hitl_queue_status` selects `action_name` and filters `status = 'pending'` when the
+  default is `'Pending'`. Its `telemetry_lookup` selects `severity`/`component_id`/`message`
+  from a `telemetry_events` that is `id, app_id, event_type, metadata, created_at`.
+  Every one of those calls is a PostgREST 400 reported as a bare `Error: 400`.
+- **`axim_dispatch_task` refuses internal callers.** `hitl_audit_logs.admin_id` is
+  `NOT NULL REFERENCES auth.users(id)`, so a service key or HMAC relay has no identity to
+  attribute a row to. The bridge's answer was a literal `requested_by` string in a column
+  that does not exist.
+- **`tests/api-gateway.test.js` no longer fails on a slow runner.** One test timed out at
+  Vitest's 5 s default while costing 7.9 s, all of it the two dynamic `import()`s that pull
+  the `apiProxy` module graph through esbuild inside jsdom. Explicit 20 s timeout, with the
+  measurement in a comment.
+
+### Fixed (CI)
+
+- **`Deploy Edge Functions` reported success having deployed nothing.** The workflow merged
+  in PR #498 ran on `main` (41986445329) and went green with `deploy`, `smoke` and
+  `critical-contracts` all **skipped**, because `SUPABASE_ACCESS_TOKEN` is not provisioned
+  on this repository — measured against production afterwards, all 80 functions still
+  answer `{"code":"NOT_FOUND"}`. Skipped jobs do not fail a run, and the only step summary
+  lived inside the skipped job, so the run had no summary at all. A new `report` job with
+  `if: always()` writes the real outcome to the run summary, distinguishes
+  `NOT DEPLOYED — no credentials` from `deployed`, and names the remediation. It does not
+  fail the merge: a missing secret is an operator action, not a reason to block every pull
+  request. **Provisioning that secret is the remaining action item on this wave.**
+- **`tests/edge-deploy-workflow.test.js` (5 tests)** pins the guarantee so the silent
+  success cannot return.
+
+### Security
+
+- **Anonymous callers are refused on every MCP method**, including `initialize` and the
+  discovery document, through the shared `classifyEdgeCaller`. A tool inventory is a map of
+  the deployment, and an open MCP endpoint is an open query interface onto telemetry, HITL
+  approvals and the satellite registry.
+- **Sessions are HMAC-signed tokens with no server state** — `v1.<payload>.<hmac>` over
+  `AXIM_INTERNAL_KEY`. The signature is checked before `exp` is read, so a forged
+  far-future token cannot pass by looking fresh; `mcp-message` then requires the session
+  subject to match the presented caller. With no key configured the entrypoints answer
+  503 rather than minting tokens that verify against nothing.
+
+### Documentation
+
+- `AGENTS_VERIFICATION.d/2026-11-05-wave131-mcp-edge-surface.md` — the full appendix,
+  including the migration citations for every column and the reasoning behind each
+  refusal.
+
 ## [2026-11-04] Deploy the edge functions that were never deployed
 
 `reusable-deploy-supabase.yml` has been correct since it was written and has never

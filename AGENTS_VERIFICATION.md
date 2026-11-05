@@ -1,6 +1,11 @@
 > **Appendices from 2026-11-01 onward live in `AGENTS_VERIFICATION.d/`, one file per
 > change**, so parallel branches stop conflicting on this file.
 >
+> * [`AGENTS_VERIFICATION.d/2026-11-05-wave131-mcp-edge-surface.md`](AGENTS_VERIFICATION.d/2026-11-05-wave131-mcp-edge-surface.md)
+>   — Wave 131: the six MCP routes the worker already proxied to (`mcp-router`, `mcp-sse`,
+>   `mcp-message` — all 404), five tools with column contracts taken from the migrations
+>   rather than from the Cloudflare bridge that queries columns that do not exist, and
+>   HMAC-signed stateless sessions. 63 new tests; one pre-existing test timeout repaired.
 > * [`AGENTS_VERIFICATION.d/2026-11-04-wave130-robotics-and-pause-resume.md`](AGENTS_VERIFICATION.d/2026-11-04-wave130-robotics-and-pause-resume.md)
 >   — Wave 130: the three robotics Edge Functions the worker already proxied to (all 404), the
 >   consumer for the `robot_simulation_runs` queue nothing read, and the five breaks that made

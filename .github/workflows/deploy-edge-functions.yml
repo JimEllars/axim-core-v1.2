@@ -343,3 +343,57 @@ jobs:
           echo "Functions: \`${{ needs.deploy.outputs.functions_csv }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Critical contracts verified: \`telemetry-ingress\` (401 unsigned), \`resolve-hitl\`, \`onyx-bridge\`." >> $GITHUB_STEP_SUMMARY
+
+  # Every job above is skipped when SUPABASE_ACCESS_TOKEN is absent, so the run
+  # reports *success* having deployed nothing. That is the exact failure mode this
+  # workflow exists to end, reproduced one level up: observed on the run for
+  # 55c546f (41986445329) — preflight logged a warning, deploy/smoke/
+  # critical-contracts were skipped, the run went green, and all 80 functions
+  # still answered "Requested function was not found".
+  #
+  # This job runs unconditionally and writes the outcome where a human looking at
+  # the run will actually see it. It deliberately does not fail the merge: a
+  # missing secret is an operator action, not a reason to block every pull
+  # request, and a permanently red check is one people learn to ignore.
+  report:
+    needs: [preflight, parse-gate, deploy, smoke, critical-contracts]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Record the outcome of this run
+        env:
+          HAS_CREDENTIALS: ${{ needs.preflight.outputs.has_credentials }}
+          PROJECT_REF: ${{ needs.preflight.outputs.project_ref }}
+          FUNCTIONS_CSV: ${{ needs.deploy.outputs.functions_csv }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          SMOKE_RESULT: ${{ needs.smoke.result }}
+        run: |
+          set -euo pipefail
+          if [ "${HAS_CREDENTIALS}" != "true" ]; then
+            {
+              echo "### Edge deploy: **NOT DEPLOYED** — no credentials"
+              echo ""
+              echo "\`SUPABASE_ACCESS_TOKEN\` is not set on this repository, so"
+              echo "\`deploy\`, \`smoke\` and \`critical-contracts\` were all skipped."
+              echo "Nothing was pushed. Production still runs whatever was deployed"
+              echo "by hand previously."
+              echo ""
+              echo "**To fix:** add a Supabase personal access token (\`sbp_...\`) as"
+              echo "the repository secret \`SUPABASE_ACCESS_TOKEN\`, then re-run this"
+              echo "workflow with \`workflow_dispatch\` and an empty \`functions\` input."
+              echo ""
+              echo "Project: \`${PROJECT_REF:-<unresolved>}\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning title=Edge functions NOT deployed::SUPABASE_ACCESS_TOKEN is not provisioned. This run deployed nothing despite reporting success — see the job summary."
+            exit 0
+          fi
+
+          {
+            echo "### Edge deploy: deployed"
+            echo ""
+            echo "Project: \`${PROJECT_REF}\`"
+            echo ""
+            echo "Deploy: \`${DEPLOY_RESULT}\` — smoke: \`${SMOKE_RESULT}\`"
+            echo ""
+            echo "Functions: \`${FUNCTIONS_CSV:-<none>}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

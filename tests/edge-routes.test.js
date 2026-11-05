@@ -15,6 +15,11 @@
  * route to a function that does not exist can never be silent again — and the
  * outstanding gap is written down rather than assumed.
  *
+ * The list held the three MCP functions until Wave 131 built them
+ * (`mcp-router`, `mcp-sse`, `mcp-message`), so it is empty now. It stays as an
+ * empty set rather than being deleted, because it is the mechanism that made the
+ * gap visible in the first place.
+ *
  * The worker is imported for real (`apiRoutes`), not re-parsed out of the source,
  * so a rename or a change of shape fails here instead of producing an empty map
  * that trivially passes.
@@ -33,7 +38,7 @@ const FUNCTIONS_DIR = join(REPO_ROOT, 'supabase', 'functions');
  * known gap with its own roadmap item; the test asserts the list stays accurate
  * in both directions, so building one of these forces its removal from here.
  */
-const NOT_YET_BUILT = new Set(['mcp-router', 'mcp-sse', 'mcp-message']);
+const NOT_YET_BUILT = new Set();
 
 /** '/functions/v1/robotics-sim' -> 'robotics-sim' */
 function functionNameFromTarget(target) {
@@ -77,6 +82,24 @@ describe('edge worker route table', () => {
     expect(stillMissing.sort()).toEqual([...NOT_YET_BUILT].sort());
   });
 
+  it('routes the MCP transports at functions that exist', () => {
+    // Wave 131: all six MCP routes proxied to directories that did not exist and
+    // answered Supabase's 404. Both transports now resolve to real code.
+    const mcpRoutes = {
+      '/mcp': 'mcp-router',
+      '/api/v1/mcp': 'mcp-router',
+      '/sse': 'mcp-sse',
+      '/api/v1/mcp/sse': 'mcp-sse',
+      '/message': 'mcp-message',
+      '/api/v1/mcp/message': 'mcp-message',
+    };
+
+    for (const [route, expectedFunction] of Object.entries(mcpRoutes)) {
+      expect(apiRoutes.get(route)).toBe(`/functions/v1/${expectedFunction}`);
+      expect(existsSync(join(FUNCTIONS_DIR, expectedFunction, 'index.ts'))).toBe(true);
+    }
+  });
+
   it('routes the robotics API at functions that exist', () => {
     const roboticsRoutes = {
       '/api/v1/robotics/projects': 'robotics-projects',
@@ -99,7 +122,15 @@ describe('edge worker route table', () => {
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name));
 
-    for (const name of ['robotics-projects', 'robotics-sim', 'robotics-emergency-stop', 'robotics-sim-drainer']) {
+    for (const name of [
+      'robotics-projects',
+      'robotics-sim',
+      'robotics-emergency-stop',
+      'robotics-sim-drainer',
+      'mcp-router',
+      'mcp-sse',
+      'mcp-message',
+    ]) {
       expect(topLevel.has(name), `${name} is not a top-level function directory`).toBe(true);
     }
   });
