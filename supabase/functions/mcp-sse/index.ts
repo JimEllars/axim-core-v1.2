@@ -72,7 +72,7 @@ function openStream(endpoint: string): Response {
           // The stream was closed underneath us; stop the timers below.
           if (interval !== undefined) clearInterval(interval);
         }
-      }, SSE_KEEPALIVE_MS) as unknown as number;
+      }, SSE_KEEPALIVE_MS);
 
       timeout = setTimeout(() => {
         if (interval !== undefined) clearInterval(interval);
@@ -82,7 +82,7 @@ function openStream(endpoint: string): Response {
         } catch {
           // Already closed.
         }
-      }, SSE_MAX_DURATION_MS) as unknown as number;
+      }, SSE_MAX_DURATION_MS);
     },
     cancel() {
       if (interval !== undefined) clearInterval(interval);

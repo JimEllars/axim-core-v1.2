@@ -89,8 +89,6 @@ export interface RpcContext {
   list: () => ToolDescriptor[];
   /** Executes one tool; rejects only on a protocol-level fault. */
   call: (name: string, args: Record<string, unknown>) => Promise<ToolCallResult>;
-  /** Injected clock, so `initialize` is deterministic in tests. */
-  now?: () => number;
 }
 
 export type EnvelopeCheck =

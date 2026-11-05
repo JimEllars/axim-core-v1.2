@@ -102,7 +102,6 @@ export function buildRpcContext(params: BuildContextParams): RpcContext {
 
   return {
     list: () => listTools(),
-    now,
     call: async (name: string, args: Record<string, unknown>) => {
       try {
         return await callTool(name, args, { actor, data, now });

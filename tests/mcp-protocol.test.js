@@ -45,7 +45,6 @@ function createContext(overrides = {}) {
       }
       return { content: [{ type: 'text', text: JSON.stringify({ ok: true }) }], isError: false };
     }),
-    now: () => 1_700_000_000_000,
     ...overrides,
   };
 }
