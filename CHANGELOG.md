@@ -1,5 +1,83 @@
 # Changelog
 
+## [2026-11-04] Deploy the edge functions that were never deployed
+
+`reusable-deploy-supabase.yml` has been correct since it was written and has never
+once run: no workflow in this repository calls it. Nothing was watching, so nothing
+noticed.
+
+Measured against production on 2026-11-04 — of 80 directories under
+`supabase/functions/`, **8 are deployed and 72 return 404**:
+
+| | |
+|---|---|
+| **live** | `api-gateway`, `create-checkout-session`, `create-portal-session`, `llm-proxy`, `robotics-emergency-stop`, `robotics-sim-drainer`, `trigger-workflow`, `voice-ingest` |
+| **absent** | the other 72, including the three the wider ecosystem is blocked on: `telemetry-ingress`, `resolve-hitl`, `onyx-bridge` |
+
+The eight that are live are the functions declared `verify_jwt = false` in
+`supabase/config.toml`, plus `llm-proxy`, which is no longer declared there — a stale
+deployment. They were pushed by hand, one at a time, as each was needed.
+
+Three functions in particular have consequences outside this repo:
+
+- **`telemetry-ingress`** is the DLQ replay target named by `CORE_INGEST_URL` in
+  Onyx Mk3's edge bridge. Its absence is why the edge DLQ never drains.
+- **`resolve-hitl`** is `CORE_HITL_URL`. Onyx Mk3 has been calling it since the HITL
+  workflow landed, so human-in-the-loop approvals have never once worked.
+- **`onyx-bridge`** is called by name from the Support System worker.
+
+### Added
+
+- **`.github/workflows/deploy-edge-functions.yml`.** Deploys on push to `main` when
+  `supabase/functions/**` or `supabase/config.toml` change, plus a
+  `workflow_dispatch` escape hatch that accepts a space-separated function list.
+  `preflight` reads the project ref out of `supabase/config.toml` rather than
+  duplicating it, and skips cleanly with a warning when `SUPABASE_ACCESS_TOKEN` is
+  absent rather than failing every merge. `parse-gate` runs `check:creds` and
+  `check:edge` before anything is pushed. `deploy` pushes function by function so a
+  single bad source fails with a named culprit. `smoke` proves the deploy took.
+  `critical-contracts` asserts the three ecosystem-blocking functions specifically.
+- **`scripts/check-edge-deploy-gate.mjs` (22 assertions, read-only).** The smoke job
+  decides *deployed or not* from the gateway's response body, not the status code,
+  because a live function rejecting an unauthenticated caller answers `401` and a
+  `verify_jwt = false` function answers `200` — neither distinguishable from
+  "missing" by status alone. The gateway's own not-deployed body is unambiguous
+  (`{"code":"NOT_FOUND","message":"Requested function was not found"}`). This
+  script asserts that discriminator holds, using a nonexistent name as the control
+  and three known-live functions as the negative case. If the platform ever changes
+  the shape, the gate fails here instead of silently passing everything.
+
+### Why the existing gates did not catch this
+
+`verify-smoke-tests.yml` probes two endpoints and treats `404` as a **warning**:
+
+```
+echo "Warning: api-gateway returned 404. Edge function might not be deployed yet in this environment."
+```
+
+That is the whole defect, encoded as policy. Its unit-test step is also a stub —
+`scripts/smoke-test-functions.js` contains only
+`console.log("Mock smoke test execution successful.")`. The new `smoke` job inverts
+the policy: after a deploy, a function the run just deployed that the gateway still
+cannot route to is a hard failure.
+
+### Known defect, deliberately not fixed here
+
+`supabase/functions/dead_letter_jobs/` is a real DLQ retry worker, but its directory
+name contains an underscore. Supabase function slugs are `[a-z0-9-]` only, so it
+cannot deploy under its own name — verified `404` at the gateway. Renaming the
+directory changes the deployed function name, and it is invoked by something outside
+this repository that is not visible from here. It is excluded from the deploy set with
+a `::notice::` and exempted in the gate script by name, so it stays visible rather
+than silently skipped. Fix it when the rename and its invoker can be changed together.
+
+### Verified
+
+`node scripts/check-edge-deploy-gate.mjs` → 22 assertions, **PASS**, against the live
+project. Deploy-set resolution simulated locally: 79 functions, `_shared` and
+`dead_letter_jobs` both correctly excluded. Not verified: an actual deploy — the
+workflow is the mechanism, and `critical-contracts` is what proves it.
+
 ## [2026-11-04] Wave 130 — the robotics API the worker already routed to, a consumer for the simulation queue, and a pause/resume path that finally round-trips
 
 Two gaps left behind by Waves 125–129.

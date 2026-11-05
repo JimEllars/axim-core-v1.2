@@ -1,0 +1,345 @@
+name: Deploy Edge Functions
+
+# Why this exists
+# --------------
+# `reusable-deploy-supabase.yml` has been correct since it was written and has
+# never once run: no workflow in this repository calls it.
+#
+# Measured against production on 2026-11-04 — of 80 functions in
+# `supabase/functions/`, 8 are deployed and 72 return 404:
+#
+#   LIVE  api-gateway, create-checkout-session, create-portal-session, llm-proxy,
+#         robotics-emergency-stop, robotics-sim-drainer, trigger-workflow,
+#         voice-ingest
+#   DEAD  the other 72, including the three the wider ecosystem is blocked on:
+#           telemetry-ingress  -> the DLQ replay target behind CORE_INGEST_URL
+#           resolve-hitl       -> Onyx Mk3's CORE_HITL_URL. HITL has never worked.
+#           onyx-bridge        -> called by name from the Support System worker
+#
+# The eight that are live are exactly the functions with `verify_jwt = false` in
+# `supabase/config.toml` (plus `llm-proxy`, a stale deployment no longer declared
+# there). They were almost certainly deployed by hand, one at a time, as each was
+# needed — which is how a repo ends up with 80 functions and 8 deployments.
+#
+# `verify-smoke-tests.yml` could not catch this because it treats 404 as a
+# *warning* and continues by design (`"Edge function might not be deployed yet in
+# this environment"`). Its unit-test step is also a stub that prints
+# "Mock smoke test execution successful." The `smoke` job below inverts both: after
+# a deploy, a 404 on a function this workflow just deployed is a hard failure,
+# because it means the deploy lied.
+#
+# Prerequisites (already provisioned on this repo):
+#   - SUPABASE_ACCESS_TOKEN  (repo secret, present since 2026-08-12)
+#   - project ref             (pinned in supabase/config.toml -> pvbcdndqjguzqeafhwhw)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - 'supabase/config.toml'
+      - '.github/workflows/deploy-edge-functions.yml'
+  workflow_dispatch:
+    inputs:
+      functions:
+        description: 'Space-separated function names to deploy. Empty = all.'
+        required: false
+        default: ''
+
+concurrency:
+  group: supabase-functions-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    outputs:
+      has_credentials: ${{ steps.check.outputs.has_credentials }}
+      project_ref: ${{ steps.check.outputs.project_ref }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for Supabase deploy credentials
+        id: check
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          # Read the project ref from config rather than duplicating it here, so a
+          # project move is a one-line change in one place.
+          project_ref=$(grep -E '^\s*project_id\s*=' supabase/config.toml | head -1 | sed -E 's/.*"(.*)".*/\1/')
+          echo "project_ref=$project_ref" >> "$GITHUB_OUTPUT"
+          echo "Resolved project ref: ${project_ref:-<none>}"
+
+          if [ -n "${SUPABASE_ACCESS_TOKEN:-}" ] && [ -n "${project_ref:-}" ]; then
+            echo "has_credentials=true" >> "$GITHUB_OUTPUT"
+            echo "Credentials and project ref present — deploy will run."
+          else
+            echo "has_credentials=false" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Edge functions not deployed::SUPABASE_ACCESS_TOKEN is not provisioned, so the deploy is skipped. Production stays on whatever is currently deployed (currently: nothing)."
+          fi
+
+  parse-gate:
+    # Cheap, deterministic, no Deno toolchain and no network. Blocks a deploy of
+    # sources that cannot parse — the class of defect PR #492 shipped to main in
+    # _shared/edgeAuth.ts, which broke five deployed functions at once.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Check for literal credential fallbacks
+        run: npm run check:creds
+
+      - name: Parse every Deno Edge Function
+        run: npm run check:edge
+
+      - name: Verify the deploy gate can tell present from absent
+        # The smoke job decides "deployed or not" from the gateway's response body,
+        # not the status code, because a live function that rejects an unauth
+        # caller answers 401 and a live verify_jwt=false function answers 200 —
+        # neither of which a status-code gate can distinguish from "missing". If
+        # that discriminator stops holding (platform change, gateway rewrite), the
+        # smoke gate would silently pass everything. This asserts it against known
+        # present and known absent functions on the live project, read-only.
+        run: node scripts/check-edge-deploy-gate.mjs
+
+  deploy:
+    needs: [preflight, parse-gate]
+    if: needs.preflight.outputs.has_credentials == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: ${{ needs.preflight.outputs.project_ref }}
+    outputs:
+      functions_csv: ${{ steps.list.outputs.functions_csv }}
+      function_count: ${{ steps.list.outputs.function_count }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Verify Supabase connection
+        run: supabase projects list
+
+      - name: Link project
+        run: supabase link --project-ref "$PROJECT_REF"
+
+      - name: Determine function set
+        id: list
+        run: |
+          set -euo pipefail
+          if [ -n "${{ inputs.functions }}" ]; then
+            names="${{ inputs.functions }}"
+          else
+            # Every directory under supabase/functions except:
+            #   _shared            a library, not a deployable function
+            #   dead_letter_jobs   slug contains an underscore; Supabase function
+            #                      names are [a-z0-9-] only, so it cannot deploy
+            #                      under this name (verified 404 at the gateway).
+            #                      Renaming it would change the deployed function
+            #                      name, so it is excluded here and tracked as a
+            #                      known defect rather than silently skipped.
+            names=$(find supabase/functions -mindepth 1 -maxdepth 1 -type d \
+                      -not -name '_shared' \
+                      -not -name 'node_modules' \
+                      -not -name 'dead_letter_jobs' \
+                      -printf '%f\n' | sort | tr '\n' ' ')
+          fi
+
+          names=$(echo "$names" | xargs)  # trim
+          count=$(echo "$names" | wc -w)
+
+          if [ "$count" -eq 0 ]; then
+            echo "::error::No functions resolved to deploy."
+            exit 1
+          fi
+
+          echo "Deploying $count function(s):"
+          echo "$names" | tr ' ' '\n' | sed 's/^/  - /'
+          echo
+          echo "::notice::dead_letter_jobs excluded (invalid slug, known defect)."
+
+          echo "functions_csv=$(echo "$names" | tr ' ' ',')" >> "$GITHUB_OUTPUT"
+          echo "function_count=$count" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy Edge Functions
+        run: |
+          set -euo pipefail
+          # Deploy each function by name so a single bad source fails the run with
+          # a named culprit instead of an anonymous "deploy failed".
+          failed=""
+          IFS=',' read -ra fns <<< "${{ steps.list.outputs.functions_csv }}"
+          for fn in "${fns[@]}"; do
+            echo "::group::deploy $fn"
+            if supabase functions deploy "$fn" --project-ref "$PROJECT_REF"; then
+              echo "ok: $fn"
+            else
+              echo "::error::deploy failed for $fn"
+              failed="$failed $fn"
+            fi
+            echo "::endgroup::"
+          done
+
+          if [ -n "$failed" ]; then
+            echo "::error::Failed to deploy:$failed"
+            exit 1
+          fi
+
+  smoke:
+    # The gate that would have caught the original defect. `verify-smoke-tests.yml`
+    # treats 404 as a warning and continues; here, a function that the Supabase
+    # gateway reports as absent — after this run deployed it — is a hard failure,
+    # because it means the deploy did not take.
+    #
+    # The discriminator is the response BODY, not the status code. Probing by
+    # status alone is wrong: a live function that rejects an unauthenticated
+    # caller answers 401, and a live function with `verify_jwt = false` may answer
+    # 200 — but so may a function that does not exist, if the platform answers
+    # OPTIONS generically. The gateway's own "not deployed" body is unambiguous:
+    #
+    #   absent   -> {"code":"NOT_FOUND","message":"Requested function was not found"}
+    #   present  -> anything else, including 401 {"error":"Unauthorized"}
+    needs: [preflight, deploy]
+    if: needs.preflight.outputs.has_credentials == 'true'
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_REF: ${{ needs.preflight.outputs.project_ref }}
+      FUNCTIONS_CSV: ${{ needs.deploy.outputs.functions_csv }}
+    steps:
+      - name: Assert every deployed function is present
+        run: |
+          set -euo pipefail
+          BASE="https://${PROJECT_REF}.supabase.co/functions/v1"
+          failed=""
+          absent=0
+          present=0
+
+          IFS=',' read -ra fns <<< "$FUNCTIONS_CSV"
+          echo "Verifying ${#fns[@]} function(s) against $BASE"
+          echo
+
+          for fn in "${fns[@]}"; do
+            [ -z "$fn" ] && continue
+            verdict=""
+            # Edge propagation is not instant; poll a few times per function.
+            for attempt in 1 2 3 4 5 6; do
+              body=$(curl -s -m 10 -X POST \
+                       -H 'Content-Type: application/json' -d '{}' \
+                       "$BASE/$fn" || true)
+              if printf '%s' "$body" | grep -q 'Requested function was not found'; then
+                verdict=absent
+                sleep 5
+              else
+                verdict=present
+                break
+              fi
+            done
+
+            if [ "$verdict" = "present" ]; then
+              present=$((present+1))
+              printf '  %-34s present\n' "$fn"
+            else
+              absent=$((absent+1))
+              failed="$failed $fn"
+              printf '  %-34s ::error::ABSENT\n' "$fn"
+            fi
+          done
+
+          echo
+          echo "present: $present   absent: $absent"
+          if [ "$absent" -gt 0 ]; then
+            echo "::error::Still absent after deploy:$failed"
+            echo "A deploy reported success but the gateway still cannot route to these functions."
+            echo "Check: supabase functions list --project-ref $PROJECT_REF"
+            exit 1
+          fi
+
+          echo "All functions in this run are present on the gateway."
+
+  # The two functions the wider ecosystem is actively blocked on. Named
+  # explicitly so a regression in either is loud rather than one of eighty rows.
+  critical-contracts:
+    needs: [preflight, smoke]
+    if: needs.preflight.outputs.has_credentials == 'true'
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_REF: ${{ needs.preflight.outputs.project_ref }}
+    steps:
+      - name: telemetry-ingress rejects unsigned callers
+        run: |
+          set -euo pipefail
+          BASE="https://${PROJECT_REF}.supabase.co/functions/v1"
+          body=$(curl -s -m 15 -X POST \
+                   -H 'Content-Type: application/json' -d '{}' \
+                   "$BASE/telemetry-ingress")
+          status=$(curl -s -o /dev/null -w '%{http_code}' -m 15 -X POST \
+                     -H 'Content-Type: application/json' -d '{}' \
+                     "$BASE/telemetry-ingress")
+          echo "telemetry-ingress POST -> $status"
+          printf '%s\n' "$body"
+
+          # Three failure modes to separate, in order of severity:
+          #   absent       -> the deploy did not take
+          #   202          -> the HMAC gate stopped enforcing; an unsigned caller
+          #                   was queued. This is a security regression.
+          #   anything else-> expected; a live function refusing an unsigned call
+          if printf '%s' "$body" | grep -q 'Requested function was not found'; then
+            echo "::error::telemetry-ingress is not deployed — CORE_INGEST_URL has nowhere to land."
+            exit 1
+          fi
+          if [ "$status" = "202" ] || [ "$status" = "200" ]; then
+            echo "::error::telemetry-ingress accepted an unsigned payload ($status). The HMAC gate is not enforcing."
+            exit 1
+          fi
+          echo "telemetry-ingress is deployed and refusing unsigned callers ($status)."
+
+      - name: resolve-hitl is deployed
+        run: |
+          set -euo pipefail
+          BASE="https://${PROJECT_REF}.supabase.co/functions/v1"
+          body=$(curl -s -m 15 -X POST \
+                   -H 'Content-Type: application/json' -d '{}' \
+                   "$BASE/resolve-hitl")
+          printf 'resolve-hitl -> %s\n' "$body"
+          if printf '%s' "$body" | grep -q 'Requested function was not found'; then
+            echo "::error::resolve-hitl is not deployed — Onyx Mk3's CORE_HITL_URL has nowhere to land."
+            exit 1
+          fi
+          echo "resolve-hitl is deployed."
+
+      - name: onyx-bridge is deployed
+        run: |
+          set -euo pipefail
+          BASE="https://${PROJECT_REF}.supabase.co/functions/v1"
+          body=$(curl -s -m 15 -X POST \
+                   -H 'Content-Type: application/json' -d '{}' \
+                   "$BASE/onyx-bridge")
+          printf 'onyx-bridge -> %s\n' "$body"
+          if printf '%s' "$body" | grep -q 'Requested function was not found'; then
+            echo "::error::onyx-bridge is not deployed — the Support System worker calls it by name."
+            exit 1
+          fi
+          echo "onyx-bridge is deployed."
+
+      - name: Summary
+        run: |
+          echo "### Edge functions deployed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Project: \`${PROJECT_REF}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Functions: \`${{ needs.deploy.outputs.functions_csv }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Critical contracts verified: \`telemetry-ingress\` (401 unsigned), \`resolve-hitl\`, \`onyx-bridge\`." >> $GITHUB_STEP_SUMMARY
