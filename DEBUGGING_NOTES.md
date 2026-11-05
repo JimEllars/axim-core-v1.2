@@ -1,3 +1,106 @@
+# 2026-11-05 — Three routes with no function, and a schema copied from a broken client
+
+## Symptom: `/mcp`, `/sse` and `/message` return Supabase's 404
+
+`cloudflare-workers/src/index.js` routes six paths at three Edge Functions:
+
+```
+/mcp,      /api/v1/mcp         -> functions/v1/mcp-router
+/sse,      /api/v1/mcp/sse     -> functions/v1/mcp-sse
+/message,  /api/v1/mcp/message -> functions/v1/mcp-message
+```
+
+`supabase/functions/` contained none of the three. The worker proxied faithfully and
+Supabase answered its own 404. This is the same shape as Wave 130's robotics gap, and it
+was already written down: `tests/edge-routes.test.js` carried
+`NOT_YET_BUILT = new Set(['mcp-router', 'mcp-sse', 'mcp-message'])`. Being written down is
+why it was a known gap instead of a discovery.
+
+**Why nothing else caught it.** There is no monitoring of the Core domain's MCP routes, and
+no client in the repo calls them. Onyx reaches the separate Cloudflare MCP bridge, so from
+the ecosystem's point of view MCP "worked" — on a different host, with a different auth
+model, querying a different schema.
+
+## Symptom: the bridge's tools are wrong, and one of them cannot work at all
+
+Before writing the Edge tools, the bridge was read as the reference implementation. Three of
+its five tools do not match the database:
+
+| bridge does | schema says | result |
+|---|---|---|
+| inserts `action_name`, `payload`, `requested_by`, `created_at` into `hitl_audit_logs` | `admin_id`, `action`, `tool_called`, `timestamp`, `status`, `target_department` | PostgREST 400 |
+| selects `action_name`, filters `status=eq.pending` | column is `action`; default is `'Pending'` | 400 / never matches |
+| selects `severity`, `component_id`, `message` from `telemetry_events` | `id`, `app_id`, `event_type`, `metadata`, `created_at` | 400 |
+
+Each failure is caught by the bridge's `catch` and returned as `Error: 400` inside a
+successful JSON-RPC result, so a model reading the tool output sees a generic error string
+and no reason.
+
+The dispatch insert is worse than a typo. Even with the right column names it cannot
+succeed: `hitl_audit_logs.admin_id` is `NOT NULL REFERENCES auth.users(id)`, and the bridge
+authenticates with an MCP key, not a user. Its `requested_by: 'mcp_bridge_client'` is a
+literal standing in for an identity that was never resolved, written to a column that does
+not exist.
+
+## How it was found
+
+1. `ls supabase/functions/ | grep mcp` — nothing.
+2. Read the bridge for the tool shapes rather than inventing them, then checked each column
+   against the migrations: `grep -rn "hitl_audit_logs" supabase/migrations/`,
+   `grep -rn "telemetry_events" supabase/migrations/`.
+3. `20251101000000_create_hitl_audit_logs.sql:1-7` for the base table;
+   `20260404000000:1` for `status` (default `'Pending'`);
+   `20280106000000:1-2` for `target_department`; `20280108000000:1-7` for
+   `telemetry_events`; `20280107000000:56` for the `metadata->>'isp'` access pattern.
+4. Wrote the tests against the migrations, not against the bridge. A test that quoted the
+   bridge would have blessed the bug — the failure mode the Phase 0 test purge was about.
+
+## Symptom: the deploy workflow succeeded and deployed nothing
+
+Verifying that the new functions would actually ship, `Deploy Edge Functions` (the workflow
+from PR #498, merged the same morning) reported **success**. Production disagreed:
+
+```
+resolve-hitl      -> 404 {"code":"NOT_FOUND","message":"Requested function was not found"}
+telemetry-ingress -> 404 {"code":"NOT_FOUND","message":"Requested function was not found"}
+onyx-bridge       -> 404 {"code":"NOT_FOUND","message":"Requested function was not found"}
+```
+
+`gh run view 41986445329 --json jobs` showed why: `parse-gate` and `preflight` succeeded,
+and `deploy`, `smoke` and `critical-contracts` were **skipped**. `gh secret list` has no
+`SUPABASE_ACCESS_TOKEN`. A skipped job does not fail a run, and the workflow's only
+`$GITHUB_STEP_SUMMARY` block lived inside the skipped `critical-contracts` job — so the run
+had a green tick, a warning buried in one step's log, and no summary.
+
+**The lesson, stated plainly:** "the pipeline works" and "the pipeline did something" are
+different claims. The workflow was written specifically because
+`reusable-deploy-supabase.yml` had never run; it then reproduced the same defect by
+treating a missing prerequisite as a warning instead of an outcome.
+
+**Fixed** with a `report` job on `if: always()` that writes the real outcome — including
+`NOT DEPLOYED — no credentials` and the remediation — and five assertions in
+`tests/edge-deploy-workflow.test.js` that keep it unconditional. Provisioning the secret
+itself cannot be done from code.
+
+## What was done
+
+- `_shared/mcpTools.ts` holds the column contracts as exported constants
+  (`HITL_COLUMNS`, `HITL_PENDING_STATUS`, `TELEMETRY_COLUMNS`, `NODES_COLUMNS`) with the
+  migration that defines each one in a comment, and `tests/mcp-tools.test.js` asserts the
+  exact `SelectSpec` each tool produces.
+- `axim_dispatch_task` refuses a non-user caller with an explanatory message instead of
+  writing an unattributable row.
+- The bridge itself is untouched and still wrong. It is a separate deployable with its own
+  Vitest runner inside `cloudflare-workers/`, and fixing it is listed as an open item in
+  `Continued Development Plan.md` rather than smuggled into this change.
+
+## Follow-up
+
+- Decide the bridge's future: either fix its columns or delete the duplicated tools now
+  that Core serves them on its own domain.
+- MCP authorises *whether* a caller is authenticated, not *which* tools they may call. Any
+  verified user can stage a HITL approval. A per-tool scope table is the next increment.
+
 # 2026-11-04 — A route table that looks complete, and a queue nobody drained
 
 ## Symptom A: every robotics API call returned 404

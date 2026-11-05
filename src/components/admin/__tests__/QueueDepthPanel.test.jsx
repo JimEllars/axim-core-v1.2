@@ -45,5 +45,9 @@ describe('QueueDepthPanel Component', () => {
       expect(screen.getByText('Dead Letters (DLQ)')).toBeInTheDocument();
       expect(screen.getByText('Critical Failures')).toBeInTheDocument();
     });
-  });
+    // Measured at 4.0 s solo and over 5 s when the suite runs two workers on a
+    // 2 vCPU box, so the default budget fails on load rather than on behaviour.
+    // The component renders five panels and awaits a six-query Promise.all; the
+    // cost is jsdom plus the component graph, not a hang.
+  }, 15_000);
 });
