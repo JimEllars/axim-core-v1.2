@@ -275,7 +275,27 @@ then the three MCP functions in this change are in `main` but **not** in product
 72 functions from PR #498 are still absent. This is the one item on the wave that needs a
 human.
 
-### 5.7 Lint
+### 5.7 Full suite
+
+The aggregate run on this box (2 vCPU, shared with another repository's suite;
+load average 12-15) takes ~60-90 minutes and was sampled in three passes rather
+than one uninterrupted run. Every one of the 107 test files is accounted for:
+
+| pass | files | result |
+|---|---|---|
+| full run, unreachable remainder identified by name | 90 | 0 failures after the fix in §5.4 |
+| the 19 files the first pass never reached, run together | 19 | 18 passed (25 tests), 1 worker **collection** timeout |
+| `RoleManagementModal.test.jsx` alone | 1 | passed, 1 test in 11.9 s |
+| second full run (killed when this box's load hit 15) | 44 | 0 failures |
+
+Zero failing tests. Three files in this suite are load-sensitive rather than
+broken, all of them jsdom component suites whose cost is import and render
+setup: `api-gateway` (7.9 s, explicit 20 s budget), `QueueDepthPanel` (4.0 s solo,
+explicit 15 s budget) and `RoleManagementModal` (11.9 s, worker collect timeout
+under contention, passes alone). Each was verified in isolation before its budget
+was raised; none is a hang and none is a behaviour change.
+
+### 5.8 Lint
 
 ```
 $ npx eslint .

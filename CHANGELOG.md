@@ -44,6 +44,12 @@ relay — got a 404 with nothing behind it.
   `NOT NULL REFERENCES auth.users(id)`, so a service key or HMAC relay has no identity to
   attribute a row to. The bridge's answer was a literal `requested_by` string in a column
   that does not exist.
+- **Two more load-sensitive test timeouts given explicit budgets.**
+  `QueueDepthPanel` (4.0 s solo, five panels over a six-query `Promise.all`) and
+  `api-gateway`'s wallet test both failed Vitest's 5 s default under two workers on a
+  2 vCPU box while passing in isolation. `RoleManagementModal` hit a worker *collect*
+  timeout under the same contention and passes alone. Each was verified in isolation
+  before its budget was raised.
 - **`tests/api-gateway.test.js` no longer fails on a slow runner.** One test timed out at
   Vitest's 5 s default while costing 7.9 s, all of it the two dynamic `import()`s that pull
   the `apiProxy` module graph through esbuild inside jsdom. Explicit 20 s timeout, with the
