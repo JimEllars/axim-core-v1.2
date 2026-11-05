@@ -139,15 +139,16 @@ missing.
 
 ```
 $ npx vitest run tests/mcp-tools.test.js tests/mcp-protocol.test.js \
-      tests/mcp-session.test.js tests/mcp-supabase.test.js
+      tests/mcp-session.test.js tests/mcp-supabase.test.js tests/mcp-server.test.js
 
  ✓ tests/mcp-tools.test.js  (17 tests) 974ms
  ✓ tests/mcp-protocol.test.js  (24 tests) 81ms
  ✓ tests/mcp-session.test.js  (13 tests) 962ms
  ✓ tests/mcp-supabase.test.js  (9 tests) 399ms
+ ✓ tests/mcp-server.test.js  (13 tests) 90ms
 
- Test Files  4 passed (4)
-      Tests  63 passed (63)
+ Test Files  5 passed (5)
+      Tests  76 passed (76)
 ```
 
 Which cases prove which contract:
@@ -197,7 +198,30 @@ re-running with `--testTimeout=25000`:
 Fixed with an explicit 20 s timeout on that one test and a comment explaining the cost.
 No production code touched.
 
-### 5.5 The deploy workflow reported success and deployed nothing
+### 5.5 `messageEndpoint` pointed behind the worker at a path the worker does not route
+
+Found while re-reading the wiring. The first version appended
+`/functions/v1/mcp-message` to whichever origin it was given, which is correct only
+when the client talks to Supabase directly. With `MCP_PUBLIC_ORIGIN` set — the case the
+variable exists for — it produced `https://core.axim.us.com/functions/v1/mcp-message`,
+and `cloudflare-workers/src/index.js` routes `/message` and `/api/v1/mcp/message`, not
+`/functions/v1/*`. The worker would have fallen through to its asset handler and 404'd
+on the URL it had just handed the client.
+
+Now branches on the front door instead of substituting a hostname:
+
+| configuration | endpoint the client receives |
+|---|---|
+| no `MCP_PUBLIC_ORIGIN` | `<supabase-origin>/functions/v1/mcp-message` |
+| `MCP_PUBLIC_ORIGIN=https://core.axim.us.com` | `https://core.axim.us.com/message` |
+
+Pinned by `messageEndpoint > uses the worker route when MCP_PUBLIC_ORIGIN is set` in
+`tests/mcp-server.test.js`, which also covers `authoriseMcpCaller` — the security
+boundary had no tests before this, including the case that matters most: a partner
+`sender` that presents a bad signature **and** a valid bearer token must be refused on
+the signature, not quietly admitted on the token.
+
+### 5.6 The deploy workflow reported success and deployed nothing
 
 Found while verifying that this change would actually reach production. PR #498 merged
 earlier in the run and its `Deploy Edge Functions` workflow **succeeded** — but every
@@ -251,7 +275,7 @@ then the three MCP functions in this change are in `main` but **not** in product
 72 functions from PR #498 are still absent. This is the one item on the wave that needs a
 human.
 
-### 5.6 Lint
+### 5.7 Lint
 
 ```
 $ npx eslint .

@@ -126,14 +126,23 @@ export function sessionSecret(env: EnvLike): string | undefined {
 }
 
 /**
- * Base URL a client should use for follow-up messages.
+ * URL a client should use for follow-up messages.
  *
- * Behind the Cloudflare worker the request URL is Supabase's own origin, which a
- * browser client cannot reach with the worker's protections in front of it, so
- * `MCP_PUBLIC_ORIGIN` (e.g. `https://core.axim.us.com`) wins when set.
+ * There are two legitimate front doors and they do **not** share a path, which
+ * is why this branches instead of substituting a hostname:
+ *
+ *   - direct to Supabase: `<origin>/functions/v1/mcp-message`
+ *   - through the Cloudflare worker: `<origin>/message` — the worker's `apiRoutes`
+ *     proxies `/message`, and it does *not* route `/functions/v1/mcp-message`, so
+ *     handing a client the Supabase-shaped path behind the worker produces a URL
+ *     that 404s at the asset handler.
+ *
+ * `MCP_PUBLIC_ORIGIN` (e.g. `https://core.axim.us.com`) selects the worker form.
  */
 export function messageEndpoint(requestUrl: string, env: EnvLike): string {
   const configured = env.get("MCP_PUBLIC_ORIGIN");
-  const base = configured && configured.length > 0 ? configured.replace(/\/+$/, "") : new URL(requestUrl).origin;
-  return `${base}/functions/v1/mcp-message`;
+  if (configured && configured.length > 0) {
+    return `${configured.replace(/\/+$/, "")}/message`;
+  }
+  return `${new URL(requestUrl).origin}/functions/v1/mcp-message`;
 }

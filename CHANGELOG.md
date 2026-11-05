@@ -26,8 +26,9 @@ relay — got a 404 with nothing behind it.
 - **`_shared/mcpProtocol.ts`** (348 lines), **`_shared/mcpTools.ts`** (392),
   **`_shared/mcpSession.ts`** (203), **`_shared/mcpSupabase.ts`** (114),
   **`_shared/mcpServer.ts`** (139). Pure, dependency-injected, tested under Node.
-- **63 tests** across `tests/mcp-tools.test.js` (17), `tests/mcp-protocol.test.js` (24),
-  `tests/mcp-session.test.js` (13), `tests/mcp-supabase.test.js` (9).
+- **81 tests** across `tests/mcp-tools.test.js` (17), `tests/mcp-protocol.test.js` (24),
+  `tests/mcp-session.test.js` (13), `tests/mcp-server.test.js` (13),
+  `tests/mcp-supabase.test.js` (9), `tests/edge-deploy-workflow.test.js` (5).
 
 ### Fixed
 
@@ -77,6 +78,12 @@ relay — got a 404 with nothing behind it.
 
 ### Documentation
 
+- **`messageEndpoint` handed clients a URL the worker does not route.** It appended
+  `/functions/v1/mcp-message` to whichever origin it was given, so with
+  `MCP_PUBLIC_ORIGIN` set the client received `https://core.axim.us.com/functions/v1/mcp-message`
+  — and the worker routes `/message`, not `/functions/v1/*`. It now branches on the front
+  door: `<supabase>/functions/v1/mcp-message` direct, `<public-origin>/message` behind the
+  worker.
 - `AGENTS_VERIFICATION.d/2026-11-05-wave131-mcp-edge-surface.md` — the full appendix,
   including the migration citations for every column and the reasoning behind each
   refusal.
