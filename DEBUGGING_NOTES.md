@@ -1,3 +1,79 @@
+# 2026-11-06 — `telemetry_events` is written with columns it does not have
+
+## Symptom
+
+telemetry never lands, and `QueueDepthPanel` reports `criticalFailures: 0` on every load.
+
+## Evidence chain
+
+1. The only definition of the table in this repository is
+   `supabase/migrations/20280108000000_telemetry_performance_indices.sql:1`:
+
+   ```sql
+   CREATE TABLE IF NOT EXISTS public.telemetry_events (
+       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+       app_id TEXT,
+       event_type TEXT,
+       metadata JSONB,
+       created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+   );
+   ```
+
+   No migration adds to it — `severity` appears in exactly two other files, and neither
+   touches this table (`20271101000000_telemetry_alert_trigger.sql` reads `NEW.severity`
+   from it; `20280112000000` declares `robot_telemetry_stream.severity`, a different table).
+
+2. Every insert site writes the richer shape:
+
+   | file | columns written |
+   |---|---|
+   | `supabase/functions/telemetry-ingress/index.ts:217` | `component_id`, `environment`, `severity`, `message`, `payload`, `idempotency_key` |
+   | `supabase/functions/job-processor/index.ts:310` | `component_id`, `severity`, `message`, `error_code`, `payload` |
+   | `supabase/functions/send-email/index.ts:196,231` | `component_id`, `severity`, `message`, `payload` |
+   | `supabase/functions/communication-gateway/index.ts:71,142` | `component_id`, `severity`, `message`, `payload` |
+   | `supabase/functions/dead_letter_jobs/index.ts:67` | `component_id`, `severity`, `message`, `error_code`, `payload` |
+   | `supabase/functions/satellite-telemetry/index.ts:43` | reads it |
+
+3. PostgREST answers an insert naming an unknown column with `PGRST204`, and
+   `telemetry-ingress` only logs when `insertEventError.code !== '22P02'` — so the failure is
+   logged and the request is reported as accepted.
+
+4. `src/components/admin/QueueDepthPanel.jsx:42` filters
+   `.eq('severity', 'FATAL')`, which is the same 400. `failuresRes.count` is then `null`
+   and the panel renders `0` — a query error displayed as a healthy number, which is why
+   this has been invisible.
+
+5. `public.proc_notify_telemetry_breach()` (20271101000000) reads `NEW.severity`,
+   `NEW.component_id`, `NEW.error_code` and `NEW.message`. Its trigger creation is guarded
+   by `IF EXISTS (… pg_tables … 'telemetry_events')`, so it was skipped at migration time and
+   has never fired: `triage_actions` auto-population does not happen either.
+
+## Two possible realities, one safe fix
+
+Either the live table already carries those columns out-of-band (schema drift — the trigger
+migration implies the table existed before 20280108, otherwise its guard was pointless), or
+it does not and every telemetry write since the migration has been discarded. There is no
+credential in this workspace to read the live schema, so this review cannot settle which.
+
+The fix is identical in both cases and non-destructive — a new migration adding the columns
+the writers use:
+
+```sql
+ALTER TABLE public.telemetry_events
+  ADD COLUMN IF NOT EXISTS component_id    TEXT,
+  ADD COLUMN IF NOT EXISTS environment     TEXT,
+  ADD COLUMN IF NOT EXISTS severity        TEXT,
+  ADD COLUMN IF NOT EXISTS message         TEXT,
+  ADD COLUMN IF NOT EXISTS error_code      TEXT,
+  ADD COLUMN IF NOT EXISTS payload         JSONB,
+  ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+```
+
+A no-op where the columns exist, the unblock where they do not. Not shipped in Wave 132:
+that PR is the MCP authorisation change, and a schema decision this wide (and a decision
+about whether `payload` should have been `metadata` all along) deserves its own change and
+its own verification. Tracked in `Continued Development Plan.md` §4d.
+
 # 2026-11-05 — Three routes with no function, and a schema copied from a broken client
 
 ## Symptom: `/mcp`, `/sse` and `/message` return Supabase's 404

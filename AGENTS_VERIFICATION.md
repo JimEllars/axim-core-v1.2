@@ -1,6 +1,13 @@
 > **Appendices from 2026-11-01 onward live in `AGENTS_VERIFICATION.d/`, one file per
 > change**, so parallel branches stop conflicting on this file.
 >
+> * [`AGENTS_VERIFICATION.d/2026-11-06-wave132-mcp-authorisation.md`](AGENTS_VERIFICATION.d/2026-11-06-wave132-mcp-authorisation.md)
+>   — Wave 132: the MCP surface authenticated callers and then authorised none of them, so
+>   any verified user could stage an entry in the admin-only `hitl_audit_logs` queue through
+>   a service-key client that bypasses RLS. Per-tool policies taken from the migrations,
+>   filtering on `tools/list` and the discovery document, a fail-closed default for
+>   unpolicied tools, subject-keyed request and write quotas in a bounded store, and 44 new
+>   tests.
 > * [`AGENTS_VERIFICATION.d/2026-11-05-wave131-mcp-edge-surface.md`](AGENTS_VERIFICATION.d/2026-11-05-wave131-mcp-edge-surface.md)
 >   — Wave 131: the six MCP routes the worker already proxied to (`mcp-router`, `mcp-sse`,
 >   `mcp-message` — all 404), five tools with column contracts taken from the migrations

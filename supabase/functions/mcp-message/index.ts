@@ -21,9 +21,11 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 import { authoriseMcpCaller, buildRpcContext, sessionSecret } from '../_shared/mcpServer.ts';
+import { resolveMcpActor } from '../_shared/mcpAuthz.ts';
+import { requestQuotaRejection } from '../_shared/mcpQuota.ts';
 import { handleRpcPayload } from '../_shared/mcpProtocol.ts';
 import { SessionSecretMissingError, subjectForCaller, verifySession } from '../_shared/mcpSession.ts';
-import type { SupabaseLike } from '../_shared/mcpSupabase.ts';
+import { createDataAccess, type SupabaseLike } from '../_shared/mcpSupabase.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
@@ -78,6 +80,15 @@ serve(async (req) => {
       return json({ error: auth.reason }, auth.status);
     }
 
+    // One budget per authenticated caller, shared with the other MCP routes
+    // through the same in-isolate store. Keyed by subject, never by credential.
+    const quota = requestQuotaRejection(auth.caller);
+    if (quota) {
+      return json(quota.body, quota.status, quota.headers);
+    }
+
+    const data = createDataAccess(supabaseAdmin as unknown as SupabaseLike);
+
     const sessionId = readSessionId(req);
     if (!sessionId) {
       return json({ error: 'missing sessionId: complete the SSE handshake on /functions/v1/mcp-sse first' }, 400);
@@ -96,6 +107,9 @@ serve(async (req) => {
 
       const context = buildRpcContext({
         caller: auth.caller,
+        // Resolved here rather than before the session checks: an invalid
+        // session should not cost a `public.users` read.
+        actor: await resolveMcpActor({ caller: auth.caller, data }),
         client: supabaseAdmin as unknown as SupabaseLike,
       });
       const handled = await handleRpcPayload(rawBody, context);

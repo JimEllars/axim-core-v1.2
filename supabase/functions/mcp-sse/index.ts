@@ -29,9 +29,11 @@ import {
   messageEndpoint,
   sessionSecret,
 } from '../_shared/mcpServer.ts';
+import { resolveMcpActor } from '../_shared/mcpAuthz.ts';
+import { requestQuotaRejection } from '../_shared/mcpQuota.ts';
 import { handleRpcPayload } from '../_shared/mcpProtocol.ts';
 import { createSession, SessionSecretMissingError, subjectForCaller } from '../_shared/mcpSession.ts';
-import type { SupabaseLike } from '../_shared/mcpSupabase.ts';
+import { createDataAccess, type SupabaseLike } from '../_shared/mcpSupabase.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
@@ -43,10 +45,10 @@ const SSE_MAX_DURATION_MS = 25_000;
 /** Keepalive cadence; well inside the 60 s idle timeout most proxies apply. */
 const SSE_KEEPALIVE_MS = 5_000;
 
-const json = (payload: unknown, status = 200) =>
+const json = (payload: unknown, status = 200, extraHeaders: Record<string, string> = {}) =>
   new Response(JSON.stringify(payload), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...extraHeaders },
   });
 
 /**
@@ -124,14 +126,25 @@ serve(async (req) => {
       return json({ error: auth.reason }, auth.status);
     }
 
+    // One budget per authenticated caller, shared with the other MCP routes
+    // through the same in-isolate store. Keyed by subject, never by credential.
+    const quota = requestQuotaRejection(auth.caller);
+    if (quota) {
+      return json(quota.body, quota.status, quota.headers);
+    }
+
     if (req.method === 'DELETE') {
       // Stateless signed sessions: expiry is the revocation mechanism.
       return new Response(null, { status: 204, headers: corsHeaders });
     }
 
     if (req.method === 'POST') {
+      const data = createDataAccess(supabaseAdmin as unknown as SupabaseLike);
       const context = buildRpcContext({
         caller: auth.caller,
+        // Resolved inside the POST branch: the GET handshake and DELETE carry no
+        // tool call, so they should not cost a `public.users` read.
+        actor: await resolveMcpActor({ caller: auth.caller, data }),
         client: supabaseAdmin as unknown as SupabaseLike,
       });
       const handled = await handleRpcPayload(rawBody, context);
