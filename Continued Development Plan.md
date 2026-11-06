@@ -113,6 +113,23 @@
       `aximCore.api.createAutomation()`; verify the receiving RPC derives the owner from
       the token rather than trusting it.
 
+## 4d. Telemetry schema drift (added 2026-11-06)
+
+- [ ] **`public.telemetry_events` is written with columns it does not have.**
+      Five Edge Functions insert `component_id`, `severity`, `message`,
+      `error_code`, `payload`, `environment` and `idempotency_key`; the only
+      `CREATE TABLE` for the table (20280108000000) declares `id`, `app_id`,
+      `event_type`, `metadata`, `created_at`. PostgREST answers `PGRST204`,
+      `telemetry-ingress` logs it and reports success, and `QueueDepthPanel`
+      renders the resulting `null` count as `0` critical failures. The alert
+      trigger in 20271101000000 reads `NEW.severity` and was skipped at migration
+      time by its own `IF EXISTS` guard, so `triage_actions` auto-population has
+      never run either. Evidence, both possible live states, and the idempotent
+      `ADD COLUMN IF NOT EXISTS` fix are in `DEBUGGING_NOTES.md` (2026-11-06).
+      This is the highest-value defect found on 2026-11-06 and it needs a schema
+      decision — including whether `payload` should have been `metadata` — so it
+      is deliberately not folded into Wave 132.
+
 ## 5. Future Roadmap
 - [x] Implement a UI for visual workflow building. *(Wave 125: the builder now
       rehydrates `workflows_ax2024.definition` into React Flow and persists it
@@ -145,6 +162,7 @@
       step, not a code step: a headless physics/sim process that accepts
       `{run_id, project_id, scene_type, duration_sec, params}` and returns
       `{exit_state}`.
+
 - [ ] Schedule the drainer and the reaper from `pg_cron` (service-role bearer on
       `POST /functions/v1/robotics-sim-drainer`, plus
       `reap_stale_robot_simulation_runs(1800)` so a drainer invocation that dies
@@ -170,10 +188,28 @@
       it is a separate deployable with its own test runner; the Edge
       implementation is correct and the bridge is now redundant for these five
       tools.
-- [ ] Add rate limiting and a per-tool authorisation table to the MCP surface.
-      Wave 131 gates on *whether* a caller is authenticated, not on which tools
-      they may use: any verified user may call `axim_dispatch_task`. The bridge
-      has `rateLimit.ts`; Core does not.
+- [x] Add rate limiting and a per-tool authorisation table to the MCP surface.
+      *(Wave 132: `_shared/mcpAuthz.ts` holds a policy per tool, each citing the
+      schema rule it comes from, and `_shared/mcpQuota.ts` charges 120
+      requests/min and 20 mutating calls/min per authenticated **subject** —
+      never the credential, which is what the bridge's limiter keys on. Read
+      tools stay open to any authenticated caller; `hitl_queue_status` and
+      `axim_dispatch_task` now require `public.users.role = 'admin'`, the rule
+      `hitl_audit_logs` states for direct table access and which the service-key
+      client bypasses. A registered tool with no policy is refused rather than
+      executed, `tools/list` and the discovery document are filtered per caller,
+      and `buildRpcContext()` without an `actor` is read-only by construction.
+      The quota is per isolate and fixed-window — both stated in the module and
+      in `CHANGELOG.md`. See
+      `AGENTS_VERIFICATION.d/2026-11-06-wave132-mcp-authorisation.md`.)*
+- [ ] Make the MCP quota durable. It is an in-isolate counter, so the real
+      ceiling is `limit × live isolates`; it stops a retrying client or a model
+      looping `tools/call`, not a distributed flood. The outer layer is
+      Cloudflare rate-limiting rules on `/mcp`, `/sse` and `/message` (operator
+      action). A durable counter needs a table plus one round trip per request —
+      `consume_mcp_quota(p_key, p_limit, p_window_seconds)` returning
+      `{allowed, remaining, reset_at}` with `INSERT … ON CONFLICT DO UPDATE` would
+      do it, at the cost of a write on every request.
 - [ ] Give the MCP server `resources/list` (workflow definitions, satellite
       registry) and `prompts`. Only `tools/*` is implemented, which is a
       legitimate MCP server but a narrow one.

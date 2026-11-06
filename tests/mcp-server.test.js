@@ -19,6 +19,7 @@ import {
   messageEndpoint,
   sessionSecret,
 } from '../supabase/functions/_shared/mcpServer.ts';
+import { MemoryQuotaStore, WRITE_QUOTA } from '../supabase/functions/_shared/mcpQuota.ts';
 
 const INTERNAL_KEY = 'internal-test-key-not-a-fallback';
 const BODY = JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' });
@@ -156,24 +157,87 @@ describe('buildRpcContext', () => {
     }),
   };
 
-  it('narrows an internal caller to a null user id', async () => {
+  const admin = { kind: 'user', userId: 'u1', via: 'user_jwt' };
+  const adminActor = { kind: 'user', userId: 'u1', role: 'admin' };
+  const operatorActor = { kind: 'user', userId: 'u2', role: 'user' };
+
+  it('refuses an internal caller on an admin tool, before the tool runs', async () => {
     const ctx = buildRpcContext({ caller: { kind: 'internal', userId: null, via: 'internal_key' }, client });
     const result = await ctx.call('axim_dispatch_task', { action: 'x' });
 
-    // Refused by the tool, because hitl_audit_logs.admin_id needs a real user.
+    // The service key bypasses RLS, so "internal" must not inherit the admin
+    // rule `hitl_audit_logs` states. The tool's own admin_id check is a second
+    // line of defence and is proven separately in `tests/mcp-tools.test.js`.
     expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('requires a verified user caller');
+    expect(result.content[0].text).toContain('authorisation denied');
+    expect(result.content[0].text).toContain('requires a user identity');
+  });
+
+  it('refuses a non-admin operator on an admin tool', async () => {
+    const ctx = buildRpcContext({ caller: admin, actor: operatorActor, client });
+    const result = await ctx.call('axim_dispatch_task', { action: 'Approve wire' });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('requires role "admin"');
+  });
+
+  it('lets an admin stage a task', async () => {
+    const ctx = buildRpcContext({ caller: admin, actor: adminActor, client });
+    const result = await ctx.call('axim_dispatch_task', { action: 'Approve wire' });
+
+    expect(result.isError).toBe(false);
+  });
+
+  it('defaults an actor-less context to read-only rather than to admin', async () => {
+    // A wiring mistake must lose capability, not grant it.
+    const ctx = buildRpcContext({ caller: admin, client });
+    const result = await ctx.call('axim_dispatch_task', { action: 'x' });
+
+    expect(result.isError).toBe(true);
   });
 
   it('maps an unknown tool to a -32602 fault rather than a tool error', async () => {
-    const ctx = buildRpcContext({ caller: { kind: 'user', userId: 'u1', via: 'user_jwt' }, client });
+    const ctx = buildRpcContext({ caller: admin, client });
 
     await expect(ctx.call('not_a_tool', {})).rejects.toMatchObject({ code: -32602 });
   });
 
-  it('lists the registry unchanged', () => {
-    const ctx = buildRpcContext({ caller: { kind: 'user', userId: 'u1', via: 'user_jwt' }, client });
-    expect(ctx.list().map((tool) => tool.name)).toContain('core_health_check');
+  it('advertises the admin tools to an admin', () => {
+    const ctx = buildRpcContext({ caller: admin, actor: adminActor, client });
+    expect(ctx.list().map((tool) => tool.name)).toContain('axim_dispatch_task');
+  });
+
+  it('hides the admin tools from a non-admin', () => {
+    const ctx = buildRpcContext({ caller: admin, actor: operatorActor, client });
+    const names = ctx.list().map((tool) => tool.name);
+
+    expect(names).toContain('core_health_check');
+    expect(names).not.toContain('axim_dispatch_task');
+    expect(names).not.toContain('hitl_queue_status');
+  });
+
+  it('charges the write quota only on a mutating tool, and reports exhaustion as a tool error', async () => {
+    const store = new MemoryQuotaStore();
+    const ctx = buildRpcContext({
+      caller: admin,
+      actor: adminActor,
+      client,
+      quota: { store, now: () => NOW },
+    });
+
+    const charged = [];
+    for (let i = 0; i < WRITE_QUOTA.limit + 1; i += 1) {
+      charged.push(await ctx.call('axim_dispatch_task', { action: 'x' }));
+    }
+
+    expect(charged.slice(0, WRITE_QUOTA.limit).every((result) => result.isError === false)).toBe(true);
+    const last = charged[charged.length - 1];
+    expect(last.isError).toBe(true);
+    expect(last.content[0].text).toContain('write quota exhausted');
+
+    // A read tool is unaffected by an exhausted write budget.
+    const read = await ctx.call('core_health_check', {});
+    expect(read.isError).toBe(false);
   });
 });
 

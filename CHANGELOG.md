@@ -1,5 +1,83 @@
 # Changelog
 
+## [2026-11-06] Make the MCP surface refuse what the schema already refuses
+
+Wave 131 authenticated the MCP surface and then authorised nothing. Every tool was
+open to every verified caller — including `axim_dispatch_task`, which stages an
+entry in the human approval queue. `public.hitl_audit_logs` restricts SELECT and
+INSERT to `public.users.role = 'admin'` (20251101000000, rewritten by
+20281031000000), but the tools write through the **service role** client, and a
+service key bypasses RLS. The table's rule was never enforced because the only
+gate left in the path was the open one.
+
+There was also no limiter of any kind on the surface. The only rate limiter in the
+repository — `cloudflare-workers/mcp-bridge/src/rateLimit.ts` — keys its bucket on
+the **raw bearer token**, so its Map holds every operator's live credential and
+never evicts.
+
+### Added
+
+- **`_shared/mcpAuthz.ts`** (235 lines). A policy per tool, each citing the schema
+  fact it comes from, plus a fail-closed default: a registered tool with no policy
+  is refused, not executed, and `tests/mcp-authz.test.js` asserts the registry and
+  the policy table agree in both directions so a new tool cannot inherit "anyone
+  may call this".
+- **`_shared/mcpQuota.ts`** (219 lines). 120 requests/minute per caller and 20
+  mutating calls/minute, keyed by the authenticated **subject** (`user:<uuid>` /
+  `internal:<via>`), in a bounded store that sweeps expired windows and then drops
+  the oldest rather than growing without limit.
+
+### Changed
+
+- **Read tools stay open to every authenticated caller** — `core_health_check`,
+  `telemetry_lookup`, `axim_list_nodes` — because `ecosystem_nodes` grants read to
+  all authenticated users. **`hitl_queue_status` and `axim_dispatch_task` now
+  require `role = 'admin'`**, which is what `hitl_audit_logs` says for direct table
+  access. An internal or relay caller is refused on both even though it holds the
+  service key: it has no `public.users` row to attribute a staged approval to.
+- **`tools/list` and the `GET /mcp` discovery document are filtered per caller.**
+  A document that advertises admin tools to a non-admin is a list of what to try
+  next, not a feature list.
+- **Role resolution fails closed.** `resolveActorRole()` returns `null` for a
+  missing profile row, an unrecognised role value, or a failed query; `null`
+  satisfies no admin-scope tool. A database fault denies a write rather than
+  promoting a caller. `buildRpcContext()` with no `actor` defaults to read-only, so
+  a missed wiring step loses capability instead of granting it.
+- **All three transports charge the request quota** after authentication
+  (`mcp-router`, `mcp-sse`, `mcp-message`) and answer 429 with `Retry-After`.
+
+### Fixed
+
+- **`tests/mcp-server.test.js` proved the wrong rule.** It asserted that an
+  internal caller is refused by the *tool* (the `admin_id` attribution check). It
+  now asserts the policy gate that runs first, and keeps the attribution rule
+  where it is actually proven — `tests/mcp-tools.test.js`.
+
+### Not done, stated plainly
+
+- **The quota is per isolate.** The effective ceiling is `limit × live isolates`.
+  It stops a retrying client or a model looping `tools/call`; it is not a defence
+  against a distributed flood, which belongs in Cloudflare rate-limiting rules on
+  `/mcp`, `/sse` and `/message` and is an operator action. A durable counter needs
+  a table and a round trip per request, which is why it is a follow-up and not
+  folded in here.
+- **Counters are fixed-window**, so a caller can spend a full window either side of
+  a boundary. Documented at the top of the module rather than left to be discovered.
+- **`public.telemetry_events` does not have the columns its writers insert.** Every
+  insert site — `telemetry-ingress`, `job-processor`, `send-email`,
+  `communication-gateway`, `dead_letter_jobs` — writes `component_id`, `severity`,
+  `message`, `error_code` and `payload`, and the only `CREATE TABLE` for that table
+  (20280108000000) declares `id, app_id, event_type, metadata, created_at`. So does
+  the alert trigger in 20271101000000, which therefore never fires. Found during
+  this review; recorded in `DEBUGGING_NOTES.md` with the evidence chain because
+  fixing it needs a schema decision, not a code edit.
+
+### Tests
+
+- **44 new** (`tests/mcp-authz.test.js` 27, `tests/mcp-quota.test.js` 17) and
+  `tests/mcp-server.test.js` reworked from 13 to 18, proving the gate, the
+  fail-closed default, the filtering, the quota boundary and the 429 shape.
+
 ## [2026-11-05] Give the MCP surface an implementation, and stop copying a broken schema
 
 `cloudflare-workers/src/index.js` has proxied six routes at three Edge Functions that did

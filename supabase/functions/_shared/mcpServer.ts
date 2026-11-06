@@ -15,8 +15,16 @@
 import { classifyEdgeCaller, classifyDepsFromEnv } from "./edgeCaller.ts";
 import { RPC_ERRORS, RpcFault, type RpcContext } from "./mcpProtocol.ts";
 import type { ToolActor } from "./mcpTools.ts";
-import { callTool, listTools, UnknownToolError } from "./mcpTools.ts";
+import { callTool, listTools, toolNames, UnknownToolError } from "./mcpTools.ts";
 import { createDataAccess, type SupabaseLike } from "./mcpSupabase.ts";
+import {
+  actorFromCaller,
+  decideToolCall,
+  policyFor,
+  visibleTools,
+  type McpActor,
+} from "./mcpAuthz.ts";
+import { chargeWriteQuota, type QuotaStore } from "./mcpQuota.ts";
 
 export interface EnvLike {
   get(key: string): string | undefined;
@@ -82,29 +90,85 @@ export interface BuildContextParams {
   client: SupabaseLike;
   now?: () => number;
   probeTable?: string;
+  /**
+   * The caller plus their resolved `public.users.role`. Entrypoints build this
+   * with `resolveMcpActor` before calling here. Omitting it is safe but
+   * read-only: `actorFromCaller` defaults the role to `null`, which satisfies no
+   * admin-scope tool, so a missed wiring step loses capability rather than
+   * granting it.
+   */
+  actor?: McpActor;
+  /** Write quota overrides. `null` disables the write charge (tests only). */
+  quota?: { store?: QuotaStore; now?: () => number } | null;
 }
 
 /**
- * Assemble an `RpcContext` for one request. The tool registry is injected
- * unchanged; only the actor and the data adapter vary per call.
+ * Assemble an `RpcContext` for one request.
+ *
+ * Two rules are enforced here rather than in the tools, so a tool cannot be
+ * written without them: `list()` shows only the descriptors this actor may call,
+ * and `call()` refuses a tool the actor may not call *before* the tool runs. The
+ * registry itself is injected unchanged.
  */
 export function buildRpcContext(params: BuildContextParams): RpcContext {
   const { caller, client } = params;
   const now = params.now ?? Date.now;
+  const actor = params.actor ?? actorFromCaller(caller);
+  const quota = params.quota === null ? null : (params.quota ?? {});
+  const registered = new Set(toolNames());
   const data = createDataAccess(client, {
     probeTable: params.probeTable,
     now: () => now(),
   });
-  const actor: ToolActor = {
+  const toolActor: ToolActor = {
     kind: caller.kind,
     userId: caller.kind === "user" ? caller.userId : null,
   };
 
   return {
-    list: () => listTools(),
+    list: () => visibleTools(listTools(), actor),
     call: async (name: string, args: Record<string, unknown>) => {
+      const policy = policyFor(name);
+
+      // An unregistered name is the caller's mistake and stays -32602. A
+      // registered tool with no policy is ours, and it is refused rather than
+      // executed — the failure mode is "cannot use it", not "anyone can".
+      if (!policy && registered.has(name)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `tool "${name}" has no authorisation policy; refusing by default`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      if (policy) {
+        const decision = decideToolCall(name, actor);
+        if (!decision.ok) {
+          return { content: [{ type: "text", text: `authorisation denied: ${decision.reason}` }], isError: true };
+        }
+
+        if (policy.mutating && quota) {
+          const outcome = chargeWriteQuota(caller, quota);
+          if (!outcome.allowed) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: `write quota exhausted: ${outcome.limit} mutating calls per window; retry in ${outcome.retryAfterSeconds}s`,
+                },
+              ],
+              isError: true,
+            };
+          }
+        }
+      }
+
       try {
-        return await callTool(name, args, { actor, data, now });
+        return await callTool(name, args, { actor: toolActor, data, now });
       } catch (error) {
         // An unknown tool is a malformed request, not a failed execution. MCP
         // clients distinguish the two: -32602 means "your call was wrong",
